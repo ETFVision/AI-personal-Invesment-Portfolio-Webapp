@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import type { CookieOptions } from "@supabase/ssr";
 import { env } from "@/infrastructure/config/env";
+
+type CookieToSet = {
+  name: string;
+  value: string;
+  options: CookieOptions;
+};
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -14,7 +21,7 @@ export async function GET(request: Request) {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: CookieToSet[]) {
           cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         }
       }
@@ -24,4 +31,3 @@ export async function GET(request: Request) {
 
   return NextResponse.redirect(new URL("/portfolio", requestUrl.origin));
 }
-
