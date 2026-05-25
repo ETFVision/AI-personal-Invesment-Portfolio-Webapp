@@ -1,0 +1,44 @@
+import { signInAction, signUpAction } from "@/server/actions/authActions";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const params = await searchParams;
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-muted px-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>AI Portfolio Intelligence</CardTitle>
+          <CardDescription>Sign in to manage your ETF-first portfolio workspace.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {params.error ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {params.error}
+            </div>
+          ) : null}
+          <form action={signInAction} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" name="email" type="email" required autoComplete="email" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" name="password" type="password" required autoComplete="current-password" />
+            </div>
+            <div className="grid gap-2">
+              <Button type="submit" className="w-full">
+                Sign in
+              </Button>
+              <Button type="submit" variant="outline" className="w-full" formAction={signUpAction}>
+                Create account
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </main>
+  );
+}
