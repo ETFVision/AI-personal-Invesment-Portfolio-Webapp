@@ -1,8 +1,15 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@supabase/ssr";
+import type { CookieOptions } from "@supabase/ssr";
 import { AuthProvider, AuthUser } from "@/application/ports/providers/AuthProvider";
 import { env } from "@/infrastructure/config/env";
+
+type CookieToSet = {
+  name: string;
+  value: string;
+  options: CookieOptions;
+};
 
 async function createCookieClient() {
   const cookieStore = await cookies();
@@ -11,7 +18,7 @@ async function createCookieClient() {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: CookieToSet[]) {
         try {
           cookiesToSet.forEach(({ name, value, options }) => {
             cookieStore.set(name, value, options);
