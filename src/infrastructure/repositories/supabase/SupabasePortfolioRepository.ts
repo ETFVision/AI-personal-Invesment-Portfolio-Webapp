@@ -151,6 +151,8 @@ export class SupabasePortfolioRepository implements PortfolioRepository {
       .eq("user_id", userId)
       .eq("is_default", true)
       .eq("is_active", true)
+      .order("created_at", { ascending: true })
+      .limit(1)
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data ? mapPortfolio(data) : null;
