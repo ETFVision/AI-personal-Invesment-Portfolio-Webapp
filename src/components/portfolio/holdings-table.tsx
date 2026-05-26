@@ -1,7 +1,7 @@
 import { deleteHoldingAction } from "@/server/actions/portfolioActions";
 import { Button } from "@/components/ui/button";
 import { Holding } from "@/domain/portfolio/types";
-import { formatCurrency, formatNumber, formatPercent } from "@/lib/utils";
+import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 
 export function HoldingsTable({ holdings }: { holdings: Holding[] }) {
   const total = holdings.reduce((sum, holding) => sum + holding.quantity * (holding.averageCost ?? 0), 0);
@@ -33,8 +33,8 @@ export function HoldingsTable({ holdings }: { holdings: Holding[] }) {
               <div><span className="text-xs text-muted-foreground md:hidden">Type </span>{holding.assetType}</div>
               <div><span className="text-xs text-muted-foreground md:hidden">Account </span>{holding.accountName ?? "Default"}</div>
               <div><span className="text-xs text-muted-foreground md:hidden">Quantity </span>{formatNumber(holding.quantity)}</div>
-              <div><span className="text-xs text-muted-foreground md:hidden">Average cost </span>{formatCurrency(holding.averageCost ?? 0, holding.costCurrency)}</div>
-              <div><span className="text-xs text-muted-foreground md:hidden">Estimated value </span>{formatCurrency(value, holding.costCurrency)}</div>
+              <div><span className="text-xs text-muted-foreground md:hidden">Average cost </span>{formatCurrencyWithCode(holding.averageCost ?? 0, holding.costCurrency)}</div>
+              <div><span className="text-xs text-muted-foreground md:hidden">Estimated value </span>{formatCurrencyWithCode(value, holding.costCurrency)}</div>
               <div><span className="text-xs text-muted-foreground md:hidden">Allocation </span>{formatPercent(total === 0 ? 0 : value / total)}</div>
               <div className="flex gap-2 md:justify-end">
                 <a className="rounded-md border px-3 py-2 text-xs hover:bg-muted" href={`/holdings?edit=${holding.id}`}>
