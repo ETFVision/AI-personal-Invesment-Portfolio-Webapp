@@ -19,10 +19,11 @@ export function HoldingsTable({ holdings, valuations, productPerformance = [] }:
   }));
   const total = rows.reduce((sum, row) => sum + row.value, 0);
   const performanceByHoldingId = new Map(productPerformance.map((item) => [item.holdingId, item]));
+  const performanceLabels = ["Daily", "Weekly", "Monthly", "YTD", "Since inception"];
 
   return (
     <div className="overflow-hidden rounded-lg border">
-      <div className="hidden grid-cols-[1.2fr_0.6fr_0.65fr_0.6fr_0.7fr_0.75fr_0.9fr_auto] gap-3 bg-muted px-4 py-3 text-xs font-medium text-muted-foreground md:grid">
+      <div className="hidden grid-cols-[1.15fr_0.55fr_0.55fr_0.6fr_0.65fr_0.75fr_1.35fr_auto] gap-3 bg-muted px-4 py-3 text-xs font-medium text-muted-foreground xl:grid">
         <span>Asset</span>
         <span>Type</span>
         <span>Account</span>
@@ -40,7 +41,7 @@ export function HoldingsTable({ holdings, valuations, productPerformance = [] }:
           return (
             <div
               key={holding.id}
-              className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[1.2fr_0.6fr_0.65fr_0.6fr_0.7fr_0.75fr_0.9fr_auto]"
+              className="grid gap-3 px-4 py-4 text-sm xl:grid-cols-[1.15fr_0.55fr_0.55fr_0.6fr_0.65fr_0.75fr_1.35fr_auto]"
             >
               <div>
                 <div className="font-medium">{holding.ticker ?? holding.assetName}</div>
@@ -56,18 +57,28 @@ export function HoldingsTable({ holdings, valuations, productPerformance = [] }:
               <div><span className="text-xs text-muted-foreground md:hidden">Market value </span>{formatCurrencyWithCode(row.value, row.valueCurrency)}</div>
               <div>
                 <span className="text-xs text-muted-foreground md:hidden">Performance </span>
-                {sinceInception?.percentChange == null ? (
-                  <span className="text-muted-foreground">Needs history</span>
-                ) : (
-                  <div>
-                    <div className={sinceInception.valueChange != null && sinceInception.valueChange < 0 ? "text-destructive" : "text-emerald-600"}>
-                      {formatPercent(sinceInception.percentChange)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatCurrencyWithCode(performance?.totalGainLoss ?? 0, row.valueCurrency)}
-                    </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 xl:block">
+                  {performanceLabels.map((label) => {
+                    const metric = performance?.metrics.find((item) => item.label === label);
+                    return (
+                      <div key={label} className="flex justify-between gap-2 text-xs xl:justify-start">
+                        <span className="text-muted-foreground xl:hidden">{label === "Since inception" ? "SI" : label}</span>
+                        {metric?.percentChange == null ? (
+                          <span className="text-muted-foreground">-</span>
+                        ) : (
+                          <span className={metric.valueChange != null && metric.valueChange < 0 ? "text-destructive" : "text-emerald-600"}>
+                            {formatPercent(metric.percentChange)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {sinceInception?.percentChange != null ? (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Total {formatCurrencyWithCode(performance?.totalGainLoss ?? 0, row.valueCurrency)}
                   </div>
-                )}
+                ) : null}
                 <div className="mt-1 text-xs text-muted-foreground">Alloc {formatPercent(total === 0 ? 0 : row.value / total)}</div>
               </div>
               <div className="flex gap-2 md:justify-end">

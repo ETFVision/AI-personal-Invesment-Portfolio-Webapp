@@ -136,7 +136,7 @@ export class PerformanceService {
       .filter((transaction) => transaction.transactionType === "withdraw_cash")
       .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transactionAmount(transaction)), 0);
     const denominator = deposits > 0 ? deposits : investedAmount;
-    const valueChange = currentValue - deposits + withdrawals;
+    const valueChange = deposits > 0 ? currentValue - deposits + withdrawals : currentValue - investedAmount;
     return {
       label: "Since inception",
       valueChange,
