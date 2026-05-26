@@ -10,7 +10,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();
-  const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
+  const { portfolio, user } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
 
   return (
     <div className="space-y-6">
@@ -28,13 +28,29 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
         <CardContent>
           {params.error ? <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{params.error}</div> : null}
           {portfolio ? (
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <a className="rounded-md bg-primary px-4 py-2 text-center text-sm text-primary-foreground" href="/portfolio">
-                Go to dashboard
-              </a>
-              <a className="rounded-md border px-4 py-2 text-center text-sm" href="/cash">
-                Add cash
-              </a>
+            <div className="space-y-5">
+              <dl className="grid gap-3 rounded-lg border p-4 sm:grid-cols-3">
+                <div>
+                  <dt className="text-xs font-medium uppercase text-muted-foreground">Portfolio</dt>
+                  <dd className="mt-1 text-sm font-medium">{portfolio.name}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase text-muted-foreground">Base currency</dt>
+                  <dd className="mt-1 text-sm font-medium">{portfolio.baseCurrency}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase text-muted-foreground">Risk profile</dt>
+                  <dd className="mt-1 text-sm font-medium capitalize">{user.riskProfile ?? "Not set"}</dd>
+                </div>
+              </dl>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <a className="rounded-md bg-primary px-4 py-2 text-center text-sm text-primary-foreground" href="/portfolio">
+                  Go to dashboard
+                </a>
+                <a className="rounded-md border px-4 py-2 text-center text-sm" href="/cash">
+                  Add cash
+                </a>
+              </div>
             </div>
           ) : (
             <form action={setupPortfolioAction} className="grid gap-4 md:grid-cols-2">
@@ -65,4 +81,3 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
     </div>
   );
 }
-
