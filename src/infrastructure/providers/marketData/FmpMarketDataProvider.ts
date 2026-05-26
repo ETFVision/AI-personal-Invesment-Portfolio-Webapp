@@ -67,9 +67,13 @@ export class FmpMarketDataProvider implements MarketDataProvider {
     const apiKey = env.FMP_API_KEY;
     const uniqueSymbols = Array.from(new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean)));
     const realtimeQuotes = await this.tryGetRealtimeQuotes(uniqueSymbols, apiKey);
-    if (realtimeQuotes.length > 0) return realtimeQuotes;
+    const realtimeSymbols = new Set(realtimeQuotes.map((quote) => quote.symbol.toUpperCase()));
+    const missingSymbols = uniqueSymbols.filter((symbol) => !realtimeSymbols.has(symbol));
 
-    return this.getLatestEndOfDayPrices(uniqueSymbols, apiKey);
+    if (missingSymbols.length === 0) return realtimeQuotes;
+
+    const eodQuotes = await this.getLatestEndOfDayPrices(missingSymbols, apiKey);
+    return [...realtimeQuotes, ...eodQuotes];
   }
 
   private async tryGetRealtimeQuotes(uniqueSymbols: string[], apiKey: string) {

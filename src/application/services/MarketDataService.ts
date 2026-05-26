@@ -78,6 +78,8 @@ export class MarketDataService {
 
     try {
       const quotes = await this.provider.getLatestPrices(symbolsToFetch);
+      const returnedSymbols = new Set(quotes.map((quote) => quote.symbol.toUpperCase()));
+      const missingSymbols = symbolsToFetch.filter((symbol) => !returnedSymbols.has(symbol));
       const rows = quotes.flatMap((quote) => {
         const holding = holdingsBySymbol.get(quote.symbol.toUpperCase());
         if (!holding) return [];
@@ -93,6 +95,14 @@ export class MarketDataService {
           }
         ];
       });
+      const storedSymbols = new Set(rows.map((row) => row.symbol.toUpperCase()));
+      const unstoredSymbols = quotes
+        .map((quote) => quote.symbol.toUpperCase())
+        .filter((symbol) => holdingsBySymbol.has(symbol) && !storedSymbols.has(symbol));
+      const errors = [
+        ...missingSymbols.map((symbol) => `No price returned for ${symbol}.`),
+        ...unstoredSymbols.map((symbol) => `Price for ${symbol} could not be stored.`)
+      ];
 
       if (rows.length > 0) {
         await this.repository.upsertDailyPrices(rows);
@@ -103,8 +113,11 @@ export class MarketDataService {
         fetchedCount: quotes.length,
         skippedCount: symbols.length - symbolsToFetch.length,
         storedCount: rows.length,
-        errors: rows.length === quotes.length ? [] : ["Some symbols returned by the provider did not match current holdings."],
-        message: rows.length > 0 ? `Stored ${rows.length} latest price${rows.length === 1 ? "" : "s"}.` : "No matching prices were stored."
+        errors,
+        message:
+          rows.length > 0
+            ? `Stored ${rows.length} latest price${rows.length === 1 ? "" : "s"}.${errors.length > 0 ? ` ${errors.length} symbol${errors.length === 1 ? "" : "s"} need attention.` : ""}`
+            : `No prices were stored.${errors.length > 0 ? ` ${errors.join(" ")}` : ""}`
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Price refresh failed.";
