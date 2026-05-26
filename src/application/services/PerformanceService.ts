@@ -20,7 +20,11 @@ function startOfYearIsoDate() {
 function transactionAmount(transaction: Transaction) {
   const gross = transaction.quantity && transaction.price ? transaction.quantity * transaction.price : 0;
   if (gross !== 0) return gross;
-  return Math.abs(transaction.netAmount ?? transaction.grossAmount ?? 0);
+  return transaction.grossAmount ?? Math.abs(transaction.netAmount ?? 0);
+}
+
+function cashFlowAmount(transaction: Transaction) {
+  return Math.abs(transaction.netAmount ?? transaction.grossAmount ?? transactionAmount(transaction));
 }
 
 function buildSnapshotMetric(
@@ -118,10 +122,10 @@ export class PerformanceService {
     const periodTransactions = transactions.filter((transaction) => transaction.transactionDate > baseline.snapshotDate);
     const deposits = periodTransactions
       .filter((transaction) => transaction.transactionType === "deposit_cash")
-      .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transactionAmount(transaction)), 0);
+      .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
     const withdrawals = periodTransactions
       .filter((transaction) => transaction.transactionType === "withdraw_cash")
-      .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transactionAmount(transaction)), 0);
+      .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
     const valueChange = currentValue - baseline.totalValue - deposits + withdrawals;
     const denominator = baseline.totalValue + deposits;
     return {
@@ -140,10 +144,10 @@ export class PerformanceService {
   ): PerformanceMetric {
     const deposits = transactions
       .filter((transaction) => transaction.transactionType === "deposit_cash")
-      .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transactionAmount(transaction)), 0);
+      .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
     const withdrawals = transactions
       .filter((transaction) => transaction.transactionType === "withdraw_cash")
-      .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transactionAmount(transaction)), 0);
+      .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
     const capitalFallback = investedAmount + cashAmount;
     const denominator = deposits > 0 ? deposits : capitalFallback;
     const valueChange = deposits > 0 ? currentValue - deposits + withdrawals : currentValue - capitalFallback;
@@ -176,7 +180,7 @@ export class PerformanceService {
       .reduce((sum, transaction) => sum + transactionAmount(transaction) - transaction.fees, 0);
     const income = periodTransactions
       .filter((transaction) => transaction.transactionType === "dividend")
-      .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transactionAmount(transaction)), 0);
+      .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
     const fees = periodTransactions
       .filter((transaction) => transaction.transactionType === "fee")
       .reduce((sum, transaction) => sum + transaction.fees + transactionAmount(transaction), 0);
@@ -199,7 +203,7 @@ export class PerformanceService {
       .reduce((sum, transaction) => sum + transactionAmount(transaction) - transaction.fees, 0);
     const income = transactions
       .filter((transaction) => transaction.transactionType === "dividend")
-      .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transactionAmount(transaction)), 0);
+      .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
     const costBasisFallback = valuation.holding.quantity * (valuation.holding.averageCost ?? 0);
     const denominator = buys > 0 ? buys : costBasisFallback;
     const valueChange = valuation.value + sells + income - denominator;
@@ -226,10 +230,10 @@ export class PerformanceService {
     const periodTransactions = transactions.filter((transaction) => transaction.transactionDate > baseline.snapshotDate);
     const deposits = periodTransactions
       .filter((transaction) => transaction.transactionType === "deposit_cash")
-      .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transactionAmount(transaction)), 0);
+      .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
     const withdrawals = periodTransactions
       .filter((transaction) => transaction.transactionType === "withdraw_cash")
-      .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transactionAmount(transaction)), 0);
+      .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
     const valueChange = currentAmount - baseline.amount - deposits + withdrawals;
     const denominator = baseline.amount + deposits;
     return {
@@ -243,10 +247,10 @@ export class PerformanceService {
   private buildCashSinceInceptionMetric(currentAmount: number, transactions: Transaction[]): PerformanceMetric {
     const deposits = transactions
       .filter((transaction) => transaction.transactionType === "deposit_cash")
-      .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transactionAmount(transaction)), 0);
+      .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
     const withdrawals = transactions
       .filter((transaction) => transaction.transactionType === "withdraw_cash")
-      .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transactionAmount(transaction)), 0);
+      .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
     const valueChange = currentAmount - deposits + withdrawals;
     return {
       label: "Since inception",

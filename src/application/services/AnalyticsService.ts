@@ -22,6 +22,10 @@ type DashboardAnalyticsInput = {
   cashSnapshots: CashSnapshot[];
 };
 
+function cashFlowAmount(transaction: Transaction) {
+  return Math.abs(transaction.netAmount ?? transaction.grossAmount ?? 0);
+}
+
 function calculateRealizedGainLoss(transactions: Transaction[]) {
   const lots = new Map<string, { quantity: number; cost: number }>();
   let realizedGainLoss = 0;
@@ -105,10 +109,10 @@ export class AnalyticsService {
         }),
         netDeposits: accountTransactions
           .filter((transaction) => transaction.transactionType === "deposit_cash")
-          .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transaction.grossAmount ?? 0), 0),
+          .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0),
         netWithdrawals: accountTransactions
           .filter((transaction) => transaction.transactionType === "withdraw_cash")
-          .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transaction.grossAmount ?? 0), 0)
+          .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0)
       };
     });
 
