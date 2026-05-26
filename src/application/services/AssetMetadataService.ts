@@ -1,5 +1,6 @@
 import { AssetMetadataProvider } from "@/application/ports/providers/AssetMetadataProvider";
 import { MarketDataRepository } from "@/application/ports/repositories/MarketDataRepository";
+import { AssetType, Holding } from "@/domain/portfolio/types";
 
 export type RefreshAssetMetadataResult = {
   requestedSymbols: string[];
@@ -18,6 +19,53 @@ function uniqueSymbols(symbols: Array<string | null | undefined>) {
         .map((symbol) => symbol?.trim().toUpperCase())
         .filter((symbol): symbol is string => Boolean(symbol))
     )
+  );
+}
+
+function classifyFundMetadata(item: { symbol: string; sector: string | null; industry: string | null }, assetType: AssetType) {
+  if (assetType === "bond_etf") {
+    return {
+      sector: "Fixed Income",
+      industry: "Bond ETF"
+    };
+  }
+
+  if (assetType === "gold_etf") {
+    return {
+      sector: "Commodities",
+      industry: "Gold ETF"
+    };
+  }
+
+  if (assetType !== "etf") {
+    return {
+      sector: item.sector,
+      industry: item.industry
+    };
+  }
+
+  const symbol = item.symbol.toUpperCase();
+  const broadMarketEtfs = new Set(["VOO", "SPY", "IVV", "VTI", "VT", "VEA", "VWO", "VXUS", "ACWI", "URTH"]);
+  const sectorEtfs = new Set(["XLK", "XLF", "XLV", "XLY", "XLP", "XLE", "XLI", "XLB", "XLU", "XLRE", "XLC"]);
+
+  if (sectorEtfs.has(symbol)) {
+    return {
+      sector: item.sector ?? "Sector ETF",
+      industry: "Sector ETF"
+    };
+  }
+
+  return {
+    sector: broadMarketEtfs.has(symbol) ? "Broad Market" : "Multi-sector ETF",
+    industry: "ETF"
+  };
+}
+
+function holdingTypeBySymbol(holdings: Holding[]) {
+  return new Map(
+    holdings
+      .filter((holding) => holding.ticker)
+      .map((holding) => [holding.ticker!.toUpperCase(), holding.assetType])
   );
 }
 
@@ -49,11 +97,13 @@ export class AssetMetadataService {
       }
 
       const metadata = await this.provider.getAssetMetadata(symbols);
+      const assetTypes = holdingTypeBySymbol(holdings);
       const returnedSymbols = new Set(metadata.map((item) => item.symbol.toUpperCase()));
       const missingSymbols = symbols.filter((symbol) => !returnedSymbols.has(symbol));
 
       await this.repository.updateAssetMetadata(
         metadata.map((item) => ({
+          ...classifyFundMetadata(item, assetTypes.get(item.symbol.toUpperCase()) ?? "stock"),
           provider: this.provider.name,
           symbol: item.symbol,
           name: item.name,
@@ -61,8 +111,6 @@ export class AssetMetadataService {
           currency: item.currency,
           country: item.country,
           region: item.region,
-          sector: item.sector,
-          industry: item.industry,
           rawPayload: item.raw
         }))
       );
