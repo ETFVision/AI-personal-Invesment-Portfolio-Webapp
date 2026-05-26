@@ -169,60 +169,89 @@ export function WinnersLosersPanel({ dashboard }: { dashboard: PortfolioDashboar
 }
 
 export function PerformancePanel({ dashboard }: { dashboard: PortfolioDashboard }) {
+  const shortTermMetrics = dashboard.performance.filter(
+    (item) => item.label === "Daily" || item.label === "Weekly" || item.label === "Monthly"
+  );
   return (
     <div className="space-y-6">
-      <PerformanceBarChart metrics={dashboard.performance} />
-      <MetricGrid metrics={dashboard.performance} currency={dashboard.portfolio.baseCurrency} />
+      <PerformanceLineChart metrics={dashboard.performance} currency={dashboard.portfolio.baseCurrency} />
+      <MetricGrid metrics={shortTermMetrics} currency={dashboard.portfolio.baseCurrency} />
     </div>
   );
 }
 
-export function PerformanceBarChart({ metrics }: { metrics: PerformanceMetric[] }) {
+export function PerformanceLineChart({ metrics, currency }: { metrics: PerformanceMetric[]; currency: string }) {
   const chartMetrics = metrics.filter((item) => item.label === "1Y" || item.label === "YTD" || item.label === "Since inception");
   const available = chartMetrics.filter((item) => item.percentChange != null);
 
   if (available.length === 0) {
     return (
       <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-        1Y, YTD, and since-inception bars will appear once snapshot and transaction history is available.
+        The 1Y, YTD, and since-inception line chart will appear once snapshot and transaction history is available.
       </div>
     );
   }
 
-  const maxAbsPercent = Math.max(...available.map((item) => Math.abs(item.percentChange ?? 0)), 0.01);
+  const points = chartMetrics.map((item, index) => ({
+    metric: item,
+    x: chartMetrics.length === 1 ? 50 : (index / (chartMetrics.length - 1)) * 100,
+    y: item.percentChange == null ? null : item.percentChange
+  }));
+  const values = available.map((item) => item.percentChange ?? 0);
+  const minValue = Math.min(...values, 0);
+  const maxValue = Math.max(...values, 0);
+  const range = Math.max(maxValue - minValue, 0.01);
+  const plottedPoints = points
+    .filter((point): point is typeof point & { y: number } => point.y != null)
+    .map((point) => ({
+      ...point,
+      yPos: 88 - ((point.y - minValue) / range) * 76
+    }));
+  const polyline = plottedPoints.map((point) => `${point.x},${point.yPos}`).join(" ");
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium">Performance bars</span>
+        <span className="font-medium">Longer-term performance</span>
         <span className="text-muted-foreground">Flow-adjusted return</span>
       </div>
-      <div className="grid gap-3 md:grid-cols-3">
-        {chartMetrics.map((item) => {
-          const percent = item.percentChange;
-          const height = percent == null ? 0 : Math.max(Math.abs(percent) / maxAbsPercent, 0.06) * 128;
-          const isNegative = (percent ?? 0) < 0;
-          return (
-            <div key={item.label} className="rounded-md border p-4">
-              <div className="flex h-40 items-end justify-center rounded-md bg-muted/40 px-4 py-3">
-                {percent == null ? (
-                  <span className="text-xs text-muted-foreground">Needs history</span>
-                ) : (
-                  <div
-                    className={isNegative ? "w-12 rounded-t-md bg-destructive" : "w-12 rounded-t-md bg-emerald-600"}
-                    style={{ height: `${height}px` }}
-                  />
-                )}
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-                <span className="font-medium">{item.label}</span>
-                <span className={isNegative ? "text-destructive" : percent == null ? "text-muted-foreground" : "text-emerald-600"}>
-                  {percent == null ? "-" : formatPercent(percent)}
-                </span>
-              </div>
+      <div className="rounded-md border p-4">
+        <svg viewBox="0 0 100 100" role="img" aria-label="1Y, YTD, and since-inception returns line chart" className="h-56 w-full">
+          <line x1="0" y1="88" x2="100" y2="88" className="stroke-muted" strokeWidth="0.7" />
+          <line x1="0" y1="12" x2="100" y2="12" className="stroke-muted" strokeWidth="0.4" strokeDasharray="2 2" />
+          <line
+            x1="0"
+            y1={88 - ((0 - minValue) / range) * 76}
+            x2="100"
+            y2={88 - ((0 - minValue) / range) * 76}
+            className="stroke-muted-foreground"
+            strokeWidth="0.5"
+            strokeDasharray="2 2"
+          />
+          {polyline ? <polyline points={polyline} fill="none" className="stroke-primary" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /> : null}
+          {plottedPoints.map((point) => (
+            <g key={point.metric.label}>
+              <circle cx={point.x} cy={point.yPos} r="2.4" className="fill-primary" />
+              <text x={point.x} y="97" textAnchor="middle" className="fill-muted-foreground text-[4px]">
+                {point.metric.baselineDate ? point.metric.baselineDate.slice(0, 7) : point.metric.label}
+              </text>
+            </g>
+          ))}
+        </svg>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {chartMetrics.map((item) => (
+            <div key={item.label} className="rounded-md bg-muted/50 p-3">
+              <div className="text-sm font-medium">{item.label}</div>
+              {item.percentChange == null || item.valueChange == null ? (
+                <div className="mt-1 text-sm text-muted-foreground">Needs history</div>
+              ) : (
+                <div className={item.valueChange < 0 ? "mt-1 text-sm text-destructive" : "mt-1 text-sm text-emerald-600"}>
+                  {formatPercent(item.percentChange)} · {formatCurrencyWithCode(item.valueChange, currency)}
+                </div>
+              )}
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -230,7 +259,7 @@ export function PerformanceBarChart({ metrics }: { metrics: PerformanceMetric[] 
 
 export function MetricGrid({ metrics, currency }: { metrics: PerformanceMetric[]; currency: string }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {metrics.map((item) => (
         <div key={item.label} className="rounded-md border p-3">
           <div className="text-sm font-medium">{item.label}</div>
