@@ -192,22 +192,10 @@ export function PerformanceLineChart({ metrics, currency }: { metrics: Performan
     );
   }
 
-  const points = chartMetrics.map((item, index) => ({
-    metric: item,
-    x: chartMetrics.length === 1 ? 50 : (index / (chartMetrics.length - 1)) * 100,
-    y: item.percentChange == null ? null : item.percentChange
-  }));
   const values = available.map((item) => item.percentChange ?? 0);
   const minValue = Math.min(...values, 0);
   const maxValue = Math.max(...values, 0);
   const range = Math.max(maxValue - minValue, 0.01);
-  const plottedPoints = points
-    .filter((point): point is typeof point & { y: number } => point.y != null)
-    .map((point) => ({
-      ...point,
-      yPos: 88 - ((point.y - minValue) / range) * 76
-    }));
-  const polyline = plottedPoints.map((point) => `${point.x},${point.yPos}`).join(" ");
 
   return (
     <div className="space-y-3">
@@ -215,43 +203,73 @@ export function PerformanceLineChart({ metrics, currency }: { metrics: Performan
         <span className="font-medium">Longer-term performance</span>
         <span className="text-muted-foreground">Flow-adjusted return</span>
       </div>
-      <div className="rounded-md border p-4">
-        <svg viewBox="0 0 100 100" role="img" aria-label="1Y, YTD, and since-inception returns line chart" className="h-56 w-full">
-          <line x1="0" y1="88" x2="100" y2="88" className="stroke-muted" strokeWidth="0.7" />
-          <line x1="0" y1="12" x2="100" y2="12" className="stroke-muted" strokeWidth="0.4" strokeDasharray="2 2" />
-          <line
-            x1="0"
-            y1={88 - ((0 - minValue) / range) * 76}
-            x2="100"
-            y2={88 - ((0 - minValue) / range) * 76}
-            className="stroke-muted-foreground"
-            strokeWidth="0.5"
-            strokeDasharray="2 2"
-          />
-          {polyline ? <polyline points={polyline} fill="none" className="stroke-primary" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /> : null}
-          {plottedPoints.map((point) => (
-            <g key={point.metric.label}>
-              <circle cx={point.x} cy={point.yPos} r="2.4" className="fill-primary" />
-              <text x={point.x} y="97" textAnchor="middle" className="fill-muted-foreground text-[4px]">
-                {point.metric.baselineDate ? point.metric.baselineDate.slice(0, 7) : point.metric.label}
-              </text>
-            </g>
-          ))}
-        </svg>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          {chartMetrics.map((item) => (
-            <div key={item.label} className="rounded-md bg-muted/50 p-3">
-              <div className="text-sm font-medium">{item.label}</div>
-              {item.percentChange == null || item.valueChange == null ? (
-                <div className="mt-1 text-sm text-muted-foreground">Needs history</div>
-              ) : (
-                <div className={item.valueChange < 0 ? "mt-1 text-sm text-destructive" : "mt-1 text-sm text-emerald-600"}>
-                  {formatPercent(item.percentChange)} · {formatCurrencyWithCode(item.valueChange, currency)}
-                </div>
-              )}
-            </div>
-          ))}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {chartMetrics.map((item) => (
+          <PeriodPerformanceChart key={item.label} metric={item} currency={currency} minValue={minValue} range={range} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PeriodPerformanceChart({
+  metric,
+  currency,
+  minValue,
+  range
+}: {
+  metric: PerformanceMetric;
+  currency: string;
+  minValue: number;
+  range: number;
+}) {
+  const hasValue = metric.percentChange != null && metric.valueChange != null;
+  const endY = hasValue ? 88 - (((metric.percentChange ?? 0) - minValue) / range) * 76 : 88;
+  const startLabel = metric.baselineDate ? metric.baselineDate.slice(0, 7) : "Start";
+  const endLabel = "Now";
+
+  return (
+    <div className="rounded-md border p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="text-sm font-medium">{metric.label}</div>
+        <div className={hasValue && metric.valueChange! < 0 ? "text-sm text-destructive" : hasValue ? "text-sm text-emerald-600" : "text-sm text-muted-foreground"}>
+          {hasValue ? formatPercent(metric.percentChange!) : "Needs history"}
         </div>
+      </div>
+      <svg viewBox="0 0 100 100" role="img" aria-label={`${metric.label} returns line chart`} className="h-44 w-full">
+        <line x1="0" y1="88" x2="100" y2="88" className="stroke-muted" strokeWidth="0.7" />
+        <line x1="0" y1="12" x2="100" y2="12" className="stroke-muted" strokeWidth="0.4" strokeDasharray="2 2" />
+        <line
+          x1="0"
+          y1={88 - ((0 - minValue) / range) * 76}
+          x2="100"
+          y2={88 - ((0 - minValue) / range) * 76}
+          className="stroke-muted-foreground"
+          strokeWidth="0.5"
+          strokeDasharray="2 2"
+        />
+        {hasValue ? (
+          <>
+            <polyline points={`0,88 100,${endY}`} fill="none" className="stroke-primary" strokeWidth="1.8" strokeLinecap="round" />
+            <circle cx="0" cy="88" r="2.2" className="fill-primary" />
+            <circle cx="100" cy={endY} r="2.2" className="fill-primary" />
+          </>
+        ) : (
+          <text x="50" y="50" textAnchor="middle" className="fill-muted-foreground text-[5px]">
+            Needs monthly history
+          </text>
+        )}
+        <text x="0" y="97" textAnchor="start" className="fill-muted-foreground text-[4px]">{startLabel}</text>
+        <text x="100" y="97" textAnchor="end" className="fill-muted-foreground text-[4px]">{endLabel}</text>
+      </svg>
+      <div className="mt-3 rounded-md bg-muted/50 p-3 text-sm">
+        {hasValue ? (
+          <div className={metric.valueChange! < 0 ? "text-destructive" : "text-emerald-600"}>
+            {formatCurrencyWithCode(metric.valueChange!, currency)}
+          </div>
+        ) : (
+          <div className="text-muted-foreground">Snapshot history required</div>
+        )}
       </div>
     </div>
   );
