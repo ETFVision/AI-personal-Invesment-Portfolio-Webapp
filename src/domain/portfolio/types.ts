@@ -96,7 +96,7 @@ export type AllocationItem = {
 };
 
 export type PerformanceMetric = {
-  label: "Daily" | "Weekly" | "Monthly" | "YTD" | "Since inception";
+  label: "Daily" | "Weekly" | "Monthly" | "1Y" | "YTD" | "Since inception";
   valueChange: number | null;
   percentChange: number | null;
   baselineDate: string | null;

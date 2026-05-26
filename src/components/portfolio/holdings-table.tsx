@@ -19,7 +19,7 @@ export function HoldingsTable({ holdings, valuations, productPerformance = [] }:
   }));
   const total = rows.reduce((sum, row) => sum + row.value, 0);
   const performanceByHoldingId = new Map(productPerformance.map((item) => [item.holdingId, item]));
-  const performanceLabels = ["Daily", "Weekly", "Monthly", "YTD", "Since inception"];
+  const performanceLabels = ["Daily", "Weekly", "Monthly", "1Y", "YTD", "Since inception"];
 
   return (
     <div className="overflow-hidden rounded-lg border">

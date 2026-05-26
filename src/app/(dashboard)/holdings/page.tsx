@@ -92,7 +92,7 @@ export default async function HoldingsPage({ searchParams }: { searchParams: Pro
       <Card>
         <CardHeader>
           <CardTitle>Holdings table</CardTitle>
-          <CardDescription>Current positions with daily, weekly, monthly, YTD, and since-inception performance.</CardDescription>
+          <CardDescription>Current positions with daily, weekly, monthly, 1Y, YTD, and since-inception performance.</CardDescription>
         </CardHeader>
         <CardContent>
           {holdings.length === 0 ? (

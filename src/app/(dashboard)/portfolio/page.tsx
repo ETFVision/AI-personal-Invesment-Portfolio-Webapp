@@ -154,7 +154,7 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
       <Card>
         <CardHeader>
           <CardTitle>Performance</CardTitle>
-          <CardDescription>Daily, weekly, and monthly movement from stored portfolio snapshots.</CardDescription>
+          <CardDescription>Daily, weekly, monthly, 1Y, YTD, and since-inception movement from stored portfolio snapshots.</CardDescription>
         </CardHeader>
         <CardContent>
           <PerformancePanel dashboard={dashboard} />

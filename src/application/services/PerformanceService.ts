@@ -63,6 +63,7 @@ export class PerformanceService {
       this.buildPortfolioFlowAdjustedMetric("Daily", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(1)),
       this.buildPortfolioFlowAdjustedMetric("Weekly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(7)),
       this.buildPortfolioFlowAdjustedMetric("Monthly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(30)),
+      this.buildPortfolioFlowAdjustedMetric("1Y", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(365)),
       this.buildPortfolioFlowAdjustedMetric("YTD", input.currentValue, input.snapshots, input.transactions, startOfYearIsoDate()),
       this.buildPortfolioSinceInceptionMetric(input.currentValue, input.investedAmount, input.cashAmount, input.transactions)
     ];
@@ -79,6 +80,7 @@ export class PerformanceService {
       this.buildAssetFlowAdjustedMetric("Daily", input.valuation.value, assetSnapshots, assetTransactions, isoDateDaysAgo(1)),
       this.buildAssetFlowAdjustedMetric("Weekly", input.valuation.value, assetSnapshots, assetTransactions, isoDateDaysAgo(7)),
       this.buildAssetFlowAdjustedMetric("Monthly", input.valuation.value, assetSnapshots, assetTransactions, isoDateDaysAgo(30)),
+      this.buildAssetFlowAdjustedMetric("1Y", input.valuation.value, assetSnapshots, assetTransactions, isoDateDaysAgo(365)),
       this.buildAssetFlowAdjustedMetric("YTD", input.valuation.value, assetSnapshots, assetTransactions, startOfYearIsoDate()),
       this.buildAssetSinceInceptionMetric(input.valuation, assetTransactions)
     ];
@@ -95,6 +97,7 @@ export class PerformanceService {
       this.buildCashFlowAdjustedMetric("Daily", input.currentAmount, cashSnapshots, input.transactions, isoDateDaysAgo(1)),
       this.buildCashFlowAdjustedMetric("Weekly", input.currentAmount, cashSnapshots, input.transactions, isoDateDaysAgo(7)),
       this.buildCashFlowAdjustedMetric("Monthly", input.currentAmount, cashSnapshots, input.transactions, isoDateDaysAgo(30)),
+      this.buildCashFlowAdjustedMetric("1Y", input.currentAmount, cashSnapshots, input.transactions, isoDateDaysAgo(365)),
       this.buildCashFlowAdjustedMetric("YTD", input.currentAmount, cashSnapshots, input.transactions, startOfYearIsoDate()),
       this.buildCashSinceInceptionMetric(input.currentAmount, input.transactions)
     ];

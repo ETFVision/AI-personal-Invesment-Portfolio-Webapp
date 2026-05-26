@@ -102,7 +102,7 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
         <Card>
           <CardHeader>
             <CardTitle>Cash performance</CardTitle>
-            <CardDescription>Flow-adjusted cash movement by account after deposits and withdrawals.</CardDescription>
+            <CardDescription>Flow-adjusted daily, weekly, monthly, 1Y, YTD, and since-inception cash movement by account.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             {cashBalances.length === 0 ? (
