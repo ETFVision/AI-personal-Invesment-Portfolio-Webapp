@@ -30,3 +30,17 @@ export function formatPercent(value: number) {
     maximumFractionDigits: 2
   }).format(value);
 }
+
+export function formatAssetTypeLabel(value: string) {
+  const labels: Record<string, string> = {
+    stock: "Stock",
+    etf: "ETF",
+    bond_etf: "Bond ETF",
+    gold_etf: "Gold ETF",
+    crypto: "Crypto",
+    cash: "Cash",
+    other: "Other"
+  };
+
+  return labels[value] ?? value.replace("_", " ");
+}

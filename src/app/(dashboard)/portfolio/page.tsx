@@ -3,7 +3,7 @@ import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { HoldingsTable } from "@/components/portfolio/holdings-table";
-import { formatCurrency, formatPercent } from "@/lib/utils";
+import { formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { refreshPricesAction } from "@/server/actions/portfolioActions";
 
@@ -126,7 +126,7 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
             dashboard.allocationByType.map((item) => (
               <div key={item.label}>
                 <div className="mb-1 flex justify-between text-sm">
-                  <span className="capitalize">{item.label.replace("_", " ")}</span>
+                  <span>{formatAssetTypeLabel(item.label)}</span>
                   <span>{formatPercent(item.percent)}</span>
                 </div>
                 <div className="h-2 rounded-full bg-muted">

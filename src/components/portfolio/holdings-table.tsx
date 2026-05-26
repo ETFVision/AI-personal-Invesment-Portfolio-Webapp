@@ -1,7 +1,7 @@
 import { deleteHoldingAction } from "@/server/actions/portfolioActions";
 import { Button } from "@/components/ui/button";
 import { Holding, HoldingValuation } from "@/domain/portfolio/types";
-import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
+import { formatAssetTypeLabel, formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 
 type HoldingsTableProps =
   | { holdings: Holding[]; valuations?: never }
@@ -46,7 +46,7 @@ export function HoldingsTable({ holdings, valuations }: HoldingsTableProps) {
                   {row.valuationSource === "market_price" && row.priceDate ? ` | priced ${row.priceDate}` : ""}
                 </div>
               </div>
-              <div><span className="text-xs text-muted-foreground md:hidden">Type </span>{holding.assetType}</div>
+              <div><span className="text-xs text-muted-foreground md:hidden">Type </span>{formatAssetTypeLabel(holding.assetType)}</div>
               <div><span className="text-xs text-muted-foreground md:hidden">Account </span>{holding.accountName ?? "Default"}</div>
               <div><span className="text-xs text-muted-foreground md:hidden">Quantity </span>{formatNumber(holding.quantity)}</div>
               <div><span className="text-xs text-muted-foreground md:hidden">Unit value </span>{formatCurrencyWithCode(row.unitPrice ?? 0, row.valueCurrency)}</div>
