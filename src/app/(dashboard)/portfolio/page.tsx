@@ -2,12 +2,10 @@ import Link from "next/link";
 import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { HoldingsTable } from "@/components/portfolio/holdings-table";
 import {
   AllocationDonutPanel,
   AllocationPanel,
   CashInvestedPanel,
-  CompositionTable,
   CurrencyExposurePanel,
   PerformancePanel,
   WinnersLosersPanel
@@ -226,29 +224,6 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </Card>
       </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Portfolio composition</CardTitle>
-          <CardDescription>Current holdings with asset class, sector, geography, and value.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CompositionTable dashboard={dashboard} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Top holdings</CardTitle>
-          <CardDescription>Manual holdings table with edit and delete actions.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {dashboard.holdings.length === 0 ? (
-            <EmptyState title="No holdings" description="Add holdings manually to start tracking your portfolio." />
-          ) : (
-            <HoldingsTable valuations={dashboard.holdingValuations.slice(0, 8)} />
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
