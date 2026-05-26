@@ -107,13 +107,14 @@ export class MarketDataService {
         message: rows.length > 0 ? `Stored ${rows.length} latest price${rows.length === 1 ? "" : "s"}.` : "No matching prices were stored."
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Price refresh failed.";
       return {
         requestedSymbols: symbols,
         fetchedCount: 0,
         skippedCount: symbols.length - symbolsToFetch.length,
         storedCount: 0,
-        errors: [error instanceof Error ? error.message : "Price refresh failed."],
-        message: "Price refresh failed."
+        errors: [errorMessage],
+        message: `Price refresh failed: ${errorMessage}`
       };
     }
   }

@@ -6,7 +6,14 @@ type FmpQuoteShort = {
   price?: number;
 };
 
-const FMP_BASE_URL = "https://financialmodelingprep.com/api/v3";
+type FmpEodLight = {
+  symbol?: string;
+  date?: string;
+  price?: number;
+  volume?: number;
+};
+
+const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
 const FMP_BATCH_SIZE = 25;
 
 function todayIsoDate() {
@@ -21,18 +28,31 @@ export class FmpMarketDataProvider implements MarketDataProvider {
       throw new Error("FMP_API_KEY is not configured.");
     }
 
+    const apiKey = env.FMP_API_KEY;
     const uniqueSymbols = Array.from(new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean)));
+    const realtimeQuotes = await this.tryGetRealtimeQuotes(uniqueSymbols, apiKey);
+    if (realtimeQuotes.length > 0) return realtimeQuotes;
+
+    return this.getLatestEndOfDayPrices(uniqueSymbols, apiKey);
+  }
+
+  private async tryGetRealtimeQuotes(uniqueSymbols: string[], apiKey: string) {
     const quotes: MarketPriceQuote[] = [];
 
     for (let index = 0; index < uniqueSymbols.length; index += FMP_BATCH_SIZE) {
       const batch = uniqueSymbols.slice(index, index + FMP_BATCH_SIZE);
-      const url = new URL(`${FMP_BASE_URL}/quote-short/${batch.join(",")}`);
-      url.searchParams.set("apikey", env.FMP_API_KEY);
+      const url = new URL(`${FMP_BASE_URL}/batch-quote-short`);
+      url.searchParams.set("symbols", batch.join(","));
+      url.searchParams.set("apikey", apiKey);
 
       const response = await fetch(url, {
         next: { revalidate: 0 },
         signal: AbortSignal.timeout(10_000)
       });
+
+      if (response.status === 402 || response.status === 403) {
+        return [];
+      }
 
       if (!response.ok) {
         throw new Error(`FMP request failed with status ${response.status}.`);
@@ -53,6 +73,43 @@ export class FmpMarketDataProvider implements MarketDataProvider {
           raw: item
         });
       }
+    }
+
+    return quotes;
+  }
+
+  private async getLatestEndOfDayPrices(uniqueSymbols: string[], apiKey: string) {
+    const quotes: MarketPriceQuote[] = [];
+
+    for (const symbol of uniqueSymbols) {
+      const url = new URL(`${FMP_BASE_URL}/historical-price-eod/light`);
+      url.searchParams.set("symbol", symbol);
+      url.searchParams.set("apikey", apiKey);
+
+      const response = await fetch(url, {
+        next: { revalidate: 0 },
+        signal: AbortSignal.timeout(10_000)
+      });
+
+      if (!response.ok) {
+        throw new Error(`FMP EOD request for ${symbol} failed with status ${response.status}.`);
+      }
+
+      const payload = (await response.json()) as FmpEodLight[] | { "Error Message"?: string };
+      if (!Array.isArray(payload)) {
+        throw new Error(payload["Error Message"] ?? `FMP returned an unexpected EOD response for ${symbol}.`);
+      }
+
+      const latest = payload.find((item) => typeof item.price === "number" && Number.isFinite(item.price));
+      if (!latest?.date || typeof latest.price !== "number") continue;
+
+      quotes.push({
+        symbol,
+        price: latest.price,
+        currency: null,
+        asOfDate: latest.date,
+        raw: latest
+      });
     }
 
     return quotes;
