@@ -55,9 +55,11 @@ export default async function PortfolioPage() {
         <Card>
           <CardHeader>
             <CardTitle>Holdings</CardTitle>
-            <CardDescription>Current manual positions.</CardDescription>
+            <CardDescription>{dashboard.holdings.length} current manual positions.</CardDescription>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{dashboard.holdings.length}</CardContent>
+          <CardContent className="text-2xl font-semibold">
+            {formatCurrency(dashboard.totalHoldingsCost, portfolio.baseCurrency)}
+          </CardContent>
         </Card>
       </section>
 
