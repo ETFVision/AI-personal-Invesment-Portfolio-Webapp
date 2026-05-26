@@ -21,6 +21,11 @@ export default async function PortfolioPage() {
   }
 
   const dashboard = await container.portfolioService.getDashboard(portfolio.id);
+  const cashCurrencies = new Set(dashboard.cashBalances.map((cash) => cash.currency));
+  const holdingCurrencies = new Set(dashboard.holdings.map((holding) => holding.costCurrency));
+  const allCurrencies = new Set([...cashCurrencies, ...holdingCurrencies]);
+  const hasMixedOrNonBaseCurrency = allCurrencies.size > 1 || (allCurrencies.size === 1 && !allCurrencies.has(portfolio.baseCurrency));
+  const displayCurrency = hasMixedOrNonBaseCurrency ? undefined : portfolio.baseCurrency;
 
   return (
     <div className="space-y-6">
@@ -39,10 +44,14 @@ export default async function PortfolioPage() {
         <Card>
           <CardHeader>
             <CardTitle>Total estimate</CardTitle>
-            <CardDescription>Cash plus holding cost basis until price feeds are added.</CardDescription>
+            <CardDescription>
+              {hasMixedOrNonBaseCurrency
+                ? "Native-currency sum shown until FX conversion is added."
+                : "Cash plus holding cost basis until price feeds are added."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">
-            {formatCurrency(dashboard.totalValueEstimate, portfolio.baseCurrency)}
+            {displayCurrency ? formatCurrency(dashboard.totalValueEstimate, displayCurrency) : dashboard.totalValueEstimate.toLocaleString("en-US")}
           </CardContent>
         </Card>
         <Card>
@@ -50,7 +59,9 @@ export default async function PortfolioPage() {
             <CardTitle>Cash</CardTitle>
             <CardDescription>Available balances entered manually.</CardDescription>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{formatCurrency(dashboard.totalCash, portfolio.baseCurrency)}</CardContent>
+          <CardContent className="text-2xl font-semibold">
+            {displayCurrency ? formatCurrency(dashboard.totalCash, displayCurrency) : dashboard.totalCash.toLocaleString("en-US")}
+          </CardContent>
         </Card>
         <Card>
           <CardHeader>
@@ -58,10 +69,19 @@ export default async function PortfolioPage() {
             <CardDescription>{dashboard.holdings.length} current manual positions.</CardDescription>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">
-            {formatCurrency(dashboard.totalHoldingsCost, portfolio.baseCurrency)}
+            {displayCurrency ? formatCurrency(dashboard.totalHoldingsCost, displayCurrency) : dashboard.totalHoldingsCost.toLocaleString("en-US")}
           </CardContent>
         </Card>
       </section>
+
+      {hasMixedOrNonBaseCurrency ? (
+        <Card>
+          <CardContent className="p-4 text-sm text-muted-foreground">
+            Portfolio base currency is {portfolio.baseCurrency}, but your current cash/holding entries use{" "}
+            {Array.from(allCurrencies).join(", ")}. Phase 2 MVP preserves native currencies and does not convert FX yet, so totals are shown as unconverted estimates.
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card id="allocation">
         <CardHeader>

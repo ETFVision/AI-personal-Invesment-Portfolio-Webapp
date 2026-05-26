@@ -40,10 +40,7 @@ export class PortfolioService {
     ]);
 
     const totalCash = cashBalances.reduce((sum, item) => sum + Number(item.amount), 0);
-    const totalHoldingsCost = holdings.reduce(
-      (sum, item) => sum + Number(item.quantity) * Number(item.averageCost ?? 0),
-      0
-    );
+    const totalHoldingsCost = holdings.reduce((sum, item) => sum + Number(item.quantity) * Number(item.averageCost ?? 0), 0);
     const totalValueEstimate = totalCash + totalHoldingsCost;
     const byType = new Map<string, number>();
 
