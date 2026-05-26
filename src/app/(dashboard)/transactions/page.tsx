@@ -42,6 +42,8 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                 <option value="sell">Sell</option>
                 <option value="deposit_cash">Deposit cash</option>
                 <option value="withdraw_cash">Withdraw cash</option>
+                <option value="interest_cash">Interest cash</option>
+                <option value="dividend">Dividend</option>
                 <option value="fee">Fee</option>
                 <option value="manual_adjustment">Manual adjustment</option>
               </Select>
@@ -71,7 +73,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
               <Input id="quantity" name="quantity" type="number" step="0.000001" defaultValue={editing?.quantity ?? ""} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="price">Price</Label>
+              <Label htmlFor="price">Price / cash amount</Label>
               <Input id="price" name="price" type="number" step="0.0001" defaultValue={editing?.price ?? ""} />
             </div>
             <div className="space-y-2">

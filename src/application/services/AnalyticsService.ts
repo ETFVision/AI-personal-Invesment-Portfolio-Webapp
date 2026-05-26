@@ -1,10 +1,13 @@
 import { AllocationService } from "@/application/services/AllocationService";
 import { PerformanceService } from "@/application/services/PerformanceService";
 import {
+  AssetSnapshot,
   CashBalance,
+  CashPerformance,
+  CashSnapshot,
   Holding,
   HoldingValuation,
-  PerformanceMetric,
+  ProductPerformance,
   PortfolioSnapshot,
   Transaction
 } from "@/domain/portfolio/types";
@@ -15,6 +18,8 @@ type DashboardAnalyticsInput = {
   holdingValuations: HoldingValuation[];
   transactions: Transaction[];
   snapshots: PortfolioSnapshot[];
+  assetSnapshots: AssetSnapshot[];
+  cashSnapshots: CashSnapshot[];
 };
 
 function calculateRealizedGainLoss(transactions: Transaction[]) {
@@ -64,6 +69,48 @@ export class AnalyticsService {
     const unrealizedGainLoss = totalHoldingsMarketValue - investedAmount;
     const unrealizedGainLossPercent = investedAmount === 0 ? 0 : unrealizedGainLoss / investedAmount;
     const realizedGainLoss = calculateRealizedGainLoss(input.transactions);
+    const productPerformance: ProductPerformance[] = input.holdingValuations.map((valuation) => {
+      const productTransactions = input.transactions.filter((transaction) => transaction.assetId === valuation.holding.assetId);
+      const realized = calculateRealizedGainLoss(productTransactions);
+      const costBasis = valuation.holding.quantity * (valuation.holding.averageCost ?? 0);
+      const unrealized = valuation.value - costBasis;
+      return {
+        holdingId: valuation.holding.id,
+        assetId: valuation.holding.assetId,
+        metrics: this.performanceService.calculateProductPerformance({
+          valuation,
+          snapshots: input.assetSnapshots,
+          transactions: input.transactions
+        }),
+        realizedGainLoss: realized,
+        unrealizedGainLoss: unrealized,
+        totalGainLoss: realized + unrealized
+      };
+    });
+    const cashPerformance: CashPerformance[] = input.cashBalances.map((cash) => {
+      const accountTransactions = input.transactions.filter((transaction) => {
+        return (
+          (transaction.transactionType === "deposit_cash" || transaction.transactionType === "withdraw_cash") &&
+          transaction.currency === cash.currency &&
+          (transaction.accountName ?? "Default") === (cash.accountName ?? "Default")
+        );
+      });
+      return {
+        cashBalanceId: cash.id,
+        metrics: this.performanceService.calculateCashPerformance({
+          cashBalanceId: cash.id,
+          currentAmount: cash.amount,
+          snapshots: input.cashSnapshots,
+          transactions: accountTransactions
+        }),
+        netDeposits: accountTransactions
+          .filter((transaction) => transaction.transactionType === "deposit_cash")
+          .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transaction.grossAmount ?? 0), 0),
+        netWithdrawals: accountTransactions
+          .filter((transaction) => transaction.transactionType === "withdraw_cash")
+          .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transaction.grossAmount ?? 0), 0)
+      };
+    });
 
     const gainLossRows = input.holdingValuations
       .map((valuation) => {
@@ -112,7 +159,14 @@ export class AnalyticsService {
         .filter((row) => row.gainLoss < 0)
         .sort((a, b) => a.gainLossPercent - b.gainLossPercent)
         .slice(0, 5),
-      performance: this.performanceService.calculatePerformance(totalValueEstimate, input.snapshots),
+      performance: this.performanceService.calculatePortfolioPerformance({
+        currentValue: totalValueEstimate,
+        investedAmount,
+        snapshots: input.snapshots,
+        transactions: input.transactions
+      }),
+      productPerformance,
+      cashPerformance,
       cashPercent: totalValueEstimate === 0 ? 0 : totalCash / totalValueEstimate,
       investedPercent: totalValueEstimate === 0 ? 0 : totalHoldingsMarketValue / totalValueEstimate
     };

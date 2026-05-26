@@ -1,4 +1,4 @@
-import { AllocationItem, PortfolioDashboard } from "@/domain/portfolio/types";
+import { AllocationItem, CashPerformance, PerformanceMetric, PortfolioDashboard, ProductPerformance } from "@/domain/portfolio/types";
 import { formatAssetTypeLabel, formatCurrencyWithCode, formatPercent } from "@/lib/utils";
 
 const chartColors = ["#2563eb", "#059669", "#d97706", "#7c3aed", "#dc2626", "#0891b2", "#4b5563"];
@@ -170,19 +170,25 @@ export function WinnersLosersPanel({ dashboard }: { dashboard: PortfolioDashboar
 
 export function PerformancePanel({ dashboard }: { dashboard: PortfolioDashboard }) {
   return (
-    <div className="grid gap-3 md:grid-cols-3">
-      {dashboard.performance.map((item) => (
+    <MetricGrid metrics={dashboard.performance} currency={dashboard.portfolio.baseCurrency} />
+  );
+}
+
+export function MetricGrid({ metrics, currency }: { metrics: PerformanceMetric[]; currency: string }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      {metrics.map((item) => (
         <div key={item.label} className="rounded-md border p-3">
           <div className="text-sm font-medium">{item.label}</div>
           {item.valueChange == null || item.percentChange == null ? (
-            <div className="mt-2 text-sm text-muted-foreground">Needs snapshot history</div>
+            <div className="mt-2 text-sm text-muted-foreground">Needs history</div>
           ) : (
             <>
               <div className={item.valueChange < 0 ? "mt-2 text-lg font-semibold text-destructive" : "mt-2 text-lg font-semibold text-emerald-600"}>
-                {formatCurrencyWithCode(item.valueChange, dashboard.portfolio.baseCurrency)}
+                {formatCurrencyWithCode(item.valueChange, currency)}
               </div>
               <div className="text-xs text-muted-foreground">
-                {formatPercent(item.percentChange)} since {item.baselineDate}
+                {formatPercent(item.percentChange)}{item.baselineDate ? ` since ${item.baselineDate}` : ""}
               </div>
             </>
           )}
@@ -190,6 +196,34 @@ export function PerformancePanel({ dashboard }: { dashboard: PortfolioDashboard 
       ))}
     </div>
   );
+}
+
+export function HoldingPerformancePanel({
+  performance,
+  currency
+}: {
+  performance: ProductPerformance | undefined;
+  currency: string;
+}) {
+  if (!performance) {
+    return <p className="text-sm text-muted-foreground">Refresh prices to calculate product performance.</p>;
+  }
+
+  return <MetricGrid metrics={performance.metrics} currency={currency} />;
+}
+
+export function CashPerformancePanel({
+  performance,
+  currency
+}: {
+  performance: CashPerformance | undefined;
+  currency: string;
+}) {
+  if (!performance) {
+    return <p className="text-sm text-muted-foreground">Create snapshots to calculate cash performance.</p>;
+  }
+
+  return <MetricGrid metrics={performance.metrics} currency={currency} />;
 }
 
 export function CompositionTable({ dashboard }: { dashboard: PortfolioDashboard }) {

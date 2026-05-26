@@ -59,7 +59,7 @@ export const holdingSchema = z.object({
 export const transactionSchema = z.object({
   id: z.string().uuid().optional(),
   portfolioId: z.string().uuid(),
-  transactionType: z.enum(["buy", "sell", "deposit_cash", "withdraw_cash", "fee", "manual_adjustment"]),
+  transactionType: z.enum(["buy", "sell", "deposit_cash", "withdraw_cash", "interest_cash", "dividend", "fee", "manual_adjustment"]),
   assetType: z.enum(["stock", "etf", "bond_etf", "gold_etf", "crypto", "cash", "other"]).optional(),
   ticker: z
     .string()
@@ -97,6 +97,15 @@ export const transactionSchema = z.object({
         code: z.ZodIssueCode.custom,
         path: ["price"],
         message: "Price is required for buy/sell transactions"
+      });
+    }
+  }
+  if (["deposit_cash", "withdraw_cash", "interest_cash", "dividend", "fee"].includes(input.transactionType)) {
+    if (input.price == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["price"],
+        message: "Amount is required for cash movements, income, dividends, and fees"
       });
     }
   }

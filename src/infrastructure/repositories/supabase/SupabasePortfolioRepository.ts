@@ -322,7 +322,7 @@ export class SupabasePortfolioRepository implements PortfolioRepository {
   }
 
   async upsertTransaction(input: TransactionInput) {
-    const needsAsset = input.transactionType === "buy" || input.transactionType === "sell";
+    const needsAsset = input.transactionType === "buy" || input.transactionType === "sell" || input.transactionType === "dividend";
     const asset = needsAsset
       ? await this.findOrCreateAsset({
           assetType: input.assetType ?? "other",
@@ -331,7 +331,7 @@ export class SupabasePortfolioRepository implements PortfolioRepository {
           currency: input.currency
         })
       : null;
-    const gross = input.quantity && input.price ? input.quantity * input.price : null;
+    const gross = input.quantity && input.price ? input.quantity * input.price : input.price ?? null;
     const signedNet =
       input.transactionType === "buy"
         ? gross == null
@@ -341,7 +341,15 @@ export class SupabasePortfolioRepository implements PortfolioRepository {
           ? gross == null
             ? null
             : gross - input.fees
-          : null;
+          : input.transactionType === "deposit_cash" || input.transactionType === "interest_cash" || input.transactionType === "dividend"
+            ? gross == null
+              ? null
+              : gross - input.fees
+            : input.transactionType === "withdraw_cash" || input.transactionType === "fee"
+              ? gross == null
+                ? null
+                : -(gross + input.fees)
+              : null;
     const payload = {
       portfolio_id: input.portfolioId,
       asset_id: asset?.id ?? null,

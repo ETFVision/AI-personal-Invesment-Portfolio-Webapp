@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CashPerformancePanel } from "@/components/portfolio/analytics-panels";
 import { formatCurrency } from "@/lib/utils";
 
 export default async function CashPage({ searchParams }: { searchParams: Promise<{ edit?: string; error?: string }> }) {
@@ -16,7 +17,8 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
   const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
   if (!portfolio) redirect("/setup");
 
-  const cashBalances = await container.portfolioRepository.listCashBalances(portfolio.id);
+  const dashboard = await container.portfolioService.getDashboard(portfolio.id);
+  const cashBalances = dashboard.cashBalances;
   const editing = cashBalances.find((item) => item.id === params.edit);
 
   return (
@@ -97,8 +99,34 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
             )}
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Cash performance</CardTitle>
+            <CardDescription>Flow-adjusted cash movement by account after deposits and withdrawals.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {cashBalances.length === 0 ? (
+              <EmptyState title="No cash performance" description="Add cash balances and refresh prices to create snapshots." />
+            ) : (
+              cashBalances.map((cash) => {
+                const performance = dashboard.cashPerformance.find((item) => item.cashBalanceId === cash.id);
+                return (
+                  <section key={cash.id} className="space-y-3 rounded-lg border p-4">
+                    <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                      <div>
+                        <h3 className="font-medium">{cash.accountName ?? "Default account"}</h3>
+                        <p className="text-sm text-muted-foreground">{cash.currency} · {cash.asOfDate}</p>
+                      </div>
+                      <div className="text-sm text-muted-foreground">{formatCurrency(cash.amount, cash.currency)}</div>
+                    </div>
+                    <CashPerformancePanel performance={performance} currency={cash.currency} />
+                  </section>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
       </section>
     </div>
   );
 }
-

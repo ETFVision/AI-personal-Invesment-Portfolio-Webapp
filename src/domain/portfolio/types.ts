@@ -5,6 +5,8 @@ export type TransactionType =
   | "sell"
   | "deposit_cash"
   | "withdraw_cash"
+  | "interest_cash"
+  | "dividend"
   | "fee"
   | "manual_adjustment";
 
@@ -94,7 +96,7 @@ export type AllocationItem = {
 };
 
 export type PerformanceMetric = {
-  label: "Daily" | "Weekly" | "Monthly";
+  label: "Daily" | "Weekly" | "Monthly" | "YTD" | "Since inception";
   valueChange: number | null;
   percentChange: number | null;
   baselineDate: string | null;
@@ -108,6 +110,41 @@ export type PortfolioSnapshot = {
   cashValue: number;
   investedValue: number;
   currency: string;
+};
+
+export type AssetSnapshot = {
+  id: string;
+  portfolioId: string;
+  assetId: string;
+  snapshotDate: string;
+  marketValue: number;
+  costBasis: number | null;
+  currency: string;
+};
+
+export type CashSnapshot = {
+  id: string;
+  portfolioId: string;
+  cashBalanceId: string;
+  snapshotDate: string;
+  amount: number;
+  currency: string;
+};
+
+export type ProductPerformance = {
+  holdingId: string;
+  assetId: string;
+  metrics: PerformanceMetric[];
+  realizedGainLoss: number;
+  unrealizedGainLoss: number;
+  totalGainLoss: number;
+};
+
+export type CashPerformance = {
+  cashBalanceId: string;
+  metrics: PerformanceMetric[];
+  netDeposits: number;
+  netWithdrawals: number;
 };
 
 export type Transaction = {
@@ -150,6 +187,8 @@ export type PortfolioDashboard = {
   topWinners: Array<{ valuation: HoldingValuation; gainLoss: number; gainLossPercent: number }>;
   topLosers: Array<{ valuation: HoldingValuation; gainLoss: number; gainLossPercent: number }>;
   performance: PerformanceMetric[];
+  productPerformance: ProductPerformance[];
+  cashPerformance: CashPerformance[];
   cashPercent: number;
   investedPercent: number;
   latestPriceDate: string | null;
