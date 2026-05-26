@@ -3,8 +3,16 @@ import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { HoldingsTable } from "@/components/portfolio/holdings-table";
-import { AllocationPanel, CashInvestedPanel, CurrencyExposurePanel, WinnersLosersPanel } from "@/components/portfolio/analytics-panels";
-import { formatCurrency, formatPercent } from "@/lib/utils";
+import {
+  AllocationDonutPanel,
+  AllocationPanel,
+  CashInvestedPanel,
+  CompositionTable,
+  CurrencyExposurePanel,
+  PerformancePanel,
+  WinnersLosersPanel
+} from "@/components/portfolio/analytics-panels";
+import { formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { refreshPricesAction } from "@/server/actions/portfolioActions";
 
@@ -123,11 +131,13 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Invested amount</CardTitle>
-            <CardDescription>Manual cost basis across current holdings.</CardDescription>
+            <CardTitle>Realised gain/loss</CardTitle>
+            <CardDescription>Calculated from buy/sell transactions where possible.</CardDescription>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {displayCurrency ? formatCurrency(dashboard.investedAmount, displayCurrency) : dashboard.investedAmount.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+          <CardContent>
+            <div className={`text-2xl font-semibold ${dashboard.realizedGainLoss < 0 ? "text-destructive" : dashboard.realizedGainLoss > 0 ? "text-emerald-600" : ""}`}>
+              {displayCurrency ? formatCurrency(dashboard.realizedGainLoss, displayCurrency) : dashboard.realizedGainLoss.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -140,6 +150,16 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
           </CardContent>
         </Card>
       </section>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Performance</CardTitle>
+          <CardDescription>Daily, weekly, and monthly movement from stored portfolio snapshots.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PerformancePanel dashboard={dashboard} />
+        </CardContent>
+      </Card>
 
       {hasMixedOrNonBaseCurrency ? (
         <Card>
@@ -156,7 +176,14 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
           <CardDescription>Uses latest stored prices when available, with cost basis as fallback.</CardDescription>
         </CardHeader>
         <CardContent>
-          <AllocationPanel dashboard={dashboard} />
+          <div className="space-y-6">
+            <AllocationDonutPanel
+              title="Asset allocation"
+              items={dashboard.allocationByType}
+              labelFormatter={formatAssetTypeLabel}
+            />
+            <AllocationPanel dashboard={dashboard} />
+          </div>
         </CardContent>
       </Card>
 
@@ -172,6 +199,24 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </Card>
         <Card>
           <CardHeader>
+            <CardTitle>Sector allocation</CardTitle>
+            <CardDescription>Depends on asset metadata; unknown until enrichment is added.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AllocationDonutPanel title="Sector allocation" items={dashboard.allocationBySector} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Geography allocation</CardTitle>
+            <CardDescription>Uses region/country metadata when available.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AllocationDonutPanel title="Geography allocation" items={dashboard.allocationByGeography} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
             <CardTitle>Top winners/losers</CardTitle>
             <CardDescription>Unrealised movement from average cost using refreshed prices.</CardDescription>
           </CardHeader>
@@ -180,6 +225,16 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
           </CardContent>
         </Card>
       </section>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Portfolio composition</CardTitle>
+          <CardDescription>Current holdings with asset class, sector, geography, and value.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CompositionTable dashboard={dashboard} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

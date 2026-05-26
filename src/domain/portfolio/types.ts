@@ -32,6 +32,9 @@ export type Asset = {
   symbol: string | null;
   name: string;
   currency: string | null;
+  sector?: string | null;
+  country?: string | null;
+  region?: string | null;
 };
 
 export type CashBalance = {
@@ -59,6 +62,9 @@ export type Holding = {
   costCurrency: string;
   firstPurchaseDate: string | null;
   notes: string | null;
+  sector?: string | null;
+  country?: string | null;
+  region?: string | null;
 };
 
 export type DailyPrice = {
@@ -79,6 +85,29 @@ export type HoldingValuation = {
   priceDate: string | null;
   priceProvider: string | null;
   valuationSource: "market_price" | "cost_basis";
+};
+
+export type AllocationItem = {
+  label: string;
+  value: number;
+  percent: number;
+};
+
+export type PerformanceMetric = {
+  label: "Daily" | "Weekly" | "Monthly";
+  valueChange: number | null;
+  percentChange: number | null;
+  baselineDate: string | null;
+};
+
+export type PortfolioSnapshot = {
+  id: string;
+  portfolioId: string;
+  snapshotDate: string;
+  totalValue: number;
+  cashValue: number;
+  investedValue: number;
+  currency: string;
 };
 
 export type Transaction = {
@@ -113,10 +142,14 @@ export type PortfolioDashboard = {
   investedAmount: number;
   unrealizedGainLoss: number;
   unrealizedGainLossPercent: number;
-  allocationByType: Array<{ label: string; value: number; percent: number }>;
-  currencyExposure: Array<{ currency: string; value: number; percent: number }>;
+  realizedGainLoss: number;
+  allocationByType: AllocationItem[];
+  allocationBySector: AllocationItem[];
+  allocationByGeography: AllocationItem[];
+  currencyExposure: Array<AllocationItem & { currency: string }>;
   topWinners: Array<{ valuation: HoldingValuation; gainLoss: number; gainLossPercent: number }>;
   topLosers: Array<{ valuation: HoldingValuation; gainLoss: number; gainLossPercent: number }>;
+  performance: PerformanceMetric[];
   cashPercent: number;
   investedPercent: number;
   latestPriceDate: string | null;

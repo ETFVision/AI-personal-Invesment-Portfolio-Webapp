@@ -1,5 +1,7 @@
-import { PortfolioDashboard } from "@/domain/portfolio/types";
+import { AllocationItem, PortfolioDashboard } from "@/domain/portfolio/types";
 import { formatAssetTypeLabel, formatCurrencyWithCode, formatPercent } from "@/lib/utils";
+
+const chartColors = ["#2563eb", "#059669", "#d97706", "#7c3aed", "#dc2626", "#0891b2", "#4b5563"];
 
 function ExposureBar({ label, value, percent }: { label: string; value: string; percent: number }) {
   return (
@@ -47,6 +49,49 @@ export function AllocationPanel({ dashboard }: { dashboard: PortfolioDashboard }
           percent={item.percent}
         />
       ))}
+    </div>
+  );
+}
+
+export function AllocationDonutPanel({
+  title,
+  items,
+  labelFormatter = (label) => label
+}: {
+  title: string;
+  items: AllocationItem[];
+  labelFormatter?: (label: string) => string;
+}) {
+  if (items.length === 0) {
+    return <p className="text-sm text-muted-foreground">No allocation data yet.</p>;
+  }
+
+  let cursor = 0;
+  const segments = items.map((item, index) => {
+    const start = cursor;
+    const end = cursor + item.percent * 100;
+    cursor = end;
+    return `${chartColors[index % chartColors.length]} ${start}% ${end}%`;
+  });
+
+  return (
+    <div className="grid gap-4 md:grid-cols-[150px_1fr] md:items-center">
+      <div
+        aria-label={title}
+        className="mx-auto h-36 w-36 rounded-full border"
+        style={{ background: `conic-gradient(${segments.join(", ")})` }}
+      />
+      <div className="space-y-2">
+        {items.slice(0, 6).map((item, index) => (
+          <div key={item.label} className="flex items-center justify-between gap-3 text-sm">
+            <span className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: chartColors[index % chartColors.length] }} />
+              {labelFormatter(item.label)}
+            </span>
+            <span className="text-muted-foreground">{formatPercent(item.percent)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -118,6 +163,59 @@ export function WinnersLosersPanel({ dashboard }: { dashboard: PortfolioDashboar
             </div>
           ))
         )}
+      </div>
+    </div>
+  );
+}
+
+export function PerformancePanel({ dashboard }: { dashboard: PortfolioDashboard }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-3">
+      {dashboard.performance.map((item) => (
+        <div key={item.label} className="rounded-md border p-3">
+          <div className="text-sm font-medium">{item.label}</div>
+          {item.valueChange == null || item.percentChange == null ? (
+            <div className="mt-2 text-sm text-muted-foreground">Needs snapshot history</div>
+          ) : (
+            <>
+              <div className={item.valueChange < 0 ? "mt-2 text-lg font-semibold text-destructive" : "mt-2 text-lg font-semibold text-emerald-600"}>
+                {formatCurrencyWithCode(item.valueChange, dashboard.portfolio.baseCurrency)}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {formatPercent(item.percentChange)} since {item.baselineDate}
+              </div>
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function CompositionTable({ dashboard }: { dashboard: PortfolioDashboard }) {
+  if (dashboard.holdingValuations.length === 0) {
+    return <p className="text-sm text-muted-foreground">Add holdings to see portfolio composition.</p>;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border">
+      <div className="hidden grid-cols-[1.1fr_0.7fr_0.7fr_0.7fr_0.7fr] gap-3 bg-muted px-4 py-3 text-xs font-medium text-muted-foreground md:grid">
+        <span>Asset</span>
+        <span>Class</span>
+        <span>Sector</span>
+        <span>Geography</span>
+        <span>Value</span>
+      </div>
+      <div className="divide-y">
+        {dashboard.holdingValuations.map((valuation) => (
+          <div key={valuation.holding.id} className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[1.1fr_0.7fr_0.7fr_0.7fr_0.7fr]">
+            <span className="font-medium">{valuation.holding.ticker ?? valuation.holding.assetName}</span>
+            <span><span className="text-xs text-muted-foreground md:hidden">Class </span>{formatAssetTypeLabel(valuation.holding.assetType)}</span>
+            <span><span className="text-xs text-muted-foreground md:hidden">Sector </span>{valuation.holding.sector ?? "Unknown"}</span>
+            <span><span className="text-xs text-muted-foreground md:hidden">Geography </span>{valuation.holding.region ?? valuation.holding.country ?? "Unknown"}</span>
+            <span><span className="text-xs text-muted-foreground md:hidden">Value </span>{formatCurrencyWithCode(valuation.value, valuation.valueCurrency)}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

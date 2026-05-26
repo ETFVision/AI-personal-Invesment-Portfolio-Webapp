@@ -175,6 +175,9 @@ export async function refreshPricesAction() {
     userId: user.id,
     portfolioId: portfolio.id
   });
+  if (result.ok) {
+    await container.portfolioService.createAnalyticsSnapshot(portfolio.id);
+  }
 
   revalidatePath("/portfolio");
   const params = new URLSearchParams({

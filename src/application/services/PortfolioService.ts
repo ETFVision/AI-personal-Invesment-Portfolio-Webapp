@@ -1,5 +1,7 @@
+import { AnalyticsRepository } from "@/application/ports/repositories/AnalyticsRepository";
 import { MarketDataRepository } from "@/application/ports/repositories/MarketDataRepository";
 import { PortfolioRepository } from "@/application/ports/repositories/PortfolioRepository";
+import { AnalyticsService } from "@/application/services/AnalyticsService";
 import { PortfolioDashboard } from "@/domain/portfolio/types";
 import {
   CashBalanceInput,
@@ -11,7 +13,9 @@ import {
 export class PortfolioService {
   constructor(
     private readonly repository: PortfolioRepository,
-    private readonly marketDataRepository?: MarketDataRepository
+    private readonly marketDataRepository?: MarketDataRepository,
+    private readonly analyticsRepository?: AnalyticsRepository,
+    private readonly analyticsService?: AnalyticsService
   ) {}
 
   async ensureApplicationUser(authUser: { id: string; email: string | null }) {
@@ -47,13 +51,13 @@ export class PortfolioService {
   }
 
   async getDashboard(portfolioId: string): Promise<PortfolioDashboard> {
-    const [cashBalances, holdings] = await Promise.all([
+    const [cashBalances, holdings, transactions, snapshots] = await Promise.all([
       this.repository.listCashBalances(portfolioId),
-      this.repository.listHoldings(portfolioId)
+      this.repository.listHoldings(portfolioId),
+      this.repository.listTransactions(portfolioId),
+      this.analyticsRepository?.listPortfolioSnapshots(portfolioId) ?? []
     ]);
 
-    const totalCash = cashBalances.reduce((sum, item) => sum + Number(item.amount), 0);
-    const totalHoldingsCost = holdings.reduce((sum, item) => sum + Number(item.quantity) * Number(item.averageCost ?? 0), 0);
     const latestPrices = this.marketDataRepository
       ? await this.marketDataRepository.getLatestPricesForAssets(holdings.map((holding) => holding.assetId))
       : new Map();
@@ -71,54 +75,14 @@ export class PortfolioService {
         valuationSource: price ? "market_price" as const : "cost_basis" as const
       };
     });
-    const totalHoldingsMarketValue = holdingValuations.reduce((sum, item) => sum + item.value, 0);
-    const totalValueEstimate = totalCash + totalHoldingsMarketValue;
-    const investedAmount = totalHoldingsCost;
-    const unrealizedGainLoss = totalHoldingsMarketValue - investedAmount;
-    const unrealizedGainLossPercent = investedAmount === 0 ? 0 : unrealizedGainLoss / investedAmount;
-    const byType = new Map<string, number>();
-    const byCurrency = new Map<string, number>();
-
-    for (const valuation of holdingValuations) {
-      byType.set(valuation.holding.assetType, (byType.get(valuation.holding.assetType) ?? 0) + valuation.value);
-      byCurrency.set(valuation.valueCurrency, (byCurrency.get(valuation.valueCurrency) ?? 0) + valuation.value);
-    }
-
-    for (const cash of cashBalances) {
-      byCurrency.set(cash.currency, (byCurrency.get(cash.currency) ?? 0) + Number(cash.amount));
-    }
-
-    if (totalCash !== 0) byType.set("cash", (byType.get("cash") ?? 0) + totalCash);
-
-    const allocationByType = Array.from(byType.entries()).map(([label, value]) => ({
-      label,
-      value,
-      percent: totalValueEstimate === 0 ? 0 : value / totalValueEstimate
-    }));
-    const currencyExposure = Array.from(byCurrency.entries()).map(([currency, value]) => ({
-      currency,
-      value,
-      percent: totalValueEstimate === 0 ? 0 : value / totalValueEstimate
-    }));
-    const gainLossRows = holdingValuations
-      .map((valuation) => {
-        const costBasis = Number(valuation.holding.quantity) * Number(valuation.holding.averageCost ?? 0);
-        const gainLoss = valuation.value - costBasis;
-        return {
-          valuation,
-          gainLoss,
-          gainLossPercent: costBasis === 0 ? 0 : gainLoss / costBasis
-        };
-      })
-      .filter((row) => row.valuation.valuationSource === "market_price");
-    const topWinners = [...gainLossRows]
-      .filter((row) => row.gainLoss > 0)
-      .sort((a, b) => b.gainLossPercent - a.gainLossPercent)
-      .slice(0, 5);
-    const topLosers = [...gainLossRows]
-      .filter((row) => row.gainLoss < 0)
-      .sort((a, b) => a.gainLossPercent - b.gainLossPercent)
-      .slice(0, 5);
+    const analytics = this.analyticsService?.calculateDashboardAnalytics({
+      cashBalances,
+      holdings,
+      holdingValuations,
+      transactions,
+      snapshots
+    });
+    if (!analytics) throw new Error("Analytics service is not configured.");
 
     const portfolio = await this.repository.getPortfolioById(portfolioId);
 
@@ -133,21 +97,34 @@ export class PortfolioService {
       cashBalances,
       holdings,
       holdingValuations,
-      totalCash,
-      totalHoldingsCost,
-      totalHoldingsMarketValue,
-      totalValueEstimate,
-      investedAmount,
-      unrealizedGainLoss,
-      unrealizedGainLossPercent,
-      allocationByType,
-      currencyExposure,
-      topWinners,
-      topLosers,
-      cashPercent: totalValueEstimate === 0 ? 0 : totalCash / totalValueEstimate,
-      investedPercent: totalValueEstimate === 0 ? 0 : totalHoldingsMarketValue / totalValueEstimate,
+      ...analytics,
       latestPriceDate: Array.from(latestPrices.values())[0]?.priceDate ?? null
     };
+  }
+
+  async createAnalyticsSnapshot(portfolioId: string) {
+    if (!this.analyticsRepository) throw new Error("Analytics repository is not configured.");
+    const dashboard = await this.getDashboard(portfolioId);
+    const snapshotDate = new Date().toISOString().slice(0, 10);
+    await this.analyticsRepository.upsertPortfolioSnapshot({
+      portfolioId,
+      snapshotDate,
+      totalValue: dashboard.totalValueEstimate,
+      cashValue: dashboard.totalCash,
+      investedValue: dashboard.totalHoldingsMarketValue,
+      unrealizedGainLoss: dashboard.unrealizedGainLoss,
+      realizedGainLoss: dashboard.realizedGainLoss,
+      currency: dashboard.portfolio.baseCurrency,
+      assetClassAllocations: dashboard.allocationByType,
+      sectorAllocations: dashboard.allocationBySector,
+      geographyAllocations: dashboard.allocationByGeography,
+      currencyAllocations: dashboard.currencyExposure
+    });
+    await this.analyticsRepository.upsertAssetSnapshots({
+      portfolioId,
+      snapshotDate,
+      valuations: dashboard.holdingValuations
+    });
   }
 
   upsertCashBalance(input: CashBalanceInput) {

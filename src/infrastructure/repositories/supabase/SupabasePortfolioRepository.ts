@@ -51,7 +51,10 @@ function mapAsset(row: any): Asset {
     ticker: row.ticker,
     symbol: row.symbol,
     name: row.name,
-    currency: row.currency
+    currency: row.currency,
+    sector: row.sector,
+    country: row.country,
+    region: row.region
   };
 }
 
@@ -82,7 +85,10 @@ function mapHolding(row: any): Holding {
     averageCost: row.average_cost == null ? null : Number(row.average_cost),
     costCurrency: row.cost_currency,
     firstPurchaseDate: row.first_purchase_date,
-    notes: row.notes
+    notes: row.notes,
+    sector: row.assets?.sector ?? null,
+    country: row.assets?.country ?? null,
+    region: row.assets?.region ?? null
   };
 }
 
@@ -258,7 +264,7 @@ export class SupabasePortfolioRepository implements PortfolioRepository {
   async listHoldings(portfolioId: string) {
     const { data, error } = await this.db
       .from("holdings")
-      .select("*")
+      .select("*, assets(sector,country,region)")
       .eq("portfolio_id", portfolioId)
       .eq("is_active", true)
       .order("asset_name");
