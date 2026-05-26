@@ -8,12 +8,13 @@ export function HoldingsTable({ holdings }: { holdings: Holding[] }) {
 
   return (
     <div className="overflow-hidden rounded-lg border">
-      <div className="hidden grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_auto] gap-3 bg-muted px-4 py-3 text-xs font-medium text-muted-foreground md:grid">
+      <div className="hidden grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.8fr_0.8fr_0.7fr_auto] gap-3 bg-muted px-4 py-3 text-xs font-medium text-muted-foreground md:grid">
         <span>Asset</span>
         <span>Type</span>
         <span>Account</span>
         <span>Quantity</span>
         <span>Average cost</span>
+        <span>Estimated value</span>
         <span>Allocation</span>
         <span />
       </div>
@@ -23,17 +24,18 @@ export function HoldingsTable({ holdings }: { holdings: Holding[] }) {
           return (
             <div
               key={holding.id}
-              className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_auto]"
+              className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.8fr_0.8fr_0.7fr_auto]"
             >
               <div>
                 <div className="font-medium">{holding.ticker ?? holding.assetName}</div>
                 <div className="text-xs text-muted-foreground">{holding.assetName}</div>
               </div>
-              <div>{holding.assetType}</div>
-              <div>{holding.accountName ?? "Default"}</div>
-              <div>{formatNumber(holding.quantity)}</div>
-              <div>{formatCurrency(holding.averageCost ?? 0, holding.costCurrency)}</div>
-              <div>{formatPercent(total === 0 ? 0 : value / total)}</div>
+              <div><span className="text-xs text-muted-foreground md:hidden">Type </span>{holding.assetType}</div>
+              <div><span className="text-xs text-muted-foreground md:hidden">Account </span>{holding.accountName ?? "Default"}</div>
+              <div><span className="text-xs text-muted-foreground md:hidden">Quantity </span>{formatNumber(holding.quantity)}</div>
+              <div><span className="text-xs text-muted-foreground md:hidden">Average cost </span>{formatCurrency(holding.averageCost ?? 0, holding.costCurrency)}</div>
+              <div><span className="text-xs text-muted-foreground md:hidden">Estimated value </span>{formatCurrency(value, holding.costCurrency)}</div>
+              <div><span className="text-xs text-muted-foreground md:hidden">Allocation </span>{formatPercent(total === 0 ? 0 : value / total)}</div>
               <div className="flex gap-2 md:justify-end">
                 <a className="rounded-md border px-3 py-2 text-xs hover:bg-muted" href={`/holdings?edit=${holding.id}`}>
                   Edit
@@ -52,4 +54,3 @@ export function HoldingsTable({ holdings }: { holdings: Holding[] }) {
     </div>
   );
 }
-
