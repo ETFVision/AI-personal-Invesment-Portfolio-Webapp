@@ -170,7 +170,61 @@ export function WinnersLosersPanel({ dashboard }: { dashboard: PortfolioDashboar
 
 export function PerformancePanel({ dashboard }: { dashboard: PortfolioDashboard }) {
   return (
-    <MetricGrid metrics={dashboard.performance} currency={dashboard.portfolio.baseCurrency} />
+    <div className="space-y-6">
+      <PerformanceBarChart metrics={dashboard.performance} />
+      <MetricGrid metrics={dashboard.performance} currency={dashboard.portfolio.baseCurrency} />
+    </div>
+  );
+}
+
+export function PerformanceBarChart({ metrics }: { metrics: PerformanceMetric[] }) {
+  const chartMetrics = metrics.filter((item) => item.label === "1Y" || item.label === "YTD" || item.label === "Since inception");
+  const available = chartMetrics.filter((item) => item.percentChange != null);
+
+  if (available.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+        1Y, YTD, and since-inception bars will appear once snapshot and transaction history is available.
+      </div>
+    );
+  }
+
+  const maxAbsPercent = Math.max(...available.map((item) => Math.abs(item.percentChange ?? 0)), 0.01);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-medium">Performance bars</span>
+        <span className="text-muted-foreground">Flow-adjusted return</span>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        {chartMetrics.map((item) => {
+          const percent = item.percentChange;
+          const height = percent == null ? 0 : Math.max(Math.abs(percent) / maxAbsPercent, 0.06) * 128;
+          const isNegative = (percent ?? 0) < 0;
+          return (
+            <div key={item.label} className="rounded-md border p-4">
+              <div className="flex h-40 items-end justify-center rounded-md bg-muted/40 px-4 py-3">
+                {percent == null ? (
+                  <span className="text-xs text-muted-foreground">Needs history</span>
+                ) : (
+                  <div
+                    className={isNegative ? "w-12 rounded-t-md bg-destructive" : "w-12 rounded-t-md bg-emerald-600"}
+                    style={{ height: `${height}px` }}
+                  />
+                )}
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+                <span className="font-medium">{item.label}</span>
+                <span className={isNegative ? "text-destructive" : percent == null ? "text-muted-foreground" : "text-emerald-600"}>
+                  {percent == null ? "-" : formatPercent(percent)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
