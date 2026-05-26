@@ -33,6 +33,15 @@ export class PortfolioService {
     return this.repository.createPortfolio(user.id, input);
   }
 
+  async updatePortfolioSetup(authUser: { id: string; email: string | null }, portfolioId: string, input: SetupPortfolioInput) {
+    const user = await this.ensureApplicationUser(authUser);
+    await this.repository.updateUserProfile(user.id, {
+      baseCurrency: input.baseCurrency,
+      riskProfile: input.riskProfile
+    });
+    return this.repository.updatePortfolio(portfolioId, input);
+  }
+
   async getDashboard(portfolioId: string): Promise<PortfolioDashboard> {
     const [cashBalances, holdings] = await Promise.all([
       this.repository.listCashBalances(portfolioId),

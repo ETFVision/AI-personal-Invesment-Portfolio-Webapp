@@ -46,6 +46,25 @@ export async function setupPortfolioAction(formData: FormData) {
   redirect("/portfolio");
 }
 
+export async function updatePortfolioSetupAction(formData: FormData) {
+  const container = createContainer();
+  const authUser = await container.authProvider.requireUser();
+  const portfolioId = String(formData.get("portfolioId") ?? "");
+  try {
+    const input = setupPortfolioSchema.parse({
+      name: value(formData, "name"),
+      baseCurrency: value(formData, "baseCurrency"),
+      riskProfile: value(formData, "riskProfile")
+    });
+    await container.portfolioService.updatePortfolioSetup(authUser, portfolioId, input);
+  } catch (error) {
+    redirect(`/setup?edit=true&error=${encodeURIComponent(validationMessage(error))}`);
+  }
+  revalidatePath("/setup");
+  revalidatePath("/portfolio");
+  redirect("/setup");
+}
+
 export async function upsertCashBalanceAction(formData: FormData) {
   const portfolioId = await requirePortfolioId();
   try {
@@ -144,4 +163,3 @@ export async function deleteTransactionAction(formData: FormData) {
   revalidatePath("/transactions");
   redirect("/transactions");
 }
-

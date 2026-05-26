@@ -178,6 +178,19 @@ export class SupabasePortfolioRepository implements PortfolioRepository {
     return mapPortfolio(requireData(data, error));
   }
 
+  async updatePortfolio(portfolioId: string, input: SetupPortfolioInput) {
+    const { data, error } = await this.db
+      .from("portfolios")
+      .update({
+        name: input.name,
+        base_currency: input.baseCurrency
+      })
+      .eq("id", portfolioId)
+      .select("*")
+      .single();
+    return mapPortfolio(requireData(data, error));
+  }
+
   async listAssets() {
     const { data, error } = await this.db.from("assets").select("*").order("name");
     if (error) throw new Error(error.message);
