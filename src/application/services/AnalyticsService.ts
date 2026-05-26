@@ -162,6 +162,7 @@ export class AnalyticsService {
       performance: this.performanceService.calculatePortfolioPerformance({
         currentValue: totalValueEstimate,
         investedAmount,
+        cashAmount: totalCash,
         snapshots: input.snapshots,
         transactions: input.transactions
       }),

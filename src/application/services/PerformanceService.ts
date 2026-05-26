@@ -55,6 +55,7 @@ export class PerformanceService {
   calculatePortfolioPerformance(input: {
     currentValue: number;
     investedAmount: number;
+    cashAmount: number;
     snapshots: PortfolioSnapshot[];
     transactions: Transaction[];
   }): PerformanceMetric[] {
@@ -63,7 +64,7 @@ export class PerformanceService {
       this.buildPortfolioFlowAdjustedMetric("Weekly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(7)),
       this.buildPortfolioFlowAdjustedMetric("Monthly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(30)),
       this.buildPortfolioFlowAdjustedMetric("YTD", input.currentValue, input.snapshots, input.transactions, startOfYearIsoDate()),
-      this.buildPortfolioSinceInceptionMetric(input.currentValue, input.investedAmount, input.transactions)
+      this.buildPortfolioSinceInceptionMetric(input.currentValue, input.investedAmount, input.cashAmount, input.transactions)
     ];
   }
 
@@ -128,15 +129,21 @@ export class PerformanceService {
     };
   }
 
-  private buildPortfolioSinceInceptionMetric(currentValue: number, investedAmount: number, transactions: Transaction[]): PerformanceMetric {
+  private buildPortfolioSinceInceptionMetric(
+    currentValue: number,
+    investedAmount: number,
+    cashAmount: number,
+    transactions: Transaction[]
+  ): PerformanceMetric {
     const deposits = transactions
       .filter((transaction) => transaction.transactionType === "deposit_cash")
       .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transactionAmount(transaction)), 0);
     const withdrawals = transactions
       .filter((transaction) => transaction.transactionType === "withdraw_cash")
       .reduce((sum, transaction) => sum + Math.abs(transaction.netAmount ?? transactionAmount(transaction)), 0);
-    const denominator = deposits > 0 ? deposits : investedAmount;
-    const valueChange = deposits > 0 ? currentValue - deposits + withdrawals : currentValue - investedAmount;
+    const capitalFallback = investedAmount + cashAmount;
+    const denominator = deposits > 0 ? deposits : capitalFallback;
+    const valueChange = deposits > 0 ? currentValue - deposits + withdrawals : currentValue - capitalFallback;
     return {
       label: "Since inception",
       valueChange,
