@@ -73,10 +73,19 @@ export class PortfolioService {
     });
     const totalHoldingsMarketValue = holdingValuations.reduce((sum, item) => sum + item.value, 0);
     const totalValueEstimate = totalCash + totalHoldingsMarketValue;
+    const investedAmount = totalHoldingsCost;
+    const unrealizedGainLoss = totalHoldingsMarketValue - investedAmount;
+    const unrealizedGainLossPercent = investedAmount === 0 ? 0 : unrealizedGainLoss / investedAmount;
     const byType = new Map<string, number>();
+    const byCurrency = new Map<string, number>();
 
     for (const valuation of holdingValuations) {
       byType.set(valuation.holding.assetType, (byType.get(valuation.holding.assetType) ?? 0) + valuation.value);
+      byCurrency.set(valuation.valueCurrency, (byCurrency.get(valuation.valueCurrency) ?? 0) + valuation.value);
+    }
+
+    for (const cash of cashBalances) {
+      byCurrency.set(cash.currency, (byCurrency.get(cash.currency) ?? 0) + Number(cash.amount));
     }
 
     if (totalCash !== 0) byType.set("cash", (byType.get("cash") ?? 0) + totalCash);
@@ -86,6 +95,30 @@ export class PortfolioService {
       value,
       percent: totalValueEstimate === 0 ? 0 : value / totalValueEstimate
     }));
+    const currencyExposure = Array.from(byCurrency.entries()).map(([currency, value]) => ({
+      currency,
+      value,
+      percent: totalValueEstimate === 0 ? 0 : value / totalValueEstimate
+    }));
+    const gainLossRows = holdingValuations
+      .map((valuation) => {
+        const costBasis = Number(valuation.holding.quantity) * Number(valuation.holding.averageCost ?? 0);
+        const gainLoss = valuation.value - costBasis;
+        return {
+          valuation,
+          gainLoss,
+          gainLossPercent: costBasis === 0 ? 0 : gainLoss / costBasis
+        };
+      })
+      .filter((row) => row.valuation.valuationSource === "market_price");
+    const topWinners = [...gainLossRows]
+      .filter((row) => row.gainLoss > 0)
+      .sort((a, b) => b.gainLossPercent - a.gainLossPercent)
+      .slice(0, 5);
+    const topLosers = [...gainLossRows]
+      .filter((row) => row.gainLoss < 0)
+      .sort((a, b) => a.gainLossPercent - b.gainLossPercent)
+      .slice(0, 5);
 
     const portfolio = await this.repository.getPortfolioById(portfolioId);
 
@@ -104,7 +137,15 @@ export class PortfolioService {
       totalHoldingsCost,
       totalHoldingsMarketValue,
       totalValueEstimate,
+      investedAmount,
+      unrealizedGainLoss,
+      unrealizedGainLossPercent,
       allocationByType,
+      currencyExposure,
+      topWinners,
+      topLosers,
+      cashPercent: totalValueEstimate === 0 ? 0 : totalCash / totalValueEstimate,
+      investedPercent: totalValueEstimate === 0 ? 0 : totalHoldingsMarketValue / totalValueEstimate,
       latestPriceDate: Array.from(latestPrices.values())[0]?.priceDate ?? null
     };
   }

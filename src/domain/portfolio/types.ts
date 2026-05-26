@@ -110,6 +110,14 @@ export type PortfolioDashboard = {
   totalHoldingsCost: number;
   totalHoldingsMarketValue: number;
   totalValueEstimate: number;
+  investedAmount: number;
+  unrealizedGainLoss: number;
+  unrealizedGainLossPercent: number;
   allocationByType: Array<{ label: string; value: number; percent: number }>;
+  currencyExposure: Array<{ currency: string; value: number; percent: number }>;
+  topWinners: Array<{ valuation: HoldingValuation; gainLoss: number; gainLossPercent: number }>;
+  topLosers: Array<{ valuation: HoldingValuation; gainLoss: number; gainLossPercent: number }>;
+  cashPercent: number;
+  investedPercent: number;
   latestPriceDate: string | null;
 };

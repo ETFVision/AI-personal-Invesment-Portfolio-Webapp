@@ -3,7 +3,8 @@ import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { HoldingsTable } from "@/components/portfolio/holdings-table";
-import { formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
+import { AllocationPanel, CashInvestedPanel, CurrencyExposurePanel, WinnersLosersPanel } from "@/components/portfolio/analytics-panels";
+import { formatCurrency, formatPercent } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { refreshPricesAction } from "@/server/actions/portfolioActions";
 
@@ -68,7 +69,7 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
       <section className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle>Total estimate</CardTitle>
+            <CardTitle>Total portfolio value</CardTitle>
             <CardDescription>
               {hasMixedOrNonBaseCurrency
                 ? "Native-currency sum shown until FX conversion is added."
@@ -105,6 +106,41 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </Card>
       </section>
 
+      <section className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Unrealised gain/loss</CardTitle>
+            <CardDescription>Current market value versus average cost.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-semibold ${dashboard.unrealizedGainLoss < 0 ? "text-destructive" : dashboard.unrealizedGainLoss > 0 ? "text-emerald-600" : ""}`}>
+              {displayCurrency
+                ? formatCurrency(dashboard.unrealizedGainLoss, displayCurrency)
+                : dashboard.unrealizedGainLoss.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">{formatPercent(dashboard.unrealizedGainLossPercent)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Invested amount</CardTitle>
+            <CardDescription>Manual cost basis across current holdings.</CardDescription>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold">
+            {displayCurrency ? formatCurrency(dashboard.investedAmount, displayCurrency) : dashboard.investedAmount.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Cash vs invested</CardTitle>
+            <CardDescription>Portfolio balance between dry powder and holdings.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CashInvestedPanel dashboard={dashboard} />
+          </CardContent>
+        </Card>
+      </section>
+
       {hasMixedOrNonBaseCurrency ? (
         <Card>
           <CardContent className="p-4 text-sm text-muted-foreground">
@@ -119,24 +155,31 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
           <CardTitle>Allocation by asset type</CardTitle>
           <CardDescription>Uses latest stored prices when available, with cost basis as fallback.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {dashboard.allocationByType.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Add cash or holdings to see allocation.</p>
-          ) : (
-            dashboard.allocationByType.map((item) => (
-              <div key={item.label}>
-                <div className="mb-1 flex justify-between text-sm">
-                  <span>{formatAssetTypeLabel(item.label)}</span>
-                  <span>{formatPercent(item.percent)}</span>
-                </div>
-                <div className="h-2 rounded-full bg-muted">
-                  <div className="h-2 rounded-full bg-primary" style={{ width: `${Math.min(item.percent * 100, 100)}%` }} />
-                </div>
-              </div>
-            ))
-          )}
+        <CardContent>
+          <AllocationPanel dashboard={dashboard} />
         </CardContent>
       </Card>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Currency exposure</CardTitle>
+            <CardDescription>Native currency exposure before FX conversion is added.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CurrencyExposurePanel dashboard={dashboard} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Top winners/losers</CardTitle>
+            <CardDescription>Unrealised movement from average cost using refreshed prices.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <WinnersLosersPanel dashboard={dashboard} />
+          </CardContent>
+        </Card>
+      </section>
 
       <Card>
         <CardHeader>
