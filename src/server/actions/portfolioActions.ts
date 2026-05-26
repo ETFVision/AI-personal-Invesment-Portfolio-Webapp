@@ -49,14 +49,15 @@ export async function setupPortfolioAction(formData: FormData) {
 export async function updatePortfolioSetupAction(formData: FormData) {
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();
-  const portfolioId = String(formData.get("portfolioId") ?? "");
   try {
+    const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
+    if (!portfolio) redirect("/setup");
     const input = setupPortfolioSchema.parse({
       name: value(formData, "name"),
       baseCurrency: value(formData, "baseCurrency"),
       riskProfile: value(formData, "riskProfile")
     });
-    await container.portfolioService.updatePortfolioSetup(authUser, portfolioId, input);
+    await container.portfolioService.updatePortfolioSetup(authUser, portfolio.id, input);
   } catch (error) {
     redirect(`/setup?edit=true&error=${encodeURIComponent(validationMessage(error))}`);
   }

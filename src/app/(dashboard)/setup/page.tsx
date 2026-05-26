@@ -57,7 +57,6 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
             </div>
           ) : (
             <form action={portfolio ? updatePortfolioSetupAction : setupPortfolioAction} className="grid gap-4 md:grid-cols-2">
-              {portfolio ? <input type="hidden" name="portfolioId" value={portfolio.id} /> : null}
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="name">Portfolio name</Label>
                 <Input id="name" name="name" defaultValue={portfolio?.name ?? "Personal Portfolio"} required />
