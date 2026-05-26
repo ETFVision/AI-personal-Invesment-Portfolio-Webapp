@@ -1,15 +1,15 @@
 import Link from "next/link";
-import { BarChart3, Banknote, ClipboardList, Home, LogOut, PlusCircle, Table2 } from "lucide-react";
+import { BarChart3, Banknote, Home, LogOut, PlusCircle, Settings, Table2 } from "lucide-react";
 import { signOutAction } from "@/server/actions/authActions";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
   { href: "/portfolio", label: "Dashboard", icon: Home },
-  { href: "/setup", label: "Setup", icon: ClipboardList },
   { href: "/cash", label: "Cash", icon: Banknote },
   { href: "/holdings", label: "Holdings", icon: Table2 },
   { href: "/transactions", label: "Transactions", icon: PlusCircle },
-  { href: "/portfolio#allocation", label: "Allocation", icon: BarChart3 }
+  { href: "/portfolio#allocation", label: "Allocation", icon: BarChart3 },
+  { href: "/setup", label: "Settings", icon: Settings }
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -62,4 +62,3 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-
