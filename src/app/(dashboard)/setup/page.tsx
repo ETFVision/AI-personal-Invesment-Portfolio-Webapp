@@ -1,4 +1,4 @@
-import { setupPortfolioAction, updatePortfolioSetupAction } from "@/server/actions/portfolioActions";
+import { refreshMetadataAction, setupPortfolioAction, updatePortfolioSetupAction } from "@/server/actions/portfolioActions";
 import { createContainer } from "@/server/container";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 
-export default async function SetupPage({ searchParams }: { searchParams: Promise<{ edit?: string; error?: string }> }) {
+export default async function SetupPage({ searchParams }: { searchParams: Promise<{ edit?: string; error?: string; metadataMessage?: string; metadataError?: string }> }) {
   const params = await searchParams;
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();
@@ -27,6 +27,11 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
         </CardHeader>
         <CardContent>
           {params.error ? <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{params.error}</div> : null}
+          {params.metadataMessage ? (
+            <div className={`mb-4 rounded-md p-3 text-sm ${params.metadataError ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
+              {params.metadataError ?? params.metadataMessage}
+            </div>
+          ) : null}
           {portfolio && params.edit !== "true" ? (
             <div className="space-y-5">
               <dl className="grid gap-3 rounded-lg border p-4 sm:grid-cols-3">
@@ -86,6 +91,19 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
           )}
         </CardContent>
       </Card>
+      {portfolio ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Asset metadata</CardTitle>
+            <CardDescription>Refresh sector, industry, country, region, exchange, and currency metadata for current holdings.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={refreshMetadataAction}>
+              <Button type="submit" variant="secondary">Refresh metadata</Button>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

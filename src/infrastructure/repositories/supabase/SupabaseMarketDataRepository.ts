@@ -1,5 +1,6 @@
 import {
   MarketDataRepository,
+  UpdateAssetMetadataInput,
   UpsertDailyPriceInput
 } from "@/application/ports/repositories/MarketDataRepository";
 import { Asset, DailyPrice, Holding } from "@/domain/portfolio/types";
@@ -114,5 +115,42 @@ export class SupabaseMarketDataRepository implements MarketDataRepository {
       { onConflict: "asset_id,provider,price_date" }
     );
     if (error) throw new Error(error.message);
+  }
+
+  async updateAssetMetadata(input: UpdateAssetMetadataInput[]) {
+    for (const item of input) {
+      const { data: current, error: currentError } = await this.db
+        .from("assets")
+        .select("provider_ids, metadata")
+        .eq("ticker", item.symbol)
+        .maybeSingle();
+      if (currentError) throw new Error(currentError.message);
+
+      const providerIds = {
+        ...(current?.provider_ids ?? {}),
+        [item.provider]: item.symbol
+      };
+      const metadata = {
+        ...(current?.metadata ?? {}),
+        [item.provider]: item.rawPayload
+      };
+
+      const { error } = await this.db
+        .from("assets")
+        .update({
+          name: item.name ?? undefined,
+          exchange: item.exchange ?? undefined,
+          currency: item.currency ?? undefined,
+          country: item.country ?? undefined,
+          region: item.region ?? item.country ?? undefined,
+          sector: item.sector ?? undefined,
+          industry: item.industry ?? undefined,
+          provider_primary: item.provider,
+          provider_ids: providerIds,
+          metadata
+        })
+        .eq("ticker", item.symbol);
+      if (error) throw new Error(error.message);
+    }
   }
 }

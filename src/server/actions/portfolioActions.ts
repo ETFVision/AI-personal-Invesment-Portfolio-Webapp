@@ -186,3 +186,24 @@ export async function refreshPricesAction() {
   if (!result.ok) params.set("priceError", result.message);
   redirect(`/portfolio?${params.toString()}`);
 }
+
+export async function refreshMetadataAction() {
+  const container = createContainer();
+  const authUser = await container.authProvider.requireUser();
+  const { user, portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
+  if (!portfolio) redirect("/setup");
+
+  const result = await container.assetMetadataService.refreshPortfolioAssetMetadata({
+    userId: user.id,
+    portfolioId: portfolio.id
+  });
+
+  revalidatePath("/setup");
+  revalidatePath("/portfolio");
+  revalidatePath("/holdings");
+  const params = new URLSearchParams({
+    metadataMessage: result.message
+  });
+  if (result.errors.length > 0) params.set("metadataError", result.errors.join(" "));
+  redirect(`/setup?${params.toString()}`);
+}
