@@ -15,9 +15,45 @@ type FmpEodLight = {
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
 const FMP_BATCH_SIZE = 25;
+const FMP_MAX_ATTEMPTS = 2;
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(url: URL) {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= FMP_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        next: { revalidate: 0 },
+        signal: AbortSignal.timeout(10_000)
+      });
+
+      if (response.status === 429 || response.status >= 500) {
+        lastError = new Error(`FMP request failed with status ${response.status}.`);
+        if (attempt < FMP_MAX_ATTEMPTS) {
+          await sleep(500 * attempt);
+          continue;
+        }
+      }
+
+      return response;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("FMP request failed.");
+      if (attempt < FMP_MAX_ATTEMPTS) {
+        await sleep(500 * attempt);
+        continue;
+      }
+    }
+  }
+
+  throw lastError ?? new Error("FMP request failed.");
 }
 
 export class FmpMarketDataProvider implements MarketDataProvider {
@@ -45,10 +81,7 @@ export class FmpMarketDataProvider implements MarketDataProvider {
       url.searchParams.set("symbols", batch.join(","));
       url.searchParams.set("apikey", apiKey);
 
-      const response = await fetch(url, {
-        next: { revalidate: 0 },
-        signal: AbortSignal.timeout(10_000)
-      });
+      const response = await fetchWithRetry(url);
 
       if (response.status === 402 || response.status === 403) {
         return [];
@@ -86,10 +119,7 @@ export class FmpMarketDataProvider implements MarketDataProvider {
       url.searchParams.set("symbol", symbol);
       url.searchParams.set("apikey", apiKey);
 
-      const response = await fetch(url, {
-        next: { revalidate: 0 },
-        signal: AbortSignal.timeout(10_000)
-      });
+      const response = await fetchWithRetry(url);
 
       if (!response.ok) {
         throw new Error(`FMP EOD request for ${symbol} failed with status ${response.status}.`);
