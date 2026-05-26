@@ -1,3 +1,4 @@
+import { MarketDataRepository } from "@/application/ports/repositories/MarketDataRepository";
 import { PortfolioRepository } from "@/application/ports/repositories/PortfolioRepository";
 import { PortfolioDashboard } from "@/domain/portfolio/types";
 import {
@@ -8,7 +9,10 @@ import {
 } from "@/domain/portfolio/validation";
 
 export class PortfolioService {
-  constructor(private readonly repository: PortfolioRepository) {}
+  constructor(
+    private readonly repository: PortfolioRepository,
+    private readonly marketDataRepository?: MarketDataRepository
+  ) {}
 
   async ensureApplicationUser(authUser: { id: string; email: string | null }) {
     return this.repository.ensureUser({
@@ -50,12 +54,29 @@ export class PortfolioService {
 
     const totalCash = cashBalances.reduce((sum, item) => sum + Number(item.amount), 0);
     const totalHoldingsCost = holdings.reduce((sum, item) => sum + Number(item.quantity) * Number(item.averageCost ?? 0), 0);
-    const totalValueEstimate = totalCash + totalHoldingsCost;
+    const latestPrices = this.marketDataRepository
+      ? await this.marketDataRepository.getLatestPricesForAssets(holdings.map((holding) => holding.assetId))
+      : new Map();
+    const holdingValuations = holdings.map((holding) => {
+      const price = latestPrices.get(holding.assetId);
+      const unitPrice = price?.closePrice ?? holding.averageCost ?? null;
+      const value = Number(holding.quantity) * Number(unitPrice ?? 0);
+      return {
+        holding,
+        unitPrice,
+        value,
+        valueCurrency: price?.currency ?? holding.costCurrency,
+        priceDate: price?.priceDate ?? null,
+        priceProvider: price?.provider ?? null,
+        valuationSource: price ? "market_price" as const : "cost_basis" as const
+      };
+    });
+    const totalHoldingsMarketValue = holdingValuations.reduce((sum, item) => sum + item.value, 0);
+    const totalValueEstimate = totalCash + totalHoldingsMarketValue;
     const byType = new Map<string, number>();
 
-    for (const holding of holdings) {
-      const value = Number(holding.quantity) * Number(holding.averageCost ?? 0);
-      byType.set(holding.assetType, (byType.get(holding.assetType) ?? 0) + value);
+    for (const valuation of holdingValuations) {
+      byType.set(valuation.holding.assetType, (byType.get(valuation.holding.assetType) ?? 0) + valuation.value);
     }
 
     if (totalCash !== 0) byType.set("cash", (byType.get("cash") ?? 0) + totalCash);
@@ -78,10 +99,13 @@ export class PortfolioService {
       },
       cashBalances,
       holdings,
+      holdingValuations,
       totalCash,
       totalHoldingsCost,
+      totalHoldingsMarketValue,
       totalValueEstimate,
-      allocationByType
+      allocationByType,
+      latestPriceDate: Array.from(latestPrices.values())[0]?.priceDate ?? null
     };
   }
 

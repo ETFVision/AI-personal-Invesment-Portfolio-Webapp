@@ -164,3 +164,22 @@ export async function deleteTransactionAction(formData: FormData) {
   revalidatePath("/transactions");
   redirect("/transactions");
 }
+
+export async function refreshPricesAction() {
+  const container = createContainer();
+  const authUser = await container.authProvider.requireUser();
+  const { user, portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
+  if (!portfolio) redirect("/setup");
+
+  const result = await container.jobs.refreshPortfolioPrices.run({
+    userId: user.id,
+    portfolioId: portfolio.id
+  });
+
+  revalidatePath("/portfolio");
+  const params = new URLSearchParams({
+    priceMessage: result.message
+  });
+  if (!result.ok) params.set("priceError", result.message);
+  redirect(`/portfolio?${params.toString()}`);
+}

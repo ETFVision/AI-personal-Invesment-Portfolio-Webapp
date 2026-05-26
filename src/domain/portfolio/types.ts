@@ -61,6 +61,26 @@ export type Holding = {
   notes: string | null;
 };
 
+export type DailyPrice = {
+  id: string;
+  assetId: string;
+  provider: string;
+  symbol: string;
+  priceDate: string;
+  closePrice: number;
+  currency: string | null;
+};
+
+export type HoldingValuation = {
+  holding: Holding;
+  unitPrice: number | null;
+  value: number;
+  valueCurrency: string;
+  priceDate: string | null;
+  priceProvider: string | null;
+  valuationSource: "market_price" | "cost_basis";
+};
+
 export type Transaction = {
   id: string;
   portfolioId: string;
@@ -85,8 +105,11 @@ export type PortfolioDashboard = {
   portfolio: Portfolio;
   cashBalances: CashBalance[];
   holdings: Holding[];
+  holdingValuations: HoldingValuation[];
   totalCash: number;
   totalHoldingsCost: number;
+  totalHoldingsMarketValue: number;
   totalValueEstimate: number;
   allocationByType: Array<{ label: string; value: number; percent: number }>;
+  latestPriceDate: string | null;
 };
