@@ -1,7 +1,7 @@
 import {
-  AssetSnapshot,
   CashSnapshot,
   HoldingValuation,
+  HoldingSnapshot,
   PerformanceMetric,
   PortfolioSnapshot,
   Transaction
@@ -75,18 +75,17 @@ export class PerformanceService {
 
   calculateProductPerformance(input: {
     valuation: HoldingValuation;
-    snapshots: AssetSnapshot[];
+    snapshots: HoldingSnapshot[];
     transactions: Transaction[];
   }): PerformanceMetric[] {
-    const assetSnapshots = input.snapshots.filter((snapshot) => snapshot.assetId === input.valuation.holding.assetId);
-    const assetTransactions = input.transactions.filter((transaction) => transaction.assetId === input.valuation.holding.assetId);
+    const holdingSnapshots = input.snapshots.filter((snapshot) => snapshot.holdingId === input.valuation.holding.id);
     return [
-      this.buildAssetFlowAdjustedMetric("Daily", input.valuation.value, assetSnapshots, assetTransactions, isoDateDaysAgo(1)),
-      this.buildAssetFlowAdjustedMetric("Weekly", input.valuation.value, assetSnapshots, assetTransactions, isoDateDaysAgo(7)),
-      this.buildAssetFlowAdjustedMetric("Monthly", input.valuation.value, assetSnapshots, assetTransactions, isoDateDaysAgo(30)),
-      this.buildAssetFlowAdjustedMetric("1Y", input.valuation.value, assetSnapshots, assetTransactions, isoDateDaysAgo(365)),
-      this.buildAssetFlowAdjustedMetric("YTD", input.valuation.value, assetSnapshots, assetTransactions, startOfYearIsoDate()),
-      this.buildAssetSinceInceptionMetric(input.valuation, assetTransactions)
+      this.buildHoldingFlowAdjustedMetric("Daily", input.valuation.value, holdingSnapshots, input.transactions, isoDateDaysAgo(1)),
+      this.buildHoldingFlowAdjustedMetric("Weekly", input.valuation.value, holdingSnapshots, input.transactions, isoDateDaysAgo(7)),
+      this.buildHoldingFlowAdjustedMetric("Monthly", input.valuation.value, holdingSnapshots, input.transactions, isoDateDaysAgo(30)),
+      this.buildHoldingFlowAdjustedMetric("1Y", input.valuation.value, holdingSnapshots, input.transactions, isoDateDaysAgo(365)),
+      this.buildHoldingFlowAdjustedMetric("YTD", input.valuation.value, holdingSnapshots, input.transactions, startOfYearIsoDate()),
+      this.buildAssetSinceInceptionMetric(input.valuation, input.transactions)
     ];
   }
 
@@ -159,10 +158,10 @@ export class PerformanceService {
     };
   }
 
-  private buildAssetFlowAdjustedMetric(
+  private buildHoldingFlowAdjustedMetric(
     label: PerformanceMetric["label"],
     currentValue: number,
-    snapshots: AssetSnapshot[],
+    snapshots: HoldingSnapshot[],
     transactions: Transaction[],
     targetDate: string
   ): PerformanceMetric {

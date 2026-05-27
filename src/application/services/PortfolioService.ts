@@ -51,12 +51,12 @@ export class PortfolioService {
   }
 
   async getDashboard(portfolioId: string): Promise<PortfolioDashboard> {
-    const [cashBalances, holdings, transactions, snapshots, assetSnapshots, cashSnapshots] = await Promise.all([
+    const [cashBalances, holdings, transactions, snapshots, holdingSnapshots, cashSnapshots] = await Promise.all([
       this.repository.listCashBalances(portfolioId),
       this.repository.listHoldings(portfolioId),
       this.repository.listTransactions(portfolioId),
       this.analyticsRepository?.listPortfolioSnapshots(portfolioId) ?? [],
-      this.analyticsRepository?.listAssetSnapshots(portfolioId) ?? [],
+      this.analyticsRepository?.listHoldingSnapshots(portfolioId) ?? [],
       this.analyticsRepository?.listCashSnapshots(portfolioId) ?? []
     ]);
 
@@ -83,7 +83,7 @@ export class PortfolioService {
       holdingValuations,
       transactions,
       snapshots,
-      assetSnapshots,
+      holdingSnapshots,
       cashSnapshots
     });
     if (!analytics) throw new Error("Analytics service is not configured.");
@@ -125,6 +125,11 @@ export class PortfolioService {
       currencyAllocations: dashboard.currencyExposure
     });
     await this.analyticsRepository.upsertAssetSnapshots({
+      portfolioId,
+      snapshotDate,
+      valuations: dashboard.holdingValuations
+    });
+    await this.analyticsRepository.upsertHoldingSnapshots({
       portfolioId,
       snapshotDate,
       valuations: dashboard.holdingValuations

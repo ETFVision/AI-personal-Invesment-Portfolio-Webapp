@@ -2,7 +2,13 @@ import {
   AnalyticsRepository,
   UpsertPortfolioSnapshotInput
 } from "@/application/ports/repositories/AnalyticsRepository";
-import { AssetSnapshot, CashSnapshot, HoldingValuation, PortfolioSnapshot } from "@/domain/portfolio/types";
+import {
+  AssetSnapshot,
+  CashSnapshot,
+  HoldingSnapshot,
+  HoldingValuation,
+  PortfolioSnapshot
+} from "@/domain/portfolio/types";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
@@ -27,6 +33,22 @@ function mapAssetSnapshot(row: any): AssetSnapshot {
     snapshotDate: row.snapshot_date,
     marketValue: Number(row.market_value),
     costBasis: row.cost_basis == null ? null : Number(row.cost_basis),
+    currency: row.currency
+  };
+}
+
+function mapHoldingSnapshot(row: any): HoldingSnapshot {
+  return {
+    id: row.id,
+    portfolioId: row.portfolio_id,
+    holdingId: row.holding_id,
+    assetId: row.asset_id,
+    snapshotDate: row.snapshot_date,
+    quantity: Number(row.quantity),
+    marketPrice: row.market_price == null ? null : Number(row.market_price),
+    marketValue: Number(row.market_value),
+    costBasis: row.cost_basis == null ? null : Number(row.cost_basis),
+    unrealizedGainLoss: row.unrealized_gain_loss == null ? null : Number(row.unrealized_gain_loss),
     currency: row.currency
   };
 }
@@ -75,6 +97,18 @@ export class SupabaseAnalyticsRepository implements AnalyticsRepository {
     if (isMissingSnapshotTable(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapAssetSnapshot);
+  }
+
+  async listHoldingSnapshots(portfolioId: string, limit = 500) {
+    const { data, error } = await this.db
+      .from("holding_snapshots")
+      .select("*")
+      .eq("portfolio_id", portfolioId)
+      .order("snapshot_date", { ascending: false })
+      .limit(limit);
+    if (isMissingSnapshotTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapHoldingSnapshot);
   }
 
   async listCashSnapshots(portfolioId: string, limit = 500) {
@@ -134,6 +168,35 @@ export class SupabaseAnalyticsRepository implements AnalyticsRepository {
         };
       }),
       { onConflict: "portfolio_id,asset_id,snapshot_date" }
+    );
+    if (isMissingSnapshotTable(error)) return;
+    if (error) throw new Error(error.message);
+  }
+
+  async upsertHoldingSnapshots(input: {
+    portfolioId: string;
+    snapshotDate: string;
+    valuations: HoldingValuation[];
+  }) {
+    if (input.valuations.length === 0) return;
+
+    const { error } = await this.db.from("holding_snapshots").upsert(
+      input.valuations.map((valuation) => {
+        const costBasis = valuation.holding.quantity * (valuation.holding.averageCost ?? 0);
+        return {
+          portfolio_id: input.portfolioId,
+          holding_id: valuation.holding.id,
+          asset_id: valuation.holding.assetId,
+          snapshot_date: input.snapshotDate,
+          quantity: valuation.holding.quantity,
+          market_price: valuation.unitPrice,
+          market_value: valuation.value,
+          cost_basis: costBasis,
+          unrealized_gain_loss: valuation.value - costBasis,
+          currency: valuation.valueCurrency
+        };
+      }),
+      { onConflict: "portfolio_id,holding_id,snapshot_date" }
     );
     if (isMissingSnapshotTable(error)) return;
     if (error) throw new Error(error.message);

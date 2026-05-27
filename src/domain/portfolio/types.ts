@@ -122,6 +122,20 @@ export type AssetSnapshot = {
   currency: string;
 };
 
+export type HoldingSnapshot = {
+  id: string;
+  portfolioId: string;
+  holdingId: string;
+  assetId: string;
+  snapshotDate: string;
+  quantity: number;
+  marketPrice: number | null;
+  marketValue: number;
+  costBasis: number | null;
+  unrealizedGainLoss: number | null;
+  currency: string;
+};
+
 export type CashSnapshot = {
   id: string;
   portfolioId: string;

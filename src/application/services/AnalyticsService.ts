@@ -6,6 +6,7 @@ import {
   CashPerformance,
   CashSnapshot,
   Holding,
+  HoldingSnapshot,
   HoldingValuation,
   ProductPerformance,
   PortfolioSnapshot,
@@ -18,7 +19,7 @@ type DashboardAnalyticsInput = {
   holdingValuations: HoldingValuation[];
   transactions: Transaction[];
   snapshots: PortfolioSnapshot[];
-  assetSnapshots: AssetSnapshot[];
+  holdingSnapshots: HoldingSnapshot[];
   cashSnapshots: CashSnapshot[];
 };
 
@@ -55,6 +56,14 @@ function calculateRealizedGainLoss(transactions: Transaction[]) {
   return realizedGainLoss;
 }
 
+function transactionMatchesHolding(transaction: Transaction, holding: Holding) {
+  if (transaction.assetId && transaction.assetId !== holding.assetId) return false;
+  if (holding.ticker && transaction.ticker && holding.ticker !== transaction.ticker) return false;
+  if (holding.accountName && transaction.accountName && holding.accountName !== transaction.accountName) return false;
+  if (holding.brokerName && transaction.brokerName && holding.brokerName !== transaction.brokerName) return false;
+  return true;
+}
+
 export class AnalyticsService {
   constructor(
     private readonly allocationService: AllocationService,
@@ -74,7 +83,7 @@ export class AnalyticsService {
     const unrealizedGainLossPercent = investedAmount === 0 ? 0 : unrealizedGainLoss / investedAmount;
     const realizedGainLoss = calculateRealizedGainLoss(input.transactions);
     const productPerformance: ProductPerformance[] = input.holdingValuations.map((valuation) => {
-      const productTransactions = input.transactions.filter((transaction) => transaction.assetId === valuation.holding.assetId);
+      const productTransactions = input.transactions.filter((transaction) => transactionMatchesHolding(transaction, valuation.holding));
       const realized = calculateRealizedGainLoss(productTransactions);
       const costBasis = valuation.holding.quantity * (valuation.holding.averageCost ?? 0);
       const unrealized = valuation.value - costBasis;
@@ -83,8 +92,8 @@ export class AnalyticsService {
         assetId: valuation.holding.assetId,
         metrics: this.performanceService.calculateProductPerformance({
           valuation,
-          snapshots: input.assetSnapshots,
-          transactions: input.transactions
+          snapshots: input.holdingSnapshots,
+          transactions: productTransactions
         }),
         realizedGainLoss: realized,
         unrealizedGainLoss: unrealized,
