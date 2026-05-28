@@ -79,6 +79,62 @@ export type DailyPrice = {
   currency: string | null;
 };
 
+export type BenchmarkComponent = {
+  symbol: string;
+  weight: number;
+};
+
+export type Benchmark = {
+  id: string;
+  benchmarkKey: string;
+  name: string;
+  benchmarkType: "equity" | "bond" | "commodity" | "crypto" | "composite";
+  symbol: string | null;
+  currency: string;
+  baseValue: number;
+  components: BenchmarkComponent[];
+  providerPrimary: string | null;
+  metadata: Record<string, unknown>;
+  isActive: boolean;
+};
+
+export type BenchmarkSnapshot = {
+  id: string;
+  benchmarkId: string;
+  benchmarkKey: string;
+  snapshotDate: string;
+  closePrice: number | null;
+  levelValue: number;
+  dailyReturn: number | null;
+  drawdown: number | null;
+  currency: string;
+  provider: string;
+};
+
+export type BenchmarkComparisonPoint = {
+  snapshotDate: string;
+  portfolioValue: number;
+  benchmarkValue: number;
+  portfolioReturn: number;
+  benchmarkReturn: number;
+  portfolioDrawdown: number;
+  benchmarkDrawdown: number;
+};
+
+export type BenchmarkComparison = {
+  benchmark: Benchmark;
+  cumulativePortfolioReturn: number | null;
+  cumulativeBenchmarkReturn: number | null;
+  relativeOutperformance: number | null;
+  rolling30DayPortfolioReturn: number | null;
+  rolling30DayBenchmarkReturn: number | null;
+  rolling90DayPortfolioReturn: number | null;
+  rolling90DayBenchmarkReturn: number | null;
+  portfolioMaxDrawdown: number | null;
+  benchmarkMaxDrawdown: number | null;
+  points: BenchmarkComparisonPoint[];
+};
+
 export type HoldingValuation = {
   holding: Holding;
   unitPrice: number | null;
@@ -203,6 +259,7 @@ export type PortfolioDashboard = {
   performance: PerformanceMetric[];
   productPerformance: ProductPerformance[];
   cashPerformance: CashPerformance[];
+  benchmarkComparisons: BenchmarkComparison[];
   cashPercent: number;
   investedPercent: number;
   latestPriceDate: string | null;

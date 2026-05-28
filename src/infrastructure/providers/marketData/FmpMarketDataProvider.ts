@@ -1,4 +1,4 @@
-import { MarketDataProvider, MarketPriceQuote } from "@/application/ports/providers/MarketDataProvider";
+import { HistoricalMarketPriceQuote, MarketDataProvider, MarketPriceQuote } from "@/application/ports/providers/MarketDataProvider";
 import { env } from "@/infrastructure/config/env";
 
 type FmpQuoteShort = {
@@ -11,6 +11,20 @@ type FmpEodLight = {
   date?: string;
   price?: number;
   volume?: number;
+};
+
+type FmpHistoricalPriceFull = {
+  symbol?: string;
+  historical?: Array<{
+    date?: string;
+    close?: number;
+    price?: number;
+  }>;
+  historicalData?: Array<{
+    date?: string;
+    close?: number;
+    price?: number;
+  }>;
 };
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
@@ -74,6 +88,50 @@ export class FmpMarketDataProvider implements MarketDataProvider {
 
     const eodQuotes = await this.getLatestEndOfDayPrices(missingSymbols, apiKey);
     return [...realtimeQuotes, ...eodQuotes];
+  }
+
+  async getHistoricalPrices(symbol: string, from: string, to: string): Promise<HistoricalMarketPriceQuote[]> {
+    if (!env.FMP_API_KEY) {
+      throw new Error("FMP_API_KEY is not configured.");
+    }
+
+    const apiKey = env.FMP_API_KEY;
+    const url = new URL(`${FMP_BASE_URL}/historical-price-full/${symbol.toUpperCase()}`);
+    url.searchParams.set("from", from);
+    url.searchParams.set("to", to);
+    url.searchParams.set("serietype", "line");
+    url.searchParams.set("apikey", apiKey);
+
+    const response = await fetchWithRetry(url);
+
+    if (response.status === 402 || response.status === 403) {
+      return [];
+    }
+
+    if (!response.ok) {
+      throw new Error(`FMP historical request for ${symbol} failed with status ${response.status}.`);
+    }
+
+    const payload = (await response.json()) as FmpHistoricalPriceFull | { "Error Message"?: string };
+    if (!payload || Array.isArray(payload)) {
+      throw new Error(`FMP returned an unexpected historical response for ${symbol}.`);
+    }
+    if ("Error Message" in payload && payload["Error Message"]) {
+      throw new Error(payload["Error Message"]);
+    }
+
+    const historicalPayload = payload as FmpHistoricalPriceFull;
+    const prices = historicalPayload.historical ?? historicalPayload.historicalData ?? [];
+    return prices
+      .map((item) => ({
+        symbol: symbol.toUpperCase(),
+        price: typeof item.close === "number" ? item.close : Number(item.price ?? NaN),
+        currency: null,
+        asOfDate: item.date ?? "",
+        raw: item
+      }))
+      .filter((item) => item.asOfDate && Number.isFinite(item.price))
+      .sort((a, b) => a.asOfDate.localeCompare(b.asOfDate));
   }
 
   private async tryGetRealtimeQuotes(uniqueSymbols: string[], apiKey: string) {

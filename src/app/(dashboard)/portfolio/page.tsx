@@ -7,17 +7,20 @@ import {
   AllocationPanel,
   CashInvestedPanel,
   CurrencyExposurePanel,
+  BenchmarkComparisonPanel,
   PerformancePanel,
   WinnersLosersPanel
 } from "@/components/portfolio/analytics-panels";
 import { formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { refreshPricesAction } from "@/server/actions/portfolioActions";
+import { refreshBenchmarksAction, refreshPricesAction } from "@/server/actions/portfolioActions";
 
 type PortfolioPageProps = {
   searchParams?: Promise<{
     priceMessage?: string;
     priceError?: string;
+    benchmarkMessage?: string;
+    benchmarkError?: string;
   }>;
 };
 
@@ -57,17 +60,31 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
               Refresh prices
             </Button>
           </form>
+          <form action={refreshBenchmarksAction}>
+            <Button type="submit" variant="secondary">
+              Refresh benchmarks
+            </Button>
+          </form>
           <Link className="rounded-md border px-4 py-2 text-sm hover:bg-muted" href="/cash">Add cash</Link>
           <Link className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground" href="/holdings">Add holding</Link>
         </div>
       </div>
 
-      {resolvedSearchParams?.priceMessage ? (
+      {resolvedSearchParams?.priceMessage || resolvedSearchParams?.benchmarkMessage ? (
         <Card>
           <CardContent className="p-4 text-sm">
-            <span className={resolvedSearchParams.priceError ? "text-destructive" : "text-muted-foreground"}>
-              {resolvedSearchParams.priceError ?? resolvedSearchParams.priceMessage}
-            </span>
+            <div className="space-y-1">
+              {resolvedSearchParams.priceMessage ? (
+                <div className={resolvedSearchParams.priceError ? "text-destructive" : "text-muted-foreground"}>
+                  {resolvedSearchParams.priceError ?? resolvedSearchParams.priceMessage}
+                </div>
+              ) : null}
+              {resolvedSearchParams.benchmarkMessage ? (
+                <div className={resolvedSearchParams.benchmarkError ? "text-destructive" : "text-muted-foreground"}>
+                  {resolvedSearchParams.benchmarkError ?? resolvedSearchParams.benchmarkMessage}
+                </div>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
       ) : null}
@@ -156,6 +173,16 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </CardHeader>
         <CardContent>
           <PerformancePanel dashboard={dashboard} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Benchmark comparison</CardTitle>
+          <CardDescription>Portfolio versus the benchmark universe using stored benchmark snapshots.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BenchmarkComparisonPanel dashboard={dashboard} />
         </CardContent>
       </Card>
 

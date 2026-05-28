@@ -187,6 +187,24 @@ export async function refreshPricesAction() {
   redirect(`/portfolio?${params.toString()}`);
 }
 
+export async function refreshBenchmarksAction() {
+  const container = createContainer();
+  const authUser = await container.authProvider.requireUser();
+  const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
+  if (!portfolio) redirect("/setup");
+
+  const result = await container.jobs.refreshBenchmarkData.run({
+    lookbackDays: 365
+  });
+
+  revalidatePath("/portfolio");
+  const params = new URLSearchParams({
+    benchmarkMessage: result.message
+  });
+  if (!result.ok) params.set("benchmarkError", result.message);
+  redirect(`/portfolio?${params.toString()}`);
+}
+
 export async function refreshMetadataAction() {
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();

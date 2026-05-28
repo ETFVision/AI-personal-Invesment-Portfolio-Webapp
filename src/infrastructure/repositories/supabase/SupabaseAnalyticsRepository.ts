@@ -75,7 +75,7 @@ function isMissingSnapshotTable(error: { code?: string; message?: string } | nul
 export class SupabaseAnalyticsRepository implements AnalyticsRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
-  async listPortfolioSnapshots(portfolioId: string, limit = 90) {
+  async listPortfolioSnapshots(portfolioId: string, limit = 500) {
     const { data, error } = await this.db
       .from("portfolio_snapshots")
       .select("*")

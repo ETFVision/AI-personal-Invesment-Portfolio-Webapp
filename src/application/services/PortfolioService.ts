@@ -1,6 +1,8 @@
 import { AnalyticsRepository } from "@/application/ports/repositories/AnalyticsRepository";
+import { BenchmarkRepository } from "@/application/ports/repositories/BenchmarkRepository";
 import { MarketDataRepository } from "@/application/ports/repositories/MarketDataRepository";
 import { PortfolioRepository } from "@/application/ports/repositories/PortfolioRepository";
+import { BenchmarkComparisonService } from "@/application/services/BenchmarkComparisonService";
 import { AnalyticsService } from "@/application/services/AnalyticsService";
 import { PortfolioDashboard } from "@/domain/portfolio/types";
 import {
@@ -15,7 +17,9 @@ export class PortfolioService {
     private readonly repository: PortfolioRepository,
     private readonly marketDataRepository?: MarketDataRepository,
     private readonly analyticsRepository?: AnalyticsRepository,
-    private readonly analyticsService?: AnalyticsService
+    private readonly analyticsService?: AnalyticsService,
+    private readonly benchmarkRepository?: BenchmarkRepository,
+    private readonly benchmarkComparisonService?: BenchmarkComparisonService
   ) {}
 
   async ensureApplicationUser(authUser: { id: string; email: string | null }) {
@@ -51,13 +55,15 @@ export class PortfolioService {
   }
 
   async getDashboard(portfolioId: string): Promise<PortfolioDashboard> {
-    const [cashBalances, holdings, transactions, snapshots, holdingSnapshots, cashSnapshots] = await Promise.all([
+    const [cashBalances, holdings, transactions, snapshots, holdingSnapshots, cashSnapshots, benchmarks, benchmarkSnapshots] = await Promise.all([
       this.repository.listCashBalances(portfolioId),
       this.repository.listHoldings(portfolioId),
       this.repository.listTransactions(portfolioId),
       this.analyticsRepository?.listPortfolioSnapshots(portfolioId) ?? [],
       this.analyticsRepository?.listHoldingSnapshots(portfolioId) ?? [],
-      this.analyticsRepository?.listCashSnapshots(portfolioId) ?? []
+      this.analyticsRepository?.listCashSnapshots(portfolioId) ?? [],
+      this.benchmarkRepository?.listBenchmarks() ?? [],
+      this.benchmarkRepository?.listBenchmarkSnapshots() ?? []
     ]);
 
     const latestPrices = this.marketDataRepository
@@ -87,6 +93,11 @@ export class PortfolioService {
       cashSnapshots
     });
     if (!analytics) throw new Error("Analytics service is not configured.");
+    const benchmarkComparisons = this.benchmarkComparisonService?.calculateComparisons({
+      portfolioSnapshots: snapshots,
+      benchmarkSnapshots,
+      benchmarks
+    }) ?? [];
 
     const portfolio = await this.repository.getPortfolioById(portfolioId);
 
@@ -102,6 +113,7 @@ export class PortfolioService {
       holdings,
       holdingValuations,
       ...analytics,
+      benchmarkComparisons,
       latestPriceDate: Array.from(latestPrices.values())[0]?.priceDate ?? null
     };
   }

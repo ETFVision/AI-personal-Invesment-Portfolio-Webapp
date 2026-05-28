@@ -327,6 +327,151 @@ export function CashPerformancePanel({
   return <MetricGrid metrics={performance.metrics} currency={currency} />;
 }
 
+export function BenchmarkComparisonPanel({ dashboard }: { dashboard: PortfolioDashboard }) {
+  if (dashboard.benchmarkComparisons.length === 0) {
+    return <p className="text-sm text-muted-foreground">Refresh benchmarks to compare your portfolio against reference markets.</p>;
+  }
+
+  const primary =
+    dashboard.benchmarkComparisons.find((item) => item.benchmark.benchmarkKey === "sp500") ?? dashboard.benchmarkComparisons[0];
+
+  return (
+    <div className="space-y-6">
+      <ComparisonLineChart
+        title="Portfolio vs benchmark performance"
+        subtitle={primary.benchmark.name}
+        points={primary.points}
+        leftLabel="Portfolio return"
+        rightLabel={`${primary.benchmark.name} return`}
+        valueAccessor={(point) => [point.portfolioReturn, point.benchmarkReturn]}
+        seriesLabels={["Portfolio", primary.benchmark.name]}
+        valueFormatter={formatPercent}
+      />
+      <ComparisonLineChart
+        title="Drawdown comparison"
+        subtitle={primary.benchmark.name}
+        points={primary.points}
+        leftLabel="Portfolio drawdown"
+        rightLabel={`${primary.benchmark.name} drawdown`}
+        valueAccessor={(point) => [point.portfolioDrawdown, point.benchmarkDrawdown]}
+        seriesLabels={["Portfolio", primary.benchmark.name]}
+        valueFormatter={formatPercent}
+      />
+      <BenchmarkSummaryTable comparisons={dashboard.benchmarkComparisons} />
+    </div>
+  );
+}
+
+function BenchmarkSummaryTable({ comparisons }: { comparisons: PortfolioDashboard["benchmarkComparisons"] }) {
+  return (
+    <div className="overflow-hidden rounded-lg border">
+      <div className="hidden grid-cols-[1.1fr_0.65fr_0.65fr_0.7fr_0.7fr_0.7fr] gap-3 bg-muted px-4 py-3 text-xs font-medium text-muted-foreground md:grid">
+        <span>Benchmark</span>
+        <span>Portfolio</span>
+        <span>Benchmark</span>
+        <span>Relative</span>
+        <span>30D</span>
+        <span>90D</span>
+      </div>
+      <div className="divide-y">
+        {comparisons.map((comparison) => (
+          <div key={comparison.benchmark.id} className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[1.1fr_0.65fr_0.65fr_0.7fr_0.7fr_0.7fr]">
+            <div className="font-medium">{comparison.benchmark.name}</div>
+            <div>{comparison.cumulativePortfolioReturn == null ? "-" : formatPercent(comparison.cumulativePortfolioReturn)}</div>
+            <div>{comparison.cumulativeBenchmarkReturn == null ? "-" : formatPercent(comparison.cumulativeBenchmarkReturn)}</div>
+            <div className={comparison.relativeOutperformance == null ? "" : comparison.relativeOutperformance < 0 ? "text-destructive" : "text-emerald-600"}>
+              {comparison.relativeOutperformance == null ? "-" : formatPercent(comparison.relativeOutperformance)}
+            </div>
+            <div>{comparison.rolling30DayPortfolioReturn == null || comparison.rolling30DayBenchmarkReturn == null ? "-" : formatPercent(comparison.rolling30DayPortfolioReturn - comparison.rolling30DayBenchmarkReturn)}</div>
+            <div>{comparison.rolling90DayPortfolioReturn == null || comparison.rolling90DayBenchmarkReturn == null ? "-" : formatPercent(comparison.rolling90DayPortfolioReturn - comparison.rolling90DayBenchmarkReturn)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ComparisonLineChart({
+  title,
+  subtitle,
+  points,
+  leftLabel,
+  rightLabel,
+  valueAccessor,
+  seriesLabels,
+  valueFormatter
+}: {
+  title: string;
+  subtitle: string;
+  points: PortfolioDashboard["benchmarkComparisons"][number]["points"];
+  leftLabel: string;
+  rightLabel: string;
+  valueAccessor: (point: PortfolioDashboard["benchmarkComparisons"][number]["points"][number]) => [number, number];
+  seriesLabels: [string, string];
+  valueFormatter: (value: number) => string;
+}) {
+  if (points.length < 2) {
+    return <p className="text-sm text-muted-foreground">Benchmark history is still being collected.</p>;
+  }
+
+  const seriesA = points.map((point) => valueAccessor(point)[0]);
+  const seriesB = points.map((point) => valueAccessor(point)[1]);
+  const allValues = [...seriesA, ...seriesB];
+  const minValue = Math.min(...allValues, 0);
+  const maxValue = Math.max(...allValues, 0);
+  const range = Math.max(maxValue - minValue, 0.01);
+  const width = 100;
+  const height = 100;
+  const left = 8;
+  const right = 92;
+  const top = 12;
+  const bottom = 88;
+  const xStep = points.length === 1 ? 0 : (right - left) / (points.length - 1);
+
+  function buildPath(series: number[]) {
+    return series
+      .map((value, index) => {
+        const x = left + index * xStep;
+        const y = bottom - ((value - minValue) / range) * (bottom - top);
+        return `${x},${y}`;
+      })
+      .join(" ");
+  }
+
+  const startLabel = points[0].snapshotDate.slice(0, 7);
+  const endLabel = points[points.length - 1].snapshotDate.slice(0, 7);
+
+  return (
+    <div className="rounded-md border p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium">{title}</div>
+          <div className="text-xs text-muted-foreground">{subtitle}</div>
+        </div>
+        <div className="text-xs text-muted-foreground">{leftLabel} / {rightLabel}</div>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title} className="h-48 w-full">
+        <line x1={left} y1={bottom} x2={right} y2={bottom} className="stroke-muted" strokeWidth="0.7" />
+        <line x1={left} y1={top} x2={right} y2={top} className="stroke-muted" strokeWidth="0.4" strokeDasharray="2 2" />
+        <polyline points={buildPath(seriesA)} fill="none" className="stroke-primary" strokeWidth="1.8" strokeLinecap="round" />
+        <polyline points={buildPath(seriesB)} fill="none" className="stroke-emerald-600" strokeWidth="1.8" strokeLinecap="round" />
+        <text x={left} y={97} textAnchor="start" className="fill-muted-foreground text-[4px]">{startLabel}</text>
+        <text x={right} y={97} textAnchor="end" className="fill-muted-foreground text-[4px]">{endLabel}</text>
+      </svg>
+      <div className="mt-3 grid gap-2 rounded-md bg-muted/50 p-3 text-sm sm:grid-cols-2">
+        <div>
+          <div className="text-xs text-muted-foreground">{seriesLabels[0]}</div>
+          <div>{valueFormatter(seriesA[seriesA.length - 1] ?? 0)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-muted-foreground">{seriesLabels[1]}</div>
+          <div>{valueFormatter(seriesB[seriesB.length - 1] ?? 0)}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CompositionTable({ dashboard }: { dashboard: PortfolioDashboard }) {
   if (dashboard.holdingValuations.length === 0) {
     return <p className="text-sm text-muted-foreground">Add holdings to see portfolio composition.</p>;
