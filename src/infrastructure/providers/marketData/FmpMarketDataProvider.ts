@@ -44,6 +44,39 @@ function normalizeHistoricalSymbol(symbol: string, assetClass?: string) {
   return normalized;
 }
 
+function parseHistoricalQuotes(
+  payload: unknown,
+  symbol: string
+): HistoricalMarketPriceQuote[] {
+  const normalizeQuote = (item: { date?: string; close?: number; price?: number }) => ({
+    symbol,
+    price: typeof item.close === "number" ? item.close : Number(item.price ?? NaN),
+    currency: null,
+    asOfDate: item.date ?? "",
+    raw: item
+  });
+
+  if (Array.isArray(payload)) {
+    return payload
+      .map((item) => normalizeQuote(item as { date?: string; close?: number; price?: number }))
+      .filter((item) => item.asOfDate && Number.isFinite(item.price))
+      .sort((a, b) => a.asOfDate.localeCompare(b.asOfDate));
+  }
+
+  if (!payload || typeof payload !== "object") return [];
+
+  const typed = payload as FmpHistoricalPriceFull & { "Error Message"?: string };
+  if ("Error Message" in typed && typed["Error Message"]) {
+    throw new Error(typed["Error Message"]);
+  }
+
+  const prices = typed.historical ?? typed.historicalData ?? [];
+  return prices
+    .map((item) => normalizeQuote(item))
+    .filter((item) => item.asOfDate && Number.isFinite(item.price))
+    .sort((a, b) => a.asOfDate.localeCompare(b.asOfDate));
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -143,26 +176,8 @@ export class FmpMarketDataProvider implements MarketDataProvider {
         throw new Error(`FMP historical request for ${normalizedSymbol} failed with status ${response.status}.`);
       }
 
-      const payload = (await response.json()) as FmpHistoricalPriceFull | { "Error Message"?: string };
-      if (!payload || Array.isArray(payload)) {
-        throw new Error(`FMP returned an unexpected historical response for ${normalizedSymbol}.`);
-      }
-      if ("Error Message" in payload && payload["Error Message"]) {
-        throw new Error(payload["Error Message"]);
-      }
-
-      const historicalPayload = payload as FmpHistoricalPriceFull;
-      const prices = historicalPayload.historical ?? historicalPayload.historicalData ?? [];
-      const normalizedPrices = prices
-        .map((item) => ({
-          symbol: normalizedSymbol,
-          price: typeof item.close === "number" ? item.close : Number(item.price ?? NaN),
-          currency: null,
-          asOfDate: item.date ?? "",
-          raw: item
-        }))
-        .filter((item) => item.asOfDate && Number.isFinite(item.price))
-        .sort((a, b) => a.asOfDate.localeCompare(b.asOfDate));
+      const payload = await response.json();
+      const normalizedPrices = parseHistoricalQuotes(payload, normalizedSymbol);
 
       if (normalizedPrices.length > 0) return normalizedPrices;
     }
