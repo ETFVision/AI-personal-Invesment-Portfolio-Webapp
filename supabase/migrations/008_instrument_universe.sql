@@ -461,17 +461,17 @@ set
   provider_metadata = excluded.provider_metadata;
 
 insert into instrument_tags (instrument_id, tag, tag_type, source, is_active)
-select i.id, benchmark_tag, 'benchmark', 'seeded', true
+select i.id, benchmark_tag.tag, 'benchmark', 'seeded', true
 from instruments i
-cross join lateral jsonb_array_elements_text(i.benchmark_tags) as benchmark_tag
+cross join lateral jsonb_array_elements_text(i.benchmark_tags) as benchmark_tag(tag)
 on conflict (instrument_id, tag_type, tag) do update
 set source = excluded.source,
     is_active = excluded.is_active;
 
 insert into instrument_tags (instrument_id, tag, tag_type, source, is_active)
-select i.id, thematic_tag, 'thematic', 'seeded', true
+select i.id, thematic_tag.tag, 'thematic', 'seeded', true
 from instruments i
-cross join lateral jsonb_array_elements_text(i.thematic_tags) as thematic_tag
+cross join lateral jsonb_array_elements_text(i.thematic_tags) as thematic_tag(tag)
 on conflict (instrument_id, tag_type, tag) do update
 set source = excluded.source,
     is_active = excluded.is_active;
