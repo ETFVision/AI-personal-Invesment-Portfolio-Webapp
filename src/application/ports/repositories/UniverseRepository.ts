@@ -62,7 +62,7 @@ export interface UniverseRepository {
   upsertCryptoProfiles(input: CryptoProfile[]): Promise<void>;
   listMetadataRefreshLogs(limit?: number): Promise<MetadataRefreshLog[]>;
   insertMetadataRefreshLog(input: Omit<MetadataRefreshLog, "id" | "createdAt">): Promise<void>;
-  listInstrumentPrices(instrumentIds?: string[]): Promise<InstrumentPrice[]>;
+  listInstrumentPrices(instrumentIds?: string[], sinceDate?: string): Promise<InstrumentPrice[]>;
   listInstrumentPriceStats(instrumentIds?: string[]): Promise<InstrumentPriceStats[]>;
   upsertInstrumentPrices(input: UpsertInstrumentPriceInput[]): Promise<void>;
 }

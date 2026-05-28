@@ -247,7 +247,7 @@ export class InstrumentMarketService {
   async buildInstrumentMarketViews(instruments: Instrument[]): Promise<InstrumentMarketView[]> {
     if (instruments.length === 0) return [];
 
-    const priceRows = await this.repository.listInstrumentPrices(instruments.map((instrument) => instrument.id));
+    const priceRows = await this.repository.listInstrumentPrices(instruments.map((instrument) => instrument.id), daysAgoIso(730));
     const priceByInstrument = new Map<string, InstrumentPrice[]>();
     for (const row of priceRows) {
       const current = priceByInstrument.get(row.instrumentId) ?? [];

@@ -188,7 +188,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     return (data ?? []).map(mapInstrument);
   }
 
-  async listInstrumentPrices(instrumentIds?: string[]) {
+  async listInstrumentPrices(instrumentIds?: string[], sinceDate?: string) {
     const rows: any[] = [];
 
     for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
@@ -200,6 +200,9 @@ export class SupabaseUniverseRepository implements UniverseRepository {
         .range(from, from + SUPABASE_PAGE_SIZE - 1);
       if (instrumentIds && instrumentIds.length > 0) {
         query = query.in("instrument_id", instrumentIds);
+      }
+      if (sinceDate) {
+        query = query.gte("price_date", sinceDate);
       }
 
       const { data, error } = await query;
