@@ -179,31 +179,102 @@ export function PerformancePanel({ dashboard }: { dashboard: PortfolioDashboard 
         dashboard={dashboard}
         benchmarkComparison={primaryBenchmark}
       />
-      <MetricGrid metrics={shortTermMetrics} currency={dashboard.portfolio.baseCurrency} />
-      {primaryBenchmark ? (
-        <div className="space-y-3">
-          <div className="text-sm font-medium">Benchmark comparison</div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <BenchmarkSpreadCard
-              label="Daily"
-              portfolioReturn={primaryBenchmark.rolling1DayPortfolioReturn}
-              benchmarkReturn={primaryBenchmark.rolling1DayBenchmarkReturn}
-            />
-            <BenchmarkSpreadCard
-              label="Weekly"
-              portfolioReturn={primaryBenchmark.rolling7DayPortfolioReturn}
-              benchmarkReturn={primaryBenchmark.rolling7DayBenchmarkReturn}
-            />
-            <BenchmarkSpreadCard
-              label="Monthly"
-              portfolioReturn={primaryBenchmark.rolling30DayPortfolioReturn}
-              benchmarkReturn={primaryBenchmark.rolling30DayBenchmarkReturn}
-            />
-          </div>
-        </div>
-      ) : null}
+      <ShortTermPerformanceGrid
+        metrics={shortTermMetrics}
+        currency={dashboard.portfolio.baseCurrency}
+        benchmarkComparison={primaryBenchmark}
+      />
     </div>
   );
+}
+
+function ShortTermPerformanceGrid({
+  metrics,
+  currency,
+  benchmarkComparison
+}: {
+  metrics: PerformanceMetric[];
+  currency: string;
+  benchmarkComparison: PortfolioDashboard["benchmarkComparisons"][number] | undefined;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {metrics.map((metric) => (
+        <div key={metric.label} className="space-y-3 rounded-md border p-3">
+          {(() => {
+            const benchmarkSpread = getShortTermBenchmarkSpread(metric.label, benchmarkComparison);
+            const spread = benchmarkSpread
+              ? benchmarkSpreadPercent(benchmarkSpread.portfolioReturn, benchmarkSpread.benchmarkReturn)
+              : null;
+
+            return (
+              <>
+          <div>
+            <div className="text-sm font-medium">{metric.label}</div>
+            {metric.valueChange == null || metric.percentChange == null ? (
+              <div className="mt-2 text-sm text-muted-foreground">Needs history</div>
+            ) : (
+              <>
+                <div className={metric.valueChange < 0 ? "mt-2 text-lg font-semibold text-destructive" : "mt-2 text-lg font-semibold text-emerald-600"}>
+                  {formatCurrencyWithCode(metric.valueChange, currency)}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {formatPercent(metric.percentChange)}{metric.baselineDate ? ` since ${metric.baselineDate}` : ""}
+                </div>
+              </>
+            )}
+          </div>
+          <div className="rounded-md bg-muted/50 p-3">
+            <div className="text-xs font-medium text-muted-foreground">Benchmark spread</div>
+            {benchmarkSpread == null || benchmarkSpread.portfolioReturn == null || benchmarkSpread.benchmarkReturn == null ? (
+              <div className="mt-1 text-sm text-muted-foreground">Needs history</div>
+            ) : (
+              <>
+                <div
+                  className={spread != null && spread < 0 ? "mt-1 text-sm font-medium text-destructive" : "mt-1 text-sm font-medium text-emerald-600"}
+                >
+                  {formatPercent(spread ?? 0)}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Portfolio {formatPercent(benchmarkSpread.portfolioReturn ?? 0)} vs benchmark {formatPercent(benchmarkSpread.benchmarkReturn ?? 0)}
+                </div>
+              </>
+            )}
+          </div>
+              </>
+            );
+          })()}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function getShortTermBenchmarkSpread(
+  label: PerformanceMetric["label"],
+  benchmarkComparison: PortfolioDashboard["benchmarkComparisons"][number] | undefined
+) {
+  if (!benchmarkComparison) return null;
+
+  switch (label) {
+    case "Daily":
+      return {
+        portfolioReturn: benchmarkComparison.rolling1DayPortfolioReturn,
+        benchmarkReturn: benchmarkComparison.rolling1DayBenchmarkReturn
+      };
+    case "Weekly":
+      return {
+        portfolioReturn: benchmarkComparison.rolling7DayPortfolioReturn,
+        benchmarkReturn: benchmarkComparison.rolling7DayBenchmarkReturn
+      };
+    case "Monthly":
+      return {
+        portfolioReturn: benchmarkComparison.rolling30DayPortfolioReturn,
+        benchmarkReturn: benchmarkComparison.rolling30DayBenchmarkReturn
+      };
+    default:
+      return null;
+  }
 }
 
 function LongTermPerformanceCharts({
