@@ -164,6 +164,8 @@ function omitUndefined<T extends Record<string, unknown>>(value: T) {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
 }
 
+const SUPABASE_PAGE_SIZE = 1000;
+
 export class SupabaseUniverseRepository implements UniverseRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
@@ -187,41 +189,63 @@ export class SupabaseUniverseRepository implements UniverseRepository {
   }
 
   async listInstrumentPrices(instrumentIds?: string[]) {
-    let query = this.db.from("instrument_prices").select("*").order("price_date", { ascending: true });
-    if (instrumentIds && instrumentIds.length > 0) {
-      query = query.in("instrument_id", instrumentIds);
+    const rows: any[] = [];
+
+    for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+      let query = this.db
+        .from("instrument_prices")
+        .select("*")
+        .order("instrument_id", { ascending: true })
+        .order("price_date", { ascending: true })
+        .range(from, from + SUPABASE_PAGE_SIZE - 1);
+      if (instrumentIds && instrumentIds.length > 0) {
+        query = query.in("instrument_id", instrumentIds);
+      }
+
+      const { data, error } = await query;
+      if (isMissingUniverseTable(error)) return [];
+      if (error) throw new Error(error.message);
+      rows.push(...(data ?? []));
+      if ((data ?? []).length < SUPABASE_PAGE_SIZE) break;
     }
 
-    const { data, error } = await query;
-    if (isMissingUniverseTable(error)) return [];
-    if (error) throw new Error(error.message);
-    return (data ?? []).map(mapInstrumentPrice);
+    return rows.map(mapInstrumentPrice);
   }
 
   async listInstrumentPriceStats(instrumentIds?: string[]) {
-    let query = this.db.from("instrument_prices").select("instrument_id, price_date");
-    if (instrumentIds && instrumentIds.length > 0) {
-      query = query.in("instrument_id", instrumentIds);
-    }
-
-    const { data, error } = await query;
-    if (isMissingUniverseTable(error)) return [];
-    if (error) throw new Error(error.message);
-
     const stats = new Map<string, { instrumentId: string; latestPriceDate: string | null; observationCount: number }>();
-    for (const row of data ?? []) {
-      const instrumentId = String(row.instrument_id);
-      const priceDate = String(row.price_date);
-      const current = stats.get(instrumentId) ?? {
-        instrumentId,
-        latestPriceDate: null,
-        observationCount: 0
-      };
-      current.observationCount += 1;
-      if (!current.latestPriceDate || priceDate > current.latestPriceDate) {
-        current.latestPriceDate = priceDate;
+
+    for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+      let query = this.db
+        .from("instrument_prices")
+        .select("instrument_id, price_date")
+        .order("instrument_id", { ascending: true })
+        .order("price_date", { ascending: true })
+        .range(from, from + SUPABASE_PAGE_SIZE - 1);
+      if (instrumentIds && instrumentIds.length > 0) {
+        query = query.in("instrument_id", instrumentIds);
       }
-      stats.set(instrumentId, current);
+
+      const { data, error } = await query;
+      if (isMissingUniverseTable(error)) return [];
+      if (error) throw new Error(error.message);
+
+      for (const row of data ?? []) {
+        const instrumentId = String(row.instrument_id);
+        const priceDate = String(row.price_date);
+        const current = stats.get(instrumentId) ?? {
+          instrumentId,
+          latestPriceDate: null,
+          observationCount: 0
+        };
+        current.observationCount += 1;
+        if (!current.latestPriceDate || priceDate > current.latestPriceDate) {
+          current.latestPriceDate = priceDate;
+        }
+        stats.set(instrumentId, current);
+      }
+
+      if ((data ?? []).length < SUPABASE_PAGE_SIZE) break;
     }
 
     return Array.from(stats.values());
