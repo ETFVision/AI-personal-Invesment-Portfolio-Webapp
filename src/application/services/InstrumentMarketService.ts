@@ -132,7 +132,7 @@ export class InstrumentMarketService {
       try {
         const instrument = instrumentBySymbol.get(symbol);
         if (!instrument) continue;
-        const quotes = await this.provider.getHistoricalPrices(symbol, from, to);
+        const quotes = await this.provider.getHistoricalPrices(symbol, from, to, { assetClass: instrument.assetClass });
         if (quotes.length === 0) {
           missingSymbols.push(symbol);
           continue;

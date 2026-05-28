@@ -11,5 +11,10 @@ export type HistoricalMarketPriceQuote = MarketPriceQuote;
 export interface MarketDataProvider {
   readonly name: string;
   getLatestPrices(symbols: string[]): Promise<MarketPriceQuote[]>;
-  getHistoricalPrices(symbol: string, from: string, to: string): Promise<HistoricalMarketPriceQuote[]>;
+  getHistoricalPrices(
+    symbol: string,
+    from: string,
+    to: string,
+    context?: { assetClass?: string }
+  ): Promise<HistoricalMarketPriceQuote[]>;
 }

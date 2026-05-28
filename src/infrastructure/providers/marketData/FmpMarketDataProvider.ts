@@ -28,11 +28,20 @@ type FmpHistoricalPriceFull = {
 };
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
+const FMP_LEGACY_BASE_URL = "https://financialmodelingprep.com/api/v3";
 const FMP_BATCH_SIZE = 25;
 const FMP_MAX_ATTEMPTS = 2;
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function normalizeHistoricalSymbol(symbol: string, assetClass?: string) {
+  const normalized = symbol.trim().toUpperCase();
+  if (assetClass === "crypto" && !normalized.endsWith("USD")) {
+    return `${normalized}USD`;
+  }
+  return normalized;
 }
 
 function sleep(ms: number) {
@@ -90,48 +99,75 @@ export class FmpMarketDataProvider implements MarketDataProvider {
     return [...realtimeQuotes, ...eodQuotes];
   }
 
-  async getHistoricalPrices(symbol: string, from: string, to: string): Promise<HistoricalMarketPriceQuote[]> {
+  async getHistoricalPrices(
+    symbol: string,
+    from: string,
+    to: string,
+    context?: { assetClass?: string }
+  ): Promise<HistoricalMarketPriceQuote[]> {
     if (!env.FMP_API_KEY) {
       throw new Error("FMP_API_KEY is not configured.");
     }
 
     const apiKey = env.FMP_API_KEY;
-    const url = new URL(`${FMP_BASE_URL}/historical-price-full/${symbol.toUpperCase()}`);
-    url.searchParams.set("from", from);
-    url.searchParams.set("to", to);
-    url.searchParams.set("serietype", "line");
-    url.searchParams.set("apikey", apiKey);
+    const normalizedSymbol = normalizeHistoricalSymbol(symbol, context?.assetClass);
+    const candidates =
+      context?.assetClass === "crypto"
+        ? [
+            new URL(`${FMP_BASE_URL}/historical-price-eod/full`),
+            new URL(`${FMP_LEGACY_BASE_URL}/historical-price-full/${encodeURIComponent(normalizedSymbol)}`)
+          ]
+        : [
+            new URL(`${FMP_LEGACY_BASE_URL}/historical-price-full/${encodeURIComponent(normalizedSymbol)}`),
+            new URL(`${FMP_BASE_URL}/historical-price-eod/full`)
+          ];
 
-    const response = await fetchWithRetry(url);
+    for (const url of candidates) {
+      url.searchParams.set("symbol", normalizedSymbol);
+      url.searchParams.set("from", from);
+      url.searchParams.set("to", to);
+      url.searchParams.set("serietype", "line");
+      url.searchParams.set("apikey", apiKey);
 
-    if (response.status === 402 || response.status === 403) {
-      return [];
+      const response = await fetchWithRetry(url);
+
+      if (response.status === 402 || response.status === 403) {
+        return [];
+      }
+
+      if (response.status === 404) {
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new Error(`FMP historical request for ${normalizedSymbol} failed with status ${response.status}.`);
+      }
+
+      const payload = (await response.json()) as FmpHistoricalPriceFull | { "Error Message"?: string };
+      if (!payload || Array.isArray(payload)) {
+        throw new Error(`FMP returned an unexpected historical response for ${normalizedSymbol}.`);
+      }
+      if ("Error Message" in payload && payload["Error Message"]) {
+        throw new Error(payload["Error Message"]);
+      }
+
+      const historicalPayload = payload as FmpHistoricalPriceFull;
+      const prices = historicalPayload.historical ?? historicalPayload.historicalData ?? [];
+      const normalizedPrices = prices
+        .map((item) => ({
+          symbol: normalizedSymbol,
+          price: typeof item.close === "number" ? item.close : Number(item.price ?? NaN),
+          currency: null,
+          asOfDate: item.date ?? "",
+          raw: item
+        }))
+        .filter((item) => item.asOfDate && Number.isFinite(item.price))
+        .sort((a, b) => a.asOfDate.localeCompare(b.asOfDate));
+
+      if (normalizedPrices.length > 0) return normalizedPrices;
     }
 
-    if (!response.ok) {
-      throw new Error(`FMP historical request for ${symbol} failed with status ${response.status}.`);
-    }
-
-    const payload = (await response.json()) as FmpHistoricalPriceFull | { "Error Message"?: string };
-    if (!payload || Array.isArray(payload)) {
-      throw new Error(`FMP returned an unexpected historical response for ${symbol}.`);
-    }
-    if ("Error Message" in payload && payload["Error Message"]) {
-      throw new Error(payload["Error Message"]);
-    }
-
-    const historicalPayload = payload as FmpHistoricalPriceFull;
-    const prices = historicalPayload.historical ?? historicalPayload.historicalData ?? [];
-    return prices
-      .map((item) => ({
-        symbol: symbol.toUpperCase(),
-        price: typeof item.close === "number" ? item.close : Number(item.price ?? NaN),
-        currency: null,
-        asOfDate: item.date ?? "",
-        raw: item
-      }))
-      .filter((item) => item.asOfDate && Number.isFinite(item.price))
-      .sort((a, b) => a.asOfDate.localeCompare(b.asOfDate));
+    return [];
   }
 
   private async tryGetRealtimeQuotes(uniqueSymbols: string[], apiKey: string) {
