@@ -172,11 +172,189 @@ export function PerformancePanel({ dashboard }: { dashboard: PortfolioDashboard 
   const shortTermMetrics = dashboard.performance.filter(
     (item) => item.label === "Daily" || item.label === "Weekly" || item.label === "Monthly"
   );
+  const primaryBenchmark = dashboard.benchmarkComparisons.find((item) => item.benchmark.benchmarkKey === "sp500") ?? dashboard.benchmarkComparisons[0];
   return (
     <div className="space-y-6">
-      <PerformanceLineChart metrics={dashboard.performance} currency={dashboard.portfolio.baseCurrency} />
+      <LongTermPerformanceCharts
+        dashboard={dashboard}
+        benchmarkComparison={primaryBenchmark}
+      />
       <MetricGrid metrics={shortTermMetrics} currency={dashboard.portfolio.baseCurrency} />
-      <BenchmarkComparisonPanel dashboard={dashboard} />
+      {primaryBenchmark ? (
+        <div className="space-y-3">
+          <div className="text-sm font-medium">Benchmark comparison</div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <BenchmarkSpreadCard
+              label="Daily"
+              portfolioReturn={primaryBenchmark.rolling1DayPortfolioReturn}
+              benchmarkReturn={primaryBenchmark.rolling1DayBenchmarkReturn}
+            />
+            <BenchmarkSpreadCard
+              label="Weekly"
+              portfolioReturn={primaryBenchmark.rolling7DayPortfolioReturn}
+              benchmarkReturn={primaryBenchmark.rolling7DayBenchmarkReturn}
+            />
+            <BenchmarkSpreadCard
+              label="Monthly"
+              portfolioReturn={primaryBenchmark.rolling30DayPortfolioReturn}
+              benchmarkReturn={primaryBenchmark.rolling30DayBenchmarkReturn}
+            />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LongTermPerformanceCharts({
+  dashboard,
+  benchmarkComparison
+}: {
+  dashboard: PortfolioDashboard;
+  benchmarkComparison: PortfolioDashboard["benchmarkComparisons"][number] | undefined;
+}) {
+  if (!benchmarkComparison || benchmarkComparison.points.length < 2) {
+    return (
+      <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+        The long-term benchmark charts will appear once benchmark history is available.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-medium">Longer-term performance</span>
+        <span className="text-muted-foreground">Portfolio vs benchmark return</span>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <ComparisonPeriodChart
+          label="1Y"
+          points={buildComparisonSeriesForPeriod(benchmarkComparison.points, "1Y")}
+          portfolioCurrency={dashboard.portfolio.baseCurrency}
+          benchmarkName={benchmarkComparison.benchmark.name}
+          fallbackMessage="Needs 1Y history"
+        />
+        <ComparisonPeriodChart
+          label="YTD"
+          points={buildComparisonSeriesForPeriod(benchmarkComparison.points, "YTD")}
+          portfolioCurrency={dashboard.portfolio.baseCurrency}
+          benchmarkName={benchmarkComparison.benchmark.name}
+          fallbackMessage="Needs YTD history"
+        />
+        <ComparisonPeriodChart
+          label="Since inception"
+          points={buildComparisonSeriesForPeriod(benchmarkComparison.points, "Since inception")}
+          portfolioCurrency={dashboard.portfolio.baseCurrency}
+          benchmarkName={benchmarkComparison.benchmark.name}
+          fallbackMessage="Needs inception history"
+        />
+      </div>
+    </div>
+  );
+}
+
+function buildComparisonSeriesForPeriod(
+  points: PortfolioDashboard["benchmarkComparisons"][number]["points"],
+  label: "1Y" | "YTD" | "Since inception"
+) {
+  if (points.length < 2) return [];
+
+  const endDate = points[points.length - 1].snapshotDate;
+  const startIso =
+    label === "1Y"
+      ? (() => {
+          const date = new Date(`${endDate}T00:00:00.000Z`);
+          date.setUTCDate(date.getUTCDate() - 365);
+          return date.toISOString().slice(0, 10);
+        })()
+      : label === "YTD"
+        ? `${new Date(endDate).getUTCFullYear()}-01-01`
+        : points[0].snapshotDate;
+
+  const filtered = points.filter((point) => point.snapshotDate >= startIso);
+  return filtered.length >= 2 ? filtered : points.slice(-2);
+}
+
+function ComparisonPeriodChart({
+  label,
+  points,
+  portfolioCurrency,
+  benchmarkName,
+  fallbackMessage
+}: {
+  label: string;
+  points: PortfolioDashboard["benchmarkComparisons"][number]["points"];
+  portfolioCurrency: string;
+  benchmarkName: string;
+  fallbackMessage: string;
+}) {
+  if (points.length < 2) {
+    return (
+      <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+        {fallbackMessage}
+      </div>
+    );
+  }
+
+  const basePortfolio = points[0].portfolioValue;
+  const baseBenchmark = points[0].benchmarkValue;
+  const seriesA = points.map((point) => (basePortfolio === 0 ? 0 : point.portfolioValue / basePortfolio - 1));
+  const seriesB = points.map((point) => (baseBenchmark === 0 ? 0 : point.benchmarkValue / baseBenchmark - 1));
+  const allValues = [...seriesA, ...seriesB];
+  const minValue = Math.min(...allValues, 0);
+  const maxValue = Math.max(...allValues, 0);
+  const range = Math.max(maxValue - minValue, 0.01);
+  const width = 100;
+  const height = 100;
+  const left = 8;
+  const right = 92;
+  const top = 12;
+  const bottom = 88;
+  const xStep = points.length === 1 ? 0 : (right - left) / (points.length - 1);
+
+  const buildPath = (series: number[]) =>
+    series
+      .map((value, index) => {
+        const x = left + index * xStep;
+        const y = bottom - ((value - minValue) / range) * (bottom - top);
+        return `${x},${y}`;
+      })
+      .join(" ");
+
+  return (
+    <div className="rounded-md border p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium">{label}</div>
+          <div className="text-xs text-muted-foreground">{benchmarkName}</div>
+        </div>
+        <div className="text-xs text-muted-foreground">Portfolio / benchmark</div>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${label} portfolio versus benchmark chart`} className="h-44 w-full">
+        <line x1={left} y1={bottom} x2={right} y2={bottom} className="stroke-muted" strokeWidth="0.7" />
+        <line x1={left} y1={top} x2={right} y2={top} className="stroke-muted" strokeWidth="0.4" strokeDasharray="2 2" />
+        <polyline points={buildPath(seriesA)} fill="none" className="stroke-primary" strokeWidth="1.8" strokeLinecap="round" />
+        <polyline points={buildPath(seriesB)} fill="none" className="stroke-emerald-600" strokeWidth="1.8" strokeLinecap="round" />
+        <text x={left} y={97} textAnchor="start" className="fill-muted-foreground text-[4px]">{points[0].snapshotDate.slice(0, 7)}</text>
+        <text x={right} y={97} textAnchor="end" className="fill-muted-foreground text-[4px]">{points[points.length - 1].snapshotDate.slice(0, 7)}</text>
+      </svg>
+      <div className="mt-3 grid gap-2 rounded-md bg-muted/50 p-3 text-sm sm:grid-cols-2">
+        <div>
+          <div className="text-xs text-muted-foreground">Portfolio</div>
+          <div className={seriesA[seriesA.length - 1] < 0 ? "text-destructive" : "text-emerald-600"}>{formatPercent(seriesA[seriesA.length - 1] ?? 0)}</div>
+          <div className="text-xs text-muted-foreground">
+            {formatCurrencyWithCode(points[points.length - 1].portfolioValue - points[0].portfolioValue, portfolioCurrency)}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-muted-foreground">{benchmarkName}</div>
+          <div className={seriesB[seriesB.length - 1] < 0 ? "text-destructive" : "text-emerald-600"}>{formatPercent(seriesB[seriesB.length - 1] ?? 0)}</div>
+          <div className="text-xs text-muted-foreground">
+            {formatCurrencyWithCode(points[points.length - 1].benchmarkValue - points[0].benchmarkValue, portfolioCurrency)}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
