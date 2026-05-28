@@ -4,8 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+type LoginPageProps = {
+  searchParams?: Promise<{ error?: string; redirectTo?: string }>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-muted px-4">
       <Card className="w-full max-w-md">
@@ -14,12 +19,13 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <CardDescription>Sign in to manage your ETF-first portfolio workspace.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          {params.error ? (
+          {params?.error ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {params.error}
             </div>
           ) : null}
           <form action={signInAction} className="space-y-4">
+            {params?.redirectTo ? <input type="hidden" name="redirectTo" value={params.redirectTo} /> : null}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" name="email" type="email" required autoComplete="email" />

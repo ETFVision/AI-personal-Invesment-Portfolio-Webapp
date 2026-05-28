@@ -10,12 +10,13 @@ function formString(formData: FormData, key: string) {
 export async function signInAction(formData: FormData) {
   const email = formString(formData, "email");
   const password = formString(formData, "password");
+  const redirectTo = formString(formData, "redirectTo") || "/portfolio";
   try {
     await createContainer().authProvider.signInWithPassword(email, password);
   } catch (error) {
     redirect(`/login?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to sign in")}`);
   }
-  redirect("/portfolio");
+  redirect(redirectTo);
 }
 
 export async function signUpAction(formData: FormData) {
@@ -33,4 +34,3 @@ export async function signOutAction() {
   await createContainer().authProvider.signOut();
   redirect("/login");
 }
-
