@@ -18,12 +18,16 @@ type FmpHistoricalPriceFull = {
   historical?: Array<{
     date?: string;
     close?: number;
+    adjClose?: number;
     price?: number;
+    volume?: number;
   }>;
   historicalData?: Array<{
     date?: string;
     close?: number;
+    adjClose?: number;
     price?: number;
+    volume?: number;
   }>;
 };
 
@@ -48,9 +52,14 @@ function parseHistoricalQuotes(
   payload: unknown,
   symbol: string
 ): HistoricalMarketPriceQuote[] {
-  const normalizeQuote = (item: { date?: string; close?: number; price?: number }) => ({
+  const normalizeQuote = (item: { date?: string; close?: number; adjClose?: number; price?: number }) => ({
     symbol,
-    price: typeof item.close === "number" ? item.close : Number(item.price ?? NaN),
+    price:
+      typeof item.adjClose === "number"
+        ? item.adjClose
+        : typeof item.close === "number"
+          ? item.close
+          : Number(item.price ?? NaN),
     currency: null,
     asOfDate: item.date ?? "",
     raw: item
@@ -144,22 +153,13 @@ export class FmpMarketDataProvider implements MarketDataProvider {
 
     const apiKey = env.FMP_API_KEY;
     const normalizedSymbol = normalizeHistoricalSymbol(symbol, context?.assetClass);
-    const candidates =
-      context?.assetClass === "crypto"
-        ? [
-            new URL(`${FMP_BASE_URL}/historical-price-eod/full`),
-            new URL(`${FMP_LEGACY_BASE_URL}/historical-price-full/${encodeURIComponent(normalizedSymbol)}`)
-          ]
-        : [
-            new URL(`${FMP_LEGACY_BASE_URL}/historical-price-full/${encodeURIComponent(normalizedSymbol)}`),
-            new URL(`${FMP_BASE_URL}/historical-price-eod/full`)
-          ];
+    const candidates = [
+      new URL(`${FMP_BASE_URL}/historical-price-eod/full`),
+      new URL(`${FMP_LEGACY_BASE_URL}/historical-price-full/${encodeURIComponent(normalizedSymbol)}`)
+    ];
 
     for (const url of candidates) {
       url.searchParams.set("symbol", normalizedSymbol);
-      url.searchParams.set("from", from);
-      url.searchParams.set("to", to);
-      url.searchParams.set("serietype", "line");
       url.searchParams.set("apikey", apiKey);
 
       const response = await fetchWithRetry(url);
@@ -177,7 +177,7 @@ export class FmpMarketDataProvider implements MarketDataProvider {
       }
 
       const payload = await response.json();
-      const normalizedPrices = parseHistoricalQuotes(payload, normalizedSymbol);
+      const normalizedPrices = parseHistoricalQuotes(payload, normalizedSymbol).filter((quote) => quote.asOfDate >= from && quote.asOfDate <= to);
 
       if (normalizedPrices.length > 0) return normalizedPrices;
     }
