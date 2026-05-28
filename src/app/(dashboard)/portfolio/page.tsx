@@ -7,7 +7,6 @@ import {
   AllocationPanel,
   CashInvestedPanel,
   CurrencyExposurePanel,
-  BenchmarkComparisonPanel,
   PerformancePanel,
   WinnersLosersPanel
 } from "@/components/portfolio/analytics-panels";
@@ -173,16 +172,6 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </CardHeader>
         <CardContent>
           <PerformancePanel dashboard={dashboard} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Benchmark comparison</CardTitle>
-          <CardDescription>Portfolio versus the benchmark universe using stored benchmark snapshots.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <BenchmarkComparisonPanel dashboard={dashboard} />
         </CardContent>
       </Card>
 

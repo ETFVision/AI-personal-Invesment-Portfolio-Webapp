@@ -176,6 +176,7 @@ export function PerformancePanel({ dashboard }: { dashboard: PortfolioDashboard 
     <div className="space-y-6">
       <PerformanceLineChart metrics={dashboard.performance} currency={dashboard.portfolio.baseCurrency} />
       <MetricGrid metrics={shortTermMetrics} currency={dashboard.portfolio.baseCurrency} />
+      <BenchmarkComparisonPanel dashboard={dashboard} />
     </div>
   );
 }
@@ -336,7 +337,28 @@ export function BenchmarkComparisonPanel({ dashboard }: { dashboard: PortfolioDa
     dashboard.benchmarkComparisons.find((item) => item.benchmark.benchmarkKey === "sp500") ?? dashboard.benchmarkComparisons[0];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 border-t pt-6">
+      <div className="space-y-2">
+        <div className="text-sm font-medium">Benchmark comparison</div>
+        <div className="text-sm text-muted-foreground">Portfolio versus {primary.benchmark.name} using rolling and cumulative spread views.</div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <BenchmarkSpreadCard
+          label="Daily"
+          portfolioReturn={primary.rolling1DayPortfolioReturn}
+          benchmarkReturn={primary.rolling1DayBenchmarkReturn}
+        />
+        <BenchmarkSpreadCard
+          label="Weekly"
+          portfolioReturn={primary.rolling7DayPortfolioReturn}
+          benchmarkReturn={primary.rolling7DayBenchmarkReturn}
+        />
+        <BenchmarkSpreadCard
+          label="Monthly"
+          portfolioReturn={primary.rolling30DayPortfolioReturn}
+          benchmarkReturn={primary.rolling30DayBenchmarkReturn}
+        />
+      </div>
       <ComparisonLineChart
         title="Portfolio vs benchmark performance"
         subtitle={primary.benchmark.name}
@@ -358,6 +380,34 @@ export function BenchmarkComparisonPanel({ dashboard }: { dashboard: PortfolioDa
         valueFormatter={formatPercent}
       />
       <BenchmarkSummaryTable comparisons={dashboard.benchmarkComparisons} />
+    </div>
+  );
+}
+
+function benchmarkSpreadPercent(portfolioReturn: number | null, benchmarkReturn: number | null) {
+  if (portfolioReturn == null || benchmarkReturn == null) return null;
+  return portfolioReturn - benchmarkReturn;
+}
+
+function BenchmarkSpreadCard({
+  label,
+  portfolioReturn,
+  benchmarkReturn
+}: {
+  label: string;
+  portfolioReturn: number | null;
+  benchmarkReturn: number | null;
+}) {
+  const spread = benchmarkSpreadPercent(portfolioReturn, benchmarkReturn);
+  return (
+    <div className="rounded-md border p-3">
+      <div className="text-sm font-medium">{label}</div>
+      <div className="mt-2 text-lg font-semibold">
+        {spread == null ? <span className="text-muted-foreground">Needs history</span> : <span className={spread < 0 ? "text-destructive" : "text-emerald-600"}>{formatPercent(spread)}</span>}
+      </div>
+      <div className="mt-1 text-xs text-muted-foreground">
+        Portfolio {portfolioReturn == null ? "-" : formatPercent(portfolioReturn)} vs benchmark {benchmarkReturn == null ? "-" : formatPercent(benchmarkReturn)}
+      </div>
     </div>
   );
 }

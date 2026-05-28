@@ -126,6 +126,10 @@ export type BenchmarkComparison = {
   cumulativePortfolioReturn: number | null;
   cumulativeBenchmarkReturn: number | null;
   relativeOutperformance: number | null;
+  rolling1DayPortfolioReturn: number | null;
+  rolling1DayBenchmarkReturn: number | null;
+  rolling7DayPortfolioReturn: number | null;
+  rolling7DayBenchmarkReturn: number | null;
   rolling30DayPortfolioReturn: number | null;
   rolling30DayBenchmarkReturn: number | null;
   rolling90DayPortfolioReturn: number | null;

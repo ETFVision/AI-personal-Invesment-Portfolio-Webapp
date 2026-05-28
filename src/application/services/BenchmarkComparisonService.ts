@@ -49,6 +49,10 @@ export class BenchmarkComparisonService {
         cumulativePortfolioReturn: null,
         cumulativeBenchmarkReturn: null,
         relativeOutperformance: null,
+        rolling1DayPortfolioReturn: null,
+        rolling1DayBenchmarkReturn: null,
+        rolling7DayPortfolioReturn: null,
+        rolling7DayBenchmarkReturn: null,
         rolling30DayPortfolioReturn: null,
         rolling30DayBenchmarkReturn: null,
         rolling90DayPortfolioReturn: null,
@@ -95,6 +99,8 @@ export class BenchmarkComparisonService {
     }
 
     const latest = points[points.length - 1];
+    const rolling1Baseline = latestPointOnOrBefore(points, shiftDate(latest.snapshotDate, 1));
+    const rolling7Baseline = latestPointOnOrBefore(points, shiftDate(latest.snapshotDate, 7));
     const rolling30Baseline = latestPointOnOrBefore(points, shiftDate(latest.snapshotDate, 30));
     const rolling90Baseline = latestPointOnOrBefore(points, shiftDate(latest.snapshotDate, 90));
 
@@ -103,6 +109,10 @@ export class BenchmarkComparisonService {
       cumulativePortfolioReturn: latest.portfolioReturn,
       cumulativeBenchmarkReturn: latest.benchmarkReturn,
       relativeOutperformance: latest.portfolioReturn - latest.benchmarkReturn,
+      rolling1DayPortfolioReturn: rolling1Baseline ? cumulativeReturn(latest.portfolioValue, rolling1Baseline.portfolioValue) : null,
+      rolling1DayBenchmarkReturn: rolling1Baseline ? cumulativeReturn(latest.benchmarkValue, rolling1Baseline.benchmarkValue) : null,
+      rolling7DayPortfolioReturn: rolling7Baseline ? cumulativeReturn(latest.portfolioValue, rolling7Baseline.portfolioValue) : null,
+      rolling7DayBenchmarkReturn: rolling7Baseline ? cumulativeReturn(latest.benchmarkValue, rolling7Baseline.benchmarkValue) : null,
       rolling30DayPortfolioReturn: rolling30Baseline ? cumulativeReturn(latest.portfolioValue, rolling30Baseline.portfolioValue) : null,
       rolling30DayBenchmarkReturn: rolling30Baseline ? cumulativeReturn(latest.benchmarkValue, rolling30Baseline.benchmarkValue) : null,
       rolling90DayPortfolioReturn: rolling90Baseline ? cumulativeReturn(latest.portfolioValue, rolling90Baseline.portfolioValue) : null,
