@@ -204,7 +204,9 @@ export class BenchmarkService {
       price: quote.price,
       raw: quote.raw
     }));
-    if (series.length === 0) return [];
+    if (series.length === 0) {
+      throw new Error(`No historical benchmark data returned for ${benchmark.name}.`);
+    }
 
     const previousClose = latestSnapshot?.closePrice ?? null;
     const previousLevel = latestSnapshot?.levelValue ?? benchmark.baseValue;
@@ -255,7 +257,9 @@ export class BenchmarkService {
       })
     );
 
-    if (componentQuotes.some((item) => item.quotes.length === 0)) return [];
+    if (componentQuotes.some((item) => item.quotes.length === 0)) {
+      throw new Error(`Missing historical benchmark data for composite benchmark ${benchmark.name}.`);
+    }
 
     const commonDates = componentQuotes
       .map((item) => new Set(item.quotes.map((quote) => quote.date)))
@@ -267,6 +271,7 @@ export class BenchmarkService {
     const quoteMaps = new Map(componentQuotes.map((item) => [item.component.symbol, buildDatePriceMap(item.quotes)]));
     let prevLevel = latestSnapshot?.levelValue ?? benchmark.baseValue;
     let peak = latestSnapshot ? Math.max(latestSnapshot.levelValue, benchmark.baseValue) : benchmark.baseValue;
+    let previousDate = latestSnapshot?.snapshotDate ?? null;
     const snapshots: BenchmarkSnapshot[] = [];
 
     for (const date of sortedDates) {
@@ -274,7 +279,6 @@ export class BenchmarkService {
         continue;
       }
 
-      const previousDate = latestSnapshot ? latestSnapshot.snapshotDate : sortedDates[sortedDates.indexOf(date) - 1];
       if (!previousDate) {
         snapshots.push({
           id: "",
@@ -288,12 +292,14 @@ export class BenchmarkService {
           currency: benchmark.currency,
           provider: this.provider.name
         });
+        previousDate = date;
         continue;
       }
 
+      const comparisonDate = previousDate;
       const weightedReturn = benchmark.components.reduce((sum, component) => {
         const currentQuote = quoteMaps.get(component.symbol)?.get(date);
-        const previousQuote = quoteMaps.get(component.symbol)?.get(previousDate);
+        const previousQuote = quoteMaps.get(component.symbol)?.get(comparisonDate);
         if (!currentQuote || !previousQuote || previousQuote.price === 0) return sum;
         return sum + component.weight * (currentQuote.price / previousQuote.price - 1);
       }, 0);
@@ -314,6 +320,7 @@ export class BenchmarkService {
         provider: this.provider.name
       });
       prevLevel = levelValue;
+      previousDate = date;
     }
 
     return snapshots;
