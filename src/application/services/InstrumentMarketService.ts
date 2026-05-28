@@ -41,6 +41,10 @@ function yearsAgoIso(years: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function isStaleOrMissing(latestPriceDate: string | null, asOfDate: string) {
+  return !latestPriceDate || latestPriceDate < asOfDate;
+}
+
 function formatDateLabel(date: string | null) {
   return date ? date.slice(0, 10) : "-";
 }
@@ -93,13 +97,36 @@ export class InstrumentMarketService {
     private readonly provider: MarketDataProvider
   ) {}
 
-  async refreshInstrumentPrices(input?: { lookbackDays?: number; instrumentIds?: string[] }): Promise<RefreshInstrumentPricesResult> {
+  async refreshInstrumentPrices(input?: {
+    lookbackDays?: number;
+    instrumentIds?: string[];
+    maxSymbols?: number;
+  }): Promise<RefreshInstrumentPricesResult> {
     const lookbackDays = input?.lookbackDays ?? 1825;
+    const maxSymbols = Math.max(1, input?.maxSymbols ?? 12);
     const allInstruments = await this.repository.listInstruments({ isActive: true });
     const instruments = input?.instrumentIds?.length
       ? allInstruments.filter((instrument) => input.instrumentIds?.includes(instrument.id))
       : allInstruments;
-    const symbols = uniqueSymbols(instruments.map((instrument) => instrument.symbol)).slice(0, 75);
+    const priceStats = await this.repository.listInstrumentPriceStats(instruments.map((instrument) => instrument.id));
+    const statsByInstrumentId = new Map(priceStats.map((item) => [item.instrumentId, item]));
+    const today = todayIsoDate();
+    const symbols = uniqueSymbols(
+      instruments
+        .slice()
+        .sort((a, b) => {
+          const aStats = statsByInstrumentId.get(a.id);
+          const bStats = statsByInstrumentId.get(b.id);
+          const aNeedsRefresh = isStaleOrMissing(aStats?.latestPriceDate ?? null, today);
+          const bNeedsRefresh = isStaleOrMissing(bStats?.latestPriceDate ?? null, today);
+          if (aNeedsRefresh !== bNeedsRefresh) return aNeedsRefresh ? -1 : 1;
+          const aCount = aStats?.observationCount ?? 0;
+          const bCount = bStats?.observationCount ?? 0;
+          if (aCount !== bCount) return aCount - bCount;
+          return (a.symbol ?? "").localeCompare(b.symbol ?? "");
+        })
+        .map((instrument) => instrument.symbol)
+    ).slice(0, maxSymbols);
 
     if (symbols.length === 0) {
       return {
@@ -166,8 +193,8 @@ export class InstrumentMarketService {
       errors,
       message:
         errors.length === 0
-          ? `Stored ${rows.length} instrument price row${rows.length === 1 ? "" : "s"} for ${symbols.length} instrument${symbols.length === 1 ? "" : "s"}.`
-          : `Stored ${rows.length} instrument price row${rows.length === 1 ? "" : "s"} with ${errors.length} issue${errors.length === 1 ? "" : "s"}.`
+          ? `Stored ${rows.length} instrument price row${rows.length === 1 ? "" : "s"} for ${symbols.length} instrument${symbols.length === 1 ? "" : "s"}. Run again to continue the next batch if needed.`
+          : `Stored ${rows.length} instrument price row${rows.length === 1 ? "" : "s"} with ${errors.length} issue${errors.length === 1 ? "" : "s"}. Run again to continue the next batch if needed.`
     };
   }
 

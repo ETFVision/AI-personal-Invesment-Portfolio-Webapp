@@ -32,7 +32,6 @@ type FmpHistoricalPriceFull = {
 };
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
-const FMP_LEGACY_BASE_URL = "https://financialmodelingprep.com/api/v3";
 const FMP_BATCH_SIZE = 25;
 const FMP_MAX_ATTEMPTS = 2;
 
@@ -153,10 +152,7 @@ export class FmpMarketDataProvider implements MarketDataProvider {
 
     const apiKey = env.FMP_API_KEY;
     const normalizedSymbol = normalizeHistoricalSymbol(symbol, context?.assetClass);
-    const candidates = [
-      new URL(`${FMP_BASE_URL}/historical-price-eod/full`),
-      new URL(`${FMP_LEGACY_BASE_URL}/historical-price-full/${encodeURIComponent(normalizedSymbol)}`)
-    ];
+    const candidates = [new URL(`${FMP_BASE_URL}/historical-price-eod/full`)];
 
     for (const url of candidates) {
       url.searchParams.set("symbol", normalizedSymbol);

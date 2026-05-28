@@ -27,6 +27,12 @@ export type UpsertWatchlistItemInput = Omit<WatchlistItem, "id" | "watchlistKey"
 
 export type UpsertInstrumentPriceInput = Omit<InstrumentPrice, "id"> & { id?: string };
 
+export type InstrumentPriceStats = {
+  instrumentId: string;
+  latestPriceDate: string | null;
+  observationCount: number;
+};
+
 export interface UniverseRepository {
   listInstruments(filters?: ListInstrumentsFilters): Promise<Instrument[]>;
   upsertInstruments(input: UpsertInstrumentInput[]): Promise<void>;
@@ -57,5 +63,6 @@ export interface UniverseRepository {
   listMetadataRefreshLogs(limit?: number): Promise<MetadataRefreshLog[]>;
   insertMetadataRefreshLog(input: Omit<MetadataRefreshLog, "id" | "createdAt">): Promise<void>;
   listInstrumentPrices(instrumentIds?: string[]): Promise<InstrumentPrice[]>;
+  listInstrumentPriceStats(instrumentIds?: string[]): Promise<InstrumentPriceStats[]>;
   upsertInstrumentPrices(input: UpsertInstrumentPriceInput[]): Promise<void>;
 }

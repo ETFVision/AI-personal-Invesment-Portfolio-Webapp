@@ -66,10 +66,17 @@ const seededInstruments: InstrumentSeed[] = [
   goldEtf("GLD", "SPDR Gold Shares", "United States", "USD", "NYSE Arca"),
   goldEtf("IAU", "iShares Gold Trust", "United States", "USD", "NYSE Arca"),
 
-  // Crypto
-  crypto("BTC", "Bitcoin", "Bitcoin", "store-of-value", "high"),
-  crypto("ETH", "Ethereum", "Ethereum", "smart-contract", "high"),
-  crypto("SOL", "Solana", "Solana", "smart-contract", "high"),
+  // Crypto ETF proxies for investable watchlist coverage
+  cryptoEtf("IBIT", "iShares Bitcoin Trust ETF", "Bitcoin", "spot-bitcoin", "NYSE Arca"),
+  cryptoEtf("FBTC", "Fidelity Wise Origin Bitcoin Fund", "Bitcoin", "spot-bitcoin", "Cboe BZX"),
+  cryptoEtf("ETHA", "iShares Ethereum Trust ETF", "Ethereum", "spot-ethereum", "NASDAQ"),
+  cryptoEtf("FETH", "Fidelity Ethereum Fund", "Ethereum", "spot-ethereum", "Cboe BZX"),
+  cryptoEtf("BSOL", "Bitwise Solana Staking ETF", "Solana", "spot-solana", "NYSE Arca"),
+
+  // Raw crypto references kept inactive by default; ETF proxies are the primary investable universe.
+  crypto("BTC", "Bitcoin", "Bitcoin", "store-of-value", "high", false),
+  crypto("ETH", "Ethereum", "Ethereum", "smart-contract", "high", false),
+  crypto("SOL", "Solana", "Solana", "smart-contract", "high", false),
 
   // Core quality watchlist stocks
   stock("AAPL", "Apple", "core_quality", ["quality", "technology"], "Technology", "Consumer Electronics", "United States", "USD", "NASDAQ"),
@@ -266,7 +273,7 @@ function instrument(
     liquidityRole: extra?.liquidityRole ?? null,
     cryptoClassification: extra?.cryptoClassification ?? null,
     sourceType: "seeded",
-    isActive: true,
+    isActive: extra?.isActive ?? true,
     providerPrimary: extra?.providerPrimary ?? null,
     providerMetadata: extra?.providerMetadata ?? {}
   };
@@ -338,7 +345,24 @@ function goldEtf(symbol: string, name: string, geography: string, currency: stri
   };
 }
 
-function crypto(symbol: string, name: string, chain: string, classification: string, volatilityBucket: string): InstrumentSeed {
+function cryptoEtf(symbol: string, name: string, underlying: string, classification: string, exchange: string): InstrumentSeed {
+  return {
+    ...instrument(symbol, name, "etf", "crypto_etf", "United States", "USD", exchange, {
+      sector: "Digital Assets",
+      industry: "Crypto ETF",
+      riskCategory: "crypto",
+      volatilityBucket: "high",
+      thematicTags: ["crypto", classification],
+      benchmarkTags: underlying === "Bitcoin" ? ["bitcoin"] : [],
+      cryptoClassification: classification,
+      liquidityRole: "crypto-exposure",
+      geoExposure: "United States",
+      providerMetadata: { underlying }
+    })
+  };
+}
+
+function crypto(symbol: string, name: string, chain: string, classification: string, volatilityBucket: string, isActive = true): InstrumentSeed {
   return {
     ...instrument(symbol, name, "crypto", "crypto", "Global", "USD", "Crypto", {
       sector: "Digital Assets",
@@ -346,7 +370,8 @@ function crypto(symbol: string, name: string, chain: string, classification: str
       riskCategory: "crypto",
       volatilityBucket,
       cryptoClassification: classification,
-      geoExposure: "Global"
+      geoExposure: "Global",
+      isActive
     }),
     providerMetadata: { chain }
   };
