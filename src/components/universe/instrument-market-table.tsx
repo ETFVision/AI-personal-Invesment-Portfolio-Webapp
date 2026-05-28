@@ -90,7 +90,6 @@ export function InstrumentMarketTable({ rows, emptyMessage = "No instruments in 
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <MetricCard label="1Y return" value={row.oneYearReturn == null ? "-" : formatPercent(row.oneYearReturn)} tone={metricTone(row.oneYearReturn)} />
                         <MetricCard label="YTD return" value={row.ytdReturn == null ? "-" : formatPercent(row.ytdReturn)} tone={metricTone(row.ytdReturn)} />
-                        <MetricCard label="5Y return" value={row.fiveYearReturn == null ? "-" : formatPercent(row.fiveYearReturn)} tone={metricTone(row.fiveYearReturn)} />
                         <MetricCard label="History" value={`${row.priceObservationCount} row${row.priceObservationCount === 1 ? "" : "s"}`} />
                         <MetricCard label="Price start" value={row.priceHistoryStart ?? "-"} />
                         <MetricCard label="Price end" value={row.priceHistoryEnd ?? "-"} />
