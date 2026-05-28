@@ -27,7 +27,9 @@ export async function seedUniverseAction() {
 
 export async function refreshUniverseMetadataAction() {
   const authUser = await createContainer().authProvider.requireUser();
-  const result = await createContainer().metadataRefreshService.refreshUniverseMetadata({ requestedByUserId: authUser.id });
+  const container = createContainer();
+  const appUser = await container.portfolioService.ensureApplicationUser(authUser);
+  const result = await container.metadataRefreshService.refreshUniverseMetadata({ requestedByUserId: appUser.id });
   const params = new URLSearchParams({
     metadataMessage: result.message
   });
