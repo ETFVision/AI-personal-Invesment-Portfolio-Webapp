@@ -46,6 +46,10 @@ function isMissingDailyPricesTable(error: { code?: string; message?: string } | 
   );
 }
 
+function isMissingTable(error: { code?: string; message?: string } | null) {
+  return Boolean(error && (error.code === "42P01" || error.message?.toLowerCase().includes("does not exist")));
+}
+
 export class SupabaseMarketDataRepository implements MarketDataRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
@@ -61,9 +65,44 @@ export class SupabaseMarketDataRepository implements MarketDataRepository {
   }
 
   async listWatchlistAssets(_userId: string): Promise<Asset[]> {
-    // Watchlist tables are planned after the core MVP. The market-data service already accepts
-    // this source so a later repository adapter can add it without changing the service contract.
-    return [];
+    const { data: watchlists, error: watchlistError } = await this.db
+      .from("watchlists")
+      .select("id")
+      .eq("is_active", true);
+    if (isMissingTable(watchlistError)) return [];
+    if (watchlistError) throw new Error(watchlistError.message);
+
+    const watchlistIds = (watchlists ?? []).map((row) => row.id);
+    if (watchlistIds.length === 0) return [];
+
+    const { data: items, error: itemsError } = await this.db
+      .from("watchlist_items")
+      .select("instrument_id")
+      .in("watchlist_id", watchlistIds)
+      .eq("is_active", true);
+    if (itemsError) throw new Error(itemsError.message);
+
+    const instrumentIds = Array.from(new Set((items ?? []).map((row) => row.instrument_id).filter(Boolean)));
+    if (instrumentIds.length === 0) return [];
+
+    const { data: instruments, error: instrumentError } = await this.db
+      .from("instruments")
+      .select("*")
+      .in("id", instrumentIds)
+      .eq("is_active", true);
+    if (instrumentError) throw new Error(instrumentError.message);
+
+    return (instruments ?? []).map((instrument) => ({
+      id: instrument.id,
+      assetType: instrument.asset_class,
+      ticker: instrument.symbol,
+      symbol: instrument.symbol,
+      name: instrument.name,
+      currency: instrument.currency,
+      sector: instrument.sector,
+      country: instrument.geography,
+      region: instrument.geography
+    }));
   }
 
   async getLatestPricesForAssets(assetIds: string[]) {
