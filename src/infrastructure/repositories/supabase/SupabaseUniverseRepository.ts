@@ -3,6 +3,7 @@ import {
   BondProfile,
   CryptoProfile,
   Instrument,
+  InstrumentPrice,
   MetadataRefreshLog,
   Watchlist,
   WatchlistItem
@@ -11,6 +12,7 @@ import {
   ListInstrumentsFilters,
   UniverseRepository,
   UpsertInstrumentInput,
+  UpsertInstrumentPriceInput,
   UpsertWatchlistInput,
   UpsertWatchlistItemInput
 } from "@/application/ports/repositories/UniverseRepository";
@@ -126,6 +128,19 @@ function mapCryptoProfile(row: any): CryptoProfile {
   };
 }
 
+function mapInstrumentPrice(row: any): InstrumentPrice {
+  return {
+    id: row.id,
+    instrumentId: row.instrument_id,
+    provider: row.provider,
+    symbol: row.symbol,
+    priceDate: row.price_date,
+    closePrice: Number(row.close_price),
+    currency: row.currency,
+    rawPayload: row.raw_payload ?? {}
+  };
+}
+
 function mapMetadataRefreshLog(row: any): MetadataRefreshLog {
   return {
     id: row.id,
@@ -167,6 +182,18 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     return (data ?? []).map(mapInstrument);
   }
 
+  async listInstrumentPrices(instrumentIds?: string[]) {
+    let query = this.db.from("instrument_prices").select("*").order("price_date", { ascending: true });
+    if (instrumentIds && instrumentIds.length > 0) {
+      query = query.in("instrument_id", instrumentIds);
+    }
+
+    const { data, error } = await query;
+    if (isMissingUniverseTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapInstrumentPrice);
+  }
+
   async upsertInstruments(input: UpsertInstrumentInput[]) {
     if (input.length === 0) return;
 
@@ -204,6 +231,25 @@ export class SupabaseUniverseRepository implements UniverseRepository {
         is_active: item.isActive
       })),
       { onConflict: "symbol" }
+    );
+    if (isMissingUniverseTable(error)) return;
+    if (error) throw new Error(error.message);
+  }
+
+  async upsertInstrumentPrices(input: UpsertInstrumentPriceInput[]) {
+    if (input.length === 0) return;
+
+    const { error } = await this.db.from("instrument_prices").upsert(
+      input.map((item) => ({
+        instrument_id: item.instrumentId,
+        provider: item.provider,
+        symbol: item.symbol,
+        price_date: item.priceDate,
+        close_price: item.closePrice,
+        currency: item.currency,
+        raw_payload: item.rawPayload
+      })),
+      { onConflict: "instrument_id,provider,price_date" }
     );
     if (isMissingUniverseTable(error)) return;
     if (error) throw new Error(error.message);

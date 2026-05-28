@@ -5,6 +5,7 @@ import { BenchmarkService } from "@/application/services/BenchmarkService";
 import { AllocationService } from "@/application/services/AllocationService";
 import { AssetMetadataService } from "@/application/services/AssetMetadataService";
 import { AnalyticsService } from "@/application/services/AnalyticsService";
+import { InstrumentMarketService } from "@/application/services/InstrumentMarketService";
 import { InstrumentService } from "@/application/services/InstrumentService";
 import { PortfolioService } from "@/application/services/PortfolioService";
 import { MarketDataService } from "@/application/services/MarketDataService";
@@ -33,6 +34,7 @@ export function createContainer() {
   const benchmarkService = new BenchmarkService(benchmarkRepository, marketDataProvider);
   const benchmarkComparisonService = new BenchmarkComparisonService();
   const assetMetadataService = new AssetMetadataService(marketDataRepository, assetMetadataProvider);
+  const instrumentMarketService = new InstrumentMarketService(universeRepository, marketDataProvider);
   const instrumentService = new InstrumentService(universeRepository);
   const watchlistService = new WatchlistService(universeRepository);
   const universeManagementService = new UniverseManagementService(universeRepository);
@@ -50,6 +52,7 @@ export function createContainer() {
     marketDataProvider,
     assetMetadataProvider,
     instrumentService,
+    instrumentMarketService,
     watchlistService,
     universeManagementService,
     metadataRefreshService,

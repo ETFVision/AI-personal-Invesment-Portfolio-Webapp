@@ -3,6 +3,8 @@ import { addWatchlistItemAction, removeWatchlistItemAction } from "@/server/acti
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InstrumentMarketTable } from "@/components/universe/instrument-market-table";
+import { InstrumentMarketView } from "@/domain/universe/types";
 
 type WatchlistsPageProps = {
   searchParams?: Promise<{
@@ -10,6 +12,18 @@ type WatchlistsPageProps = {
     q?: string;
   }>;
 };
+
+function rankAndSort(rows: InstrumentMarketView[]) {
+  return rows
+    .slice()
+    .sort((a, b) => {
+      const aReturn = a.dailyReturn ?? Number.NEGATIVE_INFINITY;
+      const bReturn = b.dailyReturn ?? Number.NEGATIVE_INFINITY;
+      if (aReturn === bReturn) return a.instrument.symbol?.localeCompare(b.instrument.symbol ?? "") ?? 0;
+      return bReturn - aReturn;
+    })
+    .map((row, index) => ({ ...row, rank: index + 1 }));
+}
 
 export default async function WatchlistsPage({ searchParams }: WatchlistsPageProps) {
   const params = await searchParams;
@@ -26,6 +40,8 @@ export default async function WatchlistsPage({ searchParams }: WatchlistsPagePro
     })
   ]);
 
+  const marketViews = await container.instrumentMarketService.buildInstrumentMarketViews(instruments);
+  const marketByInstrumentId = new Map(marketViews.map((view) => [view.instrument.id, view]));
   const instrumentOptions = instruments.filter((instrument) => Boolean(instrument.symbol));
   const itemsByWatchlist = new Map<string, typeof items>();
   for (const item of items) {
@@ -97,6 +113,25 @@ export default async function WatchlistsPage({ searchParams }: WatchlistsPagePro
       <section className="grid gap-4 lg:grid-cols-3">
         {watchlists.map((watchlist) => {
           const watchlistItems = itemsByWatchlist.get(watchlist.id) ?? [];
+          const rows = rankAndSort(
+            watchlistItems
+              .map((item) => {
+                const marketView = marketByInstrumentId.get(item.instrumentId);
+                if (!marketView) return null;
+                return {
+                  ...marketView,
+                  detailFields: [
+                    ...marketView.detailFields,
+                    { label: "Watchlist", value: watchlist.name },
+                    { label: "Watchlist rank", value: item.itemRank == null ? "-" : String(item.itemRank) },
+                    { label: "Approval", value: item.approvalStatus },
+                    { label: "Rationale", value: item.rationale ?? "-" }
+                  ]
+                };
+              })
+              .filter((row): row is InstrumentMarketView => Boolean(row))
+          );
+
           return (
             <Card key={watchlist.id}>
               <CardHeader>
@@ -104,33 +139,7 @@ export default async function WatchlistsPage({ searchParams }: WatchlistsPagePro
                 <CardDescription>{watchlist.description}</CardDescription>
               </CardHeader>
               <CardContent>
-                {watchlistItems.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No items assigned yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {watchlistItems.map((item) => (
-                      <div key={item.id} className="rounded-md border p-3 text-sm">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="font-medium">
-                              {item.symbol ?? "-"} {item.name}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Rank {item.itemRank ?? "-"} • {item.approvalStatus}
-                            </div>
-                          </div>
-                          <form action={removeWatchlistItemAction}>
-                            <input type="hidden" name="watchlistId" value={watchlist.id} />
-                            <input type="hidden" name="instrumentId" value={item.instrumentId} />
-                            <Button type="submit" size="sm" variant="outline">
-                              Remove
-                            </Button>
-                          </form>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <InstrumentMarketTable rows={rows} emptyMessage="No items assigned yet." />
               </CardContent>
             </Card>
           );

@@ -37,6 +37,16 @@ export async function refreshUniverseMetadataAction() {
   redirect(`/universe?${params.toString()}`);
 }
 
+export async function refreshInstrumentPricesAction() {
+  await createContainer().authProvider.requireUser();
+  const result = await createContainer().instrumentMarketService.refreshInstrumentPrices({ lookbackDays: 1825 });
+  const params = new URLSearchParams({
+    priceMessage: result.message
+  });
+  if (result.errors.length > 0) params.set("priceError", result.errors.join(" | "));
+  redirect(`/universe?${params.toString()}`);
+}
+
 export async function toggleInstrumentActiveAction(formData: FormData) {
   await createContainer().authProvider.requireUser();
   const instrumentId = formString(formData, "instrumentId");

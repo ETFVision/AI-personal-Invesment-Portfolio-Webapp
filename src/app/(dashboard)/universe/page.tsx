@@ -1,21 +1,23 @@
 import { createContainer } from "@/server/container";
 import {
+  refreshInstrumentPricesAction,
   refreshUniverseMetadataAction,
-  saveInstrumentTagsAction,
   seedUniverseAction,
   toggleInstrumentActiveAction
 } from "@/server/actions/universeActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatAssetTypeLabel } from "@/lib/utils";
-import { Instrument } from "@/domain/universe/types";
+import { InstrumentMarketView } from "@/domain/universe/types";
+import { InstrumentMarketTable } from "@/components/universe/instrument-market-table";
 
 type UniversePageProps = {
   searchParams?: Promise<{
     message?: string;
     metadataMessage?: string;
     metadataError?: string;
+    priceMessage?: string;
+    priceError?: string;
     q?: string;
     assetClass?: string;
     watchlistTier?: string;
@@ -23,23 +25,26 @@ type UniversePageProps = {
   }>;
 };
 
-function freshnessLabel(refreshedAt: string | null) {
-  if (!refreshedAt) return { label: "Never", tone: "text-muted-foreground" };
-  const refreshed = new Date(refreshedAt);
-  const days = Math.max(0, Math.floor((Date.now() - refreshed.getTime()) / 86_400_000));
-  if (days <= 7) return { label: `${days}d`, tone: "text-emerald-600" };
-  if (days <= 30) return { label: `${days}d`, tone: "text-amber-600" };
-  return { label: `${days}d`, tone: "text-destructive" };
+function groupByAssetClass(items: InstrumentMarketView[]) {
+  return {
+    etfs: items.filter((item) => item.instrument.assetClass === "etf"),
+    bonds: items.filter((item) => ["bond_etf", "gold_etf", "cash_proxy"].includes(item.instrument.assetClass)),
+    crypto: items.filter((item) => item.instrument.assetClass === "crypto"),
+    stocks: items.filter((item) => item.instrument.assetClass === "stock"),
+    other: items.filter((item) => !["etf", "bond_etf", "gold_etf", "cash_proxy", "crypto", "stock"].includes(item.instrument.assetClass))
+  };
 }
 
-function groupBy<T extends { assetClass: string }>(items: T[]) {
-  return {
-    etfs: items.filter((item) => item.assetClass === "etf"),
-    bonds: items.filter((item) => ["bond_etf", "gold_etf", "cash_proxy"].includes(item.assetClass)),
-    crypto: items.filter((item) => item.assetClass === "crypto"),
-    stocks: items.filter((item) => item.assetClass === "stock"),
-    other: items.filter((item) => !["etf", "bond_etf", "gold_etf", "cash_proxy", "crypto", "stock"].includes(item.assetClass))
-  };
+function rankAndSort(rows: InstrumentMarketView[]) {
+  return rows
+    .slice()
+    .sort((a, b) => {
+      const aReturn = a.dailyReturn ?? Number.NEGATIVE_INFINITY;
+      const bReturn = b.dailyReturn ?? Number.NEGATIVE_INFINITY;
+      if (aReturn === bReturn) return a.instrument.symbol?.localeCompare(b.instrument.symbol ?? "") ?? 0;
+      return bReturn - aReturn;
+    })
+    .map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
 export default async function UniversePage({ searchParams }: UniversePageProps) {
@@ -52,25 +57,25 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
   const watchlistTier = params?.watchlistTier?.trim() ?? "";
   const status = params?.status?.trim() ?? "";
 
-  const [instruments, watchlists, bondProfiles, benchmarkProfiles, cryptoProfiles, logs] = await Promise.all([
+  const [instruments, bondProfiles, benchmarkProfiles, cryptoProfiles, logs] = await Promise.all([
     container.instrumentService.listInstruments({
       query: q || undefined,
       assetClass: assetClass || undefined,
       watchlistTier: watchlistTier || undefined,
       isActive: status === "active" ? true : status === "inactive" ? false : undefined
     }),
-    container.watchlistService.listWatchlists(),
     container.instrumentService.listBondProfiles(),
     container.instrumentService.listBenchmarkProfiles(),
     container.instrumentService.listCryptoProfiles(),
     container.instrumentService.listMetadataRefreshLogs(10)
   ]);
 
-  const grouped = groupBy(instruments);
+  const marketViews = await container.instrumentMarketService.buildInstrumentMarketViews(instruments);
+  const grouped = groupByAssetClass(marketViews);
   const activeCount = instruments.filter((instrument) => instrument.isActive).length;
-  const freshnessBuckets = {
-    fresh: instruments.filter((instrument) => freshnessLabel(instrument.metadataLastRefreshedAt).tone === "text-emerald-600").length,
-    stale: instruments.filter((instrument) => freshnessLabel(instrument.metadataLastRefreshedAt).tone === "text-destructive").length
+  const priceFreshnessBuckets = {
+    fresh: marketViews.filter((view) => view.freshnessTone === "text-emerald-600").length,
+    stale: marketViews.filter((view) => view.freshnessTone === "text-destructive").length
   };
 
   return (
@@ -91,14 +96,22 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
               Refresh metadata
             </Button>
           </form>
+          <form action={refreshInstrumentPricesAction}>
+            <Button type="submit">Refresh prices</Button>
+          </form>
         </div>
       </div>
 
-      {params?.message || params?.metadataMessage ? (
+      {params?.message || params?.metadataMessage || params?.priceMessage ? (
         <Card>
-          <CardContent className="p-4 text-sm">
+          <CardContent className="space-y-1 p-4 text-sm">
             {params.message ? <div className="text-muted-foreground">{params.message}</div> : null}
-            {params.metadataMessage ? <div className={params.metadataError ? "text-destructive" : "text-muted-foreground"}>{params.metadataError ?? params.metadataMessage}</div> : null}
+            {params.metadataMessage ? (
+              <div className={params.metadataError ? "text-destructive" : "text-muted-foreground"}>{params.metadataError ?? params.metadataMessage}</div>
+            ) : null}
+            {params.priceMessage ? (
+              <div className={params.priceError ? "text-destructive" : "text-muted-foreground"}>{params.priceError ?? params.priceMessage}</div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -120,17 +133,17 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Fresh metadata</CardTitle>
+            <CardTitle className="text-sm">Fresh prices</CardTitle>
             <CardDescription>Updated within 7 days</CardDescription>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{freshnessBuckets.fresh}</CardContent>
+          <CardContent className="text-2xl font-semibold">{priceFreshnessBuckets.fresh}</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Stale / missing</CardTitle>
             <CardDescription>Needs attention or refresh</CardDescription>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{freshnessBuckets.stale}</CardContent>
+          <CardContent className="text-2xl font-semibold">{priceFreshnessBuckets.stale}</CardContent>
         </Card>
       </section>
 
@@ -169,114 +182,68 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
         </CardContent>
       </Card>
 
-      <InstrumentGroupSection title="ETF universe" items={grouped.etfs} />
-      <InstrumentGroupSection title="Bond / gold / cash universe" items={grouped.bonds} />
-      <InstrumentGroupSection title="Crypto universe" items={grouped.crypto} />
-      <InstrumentGroupSection title="Stock watchlist universe" items={grouped.stocks} />
+      <InstrumentGroupSection title="ETF universe" items={rankAndSort(grouped.etfs)} />
+      <InstrumentGroupSection title="Bond / gold / cash universe" items={rankAndSort(grouped.bonds)} />
+      <InstrumentGroupSection title="Crypto universe" items={rankAndSort(grouped.crypto)} />
+      <InstrumentGroupSection title="Stock watchlist universe" items={rankAndSort(grouped.stocks)} />
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <ProfileCard title="Benchmark profiles" description="Curated benchmark proxies assigned to instruments." rows={benchmarkProfiles.map((profile) => [
-          profile.benchmarkKey,
-          profile.benchmarkName,
-          profile.instrumentSymbol ?? "Composite",
-          profile.providerSymbol ?? "-",
-          profile.benchmarkType
-        ])} headers={["Key", "Name", "Proxy", "Provider", "Type"]} />
-        <ProfileCard title="Bond profiles" description="Duration, credit, inflation and rate sensitivity placeholders." rows={bondProfiles.map((profile) => [
-          profile.symbol ?? "-",
-          profile.durationCategory ?? "-",
-          profile.treasuryClassification ?? "-",
-          profile.creditQuality ?? "-",
-          profile.rateSensitivity ?? "-"
-        ])} headers={["Symbol", "Duration", "Class", "Credit", "Rate"]} />
-        <ProfileCard title="Crypto profiles" description="Chain and volatility buckets for current crypto universe." rows={cryptoProfiles.map((profile) => [
-          profile.symbol ?? "-",
-          profile.chain ?? "-",
-          profile.marketCapBucket ?? "-",
-          profile.custodyRisk ?? "-",
-          profile.volatilityBucket ?? "-"
-        ])} headers={["Symbol", "Chain", "Cap", "Custody", "Volatility"]} />
-        <ProfileCard title="Metadata refresh log" description="Most recent instrument metadata refresh jobs." rows={logs.map((log) => [
-          log.provider,
-          log.status,
-          String(log.updatedCount),
-          String(log.missingCount),
-          log.createdAt.slice(0, 10)
-        ])} headers={["Provider", "Status", "Updated", "Missing", "Date"]} />
+        <ProfileCard
+          title="Benchmark profiles"
+          description="Curated benchmark proxies assigned to instruments."
+          rows={benchmarkProfiles.map((profile) => [
+            profile.benchmarkKey,
+            profile.benchmarkName,
+            profile.instrumentSymbol ?? "Composite",
+            profile.providerSymbol ?? "-",
+            profile.benchmarkType
+          ])}
+          headers={["Key", "Name", "Proxy", "Provider", "Type"]}
+        />
+        <ProfileCard
+          title="Bond profiles"
+          description="Duration, credit, inflation and rate sensitivity placeholders."
+          rows={bondProfiles.map((profile) => [
+            profile.symbol ?? "-",
+            profile.durationCategory ?? "-",
+            profile.treasuryClassification ?? "-",
+            profile.creditQuality ?? "-",
+            profile.rateSensitivity ?? "-"
+          ])}
+          headers={["Symbol", "Duration", "Class", "Credit", "Rate"]}
+        />
+        <ProfileCard
+          title="Crypto profiles"
+          description="Chain and volatility buckets for current crypto universe."
+          rows={cryptoProfiles.map((profile) => [
+            profile.symbol ?? "-",
+            profile.chain ?? "-",
+            profile.marketCapBucket ?? "-",
+            profile.custodyRisk ?? "-",
+            profile.volatilityBucket ?? "-"
+          ])}
+          headers={["Symbol", "Chain", "Cap", "Custody", "Volatility"]}
+        />
+        <ProfileCard
+          title="Metadata refresh log"
+          description="Most recent instrument metadata refresh jobs."
+          rows={logs.map((log) => [log.provider, log.status, String(log.updatedCount), String(log.missingCount), log.createdAt.slice(0, 10)])}
+          headers={["Provider", "Status", "Updated", "Missing", "Date"]}
+        />
       </section>
     </div>
   );
 }
 
-function InstrumentGroupSection({ title, items }: { title: string; items: Instrument[] }) {
+function InstrumentGroupSection({ title, items }: { title: string; items: InstrumentMarketView[] }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        <CardDescription>{items.length} instruments in this group.</CardDescription>
+        <CardDescription>{items.length} instruments in this group, ranked by daily return.</CardDescription>
       </CardHeader>
       <CardContent>
-        {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No instruments in this group.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="py-2 pr-3">Symbol</th>
-                  <th className="py-2 pr-3">Name</th>
-                  <th className="py-2 pr-3">Class</th>
-                  <th className="py-2 pr-3">Watchlist</th>
-                  <th className="py-2 pr-3">Tags</th>
-                  <th className="py-2 pr-3">Metadata</th>
-                  <th className="py-2 pr-3">Status</th>
-                  <th className="py-2 pr-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((instrument) => {
-                  const freshness = freshnessLabel(instrument.metadataLastRefreshedAt);
-                  return (
-                    <tr key={instrument.id} className="border-b align-top last:border-0">
-                      <td className="py-3 pr-3 font-medium">{instrument.symbol ?? "-"}</td>
-                      <td className="py-3 pr-3">
-                        <div>{instrument.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {instrument.exchange ?? "-"} {instrument.currency ? `• ${instrument.currency}` : ""}
-                        </div>
-                      </td>
-                      <td className="py-3 pr-3">{formatAssetTypeLabel(instrument.assetClass)}</td>
-                      <td className="py-3 pr-3">{formatWatchlistTier(instrument.watchlistTier)}</td>
-                      <td className="py-3 pr-3">
-                        <div className="mb-2 text-xs text-muted-foreground">Benchmark: {instrument.benchmarkTags.join(", ") || "-"}</div>
-                        <div className="mb-2 text-xs text-muted-foreground">Theme: {instrument.thematicTags.join(", ") || "-"}</div>
-                        <form action={saveInstrumentTagsAction} className="space-y-2">
-                          <input type="hidden" name="instrumentId" value={instrument.id} />
-                          <Input name="benchmarkTags" defaultValue={instrument.benchmarkTags.join(", ")} placeholder="benchmark tags" className="h-9" />
-                          <Input name="thematicTags" defaultValue={instrument.thematicTags.join(", ")} placeholder="thematic tags" className="h-9" />
-                          <Button type="submit" size="sm" variant="outline">
-                            Save tags
-                          </Button>
-                        </form>
-                      </td>
-                      <td className={`py-3 pr-3 ${freshness.tone}`}>{freshness.label}</td>
-                      <td className="py-3 pr-3">{instrument.isActive ? "Active" : "Inactive"}</td>
-                      <td className="py-3 pr-3">
-                        <form action={toggleInstrumentActiveAction}>
-                          <input type="hidden" name="instrumentId" value={instrument.id} />
-                          <input type="hidden" name="isActive" value={String(!instrument.isActive)} />
-                          <Button type="submit" size="sm" variant="secondary">
-                            {instrument.isActive ? "Deactivate" : "Activate"}
-                          </Button>
-                        </form>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <InstrumentMarketTable rows={items} emptyMessage="No instruments in this group." showManagementActions />
       </CardContent>
     </Card>
   );
@@ -308,7 +275,9 @@ function ProfileCard({
               <thead className="border-b text-xs uppercase text-muted-foreground">
                 <tr>
                   {headers.map((header) => (
-                    <th key={header} className="py-2 pr-3">{header}</th>
+                    <th key={header} className="py-2 pr-3">
+                      {header}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -316,7 +285,9 @@ function ProfileCard({
                 {rows.map((row, index) => (
                   <tr key={`${title}-${index}`} className="border-b last:border-0">
                     {row.map((cell, cellIndex) => (
-                      <td key={`${title}-${index}-${cellIndex}`} className="py-2 pr-3">{cell}</td>
+                      <td key={`${title}-${index}-${cellIndex}`} className="py-2 pr-3">
+                        {cell}
+                      </td>
                     ))}
                   </tr>
                 ))}
@@ -327,9 +298,4 @@ function ProfileCard({
       </CardContent>
     </Card>
   );
-}
-
-function formatWatchlistTier(value: string | null) {
-  if (!value) return "-";
-  return value.replaceAll("_", " ");
 }

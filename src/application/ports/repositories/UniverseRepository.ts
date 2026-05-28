@@ -2,6 +2,7 @@ import {
   BenchmarkProfile,
   BondProfile,
   CryptoProfile,
+  InstrumentPrice,
   Instrument,
   MetadataRefreshLog,
   Watchlist,
@@ -23,6 +24,8 @@ export type UpsertWatchlistInput = Omit<Watchlist, "id"> & { id?: string };
 export type UpsertWatchlistItemInput = Omit<WatchlistItem, "id" | "watchlistKey" | "symbol" | "name" | "watchlistTier"> & {
   id?: string;
 };
+
+export type UpsertInstrumentPriceInput = Omit<InstrumentPrice, "id"> & { id?: string };
 
 export interface UniverseRepository {
   listInstruments(filters?: ListInstrumentsFilters): Promise<Instrument[]>;
@@ -53,4 +56,6 @@ export interface UniverseRepository {
   upsertCryptoProfiles(input: CryptoProfile[]): Promise<void>;
   listMetadataRefreshLogs(limit?: number): Promise<MetadataRefreshLog[]>;
   insertMetadataRefreshLog(input: Omit<MetadataRefreshLog, "id" | "createdAt">): Promise<void>;
+  listInstrumentPrices(instrumentIds?: string[]): Promise<InstrumentPrice[]>;
+  upsertInstrumentPrices(input: UpsertInstrumentPriceInput[]): Promise<void>;
 }

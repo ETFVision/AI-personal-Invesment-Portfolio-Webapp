@@ -43,6 +43,42 @@ export type Instrument = {
   isActive: boolean;
 };
 
+export type InstrumentPrice = {
+  id: string;
+  instrumentId: string;
+  provider: string;
+  symbol: string;
+  priceDate: string;
+  closePrice: number;
+  currency: string | null;
+  rawPayload: unknown;
+};
+
+export type InstrumentMarketDetailField = {
+  label: string;
+  value: string;
+};
+
+export type InstrumentMarketView = {
+  instrument: Instrument;
+  rank: number;
+  latestPrice: number | null;
+  latestPriceDate: string | null;
+  dailyReturn: number | null;
+  ytdReturn: number | null;
+  oneYearReturn: number | null;
+  fiveYearReturn: number | null;
+  fiftyTwoWeekLow: number | null;
+  fiftyTwoWeekHigh: number | null;
+  liquidity: string;
+  freshnessLabel: string;
+  freshnessTone: string;
+  priceObservationCount: number;
+  priceHistoryStart: string | null;
+  priceHistoryEnd: string | null;
+  detailFields: InstrumentMarketDetailField[];
+};
+
 export type Watchlist = {
   id: string;
   watchlistKey: string;
