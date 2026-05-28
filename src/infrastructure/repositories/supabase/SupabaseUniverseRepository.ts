@@ -160,6 +160,10 @@ function mapMetadataRefreshLog(row: any): MetadataRefreshLog {
   };
 }
 
+function omitUndefined<T extends Record<string, unknown>>(value: T) {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
+}
+
 export class SupabaseUniverseRepository implements UniverseRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
@@ -227,7 +231,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     if (input.length === 0) return;
 
     const { error } = await this.db.from("instruments").upsert(
-      input.map((item) => ({
+      input.map((item) => omitUndefined({
         id: item.id,
         symbol: item.symbol,
         name: item.name,
@@ -374,7 +378,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     if (input.length === 0) return;
 
     const { error } = await this.db.from("watchlists").upsert(
-      input.map((item) => ({
+      input.map((item) => omitUndefined({
         id: item.id,
         watchlist_key: item.watchlistKey,
         name: item.name,
@@ -429,7 +433,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     if (input.length === 0) return;
 
     const { error } = await this.db.from("watchlist_items").upsert(
-      input.map((item) => ({
+      input.map((item) => omitUndefined({
         id: item.id,
         watchlist_id: item.watchlistId,
         instrument_id: item.instrumentId,
@@ -498,7 +502,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     if (input.length === 0) return;
 
     const { error } = await this.db.from("benchmark_profiles").upsert(
-      input.map((item) => ({
+      input.map((item) => omitUndefined({
         id: item.id,
         benchmark_key: item.benchmarkKey,
         benchmark_name: item.benchmarkName,
