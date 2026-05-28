@@ -14,6 +14,7 @@ type FmpProfile = {
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
 const FMP_MAX_ATTEMPTS = 2;
+const FMP_METADATA_CONCURRENCY = 8;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -68,34 +69,41 @@ export class FmpAssetMetadataProvider implements AssetMetadataProvider {
     const uniqueSymbols = Array.from(new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean)));
     const metadata: AssetMetadata[] = [];
 
-    for (const symbol of uniqueSymbols) {
-      const url = new URL(`${FMP_BASE_URL}/profile`);
-      url.searchParams.set("symbol", symbol);
-      url.searchParams.set("apikey", env.FMP_API_KEY);
-
-      const response = await fetchWithRetry(url);
-      if (response.status === 402 || response.status === 403 || response.status === 404) continue;
-      if (!response.ok) throw new Error(`FMP metadata request for ${symbol} failed with status ${response.status}.`);
-
-      const payload = (await response.json()) as FmpProfile[] | { "Error Message"?: string };
-      if (!Array.isArray(payload)) throw new Error(payload["Error Message"] ?? `FMP returned unexpected metadata for ${symbol}.`);
-
-      const profile = payload[0];
-      if (!profile?.symbol) continue;
-
-      metadata.push({
-        symbol: profile.symbol.toUpperCase(),
-        name: profile.companyName ?? profile.companyNameSearch ?? null,
-        exchange: profile.exchangeShortName ?? null,
-        currency: profile.currency ?? null,
-        country: profile.country ?? null,
-        region: regionFromCountry(profile.country ?? null),
-        sector: profile.sector ?? null,
-        industry: profile.industry ?? null,
-        raw: profile
-      });
+    const apiKey = env.FMP_API_KEY;
+    for (let index = 0; index < uniqueSymbols.length; index += FMP_METADATA_CONCURRENCY) {
+      const batch = uniqueSymbols.slice(index, index + FMP_METADATA_CONCURRENCY);
+      const results = await Promise.all(batch.map((symbol) => this.getSingleAssetMetadata(symbol, apiKey)));
+      metadata.push(...results.filter((item): item is AssetMetadata => Boolean(item)));
     }
 
     return metadata;
+  }
+
+  private async getSingleAssetMetadata(symbol: string, apiKey: string): Promise<AssetMetadata | null> {
+    const url = new URL(`${FMP_BASE_URL}/profile`);
+    url.searchParams.set("symbol", symbol);
+    url.searchParams.set("apikey", apiKey);
+
+    const response = await fetchWithRetry(url);
+    if (response.status === 402 || response.status === 403 || response.status === 404) return null;
+    if (!response.ok) throw new Error(`FMP metadata request for ${symbol} failed with status ${response.status}.`);
+
+    const payload = (await response.json()) as FmpProfile[] | { "Error Message"?: string };
+    if (!Array.isArray(payload)) throw new Error(payload["Error Message"] ?? `FMP returned unexpected metadata for ${symbol}.`);
+
+    const profile = payload[0];
+    if (!profile?.symbol) return null;
+
+    return {
+      symbol: profile.symbol.toUpperCase(),
+      name: profile.companyName ?? profile.companyNameSearch ?? null,
+      exchange: profile.exchangeShortName ?? null,
+      currency: profile.currency ?? null,
+      country: profile.country ?? null,
+      region: regionFromCountry(profile.country ?? null),
+      sector: profile.sector ?? null,
+      industry: profile.industry ?? null,
+      raw: profile
+    };
   }
 }

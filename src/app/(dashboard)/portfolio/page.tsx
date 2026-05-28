@@ -12,7 +12,7 @@ import {
 } from "@/components/portfolio/analytics-panels";
 import { formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { refreshBenchmarksAction, refreshPricesAction } from "@/server/actions/portfolioActions";
+import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 
 type PortfolioPageProps = {
   searchParams?: Promise<{
@@ -20,6 +20,8 @@ type PortfolioPageProps = {
     priceError?: string;
     benchmarkMessage?: string;
     benchmarkError?: string;
+    refreshMessage?: string;
+    refreshError?: string;
   }>;
 };
 
@@ -54,14 +56,10 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
           <h1 className="text-2xl font-semibold">{portfolio.name}</h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <form action={refreshPricesAction}>
+          <form action={refreshAllDataAction}>
+            <input type="hidden" name="returnTo" value="/portfolio" />
             <Button type="submit" variant="secondary">
-              Refresh prices
-            </Button>
-          </form>
-          <form action={refreshBenchmarksAction}>
-            <Button type="submit" variant="secondary">
-              Refresh benchmarks
+              Refresh data
             </Button>
           </form>
           <Link className="rounded-md border px-4 py-2 text-sm hover:bg-muted" href="/cash">Add cash</Link>
@@ -69,10 +67,15 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </div>
       </div>
 
-      {resolvedSearchParams?.priceMessage || resolvedSearchParams?.benchmarkMessage ? (
+      {resolvedSearchParams?.priceMessage || resolvedSearchParams?.benchmarkMessage || resolvedSearchParams?.refreshMessage ? (
         <Card>
           <CardContent className="p-4 text-sm">
             <div className="space-y-1">
+              {resolvedSearchParams.refreshMessage ? (
+                <div className={resolvedSearchParams.refreshError ? "text-destructive" : "text-muted-foreground"}>
+                  {resolvedSearchParams.refreshError ?? resolvedSearchParams.refreshMessage}
+                </div>
+              ) : null}
               {resolvedSearchParams.priceMessage ? (
                 <div className={resolvedSearchParams.priceError ? "text-destructive" : "text-muted-foreground"}>
                   {resolvedSearchParams.priceError ?? resolvedSearchParams.priceMessage}

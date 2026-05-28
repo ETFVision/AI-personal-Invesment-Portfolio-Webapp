@@ -1,10 +1,9 @@
 import { createContainer } from "@/server/container";
 import {
-  refreshInstrumentPricesAction,
-  refreshUniverseMetadataAction,
   seedUniverseAction,
   toggleInstrumentActiveAction
 } from "@/server/actions/universeActions";
+import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +17,8 @@ type UniversePageProps = {
     metadataError?: string;
     priceMessage?: string;
     priceError?: string;
+    refreshMessage?: string;
+    refreshError?: string;
     q?: string;
     assetClass?: string;
     watchlistTier?: string;
@@ -91,21 +92,20 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
               Seed universe
             </Button>
           </form>
-          <form action={refreshUniverseMetadataAction}>
-            <Button type="submit" variant="secondary">
-              Refresh metadata
-            </Button>
-          </form>
-          <form action={refreshInstrumentPricesAction}>
-            <Button type="submit">Refresh prices</Button>
+          <form action={refreshAllDataAction}>
+            <input type="hidden" name="returnTo" value="/universe" />
+            <Button type="submit">Refresh data</Button>
           </form>
         </div>
       </div>
 
-      {params?.message || params?.metadataMessage || params?.priceMessage ? (
+      {params?.message || params?.metadataMessage || params?.priceMessage || params?.refreshMessage ? (
         <Card>
           <CardContent className="space-y-1 p-4 text-sm">
             {params.message ? <div className="text-muted-foreground">{params.message}</div> : null}
+            {params.refreshMessage ? (
+              <div className={params.refreshError ? "text-destructive" : "text-muted-foreground"}>{params.refreshError ?? params.refreshMessage}</div>
+            ) : null}
             {params.metadataMessage ? (
               <div className={params.metadataError ? "text-destructive" : "text-muted-foreground"}>{params.metadataError ?? params.metadataMessage}</div>
             ) : null}

@@ -110,15 +110,19 @@ export class InstrumentMarketService {
       : allInstruments;
     const priceStats = await this.repository.listInstrumentPriceStats(instruments.map((instrument) => instrument.id));
     const statsByInstrumentId = new Map(priceStats.map((item) => [item.instrumentId, item]));
-    const today = todayIsoDate();
+    const freshnessCutoff = daysAgoIso(3);
     const symbols = uniqueSymbols(
       instruments
+        .filter((instrument) => {
+          const stats = statsByInstrumentId.get(instrument.id);
+          return isStaleOrMissing(stats?.latestPriceDate ?? null, freshnessCutoff);
+        })
         .slice()
         .sort((a, b) => {
           const aStats = statsByInstrumentId.get(a.id);
           const bStats = statsByInstrumentId.get(b.id);
-          const aNeedsRefresh = isStaleOrMissing(aStats?.latestPriceDate ?? null, today);
-          const bNeedsRefresh = isStaleOrMissing(bStats?.latestPriceDate ?? null, today);
+          const aNeedsRefresh = isStaleOrMissing(aStats?.latestPriceDate ?? null, freshnessCutoff);
+          const bNeedsRefresh = isStaleOrMissing(bStats?.latestPriceDate ?? null, freshnessCutoff);
           if (aNeedsRefresh !== bNeedsRefresh) return aNeedsRefresh ? -1 : 1;
           const aCount = aStats?.observationCount ?? 0;
           const bCount = bStats?.observationCount ?? 0;
@@ -155,18 +159,18 @@ export class InstrumentMarketService {
     const missingSymbols: string[] = [];
     const errors: string[] = [];
 
-    for (const symbol of symbols) {
-      try {
-        const instrument = instrumentBySymbol.get(symbol);
-        if (!instrument) continue;
+    const results = await Promise.all(
+      symbols.map(async (symbol) => {
+        try {
+          const instrument = instrumentBySymbol.get(symbol);
+          if (!instrument) return { rows: [], missingSymbol: null, error: null };
         const quotes = await this.provider.getHistoricalPrices(symbol, from, to, { assetClass: instrument.assetClass });
         if (quotes.length === 0) {
-          missingSymbols.push(symbol);
-          continue;
+            return { rows: [], missingSymbol: symbol, error: null };
         }
 
-        for (const quote of quotes) {
-          rows.push({
+          return {
+            rows: quotes.map((quote) => ({
             instrumentId: instrument.id,
             provider: this.provider.name,
             symbol: quote.symbol.toUpperCase(),
@@ -174,12 +178,21 @@ export class InstrumentMarketService {
             closePrice: quote.price,
             currency: quote.currency ?? instrument.currency ?? "USD",
             rawPayload: quote.raw
-          });
+            })),
+            missingSymbol: null,
+            error: null
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Instrument price refresh failed.";
+          return { rows: [], missingSymbol: null, error: `${symbol}: ${message}` };
         }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Instrument price refresh failed.";
-        errors.push(`${symbol}: ${message}`);
-      }
+      })
+    );
+
+    for (const result of results) {
+      rows.push(...result.rows);
+      if (result.missingSymbol) missingSymbols.push(result.missingSymbol);
+      if (result.error) errors.push(result.error);
     }
 
     if (rows.length > 0) {
@@ -195,6 +208,45 @@ export class InstrumentMarketService {
         errors.length === 0
           ? `Stored ${rows.length} instrument price row${rows.length === 1 ? "" : "s"} for ${symbols.length} instrument${symbols.length === 1 ? "" : "s"}. Run again to continue the next batch if needed.`
           : `Stored ${rows.length} instrument price row${rows.length === 1 ? "" : "s"} with ${errors.length} issue${errors.length === 1 ? "" : "s"}. Run again to continue the next batch if needed.`
+    };
+  }
+
+  async refreshInstrumentPricesInBatches(input?: {
+    lookbackDays?: number;
+    batchSize?: number;
+    maxBatches?: number;
+  }): Promise<RefreshInstrumentPricesResult> {
+    const maxBatches = Math.max(1, input?.maxBatches ?? 8);
+    const batchSize = Math.max(1, input?.batchSize ?? 12);
+    const requestedSymbols = new Set<string>();
+    const missingSymbols = new Set<string>();
+    const errors: string[] = [];
+    let updatedCount = 0;
+
+    for (let index = 0; index < maxBatches; index += 1) {
+      const result = await this.refreshInstrumentPrices({
+        lookbackDays: input?.lookbackDays,
+        maxSymbols: batchSize
+      });
+
+      result.requestedSymbols.forEach((symbol) => requestedSymbols.add(symbol));
+      result.missingSymbols.forEach((symbol) => missingSymbols.add(symbol));
+      errors.push(...result.errors);
+      updatedCount += result.updatedCount;
+
+      if (result.requestedSymbols.length === 0) break;
+      if (result.updatedCount === 0 && result.missingSymbols.length === 0) break;
+    }
+
+    return {
+      requestedSymbols: Array.from(requestedSymbols),
+      updatedCount,
+      missingSymbols: Array.from(missingSymbols),
+      errors,
+      message:
+        requestedSymbols.size === 0
+          ? "Instrument prices are already fresh."
+          : `Stored ${updatedCount} instrument price row${updatedCount === 1 ? "" : "s"} across ${requestedSymbols.size} instrument${requestedSymbols.size === 1 ? "" : "s"}.`
     };
   }
 

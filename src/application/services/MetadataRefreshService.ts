@@ -21,6 +21,16 @@ function uniqueSymbols(symbols: Array<string | null | undefined>) {
   );
 }
 
+function daysAgoIso(days: number) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString();
+}
+
+function needsMetadataRefresh(metadataLastRefreshedAt: string | null, cutoffIso: string) {
+  return !metadataLastRefreshedAt || metadataLastRefreshedAt < cutoffIso;
+}
+
 function classifyFundMetadata(item: { symbol: string; sector: string | null; industry: string | null }, assetClass: string) {
   if (assetClass === "bond_etf") {
     return {
@@ -69,8 +79,16 @@ export class MetadataRefreshService {
   async refreshUniverseMetadata(input: { requestedByUserId?: string | null; limit?: number } = {}): Promise<RefreshUniverseMetadataResult> {
     try {
       const instruments = await this.repository.listInstruments({ isActive: true });
+      const metadataCutoff = daysAgoIso(30);
       const symbols = uniqueSymbols(
         instruments
+          .filter((instrument) => needsMetadataRefresh(instrument.metadataLastRefreshedAt, metadataCutoff))
+          .sort((a, b) => {
+            const aDate = a.metadataLastRefreshedAt ?? "";
+            const bDate = b.metadataLastRefreshedAt ?? "";
+            if (aDate !== bDate) return aDate.localeCompare(bDate);
+            return (a.symbol ?? "").localeCompare(b.symbol ?? "");
+          })
           .filter((instrument) => instrument.symbol)
           .map((instrument) => instrument.symbol)
       ).slice(0, input.limit ?? MAX_SYMBOLS_PER_REFRESH);
@@ -81,7 +99,7 @@ export class MetadataRefreshService {
           updatedCount: 0,
           missingSymbols: [],
           errors: [],
-          message: "No active instrument symbols were found for metadata refresh."
+            message: "Instrument metadata is already fresh."
         };
       }
 
@@ -155,5 +173,43 @@ export class MetadataRefreshService {
         message: `Instrument metadata refresh failed: ${message}`
       };
     }
+  }
+
+  async refreshUniverseMetadataInBatches(input: {
+    requestedByUserId?: string | null;
+    batchSize?: number;
+    maxBatches?: number;
+  } = {}): Promise<RefreshUniverseMetadataResult> {
+    const batchSize = Math.max(1, input.batchSize ?? 24);
+    const maxBatches = Math.max(1, input.maxBatches ?? 4);
+    const requestedSymbols = new Set<string>();
+    const missingSymbols = new Set<string>();
+    const errors: string[] = [];
+    let updatedCount = 0;
+
+    for (let index = 0; index < maxBatches; index += 1) {
+      const result = await this.refreshUniverseMetadata({
+        requestedByUserId: input.requestedByUserId,
+        limit: batchSize
+      });
+
+      result.requestedSymbols.forEach((symbol) => requestedSymbols.add(symbol));
+      result.missingSymbols.forEach((symbol) => missingSymbols.add(symbol));
+      errors.push(...result.errors);
+      updatedCount += result.updatedCount;
+
+      if (result.requestedSymbols.length === 0) break;
+    }
+
+    return {
+      requestedSymbols: Array.from(requestedSymbols),
+      updatedCount,
+      missingSymbols: Array.from(missingSymbols),
+      errors,
+      message:
+        requestedSymbols.size === 0
+          ? "Instrument metadata is already fresh."
+          : `Updated metadata for ${updatedCount} instrument${updatedCount === 1 ? "" : "s"} across ${requestedSymbols.size} requested symbol${requestedSymbols.size === 1 ? "" : "s"}.`
+    };
   }
 }

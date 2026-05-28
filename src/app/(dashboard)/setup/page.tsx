@@ -1,4 +1,5 @@
-import { refreshMetadataAction, setupPortfolioAction, updatePortfolioSetupAction } from "@/server/actions/portfolioActions";
+import { setupPortfolioAction, updatePortfolioSetupAction } from "@/server/actions/portfolioActions";
+import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import { createContainer } from "@/server/container";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 
-export default async function SetupPage({ searchParams }: { searchParams: Promise<{ edit?: string; error?: string; metadataMessage?: string; metadataError?: string }> }) {
+export default async function SetupPage({ searchParams }: { searchParams: Promise<{ edit?: string; error?: string; metadataMessage?: string; metadataError?: string; refreshMessage?: string; refreshError?: string }> }) {
   const params = await searchParams;
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();
@@ -14,9 +15,17 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm text-muted-foreground">Manual setup</p>
-        <h1 className="text-2xl font-semibold">Portfolio setup</h1>
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+        <div>
+          <p className="text-sm text-muted-foreground">Manual setup</p>
+          <h1 className="text-2xl font-semibold">Portfolio setup</h1>
+        </div>
+        {portfolio ? (
+          <form action={refreshAllDataAction}>
+            <input type="hidden" name="returnTo" value="/setup" />
+            <Button type="submit" variant="secondary">Refresh data</Button>
+          </form>
+        ) : null}
       </div>
       <Card>
         <CardHeader>
@@ -30,6 +39,11 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
           {params.metadataMessage ? (
             <div className={`mb-4 rounded-md p-3 text-sm ${params.metadataError ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
               {params.metadataError ?? params.metadataMessage}
+            </div>
+          ) : null}
+          {params.refreshMessage ? (
+            <div className={`mb-4 rounded-md p-3 text-sm ${params.refreshError ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
+              {params.refreshError ?? params.refreshMessage}
             </div>
           ) : null}
           {portfolio && params.edit !== "true" ? (
@@ -91,19 +105,6 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
           )}
         </CardContent>
       </Card>
-      {portfolio ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Asset metadata</CardTitle>
-            <CardDescription>Refresh sector, industry, country, region, exchange, and currency metadata for current holdings.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={refreshMetadataAction}>
-              <Button type="submit" variant="secondary">Refresh metadata</Button>
-            </form>
-          </CardContent>
-        </Card>
-      ) : null}
     </div>
   );
 }

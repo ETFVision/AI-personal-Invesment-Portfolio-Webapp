@@ -1,5 +1,6 @@
 import { createContainer } from "@/server/container";
 import { addWatchlistItemAction, removeWatchlistItemAction } from "@/server/actions/universeActions";
+import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,8 @@ import { InstrumentMarketView } from "@/domain/universe/types";
 type WatchlistsPageProps = {
   searchParams?: Promise<{
     message?: string;
+    refreshMessage?: string;
+    refreshError?: string;
     q?: string;
   }>;
 };
@@ -57,11 +60,22 @@ export default async function WatchlistsPage({ searchParams }: WatchlistsPagePro
           <p className="text-sm text-muted-foreground">Curated tiers</p>
           <h1 className="text-2xl font-semibold">Watchlist Management</h1>
         </div>
+        <form action={refreshAllDataAction}>
+          <input type="hidden" name="returnTo" value="/watchlists" />
+          <Button type="submit" variant="secondary">Refresh data</Button>
+        </form>
       </div>
 
-      {params?.message ? (
+      {params?.message || params?.refreshMessage ? (
         <Card>
-          <CardContent className="p-4 text-sm text-muted-foreground">{params.message}</CardContent>
+          <CardContent className="space-y-1 p-4 text-sm">
+            {params.message ? <div className="text-muted-foreground">{params.message}</div> : null}
+            {params.refreshMessage ? (
+              <div className={params.refreshError ? "text-destructive" : "text-muted-foreground"}>
+                {params.refreshError ?? params.refreshMessage}
+              </div>
+            ) : null}
+          </CardContent>
         </Card>
       ) : null}
 
