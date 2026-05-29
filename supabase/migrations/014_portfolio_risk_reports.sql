@@ -28,6 +28,6 @@ create policy "users can read owned risk reports" on portfolio_risk_reports
       select 1 from portfolios
       join users on users.id = portfolios.user_id
       where portfolios.id = portfolio_risk_reports.portfolio_id
-        and users.auth_provider_user_id = auth.uid()
+        and users.auth_provider_user_id = auth.uid()::text
     )
   );
