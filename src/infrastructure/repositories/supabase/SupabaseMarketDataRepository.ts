@@ -147,6 +147,23 @@ export class SupabaseMarketDataRepository implements MarketDataRepository {
     return latest;
   }
 
+  async listDailyPricesForAssets(assetIds: string[], sinceDate?: string) {
+    if (assetIds.length === 0) return [];
+
+    let query = this.db
+      .from("daily_prices")
+      .select("*")
+      .in("asset_id", assetIds)
+      .order("price_date", { ascending: true });
+    if (sinceDate) query = query.gte("price_date", sinceDate);
+
+    const { data, error } = await query;
+    if (isMissingDailyPricesTable(error)) return [];
+    if (error) throw new Error(error.message);
+
+    return (data ?? []).map(mapDailyPrice);
+  }
+
   async getPricesForAssetsOnDate(assetIds: string[], priceDate: string, provider: string) {
     if (assetIds.length === 0) return new Map<string, DailyPrice>();
 

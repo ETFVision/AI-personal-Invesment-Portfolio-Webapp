@@ -6,6 +6,7 @@ import {
   calculateReturns,
   concentrationRatio,
   correlation,
+  covarianceRiskContributions,
   diversificationScore
 } from "../src/application/services/risk/riskMath";
 
@@ -81,4 +82,35 @@ test("diversification score rewards spread and penalizes concentration", () => {
   assert.ok(diversified > concentrated);
   assert.ok(diversified <= 100);
   assert.ok(concentrated >= 0);
+});
+
+test("covariance risk contribution calculates institutional volatility contribution", () => {
+  const dates = ["2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05"];
+  const leftReturns = [0.01, -0.005, 0.012, -0.004];
+  const rightReturns = [0.002, 0.001, -0.001, 0.003];
+  const result = covarianceRiskContributions({
+    minimumObservations: 3,
+    assets: [
+      {
+        id: "stock",
+        label: "STOCK",
+        assetClass: "stock",
+        weight: 0.6,
+        returnsByDate: new Map(dates.map((date, index) => [date, leftReturns[index]]))
+      },
+      {
+        id: "bond",
+        label: "BOND",
+        assetClass: "bond_etf",
+        weight: 0.4,
+        returnsByDate: new Map(dates.map((date, index) => [date, rightReturns[index]]))
+      }
+    ]
+  });
+
+  assert.ok(result);
+  assert.equal(result.observationCount, 4);
+  assert.ok(result.portfolioVolatility > 0);
+  const contributionTotal = result.contributions.reduce((sum, contribution) => sum + contribution.riskContribution, 0);
+  assert.ok(Math.abs(contributionTotal - 1) < 0.000001);
 });

@@ -28,6 +28,7 @@ export interface MarketDataRepository {
   listWatchlistAssets(userId: string): Promise<Asset[]>;
   listAssetMetadataStatus(symbols: string[], provider: string): Promise<Map<string, boolean>>;
   getLatestPricesForAssets(assetIds: string[]): Promise<Map<string, DailyPrice>>;
+  listDailyPricesForAssets(assetIds: string[], sinceDate?: string): Promise<DailyPrice[]>;
   getPricesForAssetsOnDate(assetIds: string[], priceDate: string, provider: string): Promise<Map<string, DailyPrice>>;
   upsertDailyPrices(input: UpsertDailyPriceInput[]): Promise<void>;
   updateAssetMetadata(input: UpdateAssetMetadataInput[]): Promise<void>;

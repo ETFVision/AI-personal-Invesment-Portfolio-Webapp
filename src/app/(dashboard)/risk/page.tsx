@@ -21,6 +21,12 @@ function compactDate(value: string) {
   return new Intl.DateTimeFormat("en-US", { month: "short", year: "2-digit" }).format(new Date(`${value}T00:00:00Z`));
 }
 
+function yearsAgoIso(years: number) {
+  const date = new Date();
+  date.setUTCFullYear(date.getUTCFullYear() - years);
+  return date.toISOString().slice(0, 10);
+}
+
 function makePolyline(points: ChartPoint[], width: number, height: number) {
   if (points.length < 2) return "";
   const values = points.map((point) => point.value);
@@ -159,13 +165,14 @@ function RiskContributorTable({ report }: { report: RiskAnalyticsReport }) {
             <th className="p-3 font-medium">Instrument</th>
             <th className="p-3 font-medium">Class</th>
             <th className="p-3 text-right font-medium">Allocation</th>
+            <th className="p-3 text-right font-medium">Own vol</th>
             <th className="p-3 text-right font-medium">Risk share</th>
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={4} className="p-3 text-muted-foreground">No holdings yet.</td>
+              <td colSpan={5} className="p-3 text-muted-foreground">No holdings yet.</td>
             </tr>
           ) : (
             rows.map((row) => (
@@ -173,6 +180,7 @@ function RiskContributorTable({ report }: { report: RiskAnalyticsReport }) {
                 <td className="p-3 font-medium">{row.label}</td>
                 <td className="p-3 text-muted-foreground">{formatAssetTypeLabel(row.assetClass)}</td>
                 <td className="p-3 text-right">{formatPercent(row.allocation)}</td>
+                <td className="p-3 text-right">{row.annualizedVolatility == null ? "-" : formatPercent(row.annualizedVolatility)}</td>
                 <td className="p-3 text-right">{formatPercent(row.riskContribution)}</td>
               </tr>
             ))
@@ -199,14 +207,17 @@ export default async function RiskPage() {
   }
 
   const dashboard = await container.portfolioService.getDashboard(portfolio.id);
-  const [portfolioSnapshots, holdingSnapshots] = await Promise.all([
+  const assetIds = Array.from(new Set(dashboard.holdings.map((holding) => holding.assetId)));
+  const [portfolioSnapshots, holdingSnapshots, dailyPrices] = await Promise.all([
     container.analyticsRepository.listPortfolioSnapshots(portfolio.id, 1400),
-    container.analyticsRepository.listHoldingSnapshots(portfolio.id, 1400)
+    container.analyticsRepository.listHoldingSnapshots(portfolio.id, 1400),
+    container.marketDataRepository.listDailyPricesForAssets(assetIds, yearsAgoIso(5))
   ]);
   const report = container.riskAnalyticsService.calculateRiskAnalytics({
     dashboard,
     portfolioSnapshots,
-    holdingSnapshots
+    holdingSnapshots,
+    dailyPrices
   });
   const volatilityPoints: ChartPoint[] = report.volatility.trend.map((point) => ({
     date: point.date,
@@ -358,10 +369,29 @@ export default async function RiskPage() {
         <Card>
           <CardHeader>
             <CardTitle>Top risk contributors</CardTitle>
-            <CardDescription>Allocation adjusted by conservative asset-class risk proxies.</CardDescription>
+            <CardDescription>
+              {report.riskContributionMethod === "covariance"
+                ? `Covariance-based, ${report.riskContributionObservationCount} overlapping return days.`
+                : "Proxy estimate until enough overlapping daily price history exists."}
+            </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-5">
+            <div className="grid gap-3 text-sm sm:grid-cols-3">
+              <div className="rounded-md border p-3">
+                <p className="text-muted-foreground">Method</p>
+                <p className="mt-1 font-medium">{report.riskContributionMethod === "covariance" ? "Covariance-based" : "Proxy estimate"}</p>
+              </div>
+              <div className="rounded-md border p-3">
+                <p className="text-muted-foreground">History coverage</p>
+                <p className="mt-1 font-medium">{formatPercent(report.riskContributionCoverage)}</p>
+              </div>
+              <div className="rounded-md border p-3">
+                <p className="text-muted-foreground">Risk model vol</p>
+                <p className="mt-1 font-medium">{report.riskContributionVolatility == null ? "-" : formatPercent(report.riskContributionVolatility)}</p>
+              </div>
+            </div>
             <RiskContributorTable report={report} />
+            <AllocationTable title="Volatility contribution by asset class" items={report.riskByAssetClass} />
           </CardContent>
         </Card>
       </section>
