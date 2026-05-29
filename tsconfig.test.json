@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": false,
+    "outDir": ".test-build",
+    "types": ["node"],
+    "incremental": false,
+    "declaration": false,
+    "sourceMap": false,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "tests/**/*.ts",
+    "src/application/services/risk/riskMath.ts"
+  ],
+  "exclude": ["node_modules"]
+}

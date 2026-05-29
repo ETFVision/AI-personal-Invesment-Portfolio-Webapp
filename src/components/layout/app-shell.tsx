@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, Banknote, Bookmark, Home, Layers3, LogOut, PlusCircle, Settings, Table2 } from "lucide-react";
+import { BarChart3, Banknote, Bookmark, Home, Layers3, LogOut, PlusCircle, Settings, ShieldCheck, Table2 } from "lucide-react";
 import { signOutAction } from "@/server/actions/authActions";
 import { Button } from "@/components/ui/button";
 
@@ -9,6 +9,7 @@ const navItems = [
   { href: "/holdings", label: "Holdings", icon: Table2 },
   { href: "/transactions", label: "Transactions", icon: PlusCircle },
   { href: "/portfolio#allocation", label: "Allocation", icon: BarChart3 },
+  { href: "/risk", label: "Risk", icon: ShieldCheck },
   { href: "/universe", label: "Universe", icon: Layers3 },
   { href: "/watchlists", label: "Watchlists", icon: Bookmark },
   { href: "/setup", label: "Settings", icon: Settings }

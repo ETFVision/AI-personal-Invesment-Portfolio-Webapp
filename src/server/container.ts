@@ -10,6 +10,7 @@ import { InstrumentService } from "@/application/services/InstrumentService";
 import { PortfolioService } from "@/application/services/PortfolioService";
 import { MarketDataService } from "@/application/services/MarketDataService";
 import { PerformanceService } from "@/application/services/PerformanceService";
+import { RiskAnalyticsService } from "@/application/services/risk/RiskAnalyticsService";
 import { MetadataRefreshService } from "@/application/services/MetadataRefreshService";
 import { UniverseManagementService } from "@/application/services/UniverseManagementService";
 import { WatchlistService } from "@/application/services/WatchlistService";
@@ -42,6 +43,7 @@ export function createContainer() {
   const allocationService = new AllocationService();
   const performanceService = new PerformanceService();
   const analyticsService = new AnalyticsService(allocationService, performanceService);
+  const riskAnalyticsService = new RiskAnalyticsService();
   return {
     authProvider: new SupabaseAuthProvider(),
     portfolioRepository,
@@ -59,6 +61,7 @@ export function createContainer() {
     allocationService,
     performanceService,
     analyticsService,
+    riskAnalyticsService,
     benchmarkComparisonService,
     benchmarkService,
     portfolioService: new PortfolioService(

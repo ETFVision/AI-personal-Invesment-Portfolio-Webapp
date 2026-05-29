@@ -2,6 +2,7 @@
 node_modules/
 dist/
 coverage/
+.test-build/
 .env
 .env.*
 !.env.example
