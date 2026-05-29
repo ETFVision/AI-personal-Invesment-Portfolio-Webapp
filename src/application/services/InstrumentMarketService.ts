@@ -430,7 +430,12 @@ export class InstrumentMarketService {
 
   async getHistoryCoverageSummary(instruments: Instrument[], backfillBatchSize = 12): Promise<InstrumentHistoryCoverageSummary> {
     const activeInstruments = instruments.filter((instrument) => instrument.isActive);
-    const stats = await this.repository.listInstrumentPriceStats(activeInstruments.map((instrument) => instrument.id));
+    const metrics = await this.repository.listInstrumentMarketMetrics(activeInstruments.map((instrument) => instrument.id));
+    const metricsByInstrumentId = new Map(metrics.map((item) => [item.instrumentId, item]));
+    const stats =
+      metrics.length > 0
+        ? []
+        : await this.repository.listInstrumentPriceStats(activeInstruments.map((instrument) => instrument.id));
     const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
     const threeYearCompleteBy = daysAfterIso(yearsAgoIso(3), 10);
     const fiveYearCompleteBy = daysAfterIso(yearsAgoIso(5), 10);
@@ -447,7 +452,10 @@ export class InstrumentMarketService {
       }
 
       totalEligible += 1;
-      const earliestDate = statsByInstrumentId.get(instrument.id)?.earliestPriceDate ?? null;
+      const earliestDate =
+        metricsByInstrumentId.get(instrument.id)?.historyStartDate ??
+        statsByInstrumentId.get(instrument.id)?.earliestPriceDate ??
+        null;
       if (earliestDate && earliestDate <= fiveYearCompleteBy) {
         completeFiveYear += 1;
         completeThreeYear += 1;
