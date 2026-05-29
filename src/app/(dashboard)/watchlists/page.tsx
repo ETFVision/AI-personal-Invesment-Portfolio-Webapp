@@ -44,7 +44,7 @@ export default async function WatchlistsPage({ searchParams }: WatchlistsPagePro
     })
   ]);
 
-  const marketViews = await container.instrumentMarketService.buildInstrumentMarketViews(instruments);
+  const marketViews = await container.instrumentMarketService.buildInstrumentMarketViews(instruments, { lookbackYears: 1 });
   const marketByInstrumentId = new Map(marketViews.map((view) => [view.instrument.id, view]));
   const instrumentOptions = instruments.filter((instrument) => Boolean(instrument.symbol));
   const itemsByWatchlist = new Map<string, typeof items>();

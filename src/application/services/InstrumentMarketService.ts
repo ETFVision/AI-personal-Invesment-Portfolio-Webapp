@@ -299,10 +299,11 @@ export class InstrumentMarketService {
     };
   }
 
-  async buildInstrumentMarketViews(instruments: Instrument[]): Promise<InstrumentMarketView[]> {
+  async buildInstrumentMarketViews(instruments: Instrument[], options?: { lookbackYears?: number }): Promise<InstrumentMarketView[]> {
     if (instruments.length === 0) return [];
 
-    const priceRows = await this.repository.listInstrumentPrices(instruments.map((instrument) => instrument.id), yearsAgoIso(5));
+    const lookbackYears = Math.max(1, options?.lookbackYears ?? 5);
+    const priceRows = await this.repository.listInstrumentPrices(instruments.map((instrument) => instrument.id), yearsAgoIso(lookbackYears));
     const priceByInstrument = new Map<string, InstrumentPrice[]>();
     for (const row of priceRows) {
       const current = priceByInstrument.get(row.instrumentId) ?? [];

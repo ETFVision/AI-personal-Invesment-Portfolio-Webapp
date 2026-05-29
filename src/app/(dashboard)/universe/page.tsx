@@ -84,8 +84,7 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
     container.instrumentService.listMetadataRefreshLogs(10)
   ]);
 
-  const marketViews = await container.instrumentMarketService.buildInstrumentMarketViews(instruments);
-  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 12);
+  const marketViews = await container.instrumentMarketService.buildInstrumentMarketViews(instruments, { lookbackYears: 1 });
   const grouped = groupByAssetClass(marketViews);
   const cryptoRows = splitCryptoRows(grouped.crypto);
   const activeCount = instruments.filter((instrument) => instrument.isActive).length;
@@ -154,11 +153,7 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
           <CardDescription>Detailed coverage metrics are available in Settings.</CardDescription>
         </CardHeader>
         <CardContent className="text-sm">
-          <p className="font-medium">
-            {historyCoverage.missingFiveYear === 0
-              ? "5Y history is complete for eligible instruments."
-              : `${historyCoverage.missingFiveYear} eligible instrument${historyCoverage.missingFiveYear === 1 ? "" : "s"} still need 5Y history. About ${historyCoverage.estimatedBackfillClicks} Backfill history click${historyCoverage.estimatedBackfillClicks === 1 ? "" : "s"} remaining.`}
-          </p>
+          <p className="font-medium">Use Settings to check 3Y/5Y coverage, then run Backfill history here only when coverage is missing.</p>
         </CardContent>
       </Card>
 
