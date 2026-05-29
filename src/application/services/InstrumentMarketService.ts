@@ -116,19 +116,19 @@ export class InstrumentMarketService {
       : allInstruments;
     const priceStats = await this.repository.listInstrumentPriceStats(instruments.map((instrument) => instrument.id));
     const statsByInstrumentId = new Map(priceStats.map((item) => [item.instrumentId, item]));
-    const freshnessCutoff = daysAgoIso(3);
+    const refreshCutoff = todayIsoDate();
     const symbols = uniqueSymbols(
       instruments
         .filter((instrument) => {
           const stats = statsByInstrumentId.get(instrument.id);
-          return isStaleOrMissing(stats?.latestPriceDate ?? null, freshnessCutoff);
+          return isStaleOrMissing(stats?.latestPriceDate ?? null, refreshCutoff);
         })
         .slice()
         .sort((a, b) => {
           const aStats = statsByInstrumentId.get(a.id);
           const bStats = statsByInstrumentId.get(b.id);
-          const aNeedsRefresh = isStaleOrMissing(aStats?.latestPriceDate ?? null, freshnessCutoff);
-          const bNeedsRefresh = isStaleOrMissing(bStats?.latestPriceDate ?? null, freshnessCutoff);
+          const aNeedsRefresh = isStaleOrMissing(aStats?.latestPriceDate ?? null, refreshCutoff);
+          const bNeedsRefresh = isStaleOrMissing(bStats?.latestPriceDate ?? null, refreshCutoff);
           if (aNeedsRefresh !== bNeedsRefresh) return aNeedsRefresh ? -1 : 1;
           const aCount = aStats?.observationCount ?? 0;
           const bCount = bStats?.observationCount ?? 0;
