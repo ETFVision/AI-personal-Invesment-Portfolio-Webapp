@@ -208,16 +208,53 @@ export default async function RiskPage() {
 
   const dashboard = await container.portfolioService.getDashboard(portfolio.id);
   const assetIds = Array.from(new Set(dashboard.holdings.map((holding) => holding.assetId)));
-  const [portfolioSnapshots, holdingSnapshots, dailyPrices] = await Promise.all([
+  const holdingSymbols = Array.from(
+    new Set(
+      dashboard.holdings
+        .map((holding) => holding.ticker?.trim().toUpperCase())
+        .filter((symbol): symbol is string => Boolean(symbol))
+    )
+  );
+  const [portfolioSnapshots, holdingSnapshots, dailyPrices, universeInstruments] = await Promise.all([
     container.analyticsRepository.listPortfolioSnapshots(portfolio.id, 1400),
     container.analyticsRepository.listHoldingSnapshots(portfolio.id, 1400),
-    container.marketDataRepository.listDailyPricesForAssets(assetIds, yearsAgoIso(5))
+    container.marketDataRepository.listDailyPricesForAssets(assetIds, yearsAgoIso(5)),
+    container.universeRepository.listInstruments()
   ]);
+  const holdingsBySymbol = new Map(
+    dashboard.holdings
+      .filter((holding) => holding.ticker)
+      .map((holding) => [holding.ticker!.trim().toUpperCase(), holding])
+  );
+  const matchedUniverseInstruments = universeInstruments.filter((instrument) =>
+    instrument.symbol ? holdingSymbols.includes(instrument.symbol.trim().toUpperCase()) : false
+  );
+  const universePrices = await container.universeRepository.listInstrumentPrices(
+    matchedUniverseInstruments.map((instrument) => instrument.id),
+    yearsAgoIso(5)
+  );
+  const instrumentSymbolById = new Map(
+    matchedUniverseInstruments.map((instrument) => [instrument.id, instrument.symbol?.trim().toUpperCase() ?? ""])
+  );
+  const universeDailyPrices = universePrices.flatMap((price) => {
+    const symbol = instrumentSymbolById.get(price.instrumentId);
+    const holding = symbol ? holdingsBySymbol.get(symbol) : null;
+    if (!holding) return [];
+    return [{
+      id: price.id,
+      assetId: holding.assetId,
+      provider: price.provider,
+      symbol: price.symbol,
+      priceDate: price.priceDate,
+      closePrice: price.closePrice,
+      currency: price.currency
+    }];
+  });
   const report = container.riskAnalyticsService.calculateRiskAnalytics({
     dashboard,
     portfolioSnapshots,
     holdingSnapshots,
-    dailyPrices
+    dailyPrices: [...dailyPrices, ...universeDailyPrices]
   });
   const volatilityPoints: ChartPoint[] = report.volatility.trend.map((point) => ({
     date: point.date,
