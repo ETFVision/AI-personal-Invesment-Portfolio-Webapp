@@ -4,7 +4,7 @@ import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatAssetTypeLabel, formatPercent } from "@/lib/utils";
-import type { AllocationItem } from "@/domain/portfolio/types";
+import type { AllocationItem, HoldingSnapshot } from "@/domain/portfolio/types";
 import type { DrawdownPoint } from "@/application/services/risk/riskMath";
 import type { RiskAnalyticsReport } from "@/application/services/risk/RiskAnalyticsService";
 
@@ -250,10 +250,30 @@ export default async function RiskPage() {
       currency: price.currency
     }];
   });
+  const universeHoldingSnapshots: HoldingSnapshot[] = universePrices.flatMap((price) => {
+    const symbol = instrumentSymbolById.get(price.instrumentId);
+    const holding = symbol ? holdingsBySymbol.get(symbol) : null;
+    if (!holding) return [];
+    return [{
+      id: `instrument-price-${price.id}`,
+      portfolioId: portfolio.id,
+      holdingId: holding.id,
+      assetId: holding.assetId,
+      snapshotDate: price.priceDate,
+      quantity: holding.quantity,
+      marketPrice: price.closePrice,
+      marketValue: price.closePrice * holding.quantity,
+      costBasis: holding.averageCost == null ? null : holding.averageCost * holding.quantity,
+      unrealizedGainLoss: holding.averageCost == null ? null : (price.closePrice - holding.averageCost) * holding.quantity,
+      currency: price.currency ?? holding.costCurrency
+    }];
+  });
+  const holdingsWithUniverseHistory = new Set(universeHoldingSnapshots.map((snapshot) => snapshot.holdingId));
+  const fallbackHoldingSnapshots = holdingSnapshots.filter((snapshot) => !holdingsWithUniverseHistory.has(snapshot.holdingId));
   const report = container.riskAnalyticsService.calculateRiskAnalytics({
     dashboard,
     portfolioSnapshots,
-    holdingSnapshots,
+    holdingSnapshots: [...fallbackHoldingSnapshots, ...universeHoldingSnapshots],
     dailyPrices: [...dailyPrices, ...universeDailyPrices]
   });
   const volatilityPoints: ChartPoint[] = report.volatility.trend.map((point) => ({
