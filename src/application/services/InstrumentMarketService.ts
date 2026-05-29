@@ -3,6 +3,7 @@ import { UniverseRepository } from "@/application/ports/repositories/UniverseRep
 import {
   Instrument,
   InstrumentMarketDetailField,
+  InstrumentMarketMetric,
   InstrumentMarketView,
   InstrumentPrice
 } from "@/domain/universe/types";
@@ -244,6 +245,7 @@ export class InstrumentMarketService {
 
     if (rows.length > 0) {
       await this.repository.upsertInstrumentPrices(rows);
+      await this.repository.refreshInstrumentMarketMetrics(Array.from(new Set(rows.map((row) => row.instrumentId))));
     }
 
     return {
@@ -302,6 +304,28 @@ export class InstrumentMarketService {
   async buildInstrumentMarketViews(instruments: Instrument[], options?: { lookbackYears?: number }): Promise<InstrumentMarketView[]> {
     if (instruments.length === 0) return [];
 
+    const metrics = await this.repository.listInstrumentMarketMetrics(instruments.map((instrument) => instrument.id));
+    if (metrics.length > 0) {
+      const metricsByInstrumentId = new Map(metrics.map((metric) => [metric.instrumentId, metric]));
+      const missingMetricInstruments = instruments.filter((instrument) => !metricsByInstrumentId.has(instrument.id));
+      const fallbackViews = await this.buildInstrumentMarketViewsFromPrices(missingMetricInstruments, options);
+      const fallbackByInstrumentId = new Map(fallbackViews.map((view) => [view.instrument.id, view]));
+
+      return instruments.map((instrument) => {
+        const metric = metricsByInstrumentId.get(instrument.id);
+        if (!metric) {
+          return fallbackByInstrumentId.get(instrument.id) ?? this.emptyMarketView(instrument);
+        }
+        return this.marketViewFromMetric(instrument, metric);
+      });
+    }
+
+    return this.buildInstrumentMarketViewsFromPrices(instruments, options);
+  }
+
+  private async buildInstrumentMarketViewsFromPrices(instruments: Instrument[], options?: { lookbackYears?: number }): Promise<InstrumentMarketView[]> {
+    if (instruments.length === 0) return [];
+
     const lookbackYears = Math.max(1, options?.lookbackYears ?? 5);
     const priceRows = await this.repository.listInstrumentPrices(instruments.map((instrument) => instrument.id), yearsAgoIso(lookbackYears));
     const priceByInstrument = new Map<string, InstrumentPrice[]>();
@@ -348,6 +372,54 @@ export class InstrumentMarketService {
         detailFields: makeDetailFields(instrument, latestDate, series.length)
       };
     });
+  }
+
+  private marketViewFromMetric(instrument: Instrument, metric: InstrumentMarketMetric): InstrumentMarketView {
+    const freshness = freshnessTone(metric.latestPriceDate);
+    return {
+      instrument,
+      rank: 0,
+      latestPrice: metric.latestPrice,
+      latestPriceDate: metric.latestPriceDate,
+      dailyReturn: metric.dailyReturn,
+      ytdReturn: metric.ytdReturn,
+      oneYearReturn: metric.oneYearReturn,
+      threeYearReturn: metric.threeYearReturn,
+      fiveYearReturn: metric.fiveYearReturn,
+      fiftyTwoWeekLow: metric.fiftyTwoWeekLow,
+      fiftyTwoWeekHigh: metric.fiftyTwoWeekHigh,
+      liquidity: liquidityLabel(instrument),
+      freshnessLabel: freshness.label,
+      freshnessTone: freshness.tone,
+      priceObservationCount: metric.observationCount,
+      priceHistoryStart: metric.historyStartDate,
+      priceHistoryEnd: metric.historyEndDate,
+      detailFields: makeDetailFields(instrument, metric.latestPriceDate, metric.observationCount)
+    };
+  }
+
+  private emptyMarketView(instrument: Instrument): InstrumentMarketView {
+    const freshness = freshnessTone(null);
+    return {
+      instrument,
+      rank: 0,
+      latestPrice: null,
+      latestPriceDate: null,
+      dailyReturn: null,
+      ytdReturn: null,
+      oneYearReturn: null,
+      threeYearReturn: null,
+      fiveYearReturn: null,
+      fiftyTwoWeekLow: null,
+      fiftyTwoWeekHigh: null,
+      liquidity: liquidityLabel(instrument),
+      freshnessLabel: freshness.label,
+      freshnessTone: freshness.tone,
+      priceObservationCount: 0,
+      priceHistoryStart: null,
+      priceHistoryEnd: null,
+      detailFields: makeDetailFields(instrument, null, 0)
+    };
   }
 
   async getHistoryCoverageSummary(instruments: Instrument[], backfillBatchSize = 12): Promise<InstrumentHistoryCoverageSummary> {

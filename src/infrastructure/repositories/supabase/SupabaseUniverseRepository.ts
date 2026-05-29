@@ -3,6 +3,7 @@ import {
   BondProfile,
   CryptoProfile,
   Instrument,
+  InstrumentMarketMetric,
   InstrumentPrice,
   MetadataRefreshLog,
   Watchlist,
@@ -25,6 +26,16 @@ function isMissingUniverseTable(error: { code?: string; message?: string } | nul
     error &&
       (error.code === "42P01" ||
         (error.message?.toLowerCase().includes("instrument") && error.message?.toLowerCase().includes("does not exist")))
+  );
+}
+
+function isMissingMetricsSupport(error: { code?: string; message?: string } | null) {
+  return Boolean(
+    error &&
+      (error.code === "42P01" ||
+        error.code === "42883" ||
+        error.message?.toLowerCase().includes("instrument_market_metrics") ||
+        error.message?.toLowerCase().includes("refresh_instrument_market_metrics"))
   );
 }
 
@@ -138,6 +149,27 @@ function mapInstrumentPrice(row: any): InstrumentPrice {
     closePrice: Number(row.close_price),
     currency: row.currency,
     rawPayload: row.raw_payload ?? {}
+  };
+}
+
+function mapInstrumentMarketMetric(row: any): InstrumentMarketMetric {
+  return {
+    instrumentId: row.instrument_id,
+    latestPrice: row.latest_price == null ? null : Number(row.latest_price),
+    latestPriceDate: row.latest_price_date,
+    previousClosePrice: row.previous_close_price == null ? null : Number(row.previous_close_price),
+    previousPriceDate: row.previous_price_date,
+    dailyReturn: row.daily_return == null ? null : Number(row.daily_return),
+    ytdReturn: row.ytd_return == null ? null : Number(row.ytd_return),
+    oneYearReturn: row.one_year_return == null ? null : Number(row.one_year_return),
+    threeYearReturn: row.three_year_return == null ? null : Number(row.three_year_return),
+    fiveYearReturn: row.five_year_return == null ? null : Number(row.five_year_return),
+    fiftyTwoWeekLow: row.fifty_two_week_low == null ? null : Number(row.fifty_two_week_low),
+    fiftyTwoWeekHigh: row.fifty_two_week_high == null ? null : Number(row.fifty_two_week_high),
+    observationCount: Number(row.observation_count ?? 0),
+    historyStartDate: row.history_start_date,
+    historyEndDate: row.history_end_date,
+    updatedAt: row.updated_at
   };
 }
 
@@ -316,6 +348,26 @@ export class SupabaseUniverseRepository implements UniverseRepository {
       { onConflict: "instrument_id,provider,price_date" }
     );
     if (isMissingUniverseTable(error)) return;
+    if (error) throw new Error(error.message);
+  }
+
+  async listInstrumentMarketMetrics(instrumentIds?: string[]) {
+    let query = this.db.from("instrument_market_metrics").select("*").order("latest_price_date", { ascending: false, nullsFirst: false });
+    if (instrumentIds && instrumentIds.length > 0) {
+      query = query.in("instrument_id", instrumentIds);
+    }
+
+    const { data, error } = await query;
+    if (isMissingMetricsSupport(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapInstrumentMarketMetric);
+  }
+
+  async refreshInstrumentMarketMetrics(instrumentIds?: string[]) {
+    const { error } = await this.db.rpc("refresh_instrument_market_metrics", {
+      target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
+    });
+    if (isMissingMetricsSupport(error)) return;
     if (error) throw new Error(error.message);
   }
 

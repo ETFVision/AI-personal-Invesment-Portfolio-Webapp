@@ -54,6 +54,25 @@ export type InstrumentPrice = {
   rawPayload: unknown;
 };
 
+export type InstrumentMarketMetric = {
+  instrumentId: string;
+  latestPrice: number | null;
+  latestPriceDate: string | null;
+  previousClosePrice: number | null;
+  previousPriceDate: string | null;
+  dailyReturn: number | null;
+  ytdReturn: number | null;
+  oneYearReturn: number | null;
+  threeYearReturn: number | null;
+  fiveYearReturn: number | null;
+  fiftyTwoWeekLow: number | null;
+  fiftyTwoWeekHigh: number | null;
+  observationCount: number;
+  historyStartDate: string | null;
+  historyEndDate: string | null;
+  updatedAt: string | null;
+};
+
 export type InstrumentMarketDetailField = {
   label: string;
   value: string;

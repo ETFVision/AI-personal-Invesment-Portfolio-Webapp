@@ -2,6 +2,7 @@ import {
   BenchmarkProfile,
   BondProfile,
   CryptoProfile,
+  InstrumentMarketMetric,
   InstrumentPrice,
   Instrument,
   MetadataRefreshLog,
@@ -65,5 +66,7 @@ export interface UniverseRepository {
   insertMetadataRefreshLog(input: Omit<MetadataRefreshLog, "id" | "createdAt">): Promise<void>;
   listInstrumentPrices(instrumentIds?: string[], sinceDate?: string): Promise<InstrumentPrice[]>;
   listInstrumentPriceStats(instrumentIds?: string[]): Promise<InstrumentPriceStats[]>;
+  listInstrumentMarketMetrics(instrumentIds?: string[]): Promise<InstrumentMarketMetric[]>;
+  refreshInstrumentMarketMetrics(instrumentIds?: string[]): Promise<void>;
   upsertInstrumentPrices(input: UpsertInstrumentPriceInput[]): Promise<void>;
 }
