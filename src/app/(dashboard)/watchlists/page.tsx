@@ -1,6 +1,6 @@
 import { createContainer } from "@/server/container";
 import { addWatchlistItemAction, removeWatchlistItemAction } from "@/server/actions/universeActions";
-import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
+import { refreshUniverseLatestDataAction } from "@/server/actions/dataRefreshActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,9 +61,9 @@ export default async function WatchlistsPage({ searchParams }: WatchlistsPagePro
           <p className="text-sm text-muted-foreground">Curated tiers</p>
           <h1 className="text-2xl font-semibold">Watchlist Management</h1>
         </div>
-        <form action={refreshAllDataAction}>
+        <form action={refreshUniverseLatestDataAction}>
           <input type="hidden" name="returnTo" value="/watchlists" />
-          <SubmitButton variant="secondary" pendingLabel="Refreshing data...">Refresh data</SubmitButton>
+          <SubmitButton variant="secondary" pendingLabel="Refreshing latest...">Refresh data</SubmitButton>
         </form>
       </div>
 

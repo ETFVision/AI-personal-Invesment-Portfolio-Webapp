@@ -77,6 +77,30 @@ export async function refreshAllDataAction(formData?: FormData) {
   redirect(`${destination}?${params.toString()}`);
 }
 
+export async function refreshUniverseLatestDataAction(formData?: FormData) {
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  const destination = returnPath(formData);
+
+  const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
+    lookbackDays: 30,
+    batchSize: 12,
+    maxBatches: 8,
+    includeBackfill: false
+  });
+
+  revalidatePath("/universe");
+  revalidatePath("/watchlists");
+  revalidatePath("/setup");
+
+  const params = new URLSearchParams({
+    refreshMessage: `Universe prices: ${result.message}`
+  });
+  if (result.errors.length > 0) params.set("refreshError", result.errors.join(" | "));
+
+  redirect(`${destination}?${params.toString()}`);
+}
+
 export async function backfillUniverseHistoryAction(formData?: FormData) {
   const container = createContainer();
   await container.authProvider.requireUser();
