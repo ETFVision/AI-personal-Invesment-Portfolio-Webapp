@@ -85,6 +85,7 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
   ]);
 
   const marketViews = await container.instrumentMarketService.buildInstrumentMarketViews(instruments);
+  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 12);
   const grouped = groupByAssetClass(marketViews);
   const cryptoRows = splitCryptoRows(grouped.crypto);
   const activeCount = instruments.filter((instrument) => instrument.isActive).length;
@@ -144,6 +145,34 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
           <StatusStep label="2" title="Portfolio" description="Holdings prices and snapshots" />
           <StatusStep label="3" title="Benchmarks" description="Benchmark price history" />
           <StatusStep label="4" title="Universe" description="Instrument prices and freshness" />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>History coverage</CardTitle>
+          <CardDescription>Shows how much 3Y/5Y history is available for non-crypto instruments.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 text-sm md:grid-cols-3 lg:grid-cols-6">
+          <CoverageMetric label="Eligible" value={historyCoverage.totalEligible} />
+          <CoverageMetric label="5Y complete" value={historyCoverage.completeFiveYear} />
+          <CoverageMetric label="Need 5Y" value={historyCoverage.missingFiveYear} />
+          <CoverageMetric label="3Y complete" value={historyCoverage.completeThreeYear} />
+          <CoverageMetric label="Need 3Y" value={historyCoverage.missingThreeYear} />
+          <CoverageMetric label="Est. clicks" value={historyCoverage.estimatedBackfillClicks} />
+          <div className="rounded-md border bg-muted/30 p-3 md:col-span-3 lg:col-span-6">
+            <div className="text-xs uppercase text-muted-foreground">Backfill guidance</div>
+            <div className="mt-1 font-medium">
+              {historyCoverage.missingFiveYear === 0
+                ? "5Y history is complete for eligible instruments."
+                : `${historyCoverage.missingFiveYear} eligible instrument${historyCoverage.missingFiveYear === 1 ? "" : "s"} still need 5Y history. About ${historyCoverage.estimatedBackfillClicks} Backfill history click${historyCoverage.estimatedBackfillClicks === 1 ? "" : "s"} remaining.`}
+            </div>
+            {historyCoverage.excludedCrypto > 0 ? (
+              <div className="mt-1 text-xs text-muted-foreground">
+                {historyCoverage.excludedCrypto} crypto instrument{historyCoverage.excludedCrypto === 1 ? "" : "s"} excluded from 3Y/5Y completeness because crypto ETF history may be shorter.
+              </div>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
 
@@ -276,6 +305,15 @@ function StatusStep({ label, title, description }: { label: string; title: strin
         <div className="font-medium">{title}</div>
         <div className="text-xs text-muted-foreground">{description}</div>
       </div>
+    </div>
+  );
+}
+
+function CoverageMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border p-3">
+      <div className="text-xs uppercase text-muted-foreground">{label}</div>
+      <div className="mt-1 text-2xl font-semibold">{value}</div>
     </div>
   );
 }

@@ -15,6 +15,17 @@ export type RefreshInstrumentPricesResult = {
   message: string;
 };
 
+export type InstrumentHistoryCoverageSummary = {
+  totalEligible: number;
+  completeFiveYear: number;
+  missingFiveYear: number;
+  completeThreeYear: number;
+  missingThreeYear: number;
+  oneYearOnly: number;
+  excludedCrypto: number;
+  estimatedBackfillClicks: number;
+};
+
 function uniqueSymbols(symbols: Array<string | null | undefined>) {
   return Array.from(
     new Set(
@@ -63,6 +74,10 @@ function isStaleOrMissing(latestPriceDate: string | null, asOfDate: string) {
 function needsLongHistoryBackfill(instrument: Instrument, earliestPriceDate: string | null, backfillStartDate: string) {
   if (instrument.assetClass === "crypto" || instrument.instrumentType === "crypto_etf") return false;
   return !earliestPriceDate || earliestPriceDate > backfillStartDate;
+}
+
+function isCryptoHistoryExcluded(instrument: Instrument) {
+  return instrument.assetClass === "crypto" || instrument.instrumentType === "crypto_etf";
 }
 
 function formatDateLabel(date: string | null) {
@@ -332,6 +347,55 @@ export class InstrumentMarketService {
         detailFields: makeDetailFields(instrument, latestDate, series.length)
       };
     });
+  }
+
+  async getHistoryCoverageSummary(instruments: Instrument[], backfillBatchSize = 12): Promise<InstrumentHistoryCoverageSummary> {
+    const activeInstruments = instruments.filter((instrument) => instrument.isActive);
+    const stats = await this.repository.listInstrumentPriceStats(activeInstruments.map((instrument) => instrument.id));
+    const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
+    const threeYearStart = yearsAgoIso(3);
+    const fiveYearStart = yearsAgoIso(5);
+    let totalEligible = 0;
+    let completeFiveYear = 0;
+    let completeThreeYear = 0;
+    let oneYearOnly = 0;
+    let excludedCrypto = 0;
+
+    for (const instrument of activeInstruments) {
+      if (isCryptoHistoryExcluded(instrument)) {
+        excludedCrypto += 1;
+        continue;
+      }
+
+      totalEligible += 1;
+      const earliestDate = statsByInstrumentId.get(instrument.id)?.earliestPriceDate ?? null;
+      if (earliestDate && earliestDate <= fiveYearStart) {
+        completeFiveYear += 1;
+        completeThreeYear += 1;
+        continue;
+      }
+
+      if (earliestDate && earliestDate <= threeYearStart) {
+        completeThreeYear += 1;
+        continue;
+      }
+
+      oneYearOnly += 1;
+    }
+
+    const missingFiveYear = Math.max(0, totalEligible - completeFiveYear);
+    const missingThreeYear = Math.max(0, totalEligible - completeThreeYear);
+
+    return {
+      totalEligible,
+      completeFiveYear,
+      missingFiveYear,
+      completeThreeYear,
+      missingThreeYear,
+      oneYearOnly,
+      excludedCrypto,
+      estimatedBackfillClicks: Math.ceil(missingFiveYear / Math.max(1, backfillBatchSize))
+    };
   }
 
 }
