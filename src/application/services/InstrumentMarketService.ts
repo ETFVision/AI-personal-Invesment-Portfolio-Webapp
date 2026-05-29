@@ -29,6 +29,15 @@ function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function latestExpectedEodDate() {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - 1);
+  while (date.getUTCDay() === 0 || date.getUTCDay() === 6) {
+    date.setUTCDate(date.getUTCDate() - 1);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
 function daysAgoIso(days: number) {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() - days);
@@ -116,7 +125,7 @@ export class InstrumentMarketService {
       : allInstruments;
     const priceStats = await this.repository.listInstrumentPriceStats(instruments.map((instrument) => instrument.id));
     const statsByInstrumentId = new Map(priceStats.map((item) => [item.instrumentId, item]));
-    const refreshCutoff = todayIsoDate();
+    const refreshCutoff = latestExpectedEodDate();
     const symbols = uniqueSymbols(
       instruments
         .filter((instrument) => {
