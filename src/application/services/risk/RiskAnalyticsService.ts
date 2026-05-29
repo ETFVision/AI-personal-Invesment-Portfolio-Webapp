@@ -17,6 +17,16 @@ export type RiskAnalyticsReport = ReturnType<RiskAnalyticsService["calculateRisk
 
 function themeExposure(valuations: HoldingValuation[], totalValue: number): AllocationItem[] {
   const grouped = new Map<string, number>();
+  const themeLabel = (value: string) => {
+    const normalized = value.trim().toLowerCase().replaceAll("_", "-").replaceAll(" ", "-");
+    const labels: Record<string, string> = {
+      "fixed-income": "Fixed income",
+      crypto: "Crypto",
+      gold: "Gold"
+    };
+    return labels[normalized] ?? value.trim();
+  };
+
   for (const valuation of valuations) {
     const metadataTags = [
       valuation.holding.sector,
@@ -25,7 +35,8 @@ function themeExposure(valuations: HoldingValuation[], totalValue: number): Allo
       valuation.holding.assetType === "bond_etf" ? "fixed-income" : null
     ].filter((tag): tag is string => Boolean(tag));
     for (const tag of metadataTags) {
-      grouped.set(tag, (grouped.get(tag) ?? 0) + valuation.value);
+      const label = themeLabel(tag);
+      grouped.set(label, (grouped.get(label) ?? 0) + valuation.value);
     }
   }
   return Array.from(grouped.entries())
