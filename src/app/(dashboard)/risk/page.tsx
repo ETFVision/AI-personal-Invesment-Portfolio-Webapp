@@ -29,9 +29,21 @@ function yearsAgoIso(years: number) {
 }
 
 function instrumentBySymbol(instruments: Instrument[]) {
+  const aliases: Record<string, string> = {
+    BTCUSD: "BTC",
+    ETHUSD: "ETH",
+    SOLUSD: "SOL"
+  };
   return new Map(
-    instruments
-      .map((instrument) => [instrument.symbol?.trim().toUpperCase() ?? "", instrument] as const)
+    instruments.flatMap((instrument) => {
+      const symbol = instrument.symbol?.trim().toUpperCase() ?? "";
+      if (!symbol) return [];
+      const entries: Array<readonly [string, Instrument]> = [[symbol, instrument]];
+      for (const [alias, target] of Object.entries(aliases)) {
+        if (target === symbol) entries.push([alias, instrument]);
+      }
+      return entries;
+    })
       .filter(([symbol]) => Boolean(symbol))
   );
 }
@@ -351,6 +363,11 @@ export default async function RiskPage() {
     instruments: matchedBenchmarkInstruments,
     prices: universePrices
   });
+  const universeBenchmarkIds = new Set(universeBenchmarkSnapshots.map((snapshot) => snapshot.benchmarkId));
+  const selectedBenchmarkSnapshots = [
+    ...benchmarkSnapshots.filter((snapshot) => !universeBenchmarkIds.has(snapshot.benchmarkId)),
+    ...universeBenchmarkSnapshots
+  ];
   const instrumentSymbolById = new Map(
     matchedUniverseInstruments.map((instrument) => [instrument.id, instrument.symbol?.trim().toUpperCase() ?? ""])
   );
@@ -393,7 +410,7 @@ export default async function RiskPage() {
     portfolioSnapshots,
     holdingSnapshots: [...fallbackHoldingSnapshots, ...universeHoldingSnapshots],
     dailyPrices: [...dailyPrices, ...universeDailyPrices],
-    benchmarkSnapshots: universeBenchmarkSnapshots.length > 0 ? universeBenchmarkSnapshots : benchmarkSnapshots
+    benchmarkSnapshots: selectedBenchmarkSnapshots
   });
   const volatilityPoints: ChartPoint[] = report.volatility.trend.map((point) => ({
     date: point.date,

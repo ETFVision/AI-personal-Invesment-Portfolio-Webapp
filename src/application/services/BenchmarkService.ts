@@ -146,7 +146,7 @@ export class BenchmarkService {
 
   async refreshBenchmarkSnapshots(input?: { lookbackDays?: number }): Promise<RefreshBenchmarkResult> {
     const benchmarks = await this.ensureBenchmarkUniverse();
-    const lookbackDays = input?.lookbackDays ?? 365;
+    const lookbackDays = input?.lookbackDays ?? 1825;
     const errors: string[] = [];
     let snapshotCount = 0;
     let skippedCount = 0;
@@ -154,18 +154,25 @@ export class BenchmarkService {
 
     for (const benchmark of benchmarks.filter((item) => item.isActive)) {
       try {
-        const latestSnapshots = await this.repository.listBenchmarkSnapshots([benchmark.id], 1);
-        const latestSnapshot = latestSnapshots[0];
+        const desiredStartDate = isoDateDaysAgo(lookbackDays);
+        const existingSnapshots = await this.repository.listBenchmarkSnapshots([benchmark.id], 10_000);
+        const sortedExistingSnapshots = existingSnapshots.slice().sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+        const earliestSnapshot = sortedExistingSnapshots[0];
+        const latestSnapshot = sortedExistingSnapshots.at(-1);
         if (latestSnapshot && latestSnapshot.snapshotDate >= expectedPriceDate) {
-          skippedCount += 1;
-          continue;
+          if (earliestSnapshot && earliestSnapshot.snapshotDate <= desiredStartDate) {
+            skippedCount += 1;
+            continue;
+          }
         }
-        const fetchFrom = latestSnapshot ? latestSnapshot.snapshotDate : isoDateDaysAgo(lookbackDays);
+        const needsBackfill = !earliestSnapshot || earliestSnapshot.snapshotDate > desiredStartDate;
+        const fetchFrom = needsBackfill ? desiredStartDate : latestSnapshot?.snapshotDate ?? desiredStartDate;
+        const previousSnapshot = needsBackfill ? undefined : latestSnapshot;
         const toDate = new Date().toISOString().slice(0, 10);
 
         const snapshots = benchmark.symbol
-          ? await this.buildSingleSymbolSeries(benchmark, fetchFrom, toDate, latestSnapshot)
-          : await this.buildCompositeSeries(benchmark, fetchFrom, toDate, latestSnapshot);
+          ? await this.buildSingleSymbolSeries(benchmark, fetchFrom, toDate, previousSnapshot)
+          : await this.buildCompositeSeries(benchmark, fetchFrom, toDate, previousSnapshot);
 
         if (snapshots.length > 0) {
           await this.repository.upsertBenchmarkSnapshots(

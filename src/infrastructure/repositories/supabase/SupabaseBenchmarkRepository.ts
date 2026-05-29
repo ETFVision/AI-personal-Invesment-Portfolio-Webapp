@@ -47,6 +47,8 @@ function isMissingBenchmarkTable(error: { code?: string; message?: string } | nu
   );
 }
 
+const SUPABASE_PAGE_SIZE = 1000;
+
 export class SupabaseBenchmarkRepository implements BenchmarkRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
@@ -80,14 +82,28 @@ export class SupabaseBenchmarkRepository implements BenchmarkRepository {
   }
 
   async listBenchmarkSnapshots(benchmarkIds?: string[], limit = 500) {
-    let query = this.db.from("benchmark_snapshots").select("*, benchmarks(benchmark_key)").order("snapshot_date", { ascending: false }).limit(limit);
-    if (benchmarkIds && benchmarkIds.length > 0) {
-      query = query.in("benchmark_id", benchmarkIds);
+    const rows: any[] = [];
+    const requestedLimit = Math.max(1, limit);
+
+    for (let from = 0; rows.length < requestedLimit; from += SUPABASE_PAGE_SIZE) {
+      const pageSize = Math.min(SUPABASE_PAGE_SIZE, requestedLimit - rows.length);
+      let query = this.db
+        .from("benchmark_snapshots")
+        .select("*, benchmarks(benchmark_key)")
+        .order("snapshot_date", { ascending: false })
+        .range(from, from + pageSize - 1);
+      if (benchmarkIds && benchmarkIds.length > 0) {
+        query = query.in("benchmark_id", benchmarkIds);
+      }
+
+      const { data, error } = await query;
+      if (isMissingBenchmarkTable(error)) return [];
+      if (error) throw new Error(error.message);
+      rows.push(...(data ?? []));
+      if ((data ?? []).length < pageSize) break;
     }
-    const { data, error } = await query;
-    if (isMissingBenchmarkTable(error)) return [];
-    if (error) throw new Error(error.message);
-    return (data ?? []).map((row) => {
+
+    return rows.map((row) => {
       const snapshot = mapBenchmarkSnapshot(row);
       return {
         ...snapshot,

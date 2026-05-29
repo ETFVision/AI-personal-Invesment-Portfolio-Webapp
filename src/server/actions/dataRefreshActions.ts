@@ -47,7 +47,7 @@ export async function refreshAllDataAction(formData?: FormData) {
       await container.portfolioService.createAnalyticsSnapshot(portfolio.id);
     }
 
-    const benchmarks = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 365 });
+    const benchmarks = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 1825 });
     appendMessage(messages, "Benchmarks", benchmarks.message);
     if (!benchmarks.ok) errors.push(benchmarks.message);
   }

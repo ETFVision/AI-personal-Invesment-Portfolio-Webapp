@@ -194,7 +194,7 @@ export async function refreshBenchmarksAction() {
   if (!portfolio) redirect("/setup");
 
   const result = await container.jobs.refreshBenchmarkData.run({
-    lookbackDays: 365
+    lookbackDays: 1825
   });
 
   revalidatePath("/portfolio");
