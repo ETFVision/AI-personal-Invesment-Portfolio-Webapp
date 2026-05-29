@@ -13,6 +13,8 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();
   const { portfolio, user } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
+  const instruments = await container.instrumentService.listInstruments();
+  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 12);
 
   return (
     <div className="space-y-6">
@@ -106,6 +108,45 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
           )}
         </CardContent>
       </Card>
+      {portfolio ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Universe history coverage</CardTitle>
+            <CardDescription>Backfill status for 3Y and 5Y instrument return calculations.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 text-sm md:grid-cols-3 lg:grid-cols-6">
+              <CoverageMetric label="Eligible" value={historyCoverage.totalEligible} />
+              <CoverageMetric label="5Y complete" value={historyCoverage.completeFiveYear} />
+              <CoverageMetric label="Need 5Y" value={historyCoverage.missingFiveYear} />
+              <CoverageMetric label="3Y complete" value={historyCoverage.completeThreeYear} />
+              <CoverageMetric label="Need 3Y" value={historyCoverage.missingThreeYear} />
+              <CoverageMetric label="Est. clicks" value={historyCoverage.estimatedBackfillClicks} />
+            </div>
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <div className="font-medium">
+                {historyCoverage.missingFiveYear === 0
+                  ? "5Y history is complete for eligible instruments."
+                  : `${historyCoverage.missingFiveYear} eligible instrument${historyCoverage.missingFiveYear === 1 ? "" : "s"} still need 5Y history. About ${historyCoverage.estimatedBackfillClicks} Backfill history click${historyCoverage.estimatedBackfillClicks === 1 ? "" : "s"} remaining.`}
+              </div>
+              {historyCoverage.excludedCrypto > 0 ? (
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {historyCoverage.excludedCrypto} crypto instrument{historyCoverage.excludedCrypto === 1 ? "" : "s"} excluded from 3Y/5Y completeness because crypto ETF history may be shorter.
+                </div>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+function CoverageMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border p-3">
+      <div className="text-xs uppercase text-muted-foreground">{label}</div>
+      <div className="mt-1 text-2xl font-semibold">{value}</div>
     </div>
   );
 }
