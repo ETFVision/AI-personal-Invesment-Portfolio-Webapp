@@ -87,6 +87,16 @@ function isCryptoHistoryExcluded(instrument: Instrument) {
   return instrument.assetClass === "crypto" || instrument.instrumentType === "crypto_etf";
 }
 
+function isRawCryptoReference(instrument: Instrument) {
+  return instrument.assetClass === "crypto" && instrument.instrumentType === "crypto";
+}
+
+function providerSymbolForInstrument(instrument: Instrument) {
+  const symbol = instrument.symbol?.trim().toUpperCase() ?? "";
+  if (isRawCryptoReference(instrument) && symbol && !symbol.endsWith("USD")) return `${symbol}USD`;
+  return symbol;
+}
+
 function formatDateLabel(date: string | null) {
   return date ? date.slice(0, 10) : "-";
 }
@@ -148,7 +158,9 @@ export class InstrumentMarketService {
     const lookbackDays = input?.lookbackDays ?? 1825;
     const maxSymbols = Math.max(1, input?.maxSymbols ?? 12);
     const includeBackfill = input?.includeBackfill ?? false;
-    const allInstruments = await this.repository.listInstruments({ isActive: true });
+    const allInstruments = includeBackfill
+      ? await this.repository.listInstruments({ isActive: true })
+      : (await this.repository.listInstruments()).filter((instrument) => instrument.isActive || isRawCryptoReference(instrument));
     const instruments = input?.instrumentIds?.length
       ? allInstruments.filter((instrument) => input.instrumentIds?.includes(instrument.id))
       : allInstruments;
@@ -180,7 +192,7 @@ export class InstrumentMarketService {
           if (aCount !== bCount) return aCount - bCount;
           return (a.symbol ?? "").localeCompare(b.symbol ?? "");
         })
-        .map((instrument) => instrument.symbol)
+        .map(providerSymbolForInstrument)
     ).slice(0, maxSymbols);
 
     if (symbols.length === 0) {
@@ -194,7 +206,14 @@ export class InstrumentMarketService {
     }
 
     const instrumentBySymbol = new Map(
-      instruments.map((instrument) => [instrument.symbol?.toUpperCase() ?? "", instrument])
+      instruments.flatMap((instrument) => {
+        const localSymbol = instrument.symbol?.toUpperCase() ?? "";
+        const providerSymbol = providerSymbolForInstrument(instrument);
+        return [
+          [localSymbol, instrument],
+          [providerSymbol, instrument]
+        ];
+      })
     );
     const defaultFrom = backfillStartDate;
     const to = todayIsoDate();
@@ -215,6 +234,26 @@ export class InstrumentMarketService {
         try {
           const instrument = instrumentBySymbol.get(symbol);
           if (!instrument) return { rows: [], missingSymbol: null, error: null };
+          if (isRawCryptoReference(instrument) && !includeBackfill) {
+            const latestQuotes = await this.provider.getLatestPrices([providerSymbolForInstrument(instrument)]);
+            if (latestQuotes.length === 0) {
+              return { rows: [], missingSymbol: symbol, error: null };
+            }
+
+            return {
+              rows: latestQuotes.map((quote) => ({
+                instrumentId: instrument.id,
+                provider: this.provider.name,
+                symbol: quote.symbol.toUpperCase(),
+                priceDate: quote.asOfDate,
+                closePrice: quote.price,
+                currency: quote.currency ?? instrument.currency ?? "USD",
+                rawPayload: quote.raw
+              })),
+              missingSymbol: null,
+              error: null
+            };
+          }
           const stats = statsByInstrumentId.get(instrument.id);
           const shouldBackfill = includeBackfill && needsLongHistoryBackfill(instrument, stats?.earliestPriceDate ?? null, defaultFrom);
           const from = shouldBackfill ? defaultFrom : stats?.latestPriceDate ? daysBeforeIso(stats.latestPriceDate, 7) : defaultFrom;
