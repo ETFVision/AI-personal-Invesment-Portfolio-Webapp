@@ -1,5 +1,5 @@
 import { createContainer } from "@/server/container";
-import { addWatchlistItemAction, removeWatchlistItemAction } from "@/server/actions/universeActions";
+import { addWatchlistItemAction } from "@/server/actions/universeActions";
 import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

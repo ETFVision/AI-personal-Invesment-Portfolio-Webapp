@@ -237,6 +237,10 @@ const watchlistItems: WatchlistItemSeed[] = [
   ...["PYPL", "DIS", "BA", "NKE", "INTC"].map((symbol, index) => item("opportunistic", symbol, index + 1))
 ];
 
+function mergeTags(existing: string[] | undefined, seeded: string[] | undefined) {
+  return Array.from(new Set([...(existing ?? []), ...(seeded ?? [])]));
+}
+
 function instrument(
   symbol: string,
   name: string,
@@ -478,13 +482,22 @@ export class UniverseManagementService {
   constructor(private readonly repository: UniverseRepository) {}
 
   async ensureSeededUniverse(): Promise<UniverseSeedResult> {
+    const existingInstruments = await this.repository.listInstruments();
+    const existingBySymbol = new Map(existingInstruments.map((instrument) => [instrument.symbol?.toUpperCase() ?? "", instrument]));
+
     await this.repository.upsertInstruments(
-      seededInstruments.map((instrument) => ({
-        ...instrument,
-        metadataLastRefreshedAt: instrument.metadataLastRefreshedAt ?? null,
-        providerPrimary: instrument.providerPrimary ?? null,
-        providerMetadata: instrument.providerMetadata ?? {}
-      }))
+      seededInstruments.map((instrument) => {
+        const existing = existingBySymbol.get(instrument.symbol?.toUpperCase() ?? "");
+        return {
+          ...instrument,
+          benchmarkTags: mergeTags(existing?.benchmarkTags, instrument.benchmarkTags),
+          thematicTags: mergeTags(existing?.thematicTags, instrument.thematicTags),
+          metadataLastRefreshedAt: instrument.metadataLastRefreshedAt ?? existing?.metadataLastRefreshedAt ?? null,
+          providerPrimary: instrument.providerPrimary ?? existing?.providerPrimary ?? null,
+          providerMetadata: Object.keys(instrument.providerMetadata ?? {}).length > 0 ? instrument.providerMetadata ?? {} : existing?.providerMetadata ?? {},
+          isActive: existing?.isActive ?? instrument.isActive
+        };
+      })
     );
     const instruments = await this.repository.listInstruments();
     const instrumentBySymbol = new Map(instruments.map((instrument) => [instrument.symbol?.toUpperCase() ?? "", instrument]));
@@ -494,8 +507,8 @@ export class UniverseManagementService {
         .filter((instrument) => (instrument.benchmarkTags?.length ?? 0) > 0 || (instrument.thematicTags?.length ?? 0) > 0)
         .map((instrument) => ({
           instrumentId: instrumentBySymbol.get(instrument.symbol?.toUpperCase() ?? "")?.id ?? "",
-          benchmarkTags: instrument.benchmarkTags ?? [],
-          thematicTags: instrument.thematicTags ?? []
+          benchmarkTags: mergeTags(existingBySymbol.get(instrument.symbol?.toUpperCase() ?? "")?.benchmarkTags, instrument.benchmarkTags),
+          thematicTags: mergeTags(existingBySymbol.get(instrument.symbol?.toUpperCase() ?? "")?.thematicTags, instrument.thematicTags)
         }))
         .filter((item) => Boolean(item.instrumentId))
     );
