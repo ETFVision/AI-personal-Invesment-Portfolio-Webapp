@@ -61,6 +61,22 @@ function rankAndSort(rows: InstrumentMarketView[]) {
     .map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
+function groupStocksBySector(rows: InstrumentMarketView[]) {
+  const grouped = new Map<string, InstrumentMarketView[]>();
+  for (const row of rows) {
+    const sector = row.instrument.sector?.trim() || "Unclassified";
+    grouped.set(sector, [...(grouped.get(sector) ?? []), row]);
+  }
+
+  return Array.from(grouped.entries())
+    .sort(([a], [b]) => {
+      if (a === "Unclassified") return 1;
+      if (b === "Unclassified") return -1;
+      return a.localeCompare(b);
+    })
+    .map(([sector, items]) => ({ sector, items: rankAndSort(items) }));
+}
+
 export default async function UniversePage({ searchParams }: UniversePageProps) {
   const params = await searchParams;
   const container = createContainer();
@@ -226,7 +242,7 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
       <InstrumentGroupSection title="Equity ETF Universe" items={rankAndSort(grouped.equityEtfs)} />
       <InstrumentGroupSection title="Bond / Gold / Cash ETF Universe" items={rankAndSort(grouped.bonds)} />
       <CryptoUniverseSection proxyItems={rankAndSort(cryptoRows.proxies)} referenceItems={rankAndSort(cryptoRows.references)} />
-      <InstrumentGroupSection title="Stock Watchlist Universe" items={rankAndSort(grouped.stocks)} />
+      <StockWatchlistUniverseSection sectorGroups={groupStocksBySector(grouped.stocks)} totalCount={grouped.stocks.length} />
 
       <section className="grid gap-4 lg:grid-cols-2">
         <ProfileCard
@@ -326,6 +342,40 @@ function InstrumentGroupSection({ title, items }: { title: string; items: Instru
       </CardHeader>
       <CardContent>
         <InstrumentMarketTable rows={items} emptyMessage="No instruments in this group." showManagementActions />
+      </CardContent>
+    </Card>
+  );
+}
+
+function StockWatchlistUniverseSection({
+  sectorGroups,
+  totalCount
+}: {
+  sectorGroups: Array<{ sector: string; items: InstrumentMarketView[] }>;
+  totalCount: number;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Stock Watchlist Universe</CardTitle>
+        <CardDescription>{totalCount} stocks grouped by sector, ranked by daily return within each sector.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {sectorGroups.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No stocks in this group.</p>
+        ) : (
+          sectorGroups.map((group) => (
+            <div key={group.sector} className="space-y-2">
+              <div className="flex items-center justify-between gap-3 border-b pb-2">
+                <h3 className="text-sm font-medium">{group.sector}</h3>
+                <span className="text-xs text-muted-foreground">
+                  {group.items.length} stock{group.items.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <InstrumentMarketTable rows={group.items} emptyMessage="No stocks in this sector." showManagementActions />
+            </div>
+          ))
+        )}
       </CardContent>
     </Card>
   );
