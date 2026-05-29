@@ -11,6 +11,7 @@ import { PortfolioService } from "@/application/services/PortfolioService";
 import { MarketDataService } from "@/application/services/MarketDataService";
 import { PerformanceService } from "@/application/services/PerformanceService";
 import { RiskAnalyticsService } from "@/application/services/risk/RiskAnalyticsService";
+import { RiskAnalyticsDataService } from "@/application/services/risk/RiskAnalyticsDataService";
 import { MetadataRefreshService } from "@/application/services/MetadataRefreshService";
 import { UniverseManagementService } from "@/application/services/UniverseManagementService";
 import { WatchlistService } from "@/application/services/WatchlistService";
@@ -21,6 +22,7 @@ import { SupabaseAnalyticsRepository } from "@/infrastructure/repositories/supab
 import { SupabaseBenchmarkRepository } from "@/infrastructure/repositories/supabase/SupabaseBenchmarkRepository";
 import { SupabaseMarketDataRepository } from "@/infrastructure/repositories/supabase/SupabaseMarketDataRepository";
 import { SupabasePortfolioRepository } from "@/infrastructure/repositories/supabase/SupabasePortfolioRepository";
+import { SupabaseRiskAnalyticsRepository } from "@/infrastructure/repositories/supabase/SupabaseRiskAnalyticsRepository";
 import { SupabaseUniverseRepository } from "@/infrastructure/repositories/supabase/SupabaseUniverseRepository";
 
 export function createContainer() {
@@ -28,6 +30,7 @@ export function createContainer() {
   const marketDataRepository = new SupabaseMarketDataRepository();
   const analyticsRepository = new SupabaseAnalyticsRepository();
   const benchmarkRepository = new SupabaseBenchmarkRepository();
+  const riskAnalyticsRepository = new SupabaseRiskAnalyticsRepository();
   const universeRepository = new SupabaseUniverseRepository();
   const marketDataProvider = new FmpMarketDataProvider();
   const assetMetadataProvider = new FmpAssetMetadataProvider();
@@ -44,12 +47,20 @@ export function createContainer() {
   const performanceService = new PerformanceService();
   const analyticsService = new AnalyticsService(allocationService, performanceService);
   const riskAnalyticsService = new RiskAnalyticsService();
+  const riskAnalyticsDataService = new RiskAnalyticsDataService(
+    analyticsRepository,
+    marketDataRepository,
+    universeRepository,
+    benchmarkRepository,
+    riskAnalyticsService
+  );
   return {
     authProvider: new SupabaseAuthProvider(),
     portfolioRepository,
     marketDataRepository,
     analyticsRepository,
     benchmarkRepository,
+    riskAnalyticsRepository,
     universeRepository,
     marketDataProvider,
     assetMetadataProvider,
@@ -62,6 +73,7 @@ export function createContainer() {
     performanceService,
     analyticsService,
     riskAnalyticsService,
+    riskAnalyticsDataService,
     benchmarkComparisonService,
     benchmarkService,
     portfolioService: new PortfolioService(

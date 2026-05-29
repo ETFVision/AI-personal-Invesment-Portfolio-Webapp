@@ -30,6 +30,21 @@ async function requirePortfolioId() {
   return portfolio.id;
 }
 
+async function updateDerivedRiskReport(portfolioId: string) {
+  try {
+    const container = createContainer();
+    const dashboard = await container.portfolioService.getDashboard(portfolioId);
+    const riskReport = await container.riskAnalyticsDataService.buildReport(portfolioId, dashboard);
+    await container.riskAnalyticsRepository.upsertRiskReport({
+      portfolioId,
+      asOfDate: riskReport.asOfDate,
+      report: riskReport
+    });
+  } catch (error) {
+    console.error("Risk report refresh failed", error);
+  }
+}
+
 export async function setupPortfolioAction(formData: FormData) {
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();
@@ -80,19 +95,23 @@ export async function upsertCashBalanceAction(formData: FormData) {
       notes: value(formData, "notes")
     });
     await createContainer().portfolioService.upsertCashBalance(input);
+    await updateDerivedRiskReport(portfolioId);
   } catch (error) {
     redirect(`/cash?error=${encodeURIComponent(validationMessage(error))}`);
   }
   revalidatePath("/cash");
   revalidatePath("/portfolio");
+  revalidatePath("/risk");
   redirect("/cash");
 }
 
 export async function deleteCashBalanceAction(formData: FormData) {
   const portfolioId = await requirePortfolioId();
   await createContainer().portfolioService.deleteCashBalance(String(formData.get("id")), portfolioId);
+  await updateDerivedRiskReport(portfolioId);
   revalidatePath("/cash");
   revalidatePath("/portfolio");
+  revalidatePath("/risk");
   redirect("/cash");
 }
 
@@ -114,19 +133,23 @@ export async function upsertHoldingAction(formData: FormData) {
       notes: value(formData, "notes")
     });
     await createContainer().portfolioService.upsertHolding(input);
+    await updateDerivedRiskReport(portfolioId);
   } catch (error) {
     redirect(`/holdings?error=${encodeURIComponent(validationMessage(error))}`);
   }
   revalidatePath("/holdings");
   revalidatePath("/portfolio");
+  revalidatePath("/risk");
   redirect("/holdings");
 }
 
 export async function deleteHoldingAction(formData: FormData) {
   const portfolioId = await requirePortfolioId();
   await createContainer().portfolioService.deleteHolding(String(formData.get("id")), portfolioId);
+  await updateDerivedRiskReport(portfolioId);
   revalidatePath("/holdings");
   revalidatePath("/portfolio");
+  revalidatePath("/risk");
   redirect("/holdings");
 }
 
@@ -150,18 +173,23 @@ export async function upsertTransactionAction(formData: FormData) {
       notes: value(formData, "notes")
     });
     await createContainer().portfolioService.upsertTransaction(input);
+    await updateDerivedRiskReport(portfolioId);
   } catch (error) {
     redirect(`/transactions?error=${encodeURIComponent(validationMessage(error))}`);
   }
   revalidatePath("/transactions");
   revalidatePath("/portfolio");
+  revalidatePath("/risk");
   redirect("/transactions");
 }
 
 export async function deleteTransactionAction(formData: FormData) {
   const portfolioId = await requirePortfolioId();
   await createContainer().portfolioService.deleteTransaction(String(formData.get("id")), portfolioId);
+  await updateDerivedRiskReport(portfolioId);
   revalidatePath("/transactions");
+  revalidatePath("/portfolio");
+  revalidatePath("/risk");
   redirect("/transactions");
 }
 
@@ -177,9 +205,17 @@ export async function refreshPricesAction() {
   });
   if (result.ok) {
     await container.portfolioService.createAnalyticsSnapshot(portfolio.id);
+    const dashboard = await container.portfolioService.getDashboard(portfolio.id);
+    const riskReport = await container.riskAnalyticsDataService.buildReport(portfolio.id, dashboard);
+    await container.riskAnalyticsRepository.upsertRiskReport({
+      portfolioId: portfolio.id,
+      asOfDate: riskReport.asOfDate,
+      report: riskReport
+    });
   }
 
   revalidatePath("/portfolio");
+  revalidatePath("/risk");
   const params = new URLSearchParams({
     priceMessage: result.message
   });
@@ -196,8 +232,18 @@ export async function refreshBenchmarksAction() {
   const result = await container.jobs.refreshBenchmarkData.run({
     lookbackDays: 1825
   });
+  if (result.ok) {
+    const dashboard = await container.portfolioService.getDashboard(portfolio.id);
+    const riskReport = await container.riskAnalyticsDataService.buildReport(portfolio.id, dashboard);
+    await container.riskAnalyticsRepository.upsertRiskReport({
+      portfolioId: portfolio.id,
+      asOfDate: riskReport.asOfDate,
+      report: riskReport
+    });
+  }
 
   revalidatePath("/portfolio");
+  revalidatePath("/risk");
   const params = new URLSearchParams({
     benchmarkMessage: result.message
   });

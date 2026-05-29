@@ -70,7 +70,19 @@ export async function refreshAllDataAction(formData?: FormData) {
   appendMessage(messages, "Universe prices", universePrices.message);
   errors.push(...universePrices.errors);
 
+  if (portfolio) {
+    const dashboard = await container.portfolioService.getDashboard(portfolio.id);
+    const riskReport = await container.riskAnalyticsDataService.buildReport(portfolio.id, dashboard);
+    await container.riskAnalyticsRepository.upsertRiskReport({
+      portfolioId: portfolio.id,
+      asOfDate: riskReport.asOfDate,
+      report: riskReport
+    });
+    appendMessage(messages, "Risk metrics", "Updated derived risk analytics.");
+  }
+
   revalidatePath("/portfolio");
+  revalidatePath("/risk");
   revalidatePath("/setup");
   revalidatePath("/holdings");
   revalidatePath("/universe");
@@ -86,7 +98,7 @@ export async function refreshAllDataAction(formData?: FormData) {
 
 export async function backfillUniverseHistoryAction(formData?: FormData) {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  const authUser = await container.authProvider.requireUser();
   const destination = returnPath(formData);
 
   const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
@@ -95,9 +107,20 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
     maxBatches: 2,
     includeBackfill: true
   });
+  const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
+  if (portfolio) {
+    const dashboard = await container.portfolioService.getDashboard(portfolio.id);
+    const riskReport = await container.riskAnalyticsDataService.buildReport(portfolio.id, dashboard);
+    await container.riskAnalyticsRepository.upsertRiskReport({
+      portfolioId: portfolio.id,
+      asOfDate: riskReport.asOfDate,
+      report: riskReport
+    });
+  }
 
   revalidatePath("/universe");
   revalidatePath("/watchlists");
+  revalidatePath("/risk");
 
   const params = new URLSearchParams({
     refreshMessage: `History backfill: ${result.message}`
