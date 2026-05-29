@@ -7,7 +7,7 @@ import {
   PortfolioDashboard,
   PortfolioSnapshot
 } from "@/domain/portfolio/types";
-import { calculateReturns, concentrationRatio, covarianceRiskContributions } from "@/application/services/risk/riskMath";
+import { calculateReturns, concentrationRatio, covarianceRiskContributions, syntheticPortfolioDrawdown } from "@/application/services/risk/riskMath";
 import { CorrelationService } from "@/application/services/risk/CorrelationService";
 import { DiversificationService } from "@/application/services/risk/DiversificationService";
 import { DrawdownService } from "@/application/services/risk/DrawdownService";
@@ -161,6 +161,10 @@ export class RiskAnalyticsService {
       returnsByDate: assetReturns.get(valuation.holding.assetId) ?? new Map<string, number>()
     }));
     const covarianceRisk = covarianceRiskContributions({ assets: covarianceInput, minimumObservations: 30 });
+    const estimatedDrawdown = syntheticPortfolioDrawdown({
+      assets: covarianceInput,
+      minimumObservations: 30
+    });
     const covarianceCoverage = covarianceRisk?.coverage ?? 0;
     const useCovariance = Boolean(covarianceRisk && covarianceCoverage >= 0.7);
     const proxyContributors = proxyRiskContributors(investedValuations, totalHoldingsValue);
@@ -206,6 +210,7 @@ export class RiskAnalyticsService {
       riskContributionCoverage: covarianceCoverage,
       riskContributionVolatility: covarianceRisk?.portfolioVolatility ?? null,
       riskContributionDateRange: covarianceRisk ? { startDate: covarianceRisk.startDate, endDate: covarianceRisk.endDate } : null,
+      estimatedDrawdown,
       riskContributors,
       riskByAssetClass: groupRiskContributionByAssetClass(riskContributors),
       diversification,

@@ -445,6 +445,49 @@ export default async function RiskPage() {
         </Card>
       </section>
 
+      <section className="grid gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Estimated max drawdown</CardTitle>
+            <CardDescription>Current weights replayed over available instrument history.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-semibold">{formatMaybePercent(report.estimatedDrawdown?.maxDrawdown)}</div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {report.estimatedDrawdown
+                ? `${report.estimatedDrawdown.observationCount} overlapping return days, ${formatPercent(report.estimatedDrawdown.coverage)} coverage.`
+                : "Needs overlapping historical price data for current holdings."}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Estimated current drawdown</CardTitle>
+            <CardDescription>Where the current-weight backtest sits versus its prior peak.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-semibold">{formatMaybePercent(report.estimatedDrawdown?.currentDrawdown)}</div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {report.estimatedDrawdown?.startDate && report.estimatedDrawdown?.endDate
+                ? `${compactDate(report.estimatedDrawdown.startDate)} to ${compactDate(report.estimatedDrawdown.endDate)}`
+                : "No synthetic history available yet."}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Snapshot max drawdown</CardTitle>
+            <CardDescription>Actual drawdown since portfolio snapshots began.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-semibold">{formatMaybePercent(report.drawdown.maxDrawdown)}</div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {report.drawdown.drawdownDurationDays ?? 0} current drawdown day{report.drawdown.drawdownDurationDays === 1 ? "" : "s"}.
+            </p>
+          </CardContent>
+        </Card>
+      </section>
+
       {report.warnings.length > 0 ? (
         <Card>
           <CardHeader>
@@ -474,8 +517,8 @@ export default async function RiskPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Drawdown trend</CardTitle>
-            <CardDescription>Portfolio decline from the latest historical peak.</CardDescription>
+            <CardTitle>Snapshot drawdown trend</CardTitle>
+            <CardDescription>Actual portfolio decline from the latest stored snapshot peak.</CardDescription>
           </CardHeader>
           <CardContent>
             <LineChart points={drawdownPoints} label="Portfolio drawdown" formatValue={formatPercent} />

@@ -7,7 +7,8 @@ import {
   concentrationRatio,
   correlation,
   covarianceRiskContributions,
-  diversificationScore
+  diversificationScore,
+  syntheticPortfolioDrawdown
 } from "../src/application/services/risk/riskMath";
 
 test("calculates portfolio returns from ordered positive values", () => {
@@ -113,4 +114,28 @@ test("covariance risk contribution calculates institutional volatility contribut
   assert.ok(result.portfolioVolatility > 0);
   const contributionTotal = result.contributions.reduce((sum, contribution) => sum + contribution.riskContribution, 0);
   assert.ok(Math.abs(contributionTotal - 1) < 0.000001);
+});
+
+test("synthetic portfolio drawdown estimates max drawdown from current weights", () => {
+  const dates = ["2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05"];
+  const result = syntheticPortfolioDrawdown({
+    minimumObservations: 3,
+    assets: [
+      {
+        id: "equity",
+        weight: 0.7,
+        returnsByDate: new Map(dates.map((date, index) => [date, [0.04, -0.12, 0.02, 0.01][index]]))
+      },
+      {
+        id: "bond",
+        weight: 0.3,
+        returnsByDate: new Map(dates.map((date, index) => [date, [0.01, 0.01, 0.005, 0.005][index]]))
+      }
+    ]
+  });
+
+  assert.ok(result);
+  assert.equal(result.observationCount, 4);
+  assert.ok((result.maxDrawdown ?? 0) < -0.07);
+  assert.ok(result.coverage === 1);
 });

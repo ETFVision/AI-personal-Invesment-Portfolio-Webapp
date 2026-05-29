@@ -146,6 +146,12 @@ export type CovarianceRiskContribution = {
   annualizedVolatility: number;
 };
 
+export type SyntheticPortfolioDrawdownInput = {
+  id: string;
+  weight: number;
+  returnsByDate: Map<string, number>;
+};
+
 export function covarianceRiskContributions(input: {
   assets: CovarianceRiskInput[];
   minimumObservations?: number;
@@ -200,6 +206,50 @@ export function covarianceRiskContributions(input: {
     portfolioVolatility,
     coverage: weightsTotal,
     contributions
+  };
+}
+
+export function syntheticPortfolioDrawdown(input: {
+  assets: SyntheticPortfolioDrawdownInput[];
+  minimumObservations?: number;
+  baseValue?: number;
+}) {
+  const minimumObservations = input.minimumObservations ?? 30;
+  const baseValue = input.baseValue ?? 100;
+  const assets = input.assets.filter((asset) => asset.weight > 0 && asset.returnsByDate.size >= minimumObservations);
+  if (assets.length === 0) return null;
+
+  const commonDates = assets
+    .map((asset) => Array.from(asset.returnsByDate.keys()))
+    .reduce<string[]>((intersection, dates) => intersection.filter((date) => dates.includes(date)), Array.from(assets[0].returnsByDate.keys()))
+    .sort();
+  if (commonDates.length < minimumObservations) return null;
+
+  const weightTotal = assets.reduce((sum, asset) => sum + asset.weight, 0);
+  if (weightTotal <= 0) return null;
+
+  let level = baseValue;
+  const series = commonDates.map((date, index) => {
+    const dailyReturn = assets.reduce((sum, asset) => {
+      const normalizedWeight = asset.weight / weightTotal;
+      return sum + normalizedWeight * (asset.returnsByDate.get(date) ?? 0);
+    }, 0);
+    if (index > 0) level *= 1 + dailyReturn;
+    return { date, value: level };
+  });
+  const drawdown = calculateDrawdown(series);
+
+  return {
+    method: "current_weight_backtest" as const,
+    observationCount: commonDates.length,
+    startDate: commonDates[0],
+    endDate: commonDates.at(-1) ?? commonDates[0],
+    coverage: weightTotal,
+    series,
+    maxDrawdown: drawdown.maxDrawdown,
+    currentDrawdown: drawdown.currentDrawdown,
+    drawdownDurationDays: drawdown.drawdownDurationDays,
+    points: drawdown.points
   };
 }
 
