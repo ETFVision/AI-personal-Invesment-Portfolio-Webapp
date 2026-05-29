@@ -216,7 +216,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
   }
 
   async listInstrumentPriceStats(instrumentIds?: string[]) {
-    const stats = new Map<string, { instrumentId: string; latestPriceDate: string | null; observationCount: number }>();
+    const stats = new Map<string, { instrumentId: string; earliestPriceDate: string | null; latestPriceDate: string | null; observationCount: number }>();
 
     for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
       let query = this.db
@@ -238,10 +238,14 @@ export class SupabaseUniverseRepository implements UniverseRepository {
         const priceDate = String(row.price_date);
         const current = stats.get(instrumentId) ?? {
           instrumentId,
+          earliestPriceDate: null,
           latestPriceDate: null,
           observationCount: 0
         };
         current.observationCount += 1;
+        if (!current.earliestPriceDate || priceDate < current.earliestPriceDate) {
+          current.earliestPriceDate = priceDate;
+        }
         if (!current.latestPriceDate || priceDate > current.latestPriceDate) {
           current.latestPriceDate = priceDate;
         }

@@ -29,6 +29,7 @@ export type UpsertInstrumentPriceInput = Omit<InstrumentPrice, "id"> & { id?: st
 
 export type InstrumentPriceStats = {
   instrumentId: string;
+  earliestPriceDate: string | null;
   latestPriceDate: string | null;
   observationCount: number;
 };

@@ -60,6 +60,11 @@ function isStaleOrMissing(latestPriceDate: string | null, asOfDate: string) {
   return !latestPriceDate || latestPriceDate < asOfDate;
 }
 
+function needsLongHistoryBackfill(instrument: Instrument, earliestPriceDate: string | null, backfillStartDate: string) {
+  if (instrument.assetClass === "crypto" || instrument.instrumentType === "crypto_etf") return false;
+  return !earliestPriceDate || earliestPriceDate > backfillStartDate;
+}
+
 function formatDateLabel(date: string | null) {
   return date ? date.slice(0, 10) : "-";
 }
@@ -126,11 +131,15 @@ export class InstrumentMarketService {
     const priceStats = await this.repository.listInstrumentPriceStats(instruments.map((instrument) => instrument.id));
     const statsByInstrumentId = new Map(priceStats.map((item) => [item.instrumentId, item]));
     const refreshCutoff = latestExpectedEodDate();
+    const backfillStartDate = daysAgoIso(lookbackDays);
     const symbols = uniqueSymbols(
       instruments
         .filter((instrument) => {
           const stats = statsByInstrumentId.get(instrument.id);
-          return isStaleOrMissing(stats?.latestPriceDate ?? null, refreshCutoff);
+          return (
+            isStaleOrMissing(stats?.latestPriceDate ?? null, refreshCutoff) ||
+            needsLongHistoryBackfill(instrument, stats?.earliestPriceDate ?? null, backfillStartDate)
+          );
         })
         .slice()
         .sort((a, b) => {
@@ -139,6 +148,9 @@ export class InstrumentMarketService {
           const aNeedsRefresh = isStaleOrMissing(aStats?.latestPriceDate ?? null, refreshCutoff);
           const bNeedsRefresh = isStaleOrMissing(bStats?.latestPriceDate ?? null, refreshCutoff);
           if (aNeedsRefresh !== bNeedsRefresh) return aNeedsRefresh ? -1 : 1;
+          const aNeedsBackfill = needsLongHistoryBackfill(a, aStats?.earliestPriceDate ?? null, backfillStartDate);
+          const bNeedsBackfill = needsLongHistoryBackfill(b, bStats?.earliestPriceDate ?? null, backfillStartDate);
+          if (aNeedsBackfill !== bNeedsBackfill) return aNeedsBackfill ? -1 : 1;
           const aCount = aStats?.observationCount ?? 0;
           const bCount = bStats?.observationCount ?? 0;
           if (aCount !== bCount) return aCount - bCount;
@@ -160,7 +172,7 @@ export class InstrumentMarketService {
     const instrumentBySymbol = new Map(
       instruments.map((instrument) => [instrument.symbol?.toUpperCase() ?? "", instrument])
     );
-    const defaultFrom = daysAgoIso(lookbackDays);
+    const defaultFrom = backfillStartDate;
     const to = todayIsoDate();
     const rows: Array<{
       instrumentId: string;
@@ -180,7 +192,8 @@ export class InstrumentMarketService {
           const instrument = instrumentBySymbol.get(symbol);
           if (!instrument) return { rows: [], missingSymbol: null, error: null };
           const stats = statsByInstrumentId.get(instrument.id);
-          const from = stats?.latestPriceDate ? daysBeforeIso(stats.latestPriceDate, 7) : defaultFrom;
+          const shouldBackfill = needsLongHistoryBackfill(instrument, stats?.earliestPriceDate ?? null, defaultFrom);
+          const from = shouldBackfill ? defaultFrom : stats?.latestPriceDate ? daysBeforeIso(stats.latestPriceDate, 7) : defaultFrom;
         const quotes = await this.provider.getHistoricalPrices(symbol, from, to, { assetClass: instrument.assetClass });
         if (quotes.length === 0) {
             return { rows: [], missingSymbol: symbol, error: null };
