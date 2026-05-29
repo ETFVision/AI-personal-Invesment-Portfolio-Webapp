@@ -107,6 +107,15 @@ function isoDateDaysAgo(days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function latestExpectedEodDate() {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - 1);
+  while (date.getUTCDay() === 0 || date.getUTCDay() === 6) {
+    date.setUTCDate(date.getUTCDate() - 1);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
 function buildDatePriceMap(quotes: BenchmarkSeriesQuote[]) {
   return new Map(quotes.map((quote) => [quote.date, quote]));
 }
@@ -140,13 +149,18 @@ export class BenchmarkService {
     const lookbackDays = input?.lookbackDays ?? 365;
     const errors: string[] = [];
     let snapshotCount = 0;
+    let skippedCount = 0;
+    const expectedPriceDate = latestExpectedEodDate();
 
     for (const benchmark of benchmarks.filter((item) => item.isActive)) {
       try {
         const latestSnapshots = await this.repository.listBenchmarkSnapshots([benchmark.id], 1);
         const latestSnapshot = latestSnapshots[0];
-        const fromDate = latestSnapshot ? latestSnapshot.snapshotDate : isoDateDaysAgo(lookbackDays);
-        const fetchFrom = latestSnapshot ? fromDate : isoDateDaysAgo(lookbackDays);
+        if (latestSnapshot && latestSnapshot.snapshotDate >= expectedPriceDate) {
+          skippedCount += 1;
+          continue;
+        }
+        const fetchFrom = latestSnapshot ? latestSnapshot.snapshotDate : isoDateDaysAgo(lookbackDays);
         const toDate = new Date().toISOString().slice(0, 10);
 
         const snapshots = benchmark.symbol
@@ -186,7 +200,9 @@ export class BenchmarkService {
       errors,
       message:
         errors.length === 0
-          ? `Stored ${snapshotCount} benchmark snapshot${snapshotCount === 1 ? "" : "s"}.`
+          ? snapshotCount === 0 && skippedCount > 0
+            ? "Benchmark snapshots are already fresh."
+            : `Stored ${snapshotCount} benchmark snapshot${snapshotCount === 1 ? "" : "s"}.${skippedCount > 0 ? ` ${skippedCount} benchmark${skippedCount === 1 ? "" : "s"} already fresh.` : ""}`
           : `Stored ${snapshotCount} benchmark snapshot${snapshotCount === 1 ? "" : "s"} with ${errors.length} issue${errors.length === 1 ? "" : "s"}.`
     };
   }

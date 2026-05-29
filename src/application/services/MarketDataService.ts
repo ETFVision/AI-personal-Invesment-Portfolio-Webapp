@@ -12,8 +12,13 @@ export type RefreshPricesResult = {
 
 const MAX_SYMBOLS_PER_REFRESH = 75;
 
-function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
+function latestExpectedEodDate() {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - 1);
+  while (date.getUTCDay() === 0 || date.getUTCDay() === 6) {
+    date.setUTCDate(date.getUTCDate() - 1);
+  }
+  return date.toISOString().slice(0, 10);
 }
 
 function uniqueSymbols(symbols: Array<string | null | undefined>) {
@@ -59,10 +64,13 @@ export class MarketDataService {
     }
 
     const assetIds = holdings.map((holding) => holding.assetId);
-    const existingToday = await this.repository.getPricesForAssetsOnDate(assetIds, todayIsoDate(), this.provider.name);
+    const latestPrices = await this.repository.getLatestPricesForAssets(assetIds);
+    const expectedPriceDate = latestExpectedEodDate();
     const symbolsToFetch = symbols.filter((symbol) => {
       const holding = holdingsBySymbol.get(symbol);
-      return !holding || !existingToday.has(holding.assetId);
+      if (!holding) return false;
+      const latestPrice = latestPrices.get(holding.assetId);
+      return !latestPrice || latestPrice.priceDate < expectedPriceDate;
     });
 
     if (symbolsToFetch.length === 0) {

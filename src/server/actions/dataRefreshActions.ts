@@ -36,7 +36,14 @@ export async function refreshAllDataAction(formData?: FormData) {
     });
     appendMessage(messages, "Portfolio prices", portfolioPrices.message);
     if (!portfolioPrices.ok) errors.push(portfolioPrices.message);
-    if (portfolioPrices.ok) {
+    const storedPortfolioPriceCount =
+      portfolioPrices.metadata &&
+      typeof portfolioPrices.metadata === "object" &&
+      "storedCount" in portfolioPrices.metadata &&
+      typeof portfolioPrices.metadata.storedCount === "number"
+        ? portfolioPrices.metadata.storedCount
+        : 0;
+    if (portfolioPrices.ok && storedPortfolioPriceCount > 0) {
       await container.portfolioService.createAnalyticsSnapshot(portfolio.id);
     }
 
@@ -73,30 +80,6 @@ export async function refreshAllDataAction(formData?: FormData) {
     refreshMessage: messages.join(" ")
   });
   if (errors.length > 0) params.set("refreshError", errors.join(" | "));
-
-  redirect(`${destination}?${params.toString()}`);
-}
-
-export async function refreshUniverseLatestDataAction(formData?: FormData) {
-  const container = createContainer();
-  await container.authProvider.requireUser();
-  const destination = returnPath(formData);
-
-  const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
-    lookbackDays: 30,
-    batchSize: 12,
-    maxBatches: 8,
-    includeBackfill: false
-  });
-
-  revalidatePath("/universe");
-  revalidatePath("/watchlists");
-  revalidatePath("/setup");
-
-  const params = new URLSearchParams({
-    refreshMessage: `Universe prices: ${result.message}`
-  });
-  if (result.errors.length > 0) params.set("refreshError", result.errors.join(" | "));
 
   redirect(`${destination}?${params.toString()}`);
 }

@@ -105,6 +105,30 @@ export class SupabaseMarketDataRepository implements MarketDataRepository {
     }));
   }
 
+  async listAssetMetadataStatus(symbols: string[], provider: string) {
+    const normalizedSymbols = Array.from(new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean)));
+    if (normalizedSymbols.length === 0) return new Map<string, boolean>();
+
+    const { data, error } = await this.db
+      .from("assets")
+      .select("ticker, symbol, metadata")
+      .in("ticker", normalizedSymbols);
+    if (error) throw new Error(error.message);
+
+    const status = new Map(normalizedSymbols.map((symbol) => [symbol, false]));
+    for (const row of data ?? []) {
+      const rowSymbols = [row.ticker, row.symbol]
+        .map((symbol) => (typeof symbol === "string" ? symbol.trim().toUpperCase() : ""))
+        .filter(Boolean);
+      const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
+      const hasProviderMetadata = Object.prototype.hasOwnProperty.call(metadata, provider);
+      for (const symbol of rowSymbols) {
+        if (status.has(symbol)) status.set(symbol, hasProviderMetadata);
+      }
+    }
+    return status;
+  }
+
   async getLatestPricesForAssets(assetIds: string[]) {
     if (assetIds.length === 0) return new Map<string, DailyPrice>();
 

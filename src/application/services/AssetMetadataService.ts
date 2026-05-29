@@ -77,14 +77,10 @@ export class AssetMetadataService {
 
   async refreshPortfolioAssetMetadata(input: { userId: string; portfolioId: string }): Promise<RefreshAssetMetadataResult> {
     try {
-      const [holdings, watchlistAssets] = await Promise.all([
-        this.repository.listPricedPortfolioHoldings(input.portfolioId),
-        this.repository.listWatchlistAssets(input.userId)
-      ]);
-      const symbols = uniqueSymbols([
-        ...holdings.map((holding) => holding.ticker),
-        ...watchlistAssets.map((asset) => asset.ticker ?? asset.symbol)
-      ]).slice(0, MAX_SYMBOLS_PER_REFRESH);
+      const holdings = await this.repository.listPricedPortfolioHoldings(input.portfolioId);
+      const candidateSymbols = uniqueSymbols(holdings.map((holding) => holding.ticker));
+      const metadataStatus = await this.repository.listAssetMetadataStatus(candidateSymbols, this.provider.name);
+      const symbols = candidateSymbols.filter((symbol) => !metadataStatus.get(symbol)).slice(0, MAX_SYMBOLS_PER_REFRESH);
 
       if (symbols.length === 0) {
         return {
@@ -92,7 +88,7 @@ export class AssetMetadataService {
           updatedCount: 0,
           missingSymbols: [],
           errors: [],
-          message: "No ticker symbols were found for metadata refresh."
+          message: candidateSymbols.length === 0 ? "No ticker symbols were found for metadata refresh." : "Portfolio metadata is already available."
         };
       }
 

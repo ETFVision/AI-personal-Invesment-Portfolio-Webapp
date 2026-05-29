@@ -3,7 +3,7 @@ import {
   seedUniverseAction,
   toggleInstrumentActiveAction
 } from "@/server/actions/universeActions";
-import { backfillUniverseHistoryAction, refreshUniverseLatestDataAction } from "@/server/actions/dataRefreshActions";
+import { backfillUniverseHistoryAction, refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -122,9 +122,9 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
               Seed universe
             </Button>
           </form>
-          <form action={refreshUniverseLatestDataAction}>
+          <form action={refreshAllDataAction}>
             <input type="hidden" name="returnTo" value="/universe" />
-            <SubmitButton pendingLabel="Refreshing latest...">Refresh data</SubmitButton>
+            <SubmitButton pendingLabel="Refreshing data...">Refresh data</SubmitButton>
           </form>
           <form action={backfillUniverseHistoryAction}>
             <input type="hidden" name="returnTo" value="/universe" />
