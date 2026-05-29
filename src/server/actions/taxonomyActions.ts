@@ -23,7 +23,7 @@ export async function saveInstrumentTaxonomyAction(formData: FormData) {
   const rawIndustry = formString(formData, "rawIndustry") || null;
 
   if (!instrumentId || !canonicalSector || canonicalThemes.length === 0) {
-    redirect("/taxonomy?taxonomyError=Canonical%20sector%20and%20at%20least%20one%20theme%20are%20required.");
+    redirect("/setup/taxonomy?taxonomyError=Canonical%20sector%20and%20at%20least%20one%20theme%20are%20required.");
   }
 
   await createContainer().instrumentService.updateInstrumentTaxonomy([
@@ -40,7 +40,7 @@ export async function saveInstrumentTaxonomyAction(formData: FormData) {
     }
   ]);
 
-  redirect("/taxonomy?taxonomyMessage=Instrument%20taxonomy%20override%20saved.");
+  redirect("/setup/taxonomy?taxonomyMessage=Instrument%20taxonomy%20override%20saved.");
 }
 
 export async function approveTaxonomyMappingAction(formData: FormData) {
@@ -52,7 +52,7 @@ export async function approveTaxonomyMappingAction(formData: FormData) {
   const rawIndustry = formString(formData, "rawIndustry") || null;
 
   if (!instrumentId || !canonicalSector || canonicalThemes.length === 0) {
-    redirect("/taxonomy?taxonomyError=Cannot%20approve%20an%20incomplete%20taxonomy%20mapping.");
+    redirect("/setup/taxonomy?taxonomyError=Cannot%20approve%20an%20incomplete%20taxonomy%20mapping.");
   }
 
   await createContainer().instrumentService.updateInstrumentTaxonomy([
@@ -69,5 +69,5 @@ export async function approveTaxonomyMappingAction(formData: FormData) {
     }
   ]);
 
-  redirect("/taxonomy?taxonomyMessage=Taxonomy%20mapping%20approved.");
+  redirect("/setup/taxonomy?taxonomyMessage=Taxonomy%20mapping%20approved.");
 }

@@ -111,6 +111,19 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       {portfolio ? (
         <Card>
           <CardHeader>
+            <CardTitle>Admin settings</CardTitle>
+            <CardDescription>Manage controlled app configuration that supports analytics and future intelligence layers.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <a className="inline-flex rounded-md border px-4 py-2 text-sm hover:bg-muted" href="/setup/taxonomy">
+              Manage taxonomy
+            </a>
+          </CardContent>
+        </Card>
+      ) : null}
+      {portfolio ? (
+        <Card>
+          <CardHeader>
             <CardTitle>Universe history coverage</CardTitle>
             <CardDescription>Backfill status for 3Y and 5Y instrument return calculations.</CardDescription>
           </CardHeader>
