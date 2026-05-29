@@ -157,6 +157,8 @@ export class FmpMarketDataProvider implements MarketDataProvider {
     for (const url of candidates) {
       url.searchParams.set("symbol", normalizedSymbol);
       url.searchParams.set("apikey", apiKey);
+      url.searchParams.set("from", from);
+      url.searchParams.set("to", to);
 
       const response = await fetchWithRetry(url);
 

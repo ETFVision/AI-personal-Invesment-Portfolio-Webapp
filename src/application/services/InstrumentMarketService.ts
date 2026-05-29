@@ -35,6 +35,12 @@ function daysAgoIso(days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function daysBeforeIso(isoDate: string, days: number) {
+  const date = new Date(`${isoDate}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
 function isStaleOrMissing(latestPriceDate: string | null, asOfDate: string) {
   return !latestPriceDate || latestPriceDate < asOfDate;
 }
@@ -139,7 +145,7 @@ export class InstrumentMarketService {
     const instrumentBySymbol = new Map(
       instruments.map((instrument) => [instrument.symbol?.toUpperCase() ?? "", instrument])
     );
-    const from = daysAgoIso(lookbackDays);
+    const defaultFrom = daysAgoIso(lookbackDays);
     const to = todayIsoDate();
     const rows: Array<{
       instrumentId: string;
@@ -158,6 +164,8 @@ export class InstrumentMarketService {
         try {
           const instrument = instrumentBySymbol.get(symbol);
           if (!instrument) return { rows: [], missingSymbol: null, error: null };
+          const stats = statsByInstrumentId.get(instrument.id);
+          const from = stats?.latestPriceDate ? daysBeforeIso(stats.latestPriceDate, 7) : defaultFrom;
         const quotes = await this.provider.getHistoricalPrices(symbol, from, to, { assetClass: instrument.assetClass });
         if (quotes.length === 0) {
             return { rows: [], missingSymbol: symbol, error: null };
