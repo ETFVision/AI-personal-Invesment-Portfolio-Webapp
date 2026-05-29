@@ -35,6 +35,12 @@ function daysAgoIso(days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function yearsAgoIso(years: number) {
+  const date = new Date();
+  date.setUTCFullYear(date.getUTCFullYear() - years);
+  return date.toISOString().slice(0, 10);
+}
+
 function daysBeforeIso(isoDate: string, days: number) {
   const date = new Date(`${isoDate}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() - days);
@@ -102,7 +108,7 @@ export class InstrumentMarketService {
     instrumentIds?: string[];
     maxSymbols?: number;
   }): Promise<RefreshInstrumentPricesResult> {
-    const lookbackDays = input?.lookbackDays ?? 730;
+    const lookbackDays = input?.lookbackDays ?? 1825;
     const maxSymbols = Math.max(1, input?.maxSymbols ?? 12);
     const allInstruments = await this.repository.listInstruments({ isActive: true });
     const instruments = input?.instrumentIds?.length
@@ -255,7 +261,7 @@ export class InstrumentMarketService {
   async buildInstrumentMarketViews(instruments: Instrument[]): Promise<InstrumentMarketView[]> {
     if (instruments.length === 0) return [];
 
-    const priceRows = await this.repository.listInstrumentPrices(instruments.map((instrument) => instrument.id), daysAgoIso(730));
+    const priceRows = await this.repository.listInstrumentPrices(instruments.map((instrument) => instrument.id), yearsAgoIso(5));
     const priceByInstrument = new Map<string, InstrumentPrice[]>();
     for (const row of priceRows) {
       const current = priceByInstrument.get(row.instrumentId) ?? [];
@@ -272,6 +278,8 @@ export class InstrumentMarketService {
       const latestDate = latest?.priceDate ?? null;
       const ytdBaseline = pickBaseline(series, `${new Date().getUTCFullYear()}-01-01`);
       const oneYearBaseline = pickBaseline(series, daysAgoIso(365));
+      const threeYearBaseline = pickBaseline(series, yearsAgoIso(3));
+      const fiveYearBaseline = pickBaseline(series, yearsAgoIso(5));
       const fiftyTwoWeekSeries = series.filter((point) => point.priceDate >= daysAgoIso(365));
       const fiftyTwoWeekLow = fiftyTwoWeekSeries.length > 0 ? Math.min(...fiftyTwoWeekSeries.map((point) => point.closePrice)) : null;
       const fiftyTwoWeekHigh = fiftyTwoWeekSeries.length > 0 ? Math.max(...fiftyTwoWeekSeries.map((point) => point.closePrice)) : null;
@@ -285,6 +293,8 @@ export class InstrumentMarketService {
         dailyReturn,
         ytdReturn: safeReturn(latestPrice, ytdBaseline?.closePrice ?? null),
         oneYearReturn: safeReturn(latestPrice, oneYearBaseline?.closePrice ?? null),
+        threeYearReturn: safeReturn(latestPrice, threeYearBaseline?.closePrice ?? null),
+        fiveYearReturn: safeReturn(latestPrice, fiveYearBaseline?.closePrice ?? null),
         fiftyTwoWeekLow,
         fiftyTwoWeekHigh,
         liquidity: liquidityLabel(instrument),

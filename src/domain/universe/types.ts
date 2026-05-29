@@ -67,6 +67,8 @@ export type InstrumentMarketView = {
   dailyReturn: number | null;
   ytdReturn: number | null;
   oneYearReturn: number | null;
+  threeYearReturn: number | null;
+  fiveYearReturn: number | null;
   fiftyTwoWeekLow: number | null;
   fiftyTwoWeekHigh: number | null;
   liquidity: string;

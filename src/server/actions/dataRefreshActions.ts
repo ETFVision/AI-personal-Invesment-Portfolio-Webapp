@@ -55,7 +55,7 @@ export async function refreshAllDataAction(formData?: FormData) {
   errors.push(...universeMetadata.errors);
 
   const universePrices = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
-    lookbackDays: 730,
+    lookbackDays: 1825,
     batchSize: 12,
     maxBatches: 8
   });

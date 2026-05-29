@@ -89,6 +89,8 @@ export function InstrumentMarketTable({ rows, emptyMessage = "No instruments in 
                     <td className="py-4 pr-3" colSpan={10}>
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <MetricCard label="1Y return" value={row.oneYearReturn == null ? "-" : formatPercent(row.oneYearReturn)} tone={metricTone(row.oneYearReturn)} />
+                        <MetricCard label="3Y return" value={row.threeYearReturn == null ? "-" : formatPercent(row.threeYearReturn)} tone={metricTone(row.threeYearReturn)} />
+                        <MetricCard label="5Y return" value={row.fiveYearReturn == null ? "-" : formatPercent(row.fiveYearReturn)} tone={metricTone(row.fiveYearReturn)} />
                         <MetricCard label="YTD return" value={row.ytdReturn == null ? "-" : formatPercent(row.ytdReturn)} tone={metricTone(row.ytdReturn)} />
                         <MetricCard label="History" value={`${row.priceObservationCount} row${row.priceObservationCount === 1 ? "" : "s"}`} />
                         <MetricCard label="Price start" value={row.priceHistoryStart ?? "-"} />
