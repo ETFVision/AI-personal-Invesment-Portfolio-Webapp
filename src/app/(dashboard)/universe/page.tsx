@@ -3,7 +3,7 @@ import {
   seedUniverseAction,
   toggleInstrumentActiveAction
 } from "@/server/actions/universeActions";
-import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
+import { backfillUniverseHistoryAction, refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,6 +110,10 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
             <input type="hidden" name="returnTo" value="/universe" />
             <SubmitButton pendingLabel="Refreshing data...">Refresh data</SubmitButton>
           </form>
+          <form action={backfillUniverseHistoryAction}>
+            <input type="hidden" name="returnTo" value="/universe" />
+            <SubmitButton variant="secondary" pendingLabel="Backfilling history...">Backfill history</SubmitButton>
+          </form>
         </div>
       </div>
 
@@ -133,7 +137,7 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
       <Card>
         <CardHeader>
           <CardTitle>Refresh status</CardTitle>
-          <CardDescription>Refresh data updates portfolio prices, benchmarks, universe metadata, and instrument history in controlled batches.</CardDescription>
+          <CardDescription>Refresh data updates latest values. Backfill history fills missing 3Y/5Y rows in smaller chunks.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 text-sm sm:grid-cols-4">
           <StatusStep label="1" title="Metadata" description="Portfolio and universe classifications" />

@@ -55,9 +55,10 @@ export async function refreshAllDataAction(formData?: FormData) {
   errors.push(...universeMetadata.errors);
 
   const universePrices = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
-    lookbackDays: 1825,
+    lookbackDays: 30,
     batchSize: 12,
-    maxBatches: 8
+    maxBatches: 8,
+    includeBackfill: false
   });
   appendMessage(messages, "Universe prices", universePrices.message);
   errors.push(...universePrices.errors);
@@ -72,6 +73,29 @@ export async function refreshAllDataAction(formData?: FormData) {
     refreshMessage: messages.join(" ")
   });
   if (errors.length > 0) params.set("refreshError", errors.join(" | "));
+
+  redirect(`${destination}?${params.toString()}`);
+}
+
+export async function backfillUniverseHistoryAction(formData?: FormData) {
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  const destination = returnPath(formData);
+
+  const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
+    lookbackDays: 1825,
+    batchSize: 6,
+    maxBatches: 2,
+    includeBackfill: true
+  });
+
+  revalidatePath("/universe");
+  revalidatePath("/watchlists");
+
+  const params = new URLSearchParams({
+    refreshMessage: `History backfill: ${result.message}`
+  });
+  if (result.errors.length > 0) params.set("refreshError", result.errors.join(" | "));
 
   redirect(`${destination}?${params.toString()}`);
 }
