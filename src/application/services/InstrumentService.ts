@@ -23,11 +23,31 @@ export class InstrumentService {
     return this.repository.listMetadataRefreshLogs(limit);
   }
 
+  listCanonicalSectors() {
+    return this.repository.listCanonicalSectors();
+  }
+
+  listCanonicalThemes() {
+    return this.repository.listCanonicalThemes();
+  }
+
+  listProviderTaxonomyMappings() {
+    return this.repository.listProviderTaxonomyMappings();
+  }
+
+  listInstrumentTaxonomyMappings() {
+    return this.repository.listInstrumentTaxonomyMappings();
+  }
+
   setInstrumentActive(instrumentId: string, isActive: boolean) {
     return this.repository.setInstrumentActive(instrumentId, isActive);
   }
 
   updateInstrumentTags(input: Array<{ instrumentId: string; benchmarkTags: string[]; thematicTags: string[] }>) {
     return this.repository.updateInstrumentTags(input);
+  }
+
+  updateInstrumentTaxonomy(input: Parameters<UniverseRepository["upsertInstrumentTaxonomy"]>[0]) {
+    return this.repository.upsertInstrumentTaxonomy(input);
   }
 }

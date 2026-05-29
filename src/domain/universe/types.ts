@@ -18,6 +18,10 @@ export type Instrument = {
   instrumentType: string;
   sector: string | null;
   industry: string | null;
+  canonicalSector: string | null;
+  canonicalThemes: string[];
+  taxonomyIsManualOverride: boolean;
+  taxonomyReviewStatus: string;
   geography: string | null;
   currency: string | null;
   exchange: string | null;

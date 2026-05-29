@@ -1,4 +1,5 @@
 import { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
+import { TaxonomyService } from "@/application/services/taxonomy/TaxonomyService";
 import {
   BenchmarkProfile,
   BondProfile,
@@ -278,6 +279,10 @@ function instrument(
     cryptoClassification: extra?.cryptoClassification ?? null,
     sourceType: "seeded",
     isActive: extra?.isActive ?? true,
+    canonicalSector: extra?.canonicalSector ?? null,
+    canonicalThemes: extra?.canonicalThemes ?? [],
+    taxonomyIsManualOverride: extra?.taxonomyIsManualOverride ?? false,
+    taxonomyReviewStatus: extra?.taxonomyReviewStatus ?? "mapped",
     providerPrimary: extra?.providerPrimary ?? null,
     providerMetadata: extra?.providerMetadata ?? {}
   };
@@ -479,6 +484,8 @@ export type UniverseSeedResult = {
 };
 
 export class UniverseManagementService {
+  private readonly taxonomyService = new TaxonomyService();
+
   constructor(private readonly repository: UniverseRepository) {}
 
   async ensureSeededUniverse(): Promise<UniverseSeedResult> {
@@ -488,10 +495,25 @@ export class UniverseManagementService {
     await this.repository.upsertInstruments(
       seededInstruments.map((instrument) => {
         const existing = existingBySymbol.get(instrument.symbol?.toUpperCase() ?? "");
+        const thematicTags = mergeTags(existing?.thematicTags, instrument.thematicTags);
+        const normalized = this.taxonomyService.normalize({
+          symbol: instrument.symbol,
+          name: instrument.name,
+          assetClass: instrument.assetClass,
+          instrumentType: instrument.instrumentType,
+          rawSector: instrument.sector,
+          rawIndustry: instrument.industry,
+          seededThemes: thematicTags,
+          bondProfile: instrument
+        });
         return {
           ...instrument,
           benchmarkTags: mergeTags(existing?.benchmarkTags, instrument.benchmarkTags),
-          thematicTags: mergeTags(existing?.thematicTags, instrument.thematicTags),
+          thematicTags,
+          canonicalSector: existing?.taxonomyIsManualOverride ? existing.canonicalSector : normalized.canonicalSector,
+          canonicalThemes: existing?.taxonomyIsManualOverride ? existing.canonicalThemes : normalized.canonicalThemes,
+          taxonomyIsManualOverride: existing?.taxonomyIsManualOverride ?? false,
+          taxonomyReviewStatus: normalized.unmappedRawValues.length > 0 ? "needs_review" : "mapped",
           metadataLastRefreshedAt: instrument.metadataLastRefreshedAt ?? existing?.metadataLastRefreshedAt ?? null,
           providerPrimary: instrument.providerPrimary ?? existing?.providerPrimary ?? null,
           providerMetadata: Object.keys(instrument.providerMetadata ?? {}).length > 0 ? instrument.providerMetadata ?? {} : existing?.providerMetadata ?? {},

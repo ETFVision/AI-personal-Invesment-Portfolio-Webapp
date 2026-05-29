@@ -1,5 +1,6 @@
 import { AssetMetadataProvider } from "@/application/ports/providers/AssetMetadataProvider";
 import { MarketDataRepository } from "@/application/ports/repositories/MarketDataRepository";
+import { TaxonomyService } from "@/application/services/taxonomy/TaxonomyService";
 import { AssetType, Holding } from "@/domain/portfolio/types";
 
 export type RefreshAssetMetadataResult = {
@@ -70,6 +71,8 @@ function holdingTypeBySymbol(holdings: Holding[]) {
 }
 
 export class AssetMetadataService {
+  private readonly taxonomyService = new TaxonomyService();
+
   constructor(
     private readonly repository: MarketDataRepository,
     private readonly provider: AssetMetadataProvider
@@ -98,17 +101,31 @@ export class AssetMetadataService {
       const missingSymbols = symbols.filter((symbol) => !returnedSymbols.has(symbol));
 
       await this.repository.updateAssetMetadata(
-        metadata.map((item) => ({
-          ...classifyFundMetadata(item, assetTypes.get(item.symbol.toUpperCase()) ?? "stock"),
-          provider: this.provider.name,
-          symbol: item.symbol,
-          name: item.name,
-          exchange: item.exchange,
-          currency: item.currency,
-          country: item.country,
-          region: item.region,
-          rawPayload: item.raw
-        }))
+        metadata.map((item) => {
+          const assetType = assetTypes.get(item.symbol.toUpperCase()) ?? "stock";
+          const classification = classifyFundMetadata(item, assetType);
+          const normalized = this.taxonomyService.normalize({
+            symbol: item.symbol,
+            name: item.name,
+            assetType,
+            instrumentType: assetType === "etf" ? "etf" : assetType,
+            rawSector: classification.sector,
+            rawIndustry: classification.industry
+          });
+          return {
+            ...classification,
+            provider: this.provider.name,
+            symbol: item.symbol,
+            name: item.name,
+            exchange: item.exchange,
+            currency: item.currency,
+            country: item.country,
+            region: item.region,
+            canonicalSector: normalized.canonicalSector,
+            canonicalThemes: normalized.canonicalThemes,
+            rawPayload: item.raw
+          };
+        })
       );
 
       return {

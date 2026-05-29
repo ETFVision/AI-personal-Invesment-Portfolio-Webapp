@@ -20,6 +20,8 @@ export type UpdateAssetMetadataInput = {
   region: string | null;
   sector: string | null;
   industry: string | null;
+  canonicalSector?: string | null;
+  canonicalThemes?: string[];
   rawPayload: unknown;
 };
 

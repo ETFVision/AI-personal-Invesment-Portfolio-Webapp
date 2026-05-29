@@ -61,7 +61,7 @@ function rankAndSort(rows: InstrumentMarketView[]) {
 function groupStocksBySector(rows: InstrumentMarketView[]) {
   const grouped = new Map<string, InstrumentMarketView[]>();
   for (const row of rows) {
-    const sector = row.instrument.sector?.trim() || "Unclassified";
+    const sector = row.instrument.canonicalSector?.trim() || "Unclassified";
     grouped.set(sector, [...(grouped.get(sector) ?? []), row]);
   }
 

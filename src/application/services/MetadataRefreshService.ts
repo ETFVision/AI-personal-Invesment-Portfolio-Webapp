@@ -1,5 +1,6 @@
 import { AssetMetadataProvider } from "@/application/ports/providers/AssetMetadataProvider";
 import { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
+import { TaxonomyService } from "@/application/services/taxonomy/TaxonomyService";
 
 export type RefreshUniverseMetadataResult = {
   requestedSymbols: string[];
@@ -71,6 +72,8 @@ function classifyFundMetadata(item: { symbol: string; sector: string | null; ind
 }
 
 export class MetadataRefreshService {
+  private readonly taxonomyService = new TaxonomyService();
+
   constructor(
     private readonly repository: UniverseRepository,
     private readonly provider: AssetMetadataProvider
@@ -112,6 +115,18 @@ export class MetadataRefreshService {
         metadata.map((item) => {
           const instrument = instrumentBySymbol.get(item.symbol.toUpperCase());
           const classification = classifyFundMetadata(item, instrument?.assetClass ?? "stock");
+          const normalized = this.taxonomyService.normalize({
+            symbol: item.symbol,
+            name: item.name,
+            assetClass: instrument?.assetClass ?? "stock",
+            instrumentType: instrument?.instrumentType,
+            rawSector: classification.sector,
+            rawIndustry: classification.industry,
+            seededThemes: instrument?.thematicTags,
+            bondProfile: instrument
+          });
+          const canonicalSector = instrument?.taxonomyIsManualOverride ? instrument.canonicalSector : normalized.canonicalSector;
+          const canonicalThemes = instrument?.taxonomyIsManualOverride ? instrument.canonicalThemes : normalized.canonicalThemes;
           return {
             provider: this.provider.name,
             symbol: item.symbol,
@@ -122,7 +137,10 @@ export class MetadataRefreshService {
             region: item.region,
             sector: classification.sector,
             industry: classification.industry,
-            rawPayload: item.raw
+            rawPayload: item.raw,
+            canonicalSector,
+            canonicalThemes,
+            unmappedRawValues: instrument?.taxonomyIsManualOverride ? [] : normalized.unmappedRawValues
           };
         })
       );

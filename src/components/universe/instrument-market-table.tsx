@@ -64,7 +64,7 @@ export function InstrumentMarketTable({ rows, emptyMessage = "No instruments in 
                   <td className="py-3 pr-3">
                     <div className="font-medium">{row.instrument.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {row.instrument.exchange ?? "-"} {row.instrument.currency ? `• ${row.instrument.currency}` : ""}
+                      {row.instrument.exchange ?? "-"} {row.instrument.currency ? `- ${row.instrument.currency}` : ""}
                     </div>
                   </td>
                   <td className="py-3 pr-3">{formatMoney(row.latestPrice, currency)}</td>
@@ -76,7 +76,9 @@ export function InstrumentMarketTable({ rows, emptyMessage = "No instruments in 
                   <td className={cn("py-3 pr-3", row.freshnessTone)}>{row.freshnessLabel}</td>
                   <td className="py-3 pr-3">
                     <div className="text-xs text-muted-foreground">Bench: {row.instrument.benchmarkTags.join(", ") || "-"}</div>
-                    <div className="text-xs text-muted-foreground">Theme: {row.instrument.thematicTags.join(", ") || "-"}</div>
+                    <div className="text-xs text-muted-foreground">Sector: {row.instrument.canonicalSector ?? "-"}</div>
+                    <div className="text-xs text-muted-foreground">Themes: {row.instrument.canonicalThemes.slice(0, 3).join(", ") || "-"}</div>
+                    {row.instrument.taxonomyIsManualOverride ? <div className="text-xs text-amber-600">Manual taxonomy</div> : null}
                   </td>
                   <td className="py-3 pr-3">
                     <Button type="button" size="sm" variant="outline" onClick={() => setOpenId(isOpen ? null : row.instrument.id)}>

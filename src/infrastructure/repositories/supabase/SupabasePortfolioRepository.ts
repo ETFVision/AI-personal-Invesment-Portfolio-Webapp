@@ -86,7 +86,7 @@ function mapHolding(row: any): Holding {
     costCurrency: row.cost_currency,
     firstPurchaseDate: row.first_purchase_date,
     notes: row.notes,
-    sector: row.assets?.sector ?? null,
+    sector: row.assets?.canonical_sector ?? row.assets?.sector ?? null,
     country: row.assets?.country ?? null,
     region: row.assets?.region ?? null
   };
@@ -264,7 +264,7 @@ export class SupabasePortfolioRepository implements PortfolioRepository {
   async listHoldings(portfolioId: string) {
     const { data, error } = await this.db
       .from("holdings")
-      .select("*, assets(sector,country,region)")
+      .select("*, assets(sector,canonical_sector,country,region)")
       .eq("portfolio_id", portfolioId)
       .eq("is_active", true)
       .order("asset_name");

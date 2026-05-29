@@ -99,7 +99,7 @@ export class SupabaseMarketDataRepository implements MarketDataRepository {
       symbol: instrument.symbol,
       name: instrument.name,
       currency: instrument.currency,
-      sector: instrument.sector,
+      sector: instrument.canonical_sector ?? instrument.sector,
       country: instrument.geography,
       region: instrument.geography
     }));
@@ -225,6 +225,8 @@ export class SupabaseMarketDataRepository implements MarketDataRepository {
           region: item.region ?? item.country ?? undefined,
           sector: item.sector ?? undefined,
           industry: item.industry ?? undefined,
+          canonical_sector: item.canonicalSector ?? undefined,
+          canonical_themes: item.canonicalThemes ?? undefined,
           provider_primary: item.provider,
           provider_ids: providerIds,
           metadata

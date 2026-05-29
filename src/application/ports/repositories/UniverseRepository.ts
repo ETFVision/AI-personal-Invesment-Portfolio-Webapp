@@ -10,6 +10,35 @@ import {
   WatchlistItem
 } from "@/domain/universe/types";
 
+export type CanonicalTaxonomyItem = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+};
+
+export type ProviderTaxonomyMapping = {
+  id: string;
+  sourceProvider: string;
+  mappingType: string;
+  rawValue: string;
+  canonicalValue: string;
+  confidence: number;
+  isManualOverride: boolean;
+};
+
+export type InstrumentTaxonomyMapping = {
+  instrumentId: string;
+  symbol: string | null;
+  name: string;
+  rawSector: string | null;
+  rawIndustry: string | null;
+  canonicalSector: string | null;
+  canonicalThemes: string[];
+  taxonomyIsManualOverride: boolean;
+  taxonomyReviewStatus: string;
+};
+
 export type ListInstrumentsFilters = {
   query?: string;
   assetClass?: string;
@@ -51,6 +80,24 @@ export interface UniverseRepository {
     sector: string | null;
     industry: string | null;
     rawPayload: unknown;
+    canonicalSector?: string | null;
+    canonicalThemes?: string[];
+    unmappedRawValues?: string[];
+  }>): Promise<void>;
+  listCanonicalSectors(): Promise<CanonicalTaxonomyItem[]>;
+  listCanonicalThemes(): Promise<CanonicalTaxonomyItem[]>;
+  listProviderTaxonomyMappings(): Promise<ProviderTaxonomyMapping[]>;
+  listInstrumentTaxonomyMappings(): Promise<InstrumentTaxonomyMapping[]>;
+  upsertInstrumentTaxonomy(input: Array<{
+    instrumentId: string;
+    rawSector: string | null;
+    rawIndustry: string | null;
+    canonicalSector: string;
+    canonicalThemes: string[];
+    sourceProvider: string;
+    confidence?: number;
+    isManualOverride?: boolean;
+    reviewStatus?: string;
   }>): Promise<void>;
   listWatchlists(): Promise<Watchlist[]>;
   upsertWatchlists(input: UpsertWatchlistInput[]): Promise<void>;

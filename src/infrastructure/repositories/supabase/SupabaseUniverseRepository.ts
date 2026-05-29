@@ -10,7 +10,10 @@ import {
   WatchlistItem
 } from "@/domain/universe/types";
 import {
+  CanonicalTaxonomyItem,
+  InstrumentTaxonomyMapping,
   ListInstrumentsFilters,
+  ProviderTaxonomyMapping,
   UniverseRepository,
   UpsertInstrumentInput,
   UpsertInstrumentPriceInput,
@@ -52,6 +55,10 @@ function mapInstrument(row: any): Instrument {
     instrumentType: row.instrument_type,
     sector: row.sector,
     industry: row.industry,
+    canonicalSector: row.canonical_sector ?? row.sector ?? null,
+    canonicalThemes: toStringArray(row.canonical_themes),
+    taxonomyIsManualOverride: Boolean(row.taxonomy_is_manual_override),
+    taxonomyReviewStatus: row.taxonomy_review_status ?? "mapped",
     geography: row.geography,
     currency: row.currency,
     exchange: row.exchange,
@@ -170,6 +177,41 @@ function mapInstrumentMarketMetric(row: any): InstrumentMarketMetric {
     historyStartDate: row.history_start_date,
     historyEndDate: row.history_end_date,
     updatedAt: row.updated_at
+  };
+}
+
+function mapCanonicalTaxonomyItem(row: any): CanonicalTaxonomyItem {
+  return {
+    id: row.id,
+    name: row.name,
+    sortOrder: Number(row.sort_order ?? 0),
+    isActive: Boolean(row.is_active)
+  };
+}
+
+function mapProviderTaxonomyMapping(row: any): ProviderTaxonomyMapping {
+  return {
+    id: row.id,
+    sourceProvider: row.source_provider,
+    mappingType: row.mapping_type,
+    rawValue: row.raw_value,
+    canonicalValue: row.canonical_value,
+    confidence: Number(row.confidence ?? 0),
+    isManualOverride: Boolean(row.is_manual_override)
+  };
+}
+
+function mapInstrumentTaxonomyMapping(row: any): InstrumentTaxonomyMapping {
+  return {
+    instrumentId: row.id,
+    symbol: row.symbol,
+    name: row.name,
+    rawSector: row.sector,
+    rawIndustry: row.industry,
+    canonicalSector: row.canonical_sector,
+    canonicalThemes: toStringArray(row.canonical_themes),
+    taxonomyIsManualOverride: Boolean(row.taxonomy_is_manual_override),
+    taxonomyReviewStatus: row.taxonomy_review_status ?? "mapped"
   };
 }
 
@@ -302,6 +344,10 @@ export class SupabaseUniverseRepository implements UniverseRepository {
         instrument_type: item.instrumentType,
         sector: item.sector,
         industry: item.industry,
+        canonical_sector: item.canonicalSector,
+        canonical_themes: item.canonicalThemes ?? [],
+        taxonomy_is_manual_override: item.taxonomyIsManualOverride,
+        taxonomy_review_status: item.taxonomyReviewStatus,
         geography: item.geography,
         currency: item.currency,
         exchange: item.exchange,
@@ -371,6 +417,105 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     if (error) throw new Error(error.message);
   }
 
+  async listCanonicalSectors() {
+    const { data, error } = await this.db.from("canonical_sectors").select("*").eq("is_active", true).order("sort_order");
+    if (isMissingUniverseTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapCanonicalTaxonomyItem);
+  }
+
+  async listCanonicalThemes() {
+    const { data, error } = await this.db.from("canonical_themes").select("*").eq("is_active", true).order("sort_order");
+    if (isMissingUniverseTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapCanonicalTaxonomyItem);
+  }
+
+  async listProviderTaxonomyMappings() {
+    const { data, error } = await this.db
+      .from("provider_taxonomy_mappings")
+      .select("*")
+      .order("source_provider")
+      .order("mapping_type")
+      .order("raw_value");
+    if (isMissingUniverseTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapProviderTaxonomyMapping);
+  }
+
+  async listInstrumentTaxonomyMappings() {
+    const { data, error } = await this.db
+      .from("instruments")
+      .select("id,symbol,name,sector,industry,canonical_sector,canonical_themes,taxonomy_is_manual_override,taxonomy_review_status")
+      .order("symbol", { ascending: true });
+    if (isMissingUniverseTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapInstrumentTaxonomyMapping);
+  }
+
+  async upsertInstrumentTaxonomy(input: Array<{
+    instrumentId: string;
+    rawSector: string | null;
+    rawIndustry: string | null;
+    canonicalSector: string;
+    canonicalThemes: string[];
+    sourceProvider: string;
+    confidence?: number;
+    isManualOverride?: boolean;
+    reviewStatus?: string;
+  }>) {
+    for (const item of input) {
+      const { error: updateError } = await this.db
+        .from("instruments")
+        .update({
+          canonical_sector: item.canonicalSector,
+          canonical_themes: item.canonicalThemes,
+          taxonomy_is_manual_override: item.isManualOverride ?? false,
+          taxonomy_review_status: item.reviewStatus ?? "mapped"
+        })
+        .eq("id", item.instrumentId);
+      if (isMissingUniverseTable(updateError)) return;
+      if (updateError) throw new Error(updateError.message);
+
+      const { error: sectorError } = await this.db.from("instrument_sector_mappings").upsert(
+        {
+          instrument_id: item.instrumentId,
+          source_provider: item.sourceProvider,
+          raw_value: item.rawSector,
+          canonical_value: item.canonicalSector,
+          confidence: item.confidence ?? 1,
+          is_manual_override: item.isManualOverride ?? false
+        },
+        { onConflict: "instrument_id,source_provider" }
+      );
+      if (isMissingUniverseTable(sectorError)) return;
+      if (sectorError) throw new Error(sectorError.message);
+
+      const { error: deleteError } = await this.db
+        .from("instrument_theme_mappings")
+        .delete()
+        .eq("instrument_id", item.instrumentId)
+        .eq("source_provider", item.sourceProvider);
+      if (isMissingUniverseTable(deleteError)) return;
+      if (deleteError) throw new Error(deleteError.message);
+
+      if (item.canonicalThemes.length > 0) {
+        const { error: themeError } = await this.db.from("instrument_theme_mappings").insert(
+          item.canonicalThemes.map((theme) => ({
+            instrument_id: item.instrumentId,
+            source_provider: item.sourceProvider,
+            raw_value: item.rawIndustry ?? item.rawSector,
+            canonical_value: theme,
+            confidence: item.confidence ?? 1,
+            is_manual_override: item.isManualOverride ?? false
+          }))
+        );
+        if (isMissingUniverseTable(themeError)) return;
+        if (themeError) throw new Error(themeError.message);
+      }
+    }
+  }
+
   async setInstrumentActive(instrumentId: string, isActive: boolean) {
     const { error } = await this.db.from("instruments").update({ is_active: isActive }).eq("id", instrumentId);
     if (isMissingUniverseTable(error)) return;
@@ -415,12 +560,15 @@ export class SupabaseUniverseRepository implements UniverseRepository {
       sector: string | null;
       industry: string | null;
       rawPayload: unknown;
+      canonicalSector?: string | null;
+      canonicalThemes?: string[];
+      unmappedRawValues?: string[];
     }>
   ) {
     for (const item of input) {
       const { data: current, error: currentError } = await this.db
         .from("instruments")
-        .select("provider_metadata")
+        .select("id,provider_metadata,taxonomy_is_manual_override,canonical_sector,canonical_themes")
         .eq("symbol", item.symbol)
         .maybeSingle();
       if (isMissingUniverseTable(currentError)) return;
@@ -430,6 +578,9 @@ export class SupabaseUniverseRepository implements UniverseRepository {
         ...(current?.provider_metadata ?? {}),
         [item.provider]: item.rawPayload
       };
+      const hasManualTaxonomy = Boolean(current?.taxonomy_is_manual_override);
+      const canonicalSector = hasManualTaxonomy ? current?.canonical_sector : item.canonicalSector;
+      const canonicalThemes = hasManualTaxonomy ? toStringArray(current?.canonical_themes) : item.canonicalThemes;
 
       const { error } = await this.db
         .from("instruments")
@@ -440,6 +591,9 @@ export class SupabaseUniverseRepository implements UniverseRepository {
           geography: item.region ?? item.country ?? undefined,
           sector: item.sector ?? undefined,
           industry: item.industry ?? undefined,
+          canonical_sector: canonicalSector ?? undefined,
+          canonical_themes: canonicalThemes ?? undefined,
+          taxonomy_review_status: hasManualTaxonomy ? "mapped" : item.unmappedRawValues && item.unmappedRawValues.length > 0 ? "needs_review" : "mapped",
           provider_primary: item.provider,
           provider_metadata: providerMetadata,
           metadata_last_refreshed_at: new Date().toISOString()
@@ -447,6 +601,22 @@ export class SupabaseUniverseRepository implements UniverseRepository {
         .eq("symbol", item.symbol);
       if (isMissingUniverseTable(error)) return;
       if (error) throw new Error(error.message);
+
+      if (current?.id && canonicalSector && canonicalThemes) {
+        await this.upsertInstrumentTaxonomy([
+          {
+            instrumentId: current.id,
+            rawSector: item.sector,
+            rawIndustry: item.industry,
+            canonicalSector,
+            canonicalThemes,
+            sourceProvider: item.provider,
+            confidence: item.unmappedRawValues && item.unmappedRawValues.length > 0 ? 0.75 : 1,
+            isManualOverride: hasManualTaxonomy,
+            reviewStatus: hasManualTaxonomy ? "mapped" : item.unmappedRawValues && item.unmappedRawValues.length > 0 ? "needs_review" : "mapped"
+          }
+        ]);
+      }
     }
   }
 
