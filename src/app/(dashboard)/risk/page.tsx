@@ -369,12 +369,11 @@ export default async function RiskPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Currency and themes</CardTitle>
-            <CardDescription>Currency concentration and available thematic tags.</CardDescription>
+            <CardTitle>Currency exposure</CardTitle>
+            <CardDescription>Native currency concentration before FX conversion.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent>
             <AllocationTable title="Currency" items={report.concentration.byCurrency} />
-            <AllocationTable title="Theme" items={report.concentration.byTheme} />
           </CardContent>
         </Card>
       </section>

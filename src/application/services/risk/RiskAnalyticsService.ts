@@ -15,35 +15,6 @@ import { VolatilityService } from "@/application/services/risk/VolatilityService
 
 export type RiskAnalyticsReport = ReturnType<RiskAnalyticsService["calculateRiskAnalytics"]>;
 
-function themeExposure(valuations: HoldingValuation[], totalValue: number): AllocationItem[] {
-  const grouped = new Map<string, number>();
-  const themeLabel = (value: string) => {
-    const normalized = value.trim().toLowerCase().replaceAll("_", "-").replaceAll(" ", "-");
-    const labels: Record<string, string> = {
-      "fixed-income": "Fixed income",
-      crypto: "Crypto",
-      gold: "Gold"
-    };
-    return labels[normalized] ?? value.trim();
-  };
-
-  for (const valuation of valuations) {
-    const metadataTags = [
-      valuation.holding.sector,
-      valuation.holding.assetType === "crypto" ? "crypto" : null,
-      valuation.holding.assetType === "gold_etf" ? "gold" : null,
-      valuation.holding.assetType === "bond_etf" ? "fixed-income" : null
-    ].filter((tag): tag is string => Boolean(tag));
-    for (const tag of metadataTags) {
-      const label = themeLabel(tag);
-      grouped.set(label, (grouped.get(label) ?? 0) + valuation.value);
-    }
-  }
-  return Array.from(grouped.entries())
-    .map(([label, value]) => ({ label, value, percent: totalValue === 0 ? 0 : value / totalValue }))
-    .sort((a, b) => b.value - a.value);
-}
-
 function returnsByAssetId(dailyPrices: DailyPrice[]) {
   const pricesByAsset = new Map<string, Map<string, number>>();
   for (const price of dailyPrices) {
@@ -159,8 +130,7 @@ export class RiskAnalyticsService {
       byAssetClass: dashboard.allocationByType,
       bySector: dashboard.allocationBySector,
       byGeography: dashboard.allocationByGeography,
-      byCurrency: dashboard.currencyExposure,
-      byTheme: themeExposure(investedValuations, totalHoldingsValue)
+      byCurrency: dashboard.currencyExposure
     };
 
     const assetReturns = returnsByAssetId(input.dailyPrices);
