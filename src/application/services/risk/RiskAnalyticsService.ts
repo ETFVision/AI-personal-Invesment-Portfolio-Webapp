@@ -1,5 +1,6 @@
 import {
   AllocationItem,
+  BenchmarkSnapshot,
   DailyPrice,
   HoldingSnapshot,
   HoldingValuation,
@@ -106,6 +107,7 @@ export class RiskAnalyticsService {
     portfolioSnapshots: PortfolioSnapshot[];
     holdingSnapshots: HoldingSnapshot[];
     dailyPrices: DailyPrice[];
+    benchmarkSnapshots?: BenchmarkSnapshot[];
   }) {
     const { dashboard } = input;
     const investedValuations = dashboard.holdingValuations.filter((valuation) => valuation.value > 0);
@@ -134,7 +136,11 @@ export class RiskAnalyticsService {
     });
     const volatility = this.volatilityService.calculatePortfolioVolatility(input.portfolioSnapshots);
     const drawdown = this.drawdownService.calculatePortfolioDrawdown(input.portfolioSnapshots);
-    const benchmarkDrawdowns = this.drawdownService.calculateBenchmarkDrawdown(dashboard.benchmarkComparisons);
+    const benchmarkDrawdowns = this.drawdownService.calculateBenchmarkDrawdown(
+      dashboard.benchmarkComparisons,
+      input.benchmarkSnapshots,
+      drawdown.maxDrawdown
+    );
 
     const concentration = {
       topHoldingConcentration,

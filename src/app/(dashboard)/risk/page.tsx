@@ -233,6 +233,8 @@ export default async function RiskPage() {
     matchedUniverseInstruments.map((instrument) => instrument.id),
     yearsAgoIso(5)
   );
+  const benchmarkIds = Array.from(new Set(dashboard.benchmarkComparisons.map((comparison) => comparison.benchmark.id)));
+  const benchmarkSnapshots = await container.benchmarkRepository.listBenchmarkSnapshots(benchmarkIds, 10_000);
   const instrumentSymbolById = new Map(
     matchedUniverseInstruments.map((instrument) => [instrument.id, instrument.symbol?.trim().toUpperCase() ?? ""])
   );
@@ -274,7 +276,8 @@ export default async function RiskPage() {
     dashboard,
     portfolioSnapshots,
     holdingSnapshots: [...fallbackHoldingSnapshots, ...universeHoldingSnapshots],
-    dailyPrices: [...dailyPrices, ...universeDailyPrices]
+    dailyPrices: [...dailyPrices, ...universeDailyPrices],
+    benchmarkSnapshots
   });
   const volatilityPoints: ChartPoint[] = report.volatility.trend.map((point) => ({
     date: point.date,
@@ -456,7 +459,7 @@ export default async function RiskPage() {
       <Card>
         <CardHeader>
           <CardTitle>Benchmark drawdown comparison</CardTitle>
-          <CardDescription>Portfolio max drawdown versus seeded benchmarks where history exists.</CardDescription>
+          <CardDescription>Portfolio snapshot drawdown versus full benchmark history where available.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-hidden rounded-md border">
@@ -467,12 +470,13 @@ export default async function RiskPage() {
                   <th className="p-3 text-right font-medium">Portfolio max drawdown</th>
                   <th className="p-3 text-right font-medium">Benchmark max drawdown</th>
                   <th className="p-3 text-right font-medium">Gap</th>
+                  <th className="p-3 text-right font-medium">History</th>
                 </tr>
               </thead>
               <tbody>
                 {report.benchmarkDrawdowns.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="p-3 text-muted-foreground">Refresh benchmark history to compare drawdowns.</td>
+                    <td colSpan={5} className="p-3 text-muted-foreground">Refresh benchmark history to compare drawdowns.</td>
                   </tr>
                 ) : (
                   report.benchmarkDrawdowns.map((row) => (
@@ -484,6 +488,9 @@ export default async function RiskPage() {
                         {row.portfolioMaxDrawdown == null || row.benchmarkMaxDrawdown == null
                           ? "Not enough data"
                           : formatPercent(row.portfolioMaxDrawdown - row.benchmarkMaxDrawdown)}
+                      </td>
+                      <td className="p-3 text-right text-muted-foreground">
+                        {row.benchmarkObservationCount > 0 ? `${row.benchmarkObservationCount} rows` : "-"}
                       </td>
                     </tr>
                   ))
