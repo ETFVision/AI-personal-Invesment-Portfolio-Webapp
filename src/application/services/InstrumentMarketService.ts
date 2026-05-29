@@ -56,6 +56,12 @@ function daysAgoIso(days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function daysAfterIso(isoDate: string, days: number) {
+  const date = new Date(`${isoDate}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 function yearsAgoIso(years: number) {
   const date = new Date();
   date.setUTCFullYear(date.getUTCFullYear() - years);
@@ -74,7 +80,7 @@ function isStaleOrMissing(latestPriceDate: string | null, asOfDate: string) {
 
 function needsLongHistoryBackfill(instrument: Instrument, earliestPriceDate: string | null, backfillStartDate: string) {
   if (instrument.assetClass === "crypto" || instrument.instrumentType === "crypto_etf") return false;
-  return !earliestPriceDate || earliestPriceDate > backfillStartDate;
+  return !earliestPriceDate || earliestPriceDate > daysAfterIso(backfillStartDate, 10);
 }
 
 function isCryptoHistoryExcluded(instrument: Instrument) {
@@ -426,8 +432,8 @@ export class InstrumentMarketService {
     const activeInstruments = instruments.filter((instrument) => instrument.isActive);
     const stats = await this.repository.listInstrumentPriceStats(activeInstruments.map((instrument) => instrument.id));
     const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
-    const threeYearStart = yearsAgoIso(3);
-    const fiveYearStart = yearsAgoIso(5);
+    const threeYearCompleteBy = daysAfterIso(yearsAgoIso(3), 10);
+    const fiveYearCompleteBy = daysAfterIso(yearsAgoIso(5), 10);
     let totalEligible = 0;
     let completeFiveYear = 0;
     let completeThreeYear = 0;
@@ -442,13 +448,13 @@ export class InstrumentMarketService {
 
       totalEligible += 1;
       const earliestDate = statsByInstrumentId.get(instrument.id)?.earliestPriceDate ?? null;
-      if (earliestDate && earliestDate <= fiveYearStart) {
+      if (earliestDate && earliestDate <= fiveYearCompleteBy) {
         completeFiveYear += 1;
         completeThreeYear += 1;
         continue;
       }
 
-      if (earliestDate && earliestDate <= threeYearStart) {
+      if (earliestDate && earliestDate <= threeYearCompleteBy) {
         completeThreeYear += 1;
         continue;
       }
