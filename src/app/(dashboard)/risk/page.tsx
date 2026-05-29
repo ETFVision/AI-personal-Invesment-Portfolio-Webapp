@@ -4,7 +4,8 @@ import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatAssetTypeLabel, formatPercent } from "@/lib/utils";
-import type { AllocationItem, HoldingSnapshot } from "@/domain/portfolio/types";
+import type { AllocationItem, BenchmarkComparison, BenchmarkSnapshot, HoldingSnapshot } from "@/domain/portfolio/types";
+import type { Instrument, InstrumentPrice } from "@/domain/universe/types";
 import type { DrawdownPoint } from "@/application/services/risk/riskMath";
 import type { RiskAnalyticsReport } from "@/application/services/risk/RiskAnalyticsService";
 
@@ -25,6 +26,101 @@ function yearsAgoIso(years: number) {
   const date = new Date();
   date.setUTCFullYear(date.getUTCFullYear() - years);
   return date.toISOString().slice(0, 10);
+}
+
+function instrumentBySymbol(instruments: Instrument[]) {
+  return new Map(
+    instruments
+      .map((instrument) => [instrument.symbol?.trim().toUpperCase() ?? "", instrument] as const)
+      .filter(([symbol]) => Boolean(symbol))
+  );
+}
+
+function priceSeriesByInstrument(prices: InstrumentPrice[]) {
+  const grouped = new Map<string, InstrumentPrice[]>();
+  for (const price of prices) {
+    const series = grouped.get(price.instrumentId) ?? [];
+    series.push(price);
+    grouped.set(price.instrumentId, series);
+  }
+  for (const series of grouped.values()) {
+    series.sort((a, b) => a.priceDate.localeCompare(b.priceDate));
+  }
+  return grouped;
+}
+
+function buildSyntheticBenchmarkSnapshots(input: {
+  comparisons: BenchmarkComparison[];
+  instruments: Instrument[];
+  prices: InstrumentPrice[];
+}): BenchmarkSnapshot[] {
+  const instrumentsBySymbol = instrumentBySymbol(input.instruments);
+  const pricesByInstrument = priceSeriesByInstrument(input.prices);
+  const snapshots: BenchmarkSnapshot[] = [];
+
+  for (const comparison of input.comparisons) {
+    const benchmark = comparison.benchmark;
+    if (benchmark.symbol) {
+      const instrument = instrumentsBySymbol.get(benchmark.symbol.trim().toUpperCase());
+      const series = instrument ? pricesByInstrument.get(instrument.id) ?? [] : [];
+      snapshots.push(...series.map((price) => ({
+        id: `universe-benchmark-${benchmark.id}-${price.id}`,
+        benchmarkId: benchmark.id,
+        benchmarkKey: benchmark.benchmarkKey,
+        snapshotDate: price.priceDate,
+        closePrice: price.closePrice,
+        levelValue: price.closePrice,
+        dailyReturn: null,
+        drawdown: null,
+        currency: price.currency ?? benchmark.currency,
+        provider: price.provider
+      })));
+      continue;
+    }
+
+    if (benchmark.components.length > 0) {
+      const componentSeries = benchmark.components.map((component) => {
+        const instrument = instrumentsBySymbol.get(component.symbol.trim().toUpperCase());
+        const series = instrument ? pricesByInstrument.get(instrument.id) ?? [] : [];
+        return { component, byDate: new Map(series.map((price) => [price.priceDate, price.closePrice])) };
+      });
+      if (componentSeries.some((item) => item.byDate.size === 0)) continue;
+
+      const commonDates = componentSeries
+        .map((item) => Array.from(item.byDate.keys()))
+        .reduce<string[]>((intersection, dates) => intersection.filter((date) => dates.includes(date)), Array.from(componentSeries[0].byDate.keys()))
+        .sort();
+      let previousDate: string | null = null;
+      let levelValue = benchmark.baseValue;
+
+      for (const date of commonDates) {
+        const dailyReturn = previousDate
+          ? componentSeries.reduce((sum, item) => {
+              const current = item.byDate.get(date);
+              const previous = item.byDate.get(previousDate!);
+              if (!current || !previous || previous === 0) return sum;
+              return sum + item.component.weight * (current / previous - 1);
+            }, 0)
+          : null;
+        if (dailyReturn != null) levelValue *= 1 + dailyReturn;
+        snapshots.push({
+          id: `universe-benchmark-${benchmark.id}-${date}`,
+          benchmarkId: benchmark.id,
+          benchmarkKey: benchmark.benchmarkKey,
+          snapshotDate: date,
+          closePrice: levelValue,
+          levelValue,
+          dailyReturn,
+          drawdown: null,
+          currency: benchmark.currency,
+          provider: "instrument_prices"
+        });
+        previousDate = date;
+      }
+    }
+  }
+
+  return snapshots;
 }
 
 function makePolyline(points: ChartPoint[], width: number, height: number) {
@@ -229,12 +325,32 @@ export default async function RiskPage() {
   const matchedUniverseInstruments = universeInstruments.filter((instrument) =>
     instrument.symbol ? holdingSymbols.includes(instrument.symbol.trim().toUpperCase()) : false
   );
+  const benchmarkSymbols = Array.from(
+    new Set(
+      dashboard.benchmarkComparisons.flatMap((comparison) => [
+        comparison.benchmark.symbol?.trim().toUpperCase(),
+        ...comparison.benchmark.components.map((component) => component.symbol.trim().toUpperCase())
+      ]).filter((symbol): symbol is string => Boolean(symbol))
+    )
+  );
+  const matchedBenchmarkInstruments = universeInstruments.filter((instrument) =>
+    instrument.symbol ? benchmarkSymbols.includes(instrument.symbol.trim().toUpperCase()) : false
+  );
+  const requiredInstrumentIds = Array.from(new Set([
+    ...matchedUniverseInstruments.map((instrument) => instrument.id),
+    ...matchedBenchmarkInstruments.map((instrument) => instrument.id)
+  ]));
   const universePrices = await container.universeRepository.listInstrumentPrices(
-    matchedUniverseInstruments.map((instrument) => instrument.id),
+    requiredInstrumentIds,
     yearsAgoIso(5)
   );
   const benchmarkIds = Array.from(new Set(dashboard.benchmarkComparisons.map((comparison) => comparison.benchmark.id)));
   const benchmarkSnapshots = await container.benchmarkRepository.listBenchmarkSnapshots(benchmarkIds, 10_000);
+  const universeBenchmarkSnapshots = buildSyntheticBenchmarkSnapshots({
+    comparisons: dashboard.benchmarkComparisons,
+    instruments: matchedBenchmarkInstruments,
+    prices: universePrices
+  });
   const instrumentSymbolById = new Map(
     matchedUniverseInstruments.map((instrument) => [instrument.id, instrument.symbol?.trim().toUpperCase() ?? ""])
   );
@@ -277,7 +393,7 @@ export default async function RiskPage() {
     portfolioSnapshots,
     holdingSnapshots: [...fallbackHoldingSnapshots, ...universeHoldingSnapshots],
     dailyPrices: [...dailyPrices, ...universeDailyPrices],
-    benchmarkSnapshots
+    benchmarkSnapshots: universeBenchmarkSnapshots.length > 0 ? universeBenchmarkSnapshots : benchmarkSnapshots
   });
   const volatilityPoints: ChartPoint[] = report.volatility.trend.map((point) => ({
     date: point.date,
