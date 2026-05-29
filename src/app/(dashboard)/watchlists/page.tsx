@@ -4,6 +4,7 @@ import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { InstrumentMarketTable } from "@/components/universe/instrument-market-table";
 import { InstrumentMarketView } from "@/domain/universe/types";
 
@@ -62,7 +63,7 @@ export default async function WatchlistsPage({ searchParams }: WatchlistsPagePro
         </div>
         <form action={refreshAllDataAction}>
           <input type="hidden" name="returnTo" value="/watchlists" />
-          <Button type="submit" variant="secondary">Refresh data</Button>
+          <SubmitButton variant="secondary" pendingLabel="Refreshing data...">Refresh data</SubmitButton>
         </form>
       </div>
 

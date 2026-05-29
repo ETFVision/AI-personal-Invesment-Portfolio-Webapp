@@ -12,6 +12,7 @@ import {
 } from "@/components/portfolio/analytics-panels";
 import { formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 
 type PortfolioPageProps = {
@@ -58,9 +59,9 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         <div className="flex flex-wrap gap-2">
           <form action={refreshAllDataAction}>
             <input type="hidden" name="returnTo" value="/portfolio" />
-            <Button type="submit" variant="secondary">
+            <SubmitButton variant="secondary" pendingLabel="Refreshing data...">
               Refresh data
-            </Button>
+            </SubmitButton>
           </form>
           <Link className="rounded-md border px-4 py-2 text-sm hover:bg-muted" href="/cash">Add cash</Link>
           <Link className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground" href="/holdings">Add holding</Link>

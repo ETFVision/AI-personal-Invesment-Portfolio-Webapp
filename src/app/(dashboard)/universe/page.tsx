@@ -7,6 +7,7 @@ import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { InstrumentMarketView } from "@/domain/universe/types";
 import { InstrumentMarketTable } from "@/components/universe/instrument-market-table";
 
@@ -27,12 +28,24 @@ type UniversePageProps = {
 };
 
 function groupByAssetClass(items: InstrumentMarketView[]) {
+  const isCryptoProxy = (item: InstrumentMarketView) =>
+    item.instrument.instrumentType === "crypto_etf" ||
+    item.instrument.riskCategory === "crypto" ||
+    item.instrument.assetClass === "crypto";
+
   return {
-    etfs: items.filter((item) => item.instrument.assetClass === "etf"),
+    equityEtfs: items.filter((item) => item.instrument.assetClass === "etf" && !isCryptoProxy(item)),
     bonds: items.filter((item) => ["bond_etf", "gold_etf", "cash_proxy"].includes(item.instrument.assetClass)),
-    crypto: items.filter((item) => item.instrument.assetClass === "crypto"),
+    crypto: items.filter(isCryptoProxy),
     stocks: items.filter((item) => item.instrument.assetClass === "stock"),
-    other: items.filter((item) => !["etf", "bond_etf", "gold_etf", "cash_proxy", "crypto", "stock"].includes(item.instrument.assetClass))
+    other: items.filter((item) => !["etf", "bond_etf", "gold_etf", "cash_proxy", "crypto", "stock"].includes(item.instrument.assetClass) && !isCryptoProxy(item))
+  };
+}
+
+function splitCryptoRows(rows: InstrumentMarketView[]) {
+  return {
+    proxies: rows.filter((row) => row.instrument.instrumentType === "crypto_etf"),
+    references: rows.filter((row) => row.instrument.assetClass === "crypto")
   };
 }
 
@@ -73,6 +86,7 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
 
   const marketViews = await container.instrumentMarketService.buildInstrumentMarketViews(instruments);
   const grouped = groupByAssetClass(marketViews);
+  const cryptoRows = splitCryptoRows(grouped.crypto);
   const activeCount = instruments.filter((instrument) => instrument.isActive).length;
   const priceFreshnessBuckets = {
     fresh: marketViews.filter((view) => view.freshnessTone === "text-emerald-600").length,
@@ -94,7 +108,7 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
           </form>
           <form action={refreshAllDataAction}>
             <input type="hidden" name="returnTo" value="/universe" />
-            <Button type="submit">Refresh data</Button>
+            <SubmitButton pendingLabel="Refreshing data...">Refresh data</SubmitButton>
           </form>
         </div>
       </div>
@@ -115,6 +129,19 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
           </CardContent>
         </Card>
       ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Refresh status</CardTitle>
+          <CardDescription>Refresh data updates portfolio prices, benchmarks, universe metadata, and instrument history in controlled batches.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 text-sm sm:grid-cols-4">
+          <StatusStep label="1" title="Metadata" description="Portfolio and universe classifications" />
+          <StatusStep label="2" title="Portfolio" description="Holdings prices and snapshots" />
+          <StatusStep label="3" title="Benchmarks" description="Benchmark price history" />
+          <StatusStep label="4" title="Universe" description="Instrument prices and freshness" />
+        </CardContent>
+      </Card>
 
       <section className="grid gap-4 md:grid-cols-4">
         <Card>
@@ -182,10 +209,10 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
         </CardContent>
       </Card>
 
-      <InstrumentGroupSection title="ETF universe" items={rankAndSort(grouped.etfs)} />
-      <InstrumentGroupSection title="Bond / gold / cash universe" items={rankAndSort(grouped.bonds)} />
-      <InstrumentGroupSection title="Crypto universe" items={rankAndSort(grouped.crypto)} />
-      <InstrumentGroupSection title="Stock watchlist universe" items={rankAndSort(grouped.stocks)} />
+      <InstrumentGroupSection title="Equity ETF Universe" items={rankAndSort(grouped.equityEtfs)} />
+      <InstrumentGroupSection title="Bond / Gold / Cash ETF Universe" items={rankAndSort(grouped.bonds)} />
+      <CryptoUniverseSection proxyItems={rankAndSort(cryptoRows.proxies)} referenceItems={rankAndSort(cryptoRows.references)} />
+      <InstrumentGroupSection title="Stock Watchlist Universe" items={rankAndSort(grouped.stocks)} />
 
       <section className="grid gap-4 lg:grid-cols-2">
         <ProfileCard
@@ -232,6 +259,47 @@ export default async function UniversePage({ searchParams }: UniversePageProps) 
         />
       </section>
     </div>
+  );
+}
+
+function StatusStep({ label, title, description }: { label: string; title: string; description: string }) {
+  return (
+    <div className="flex gap-3 rounded-md border bg-muted/30 p-3">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+        {label}
+      </div>
+      <div>
+        <div className="font-medium">{title}</div>
+        <div className="text-xs text-muted-foreground">{description}</div>
+      </div>
+    </div>
+  );
+}
+
+function CryptoUniverseSection({
+  proxyItems,
+  referenceItems
+}: {
+  proxyItems: InstrumentMarketView[];
+  referenceItems: InstrumentMarketView[];
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Crypto Universe</CardTitle>
+        <CardDescription>Active crypto ETF proxies first, followed by inactive raw crypto references.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div>
+          <h3 className="mb-2 text-sm font-medium">Crypto ETF proxies</h3>
+          <InstrumentMarketTable rows={proxyItems} emptyMessage="No active crypto ETF proxies." showManagementActions />
+        </div>
+        <div>
+          <h3 className="mb-2 text-sm font-medium">Inactive raw crypto references</h3>
+          <InstrumentMarketTable rows={referenceItems} emptyMessage="No inactive raw crypto references." showManagementActions />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

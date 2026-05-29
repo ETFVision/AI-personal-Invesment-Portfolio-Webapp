@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 export default async function SetupPage({ searchParams }: { searchParams: Promise<{ edit?: string; error?: string; metadataMessage?: string; metadataError?: string; refreshMessage?: string; refreshError?: string }> }) {
   const params = await searchParams;
@@ -23,7 +24,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
         {portfolio ? (
           <form action={refreshAllDataAction}>
             <input type="hidden" name="returnTo" value="/setup" />
-            <Button type="submit" variant="secondary">Refresh data</Button>
+            <SubmitButton variant="secondary" pendingLabel="Refreshing data...">Refresh data</SubmitButton>
           </form>
         ) : null}
       </div>

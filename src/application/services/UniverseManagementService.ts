@@ -366,7 +366,7 @@ function crypto(symbol: string, name: string, chain: string, classification: str
   return {
     ...instrument(symbol, name, "crypto", "crypto", "Global", "USD", "Crypto", {
       sector: "Digital Assets",
-      industry: "Crypto",
+      industry: chain,
       riskCategory: "crypto",
       volatilityBucket,
       cryptoClassification: classification,
