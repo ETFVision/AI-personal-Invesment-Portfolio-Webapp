@@ -44,6 +44,51 @@ function priceSeriesByInstrument(prices: InstrumentPrice[]) {
   return grouped;
 }
 
+function allocationItems(entries: Map<string, number>, denominator: number) {
+  return Array.from(entries.entries())
+    .map(([label, value]) => ({
+      label,
+      value,
+      percent: denominator === 0 ? 0 : value / denominator
+    }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function dashboardWithCanonicalSectors(dashboard: PortfolioDashboard, instruments: Instrument[]): PortfolioDashboard {
+  const canonicalSectorBySymbol = new Map(
+    instruments
+      .filter((instrument) => instrument.symbol && instrument.canonicalSector)
+      .map((instrument) => [instrument.symbol!.trim().toUpperCase(), instrument.canonicalSector!])
+  );
+  const sectorByHoldingId = new Map<string, string>();
+
+  const holdings = dashboard.holdings.map((holding) => {
+    const canonicalSector = holding.ticker ? canonicalSectorBySymbol.get(holding.ticker.trim().toUpperCase()) : null;
+    if (!canonicalSector) return holding;
+    sectorByHoldingId.set(holding.id, canonicalSector);
+    return { ...holding, sector: canonicalSector };
+  });
+
+  const holdingValuations = dashboard.holdingValuations.map((valuation) => {
+    const canonicalSector = sectorByHoldingId.get(valuation.holding.id);
+    return canonicalSector
+      ? { ...valuation, holding: { ...valuation.holding, sector: canonicalSector } }
+      : valuation;
+  });
+  const bySector = new Map<string, number>();
+  for (const valuation of holdingValuations) {
+    const label = valuation.holding.sector || "Unknown";
+    bySector.set(label, (bySector.get(label) ?? 0) + valuation.value);
+  }
+
+  return {
+    ...dashboard,
+    holdings,
+    holdingValuations,
+    allocationBySector: allocationItems(bySector, dashboard.totalValueEstimate)
+  };
+}
+
 function buildSyntheticBenchmarkSnapshots(input: {
   comparisons: BenchmarkComparison[];
   instruments: Instrument[];
@@ -219,8 +264,10 @@ export class RiskAnalyticsDataService {
     const holdingsWithUniverseHistory = new Set(universeHoldingSnapshots.map((snapshot) => snapshot.holdingId));
     const fallbackHoldingSnapshots = holdingSnapshots.filter((snapshot) => !holdingsWithUniverseHistory.has(snapshot.holdingId));
 
+    const canonicalDashboard = dashboardWithCanonicalSectors(dashboard, matchedUniverseInstruments);
+
     return this.riskAnalyticsService.calculateRiskAnalytics({
-      dashboard,
+      dashboard: canonicalDashboard,
       portfolioSnapshots,
       holdingSnapshots: [...fallbackHoldingSnapshots, ...universeHoldingSnapshots],
       dailyPrices: [...dailyPrices, ...universeDailyPrices],

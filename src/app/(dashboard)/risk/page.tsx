@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { formatAssetTypeLabel, formatPercent } from "@/lib/utils";
 import type { AllocationItem } from "@/domain/portfolio/types";
 import type { DrawdownPoint } from "@/application/services/risk/riskMath";
-import type { RiskAnalyticsReport } from "@/application/services/risk/RiskAnalyticsService";
+import { RISK_TAXONOMY_VERSION, type RiskAnalyticsReport } from "@/application/services/risk/RiskAnalyticsService";
 
 type ChartPoint = {
   date: string;
@@ -202,10 +202,12 @@ export default async function RiskPage() {
 
   const dashboard = await container.portfolioService.getDashboard(portfolio.id);
   const cachedRiskReport = await container.riskAnalyticsRepository.getLatestRiskReport(portfolio.id);
-  const report = cachedRiskReport?.report
-    ? cachedRiskReport.report as RiskAnalyticsReport
+  const cachedReport = cachedRiskReport?.report as Partial<RiskAnalyticsReport> | null | undefined;
+  const canUseCachedReport = cachedReport?.taxonomyVersion === RISK_TAXONOMY_VERSION;
+  const report = canUseCachedReport
+    ? cachedReport as RiskAnalyticsReport
     : await container.riskAnalyticsDataService.buildReport(portfolio.id, dashboard);
-  if (!cachedRiskReport) {
+  if (!canUseCachedReport) {
     await container.riskAnalyticsRepository.upsertRiskReport({
       portfolioId: portfolio.id,
       asOfDate: report.asOfDate,

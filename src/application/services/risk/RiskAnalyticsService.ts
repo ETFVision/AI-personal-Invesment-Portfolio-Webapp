@@ -13,6 +13,7 @@ import { DiversificationService } from "@/application/services/risk/Diversificat
 import { DrawdownService } from "@/application/services/risk/DrawdownService";
 import { VolatilityService } from "@/application/services/risk/VolatilityService";
 
+export const RISK_TAXONOMY_VERSION = "canonical-taxonomy-v1";
 export type RiskAnalyticsReport = ReturnType<RiskAnalyticsService["calculateRiskAnalytics"]>;
 
 function returnsByAssetId(dailyPrices: DailyPrice[]) {
@@ -180,6 +181,7 @@ export class RiskAnalyticsService {
 
     return {
       asOfDate: input.portfolioSnapshots.at(-1)?.snapshotDate ?? new Date().toISOString().slice(0, 10),
+      taxonomyVersion: RISK_TAXONOMY_VERSION,
       volatility,
       drawdown,
       benchmarkDrawdowns,
