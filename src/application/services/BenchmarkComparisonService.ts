@@ -40,6 +40,10 @@ function simpleManualReturn(input: {
   return input.minimumCapitalBase === 0 ? null : (input.currentValue + withdrawals - input.minimumCapitalBase) / input.minimumCapitalBase;
 }
 
+function isBelowManualCapitalFloor(value: number, minimumCapitalBase: number) {
+  return minimumCapitalBase > 0 && value < minimumCapitalBase * 0.8;
+}
+
 function drawdown(currentValue: number, peakValue: number) {
   return peakValue === 0 ? null : currentValue / peakValue - 1;
 }
@@ -142,7 +146,7 @@ export class BenchmarkComparisonService {
     const baselinePortfolio = alignedPoints[0].portfolioPoint;
     const baselineBenchmark = alignedPoints[0].benchmarkPoint;
 
-    const useManualCapitalFallback = minimumCapitalBase > 0 && baselinePortfolio.totalValue < minimumCapitalBase * 0.8;
+    const useManualCapitalFallback = isBelowManualCapitalFloor(baselinePortfolio.totalValue, minimumCapitalBase);
     let portfolioPeak = baselinePortfolio.totalValue;
     let benchmarkPeak = baselineBenchmark.levelValue;
     let cumulativePortfolioReturn = 0;
@@ -153,7 +157,9 @@ export class BenchmarkComparisonService {
       const snapshotDate = portfolioPoint.snapshotDate;
       const previousPoint = alignedPoints[index - 1]?.portfolioPoint;
       const previousDate = previousPoint?.snapshotDate;
-      if (index > 0 && previousDate) {
+      if (useManualCapitalFallback && isBelowManualCapitalFloor(portfolioPoint.totalValue, minimumCapitalBase)) {
+        cumulativePortfolioReturn = 0;
+      } else if (index > 0 && previousDate) {
         if (useManualCapitalFallback) {
           cumulativePortfolioReturn = simpleManualReturn({
             currentValue: portfolioPoint.totalValue,

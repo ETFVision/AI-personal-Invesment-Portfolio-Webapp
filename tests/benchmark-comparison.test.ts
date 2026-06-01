@@ -193,17 +193,20 @@ test("benchmark comparisons keep history but guard returns from stale tiny portf
     minimumCapitalBase: 1_000,
     portfolioSnapshots: [
       portfolioSnapshot({ snapshotDate: "2026-01-02", totalValue: 10 }),
+      portfolioSnapshot({ snapshotDate: "2026-02-02", totalValue: 15 }),
       portfolioSnapshot({ snapshotDate: "2026-06-01", totalValue: 1_100 })
     ],
     benchmarkSnapshots: [
       benchmarkSnapshot({ snapshotDate: "2026-01-02", levelValue: 100 }),
+      benchmarkSnapshot({ snapshotDate: "2026-02-02", levelValue: 110 }),
       benchmarkSnapshot({ snapshotDate: "2026-06-01", levelValue: 120 })
     ]
   });
 
   assert.equal(comparisons.length, 1);
-  assert.equal(comparisons[0].points.length, 2);
+  assert.equal(comparisons[0].points.length, 3);
   assert.equal(comparisons[0].points[0].portfolioReturn, 0);
+  assert.equal(comparisons[0].points[1].portfolioReturn, 0);
   assert.equal(comparisons[0].cumulativePortfolioReturn, 0.1);
   assertClose(comparisons[0].cumulativeBenchmarkReturn, 0.2);
 });
