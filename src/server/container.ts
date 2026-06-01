@@ -9,6 +9,9 @@ import { InstrumentMarketService } from "@/application/services/InstrumentMarket
 import { InstrumentService } from "@/application/services/InstrumentService";
 import { PortfolioService } from "@/application/services/PortfolioService";
 import { MarketDataService } from "@/application/services/MarketDataService";
+import { MarketVisionService } from "@/application/services/marketVision/MarketVisionService";
+import { MacroIndicatorService } from "@/application/services/marketVision/MacroIndicatorService";
+import { MarketThemeService } from "@/application/services/marketVision/MarketThemeService";
 import { PerformanceService } from "@/application/services/PerformanceService";
 import { BondService } from "@/application/services/bonds/BondService";
 import { RiskAnalyticsService } from "@/application/services/risk/RiskAnalyticsService";
@@ -22,6 +25,7 @@ import { FmpMarketDataProvider } from "@/infrastructure/providers/marketData/Fmp
 import { SupabaseAnalyticsRepository } from "@/infrastructure/repositories/supabase/SupabaseAnalyticsRepository";
 import { SupabaseBenchmarkRepository } from "@/infrastructure/repositories/supabase/SupabaseBenchmarkRepository";
 import { SupabaseMarketDataRepository } from "@/infrastructure/repositories/supabase/SupabaseMarketDataRepository";
+import { SupabaseMarketVisionRepository } from "@/infrastructure/repositories/supabase/SupabaseMarketVisionRepository";
 import { SupabasePortfolioRepository } from "@/infrastructure/repositories/supabase/SupabasePortfolioRepository";
 import { SupabaseRiskAnalyticsRepository } from "@/infrastructure/repositories/supabase/SupabaseRiskAnalyticsRepository";
 import { SupabaseUniverseRepository } from "@/infrastructure/repositories/supabase/SupabaseUniverseRepository";
@@ -33,6 +37,7 @@ export function createContainer() {
   const benchmarkRepository = new SupabaseBenchmarkRepository();
   const riskAnalyticsRepository = new SupabaseRiskAnalyticsRepository();
   const universeRepository = new SupabaseUniverseRepository();
+  const marketVisionRepository = new SupabaseMarketVisionRepository();
   const marketDataProvider = new FmpMarketDataProvider();
   const assetMetadataProvider = new FmpAssetMetadataProvider();
   const marketDataService = new MarketDataService(marketDataRepository, marketDataProvider);
@@ -45,6 +50,9 @@ export function createContainer() {
   const watchlistService = new WatchlistService(universeRepository);
   const universeManagementService = new UniverseManagementService(universeRepository);
   const metadataRefreshService = new MetadataRefreshService(universeRepository, assetMetadataProvider);
+  const marketThemeService = new MarketThemeService();
+  const macroIndicatorService = new MacroIndicatorService();
+  const marketVisionService = new MarketVisionService(marketVisionRepository, marketThemeService);
   const allocationService = new AllocationService();
   const performanceService = new PerformanceService();
   const analyticsService = new AnalyticsService(allocationService, performanceService);
@@ -72,6 +80,9 @@ export function createContainer() {
     watchlistService,
     universeManagementService,
     metadataRefreshService,
+    marketVisionService,
+    macroIndicatorService,
+    marketThemeService,
     allocationService,
     performanceService,
     analyticsService,

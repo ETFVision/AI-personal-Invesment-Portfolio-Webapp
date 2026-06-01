@@ -632,3 +632,56 @@ Future improvements:
 - Integrate Bond Intelligence into the future allocation engine so allocation logic can distinguish cash-like ETFs, short treasuries, intermediate aggregate bonds, long treasuries, TIPS, corporate credit, and high yield.
 - Add bond-specific benchmarking for the bond sleeve against BND, AGG, short Treasury, long Treasury, TIPS, corporate bond, and high-yield proxies.
 - Add deeper service-level tests for inactive bond ETF behavior, manually edited profile persistence, bond-only portfolios, cash-like-only sleeves, TIPS-only sleeves, and high-yield-heavy sleeves.
+
+## 2026-06-01 - Market Vision Skeleton Implementation QA
+
+Scope:
+- Market Vision dashboard/page.
+- Manual draft/edit/publish/archive workflow.
+- Market Vision report model.
+- Macro indicators foundation.
+- Deterministic market theme classification.
+- Future AI/FMP/FRED integration placeholders.
+
+Implemented:
+- Added `/market-vision` dashboard route and navigation item.
+- Added `market_vision_reports`, `macro_indicators`, and `market_theme_events` migration.
+- Added manual workflow server actions:
+  - create draft report
+  - save draft sections
+  - publish report
+  - archive report
+  - view latest/selected report
+- Added Market Vision service/repository architecture:
+  - `MarketVisionRepository`
+  - `SupabaseMarketVisionRepository`
+  - `MarketVisionService`
+  - `MacroIndicatorService`
+  - `MarketThemeService`
+- Added future AI compatibility placeholders:
+  - `AiMarketVisionProvider`
+  - `MARKET_VISION_PROMPT_TEMPLATE`
+  - `GenerateMarketVisionReportJob`
+- Added tests for report lifecycle, macro indicator display logic, deterministic market theme classification, and empty-state dashboard behavior.
+
+Validation run:
+- `npm.cmd run lint`
+- `npm.cmd run test`
+- `npm.cmd run typecheck`
+- `npm.cmd run build`
+
+Findings:
+- No AI summarisation, recommendations, scoring, or telemetry logic was added.
+- Market Vision remains manual/admin-driven in this phase.
+- Supabase access is isolated in the repository layer; the UI uses server services/actions.
+- No FMP calls are made from the Market Vision UI.
+- Macro indicators are placeholder/manual rows prepared for later FRED/FMP ingestion.
+- Market theme classification is deterministic and separate from future AI-generated source text.
+
+Residual risks / follow-ups:
+- Apply `supabase/migrations/018_market_vision_skeleton.sql` in Supabase before using the deployed Market Vision page.
+- Add actual market theme event creation/editing UI later; current skeleton displays stored events but report editing focuses on report sections.
+- Add FRED ingestion for macro indicators in a later phase.
+- Add FMP market context ingestion in a later phase.
+- Add OpenAI summarisation only after the deterministic report workflow and data sources are QA'd.
+- Add richer error/loading UX if report workflows become more complex.
