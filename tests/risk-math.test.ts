@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { CorrelationService } from "../src/application/services/risk/CorrelationService";
 import {
   annualizedVolatility,
   calculateDrawdown,
@@ -10,6 +11,23 @@ import {
   diversificationScore,
   syntheticPortfolioDrawdown
 } from "../src/application/services/risk/riskMath";
+import type { HoldingSnapshot } from "../src/domain/portfolio/types";
+
+function holdingSnapshot(input: Partial<HoldingSnapshot>): HoldingSnapshot {
+  return {
+    id: input.id ?? `${input.holdingId}-${input.snapshotDate}`,
+    portfolioId: input.portfolioId ?? "portfolio",
+    holdingId: input.holdingId ?? "holding",
+    assetId: input.assetId ?? input.holdingId ?? "asset",
+    snapshotDate: input.snapshotDate ?? "2026-01-01",
+    quantity: input.quantity ?? 1,
+    marketPrice: input.marketPrice ?? input.marketValue ?? 100,
+    marketValue: input.marketValue ?? 100,
+    costBasis: input.costBasis ?? null,
+    unrealizedGainLoss: input.unrealizedGainLoss ?? null,
+    currency: input.currency ?? "USD"
+  };
+}
 
 test("calculates portfolio returns from ordered positive values", () => {
   const returns = calculateReturns([
@@ -58,6 +76,29 @@ test("concentration ratio handles top holding and top five concentration", () =>
 test("correlation returns null for insufficient or flat data", () => {
   assert.equal(correlation([1, 2], [1, 2]), null);
   assert.equal(correlation([1, 1, 1], [2, 3, 4]), null);
+});
+
+test("holding correlations align returns by date for uneven histories", () => {
+  const service = new CorrelationService();
+  const result = service.calculateHoldingCorrelations({
+    labelsByHoldingId: new Map([
+      ["left", "LEFT"],
+      ["right", "RIGHT"]
+    ]),
+    holdingSnapshots: [
+      holdingSnapshot({ holdingId: "left", snapshotDate: "2026-01-01", marketValue: 100 }),
+      holdingSnapshot({ holdingId: "left", snapshotDate: "2026-01-02", marketValue: 110 }),
+      holdingSnapshot({ holdingId: "left", snapshotDate: "2026-01-03", marketValue: 121 }),
+      holdingSnapshot({ holdingId: "left", snapshotDate: "2026-01-04", marketValue: 108.9 }),
+      holdingSnapshot({ holdingId: "right", snapshotDate: "2026-01-01", marketValue: 200 }),
+      holdingSnapshot({ holdingId: "right", snapshotDate: "2026-01-02", marketValue: 180 }),
+      holdingSnapshot({ holdingId: "right", snapshotDate: "2026-01-04", marketValue: 198 }),
+      holdingSnapshot({ holdingId: "right", snapshotDate: "2026-01-05", marketValue: 217.8 })
+    ]
+  });
+
+  const cell = result.matrix.find((item) => item.left === "LEFT" && item.right === "RIGHT");
+  assert.equal(cell?.value, null);
 });
 
 test("diversification score rewards spread and penalizes concentration", () => {

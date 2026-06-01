@@ -1,5 +1,5 @@
 import { HoldingSnapshot } from "@/domain/portfolio/types";
-import { calculateReturns, correlation } from "@/application/services/risk/riskMath";
+import { calculateReturns, correlation } from "./riskMath";
 
 export type CorrelationCell = {
   left: string;
@@ -7,17 +7,25 @@ export type CorrelationCell = {
   value: number | null;
 };
 
+function correlationFromDatedReturns(left: Map<string, number>, right: Map<string, number>) {
+  const commonDates = Array.from(left.keys()).filter((date) => right.has(date)).sort();
+  return correlation(
+    commonDates.map((date) => left.get(date) ?? 0),
+    commonDates.map((date) => right.get(date) ?? 0)
+  );
+}
+
 export class CorrelationService {
   calculateHoldingCorrelations(input: {
     holdingSnapshots: HoldingSnapshot[];
     labelsByHoldingId: Map<string, string>;
   }) {
-    const returnsByHolding = new Map<string, number[]>();
+    const returnsByHolding = new Map<string, Map<string, number>>();
     for (const holdingId of input.labelsByHoldingId.keys()) {
       const series = input.holdingSnapshots
         .filter((snapshot) => snapshot.holdingId === holdingId)
         .map((snapshot) => ({ date: snapshot.snapshotDate, value: snapshot.marketValue }));
-      returnsByHolding.set(holdingId, calculateReturns(series).map((point) => point.value));
+      returnsByHolding.set(holdingId, new Map(calculateReturns(series).map((point) => [point.date, point.value])));
     }
 
     const holdingIds = Array.from(input.labelsByHoldingId.keys());
@@ -27,7 +35,7 @@ export class CorrelationService {
 
     for (const left of holdingIds) {
       for (const right of holdingIds) {
-        const value = left === right ? 1 : correlation(returnsByHolding.get(left) ?? [], returnsByHolding.get(right) ?? []);
+        const value = left === right ? 1 : correlationFromDatedReturns(returnsByHolding.get(left) ?? new Map(), returnsByHolding.get(right) ?? new Map());
         const leftLabel = input.labelsByHoldingId.get(left) ?? left;
         const rightLabel = input.labelsByHoldingId.get(right) ?? right;
         matrix.push({ left: leftLabel, right: rightLabel, value });
@@ -55,10 +63,10 @@ export class CorrelationService {
       valuesByGroupAndDate.set(group, valuesByDate);
     }
 
-    const returnsByGroup = new Map<string, number[]>();
+    const returnsByGroup = new Map<string, Map<string, number>>();
     for (const [group, valuesByDate] of valuesByGroupAndDate.entries()) {
       const series = Array.from(valuesByDate.entries()).map(([date, value]) => ({ date, value }));
-      returnsByGroup.set(group, calculateReturns(series).map((point) => point.value));
+      returnsByGroup.set(group, new Map(calculateReturns(series).map((point) => [point.date, point.value])));
     }
 
     const groups = Array.from(valuesByGroupAndDate.keys()).sort();
@@ -66,7 +74,7 @@ export class CorrelationService {
     const values: number[] = [];
     for (const left of groups) {
       for (const right of groups) {
-        const value = left === right ? 1 : correlation(returnsByGroup.get(left) ?? [], returnsByGroup.get(right) ?? []);
+        const value = left === right ? 1 : correlationFromDatedReturns(returnsByGroup.get(left) ?? new Map(), returnsByGroup.get(right) ?? new Map());
         matrix.push({ left, right, value });
         if (left < right && value != null) values.push(value);
       }
