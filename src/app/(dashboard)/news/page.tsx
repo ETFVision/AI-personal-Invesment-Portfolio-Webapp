@@ -26,6 +26,17 @@ function tone(score: number) {
   return "text-muted-foreground";
 }
 
+function ReconciliationSection({ title, value }: { title: string; value: string | null }) {
+  return (
+    <div className="rounded-md border p-3">
+      <p className="text-sm font-medium">{title}</p>
+      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+        {value || "No summary available."}
+      </p>
+    </div>
+  );
+}
+
 export default async function NewsPage({ searchParams }: NewsPageProps) {
   const params = await searchParams;
   const container = createContainer();
@@ -161,17 +172,34 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
         <Card>
           <CardHeader>
             <CardTitle>Weekly reconciliation</CardTitle>
-            <CardDescription>Draft summaries prepared for later Market Vision attachment.</CardDescription>
+            <CardDescription>Latest draft summary sections prepared for later Market Vision attachment.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             {dashboard.weeklyReconciliations.length === 0 ? (
               <p className="text-muted-foreground">No weekly reconciliation has been created yet.</p>
-            ) : dashboard.weeklyReconciliations.map((item) => (
-              <div key={item.id} className="rounded-md border p-3">
-                <div className="font-medium">{item.periodStart} to {item.periodEnd} - {item.status}</div>
-                <p className="mt-1 text-muted-foreground">{item.macroSummary ?? item.equitiesSummary ?? "No summary available."}</p>
+            ) : (
+              <div className="space-y-4">
+                {dashboard.weeklyReconciliations.slice(0, 1).map((item) => (
+                  <div key={item.id} className="space-y-3">
+                    <div className="rounded-md border bg-muted/30 p-3">
+                      <div className="font-medium">{item.periodStart} to {item.periodEnd} - {item.status}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">Newest reconciliation shown. Older drafts remain stored below the latest entry count.</div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <ReconciliationSection title="Equities" value={item.equitiesSummary} />
+                      <ReconciliationSection title="Bonds" value={item.bondsSummary} />
+                      <ReconciliationSection title="Gold / Commodities" value={item.goldSummary} />
+                      <ReconciliationSection title="Crypto" value={item.cryptoSummary} />
+                      <ReconciliationSection title="Macro" value={item.macroSummary} />
+                      <ReconciliationSection title="Rates" value={item.ratesSummary} />
+                      <ReconciliationSection title="Inflation" value={item.inflationSummary} />
+                      <ReconciliationSection title="Currency" value={item.currencySummary} />
+                      <ReconciliationSection title="Geopolitical" value={item.geopoliticalSummary} />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
 
