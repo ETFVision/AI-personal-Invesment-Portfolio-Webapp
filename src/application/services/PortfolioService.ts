@@ -96,7 +96,8 @@ export class PortfolioService {
     const benchmarkComparisons = this.benchmarkComparisonService?.calculateComparisons({
       portfolioSnapshots: snapshots,
       benchmarkSnapshots,
-      benchmarks
+      benchmarks,
+      transactions
     }) ?? [];
 
     const portfolio = await this.repository.getPortfolioById(portfolioId);

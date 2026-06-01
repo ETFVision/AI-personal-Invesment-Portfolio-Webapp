@@ -302,6 +302,7 @@ function LongTermPerformanceCharts({
         <ComparisonPeriodChart
           label="1Y"
           points={buildComparisonSeriesForPeriod(benchmarkComparison.points, "1Y")}
+          portfolioMetric={dashboard.performance.find((metric) => metric.label === "1Y")}
           portfolioCurrency={dashboard.portfolio.baseCurrency}
           benchmarkName={benchmarkComparison.benchmark.name}
           fallbackMessage="Needs 1Y history"
@@ -309,6 +310,7 @@ function LongTermPerformanceCharts({
         <ComparisonPeriodChart
           label="YTD"
           points={buildComparisonSeriesForPeriod(benchmarkComparison.points, "YTD")}
+          portfolioMetric={dashboard.performance.find((metric) => metric.label === "YTD")}
           portfolioCurrency={dashboard.portfolio.baseCurrency}
           benchmarkName={benchmarkComparison.benchmark.name}
           fallbackMessage="Needs YTD history"
@@ -316,6 +318,7 @@ function LongTermPerformanceCharts({
         <ComparisonPeriodChart
           label="Since inception"
           points={buildComparisonSeriesForPeriod(benchmarkComparison.points, "Since inception")}
+          portfolioMetric={dashboard.performance.find((metric) => metric.label === "Since inception")}
           portfolioCurrency={dashboard.portfolio.baseCurrency}
           benchmarkName={benchmarkComparison.benchmark.name}
           fallbackMessage="Needs inception history"
@@ -350,12 +353,14 @@ function buildComparisonSeriesForPeriod(
 function ComparisonPeriodChart({
   label,
   points,
+  portfolioMetric,
   portfolioCurrency,
   benchmarkName,
   fallbackMessage
 }: {
   label: string;
   points: PortfolioDashboard["benchmarkComparisons"][number]["points"];
+  portfolioMetric: PerformanceMetric | undefined;
   portfolioCurrency: string;
   benchmarkName: string;
   fallbackMessage: string;
@@ -368,10 +373,14 @@ function ComparisonPeriodChart({
     );
   }
 
-  const basePortfolio = points[0].portfolioValue;
-  const baseBenchmark = points[0].benchmarkValue;
-  const seriesA = points.map((point) => (basePortfolio === 0 ? 0 : point.portfolioValue / basePortfolio - 1));
-  const seriesB = points.map((point) => (baseBenchmark === 0 ? 0 : point.benchmarkValue / baseBenchmark - 1));
+  const basePortfolioReturn = points[0].portfolioReturn;
+  const baseBenchmarkReturn = points[0].benchmarkReturn;
+  const rebaseReturn = (current: number, baseline: number) => {
+    const denominator = 1 + baseline;
+    return denominator === 0 ? 0 : (1 + current) / denominator - 1;
+  };
+  const seriesA = points.map((point) => rebaseReturn(point.portfolioReturn, basePortfolioReturn));
+  const seriesB = points.map((point) => rebaseReturn(point.benchmarkReturn, baseBenchmarkReturn));
   const allValues = [...seriesA, ...seriesB];
   const minValue = Math.min(...allValues, 0);
   const maxValue = Math.max(...allValues, 0);
@@ -413,9 +422,13 @@ function ComparisonPeriodChart({
       <div className="mt-3 grid gap-2 rounded-md bg-muted/50 p-3 text-sm sm:grid-cols-2">
         <div>
           <div className="text-xs text-muted-foreground">Portfolio</div>
-          <div className={seriesA[seriesA.length - 1] < 0 ? "text-destructive" : "text-emerald-600"}>{formatPercent(seriesA[seriesA.length - 1] ?? 0)}</div>
+          <div className={(portfolioMetric?.percentChange ?? seriesA[seriesA.length - 1] ?? 0) < 0 ? "text-destructive" : "text-emerald-600"}>
+            {portfolioMetric?.percentChange == null ? formatPercent(seriesA[seriesA.length - 1] ?? 0) : formatPercent(portfolioMetric.percentChange)}
+          </div>
           <div className="text-xs text-muted-foreground">
-            {formatCurrencyWithCode(points[points.length - 1].portfolioValue - points[0].portfolioValue, portfolioCurrency)}
+            {portfolioMetric?.valueChange == null
+              ? "Flow-adjusted"
+              : formatCurrencyWithCode(portfolioMetric.valueChange, portfolioCurrency)}
           </div>
         </div>
         <div>

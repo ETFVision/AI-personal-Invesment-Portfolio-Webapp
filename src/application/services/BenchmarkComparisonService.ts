@@ -1,4 +1,4 @@
-import { Benchmark, BenchmarkComparison, BenchmarkComparisonPoint, BenchmarkSnapshot, PortfolioSnapshot } from "@/domain/portfolio/types";
+import { Benchmark, BenchmarkComparison, BenchmarkComparisonPoint, BenchmarkSnapshot, PortfolioSnapshot, Transaction } from "@/domain/portfolio/types";
 
 function parseDate(value: string) {
   return new Date(`${value}T00:00:00.000Z`);
@@ -14,6 +14,31 @@ function cumulativeReturn(currentValue: number, baselineValue: number) {
   return baselineValue === 0 ? null : currentValue / baselineValue - 1;
 }
 
+function cashFlowAmount(transaction: Transaction) {
+  return Math.abs(transaction.netAmount ?? transaction.grossAmount ?? 0);
+}
+
+function flowAdjustedReturn(input: {
+  currentValue: number;
+  baselineValue: number;
+  baselineDate: string;
+  currentDate: string;
+  transactions: Transaction[];
+}) {
+  const periodTransactions = input.transactions.filter(
+    (transaction) => transaction.transactionDate > input.baselineDate && transaction.transactionDate <= input.currentDate
+  );
+  const deposits = periodTransactions
+    .filter((transaction) => transaction.transactionType === "deposit_cash")
+    .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
+  const withdrawals = periodTransactions
+    .filter((transaction) => transaction.transactionType === "withdraw_cash")
+    .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
+  const valueChange = input.currentValue - input.baselineValue - deposits + withdrawals;
+  const denominator = input.baselineValue + deposits;
+  return denominator === 0 ? null : valueChange / denominator;
+}
+
 function drawdown(currentValue: number, peakValue: number) {
   return peakValue === 0 ? null : currentValue / peakValue - 1;
 }
@@ -27,20 +52,29 @@ export class BenchmarkComparisonService {
     portfolioSnapshots: PortfolioSnapshot[];
     benchmarkSnapshots: BenchmarkSnapshot[];
     benchmarks: Benchmark[];
+    transactions?: Transaction[];
   }): BenchmarkComparison[] {
     const portfolioSeries = [...input.portfolioSnapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
     if (portfolioSeries.length === 0) return [];
 
     return input.benchmarks
       .filter((benchmark) => benchmark.isActive)
-      .map((benchmark) => this.calculateComparisonForBenchmark(portfolioSeries, benchmark, input.benchmarkSnapshots.filter((snapshot) => snapshot.benchmarkId === benchmark.id)))
+      .map((benchmark) =>
+        this.calculateComparisonForBenchmark(
+          portfolioSeries,
+          benchmark,
+          input.benchmarkSnapshots.filter((snapshot) => snapshot.benchmarkId === benchmark.id),
+          input.transactions ?? []
+        )
+      )
       .filter((comparison): comparison is BenchmarkComparison => Boolean(comparison));
   }
 
   private calculateComparisonForBenchmark(
     portfolioSeries: PortfolioSnapshot[],
     benchmark: Benchmark,
-    benchmarkSnapshots: BenchmarkSnapshot[]
+    benchmarkSnapshots: BenchmarkSnapshot[],
+    transactions: Transaction[]
   ): BenchmarkComparison | null {
     const benchmarkSeries = [...benchmarkSnapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
     if (benchmarkSeries.length === 0) {
@@ -91,7 +125,13 @@ export class BenchmarkComparisonService {
         snapshotDate,
         portfolioValue: portfolioPoint.totalValue,
         benchmarkValue: benchmarkPoint.levelValue,
-        portfolioReturn: cumulativeReturn(portfolioPoint.totalValue, baselinePortfolio.totalValue) ?? 0,
+        portfolioReturn: flowAdjustedReturn({
+          currentValue: portfolioPoint.totalValue,
+          baselineValue: baselinePortfolio.totalValue,
+          baselineDate,
+          currentDate: snapshotDate,
+          transactions
+        }) ?? 0,
         benchmarkReturn: cumulativeReturn(benchmarkPoint.levelValue, baselineBenchmark.levelValue) ?? 0,
         portfolioDrawdown: drawdown(portfolioPoint.totalValue, portfolioPeak) ?? 0,
         benchmarkDrawdown: drawdown(benchmarkPoint.levelValue, benchmarkPeak) ?? 0
@@ -109,13 +149,37 @@ export class BenchmarkComparisonService {
       cumulativePortfolioReturn: latest.portfolioReturn,
       cumulativeBenchmarkReturn: latest.benchmarkReturn,
       relativeOutperformance: latest.portfolioReturn - latest.benchmarkReturn,
-      rolling1DayPortfolioReturn: rolling1Baseline ? cumulativeReturn(latest.portfolioValue, rolling1Baseline.portfolioValue) : null,
+      rolling1DayPortfolioReturn: rolling1Baseline ? flowAdjustedReturn({
+        currentValue: latest.portfolioValue,
+        baselineValue: rolling1Baseline.portfolioValue,
+        baselineDate: rolling1Baseline.snapshotDate,
+        currentDate: latest.snapshotDate,
+        transactions
+      }) : null,
       rolling1DayBenchmarkReturn: rolling1Baseline ? cumulativeReturn(latest.benchmarkValue, rolling1Baseline.benchmarkValue) : null,
-      rolling7DayPortfolioReturn: rolling7Baseline ? cumulativeReturn(latest.portfolioValue, rolling7Baseline.portfolioValue) : null,
+      rolling7DayPortfolioReturn: rolling7Baseline ? flowAdjustedReturn({
+        currentValue: latest.portfolioValue,
+        baselineValue: rolling7Baseline.portfolioValue,
+        baselineDate: rolling7Baseline.snapshotDate,
+        currentDate: latest.snapshotDate,
+        transactions
+      }) : null,
       rolling7DayBenchmarkReturn: rolling7Baseline ? cumulativeReturn(latest.benchmarkValue, rolling7Baseline.benchmarkValue) : null,
-      rolling30DayPortfolioReturn: rolling30Baseline ? cumulativeReturn(latest.portfolioValue, rolling30Baseline.portfolioValue) : null,
+      rolling30DayPortfolioReturn: rolling30Baseline ? flowAdjustedReturn({
+        currentValue: latest.portfolioValue,
+        baselineValue: rolling30Baseline.portfolioValue,
+        baselineDate: rolling30Baseline.snapshotDate,
+        currentDate: latest.snapshotDate,
+        transactions
+      }) : null,
       rolling30DayBenchmarkReturn: rolling30Baseline ? cumulativeReturn(latest.benchmarkValue, rolling30Baseline.benchmarkValue) : null,
-      rolling90DayPortfolioReturn: rolling90Baseline ? cumulativeReturn(latest.portfolioValue, rolling90Baseline.portfolioValue) : null,
+      rolling90DayPortfolioReturn: rolling90Baseline ? flowAdjustedReturn({
+        currentValue: latest.portfolioValue,
+        baselineValue: rolling90Baseline.portfolioValue,
+        baselineDate: rolling90Baseline.snapshotDate,
+        currentDate: latest.snapshotDate,
+        transactions
+      }) : null,
       rolling90DayBenchmarkReturn: rolling90Baseline ? cumulativeReturn(latest.benchmarkValue, rolling90Baseline.benchmarkValue) : null,
       portfolioMaxDrawdown: Math.min(...points.map((point) => point.portfolioDrawdown)),
       benchmarkMaxDrawdown: Math.min(...points.map((point) => point.benchmarkDrawdown)),
