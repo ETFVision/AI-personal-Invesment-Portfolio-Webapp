@@ -496,3 +496,54 @@ Residual risks / follow-ups:
 - Multi-currency bond exposure still relies on native value estimates until FX conversion is implemented.
 - Add manual bond profile editing/admin review later if the curated classifications need user-level overrides in the UI.
 - Add deeper integration into future allocation, scenario, Market Vision, and recommendation layers after those modules exist.
+
+## 2026-06-01 - Bond Intelligence Enrichment QA
+
+Scope:
+- Yield placeholders.
+- Effective duration placeholders.
+- Spread duration placeholders.
+- Bond scenario impacts.
+- Bond diagnostics.
+- Allocation-engine-ready guidance.
+- Manual bond profile editing.
+
+Implemented:
+- Added enriched bond profile fields:
+  - SEC yield
+  - distribution yield
+  - yield-to-maturity
+  - yield as-of date
+  - effective duration
+  - average maturity
+  - spread duration
+  - option-adjusted spread
+  - expense ratio
+  - manual override flag
+- Added deterministic scenario impacts:
+  - rates +1%
+  - rates -1%
+  - inflation surprise
+  - recession
+  - credit spread widening
+- Added bond diagnostics and allocation guidance messages.
+- Added manual bond profile edit forms on the Bond Intelligence page.
+- Extended bond analytics tests to cover scenario generation.
+
+Validation run:
+- `npm.cmd run lint`
+- `npm.cmd run test`
+- `npm.cmd run typecheck`
+- `npm.cmd run build`
+
+Findings:
+- No AI, recommendations, Market Vision, scoring, or telemetry logic was added.
+- Scenario impacts remain deterministic and intentionally simple.
+- Effective duration and spread duration are seeded placeholders until richer ETF provider data is added.
+- Manual profile updates use server actions and repository/service layers.
+
+Residual risks / follow-ups:
+- Apply `supabase/migrations/017_bond_profile_enrichment.sql` after applying migration 016.
+- Yield and duration placeholders should eventually be replaced or reviewed against issuer/provider data.
+- Scenario math is first-order and does not include convexity, currency hedging, callable bond behavior, changing yield curves, or credit migration.
+- Manual profile editing is intentionally simple; a fuller admin workflow can add audit history and review status later.

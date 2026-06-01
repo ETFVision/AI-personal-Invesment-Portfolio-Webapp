@@ -1,11 +1,20 @@
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { createContainer } from "@/server/container";
+import { saveBondProfileAction } from "@/server/actions/universeActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { formatCurrencyWithCode, formatPercent } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 import type { AllocationItem } from "@/domain/portfolio/types";
-import type { BondAnalyticsReport } from "@/application/services/bonds/BondTypes";
+import type { BondAnalyticsReport, BondHoldingExposure } from "@/application/services/bonds/BondTypes";
+
+type BondsPageProps = {
+  searchParams?: Promise<{ message?: string; error?: string }>;
+};
 
 function titleCase(value: string) {
   return value
@@ -65,6 +74,8 @@ function BondHoldingsTable({ report }: { report: BondAnalyticsReport }) {
             <th className="p-3 font-medium">Duration</th>
             <th className="p-3 font-medium">Type</th>
             <th className="p-3 font-medium">Credit</th>
+            <th className="p-3 text-right font-medium">SEC yield</th>
+            <th className="p-3 text-right font-medium">Eff. duration</th>
             <th className="p-3 font-medium">Role</th>
           </tr>
         </thead>
@@ -81,6 +92,8 @@ function BondHoldingsTable({ report }: { report: BondAnalyticsReport }) {
               <td className="p-3">{titleCase(holding.durationCategory)}</td>
               <td className="p-3">{titleCase(holding.bondType)}</td>
               <td className="p-3">{titleCase(holding.creditQuality)}</td>
+              <td className="p-3 text-right">{holding.secYield == null ? "-" : formatPercent(holding.secYield)}</td>
+              <td className="p-3 text-right">{holding.effectiveDuration == null ? "-" : formatNumber(holding.effectiveDuration, 2)}</td>
               <td className="p-3 text-muted-foreground">{titleCase(holding.liquidityRole)}</td>
             </tr>
           ))}
@@ -90,7 +103,121 @@ function BondHoldingsTable({ report }: { report: BondAnalyticsReport }) {
   );
 }
 
-export default async function BondsPage() {
+function ScenarioTable({ report }: { report: BondAnalyticsReport }) {
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full min-w-[720px] text-sm">
+        <thead className="bg-muted/60 text-left">
+          <tr>
+            <th className="p-3 font-medium">Scenario</th>
+            <th className="p-3 text-right font-medium">Bond sleeve impact</th>
+            <th className="p-3 text-right font-medium">Portfolio impact</th>
+            <th className="p-3 font-medium">Logic</th>
+          </tr>
+        </thead>
+        <tbody>
+          {report.scenarioImpacts.map((scenario) => (
+            <tr key={scenario.scenarioKey} className="border-t">
+              <td className="p-3 font-medium">{scenario.label}</td>
+              <td className="p-3 text-right">{scenario.estimatedBondSleeveImpact == null ? "Needs data" : formatPercent(scenario.estimatedBondSleeveImpact)}</td>
+              <td className="p-3 text-right">{scenario.estimatedPortfolioImpact == null ? "Needs data" : formatPercent(scenario.estimatedPortfolioImpact)}</td>
+              <td className="p-3 text-muted-foreground">{scenario.explanation}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function BondProfileEditor({ holdings }: { holdings: BondHoldingExposure[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Bond profile admin</CardTitle>
+        <CardDescription>Manual overrides for curated bond ETF fields. Percent inputs should be decimals, e.g. 0.045 for 4.5%.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {holdings.map((holding) => (
+          <form key={holding.holdingId} action={saveBondProfileAction} className="grid gap-3 rounded-md border p-4 md:grid-cols-4">
+            <input type="hidden" name="instrumentId" value={holding.instrumentId} />
+            <input type="hidden" name="symbol" value={holding.symbol} />
+            <div className="space-y-2">
+              <Label>{holding.symbol}</Label>
+              <Input value={holding.name} readOnly />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${holding.holdingId}-duration`}>Duration</Label>
+              <Select id={`${holding.holdingId}-duration`} name="durationCategory" defaultValue={holding.durationCategory}>
+                <option value="ultra-short">Ultra-short</option>
+                <option value="short">Short</option>
+                <option value="short/intermediate">Short/intermediate</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="long">Long</option>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${holding.holdingId}-type`}>Type</Label>
+              <Select id={`${holding.holdingId}-type`} name="treasuryClassification" defaultValue={holding.bondType}>
+                <option value="treasury">Treasury</option>
+                <option value="aggregate">Aggregate</option>
+                <option value="corporate">Corporate</option>
+                <option value="high yield">High yield</option>
+                <option value="inflation-linked">Inflation-linked</option>
+                <option value="international">International</option>
+                <option value="cash-like">Cash-like</option>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${holding.holdingId}-credit`}>Credit</Label>
+              <Select id={`${holding.holdingId}-credit`} name="creditQuality" defaultValue={holding.creditQuality}>
+                <option value="government">Government</option>
+                <option value="investment grade">Investment grade</option>
+                <option value="mixed investment grade">Mixed investment grade</option>
+                <option value="high yield">High yield</option>
+                <option value="mixed">Mixed</option>
+              </Select>
+            </div>
+            <input type="hidden" name="geoExposure" value={holding.geography} />
+            <input type="hidden" name="currency" value={holding.currency} />
+            <input type="hidden" name="rateSensitivity" value={holding.rateSensitivity} />
+            <input type="hidden" name="inflationSensitivity" value={holding.inflationSensitivity} />
+            <input type="hidden" name="recessionSensitivity" value={holding.recessionSensitivity} />
+            <input type="hidden" name="liquidityRole" value={holding.liquidityRole} />
+            <input type="hidden" name="inflationLinked" value={holding.inflationLinked ? "true" : "false"} />
+            <NumberInput id={`${holding.holdingId}-sec`} label="SEC yield" name="secYield" value={holding.secYield} />
+            <NumberInput id={`${holding.holdingId}-dist`} label="Dist. yield" name="distributionYield" value={holding.distributionYield} />
+            <NumberInput id={`${holding.holdingId}-ytm`} label="YTM" name="yieldToMaturity" value={holding.yieldToMaturity} />
+            <div className="space-y-2">
+              <Label htmlFor={`${holding.holdingId}-yield-date`}>Yield date</Label>
+              <Input id={`${holding.holdingId}-yield-date`} name="yieldAsOfDate" type="date" defaultValue={holding.yieldAsOfDate ?? ""} />
+            </div>
+            <NumberInput id={`${holding.holdingId}-duration-value`} label="Eff. duration" name="effectiveDuration" value={holding.effectiveDuration} />
+            <NumberInput id={`${holding.holdingId}-maturity`} label="Avg maturity" name="averageMaturity" value={holding.averageMaturity} />
+            <NumberInput id={`${holding.holdingId}-spread-duration`} label="Spread duration" name="spreadDuration" value={holding.spreadDuration} />
+            <NumberInput id={`${holding.holdingId}-oas`} label="OAS" name="optionAdjustedSpread" value={holding.optionAdjustedSpread} />
+            <NumberInput id={`${holding.holdingId}-expense`} label="Expense ratio" name="expenseRatio" value={holding.expenseRatio} />
+            <div className="flex items-end">
+              <SubmitButton pendingLabel="Saving...">Save profile</SubmitButton>
+            </div>
+          </form>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function NumberInput({ id, label, name, value }: { id: string; label: string; name: string; value: number | null }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} name={name} type="number" step="0.0001" defaultValue={value ?? ""} />
+    </div>
+  );
+}
+
+export default async function BondsPage({ searchParams }: BondsPageProps) {
+  const params = await searchParams;
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();
   const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
@@ -136,6 +263,14 @@ export default async function BondsPage() {
           Deterministic fixed-income analytics for bond ETF exposure, duration risk, credit risk, inflation sensitivity, and recession-hedging role.
         </p>
       </div>
+
+      {params?.message || params?.error ? (
+        <Card>
+          <CardContent className={`p-4 text-sm ${params.error ? "text-destructive" : "text-muted-foreground"}`}>
+            {params.error ?? params.message}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard title="Bond allocation" value={formatPercent(report.totalBondAllocation)} description={formatCurrencyWithCode(report.totalBondValue, portfolio.baseCurrency)} />
@@ -218,6 +353,37 @@ export default async function BondsPage() {
         </Card>
       </section>
 
+      <section className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Diagnostics</CardTitle>
+            <CardDescription>Plain-language checks for the current bond sleeve.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {report.diagnostics.map((item) => <p key={item} className="rounded-md border p-3">{item}</p>)}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Allocation guidance inputs</CardTitle>
+            <CardDescription>Deterministic notes that future allocation logic can consume.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {report.allocationGuidance.map((item) => <p key={item} className="rounded-md border p-3">{item}</p>)}
+          </CardContent>
+        </Card>
+      </section>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Bond scenario impacts</CardTitle>
+          <CardDescription>Foundation-level deterministic estimates using duration and credit-spread placeholders.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScenarioTable report={report} />
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Bond ETF exposure table</CardTitle>
@@ -227,6 +393,8 @@ export default async function BondsPage() {
           <BondHoldingsTable report={report} />
         </CardContent>
       </Card>
+
+      <BondProfileEditor holdings={report.bondHoldings} />
     </div>
   );
 }

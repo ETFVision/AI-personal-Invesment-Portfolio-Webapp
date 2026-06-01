@@ -438,6 +438,17 @@ function bondProfile(
     recessionSensitivity,
     liquidityRole,
     currency,
+    secYield: null,
+    distributionYield: null,
+    yieldToMaturity: null,
+    yieldAsOfDate: null,
+    effectiveDuration: null,
+    averageMaturity: null,
+    spreadDuration: null,
+    optionAdjustedSpread: null,
+    expenseRatio: null,
+    isManualOverride: false,
+    updatedAt: null,
     providerMetadata: {}
   };
 }

@@ -58,6 +58,17 @@ function bondProfile(input: Partial<BondProfile> & { instrumentId: string; symbo
     recessionSensitivity: input.recessionSensitivity ?? null,
     liquidityRole: input.liquidityRole ?? null,
     currency: input.currency ?? "USD",
+    secYield: null,
+    distributionYield: null,
+    yieldToMaturity: null,
+    yieldAsOfDate: null,
+    effectiveDuration: input.effectiveDuration ?? null,
+    averageMaturity: null,
+    spreadDuration: input.spreadDuration ?? null,
+    optionAdjustedSpread: null,
+    expenseRatio: null,
+    isManualOverride: false,
+    updatedAt: null,
     providerMetadata: {}
   };
 }
@@ -139,6 +150,7 @@ test("calculates duration, credit, inflation-linked, treasury, corporate, and ca
   assert.equal(report.highYieldExposure, 0.1);
   assert.equal(report.treasuryExposure, 0.4);
   assert.equal(report.corporateExposure, 0.1);
+  assert.ok(report.scenarioImpacts.length >= 5);
 });
 
 test("handles no-bond portfolio case without warnings", () => {

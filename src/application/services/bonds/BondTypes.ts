@@ -2,6 +2,7 @@ import type { AllocationItem, HoldingValuation } from "@/domain/portfolio/types"
 import type { BondProfile, Instrument } from "@/domain/universe/types";
 
 export type BondHoldingExposure = {
+  instrumentId: string;
   holdingId: string;
   symbol: string;
   name: string;
@@ -18,6 +19,19 @@ export type BondHoldingExposure = {
   inflationSensitivity: string;
   recessionSensitivity: string;
   liquidityRole: string;
+  secYield: number | null;
+  distributionYield: number | null;
+  yieldToMaturity: number | null;
+  yieldAsOfDate: string | null;
+  effectiveDuration: number | null;
+  averageMaturity: number | null;
+  spreadDuration: number | null;
+  optionAdjustedSpread: number | null;
+  expenseRatio: number | null;
+  estimatedRateShockDown1Pct: number | null;
+  estimatedRateShockUp1Pct: number | null;
+  estimatedSpreadWidening1Pct: number | null;
+  isManualOverride: boolean;
 };
 
 export type BondRoleSummary = {
@@ -25,6 +39,14 @@ export type BondRoleSummary = {
   income: string;
   recessionHedge: string;
   inflationHedge: string;
+};
+
+export type BondScenarioImpact = {
+  scenarioKey: "rates_up" | "rates_down" | "inflation_surprise" | "recession" | "credit_spread_widening";
+  label: string;
+  estimatedPortfolioImpact: number | null;
+  estimatedBondSleeveImpact: number | null;
+  explanation: string;
 };
 
 export type BondAnalyticsReport = {
@@ -48,6 +70,9 @@ export type BondAnalyticsReport = {
   creditRiskExposure: number;
   roleSummary: BondRoleSummary;
   warnings: string[];
+  diagnostics: string[];
+  allocationGuidance: string[];
+  scenarioImpacts: BondScenarioImpact[];
   profileCoverage: number;
 };
 

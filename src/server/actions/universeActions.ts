@@ -19,6 +19,13 @@ function formTags(formData: FormData, key: string) {
     .filter(Boolean);
 }
 
+function formNullableNumber(formData: FormData, key: string) {
+  const value = formString(formData, key);
+  if (!value) return null;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
 export async function seedUniverseAction() {
   await createContainer().authProvider.requireUser();
   const result = await createContainer().universeManagementService.ensureSeededUniverse();
@@ -62,6 +69,40 @@ export async function saveInstrumentTagsAction(formData: FormData) {
   const thematicTags = formTags(formData, "thematicTags");
   await createContainer().instrumentService.updateInstrumentTags([{ instrumentId, benchmarkTags, thematicTags }]);
   redirect("/universe?message=Instrument%20tags%20updated.");
+}
+
+export async function saveBondProfileAction(formData: FormData) {
+  await createContainer().authProvider.requireUser();
+  const container = createContainer();
+  const instrumentId = formString(formData, "instrumentId");
+  const symbol = formString(formData, "symbol") || null;
+  await container.instrumentService.updateBondProfile({
+    instrumentId,
+    symbol,
+    durationCategory: formString(formData, "durationCategory") || null,
+    treasuryClassification: formString(formData, "treasuryClassification") || null,
+    inflationLinked: formBoolean(formData, "inflationLinked"),
+    creditQuality: formString(formData, "creditQuality") || null,
+    geoExposure: formString(formData, "geoExposure") || null,
+    rateSensitivity: formString(formData, "rateSensitivity") || null,
+    inflationSensitivity: formString(formData, "inflationSensitivity") || null,
+    recessionSensitivity: formString(formData, "recessionSensitivity") || null,
+    liquidityRole: formString(formData, "liquidityRole") || null,
+    currency: formString(formData, "currency") || null,
+    secYield: formNullableNumber(formData, "secYield"),
+    distributionYield: formNullableNumber(formData, "distributionYield"),
+    yieldToMaturity: formNullableNumber(formData, "yieldToMaturity"),
+    yieldAsOfDate: formString(formData, "yieldAsOfDate") || null,
+    effectiveDuration: formNullableNumber(formData, "effectiveDuration"),
+    averageMaturity: formNullableNumber(formData, "averageMaturity"),
+    spreadDuration: formNullableNumber(formData, "spreadDuration"),
+    optionAdjustedSpread: formNullableNumber(formData, "optionAdjustedSpread"),
+    expenseRatio: formNullableNumber(formData, "expenseRatio"),
+    isManualOverride: true,
+    updatedAt: null,
+    providerMetadata: { source: "manual_admin" }
+  });
+  redirect("/bonds?message=Bond%20profile%20updated.");
 }
 
 export async function addWatchlistItemAction(formData: FormData) {

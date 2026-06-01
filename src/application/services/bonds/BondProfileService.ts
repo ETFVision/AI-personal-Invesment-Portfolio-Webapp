@@ -13,9 +13,19 @@ export type NormalizedBondProfile = {
   inflationSensitivity: string;
   recessionSensitivity: string;
   liquidityRole: string;
+  secYield: number | null;
+  distributionYield: number | null;
+  yieldToMaturity: number | null;
+  yieldAsOfDate: string | null;
+  effectiveDuration: number | null;
+  averageMaturity: number | null;
+  spreadDuration: number | null;
+  optionAdjustedSpread: number | null;
+  expenseRatio: number | null;
+  isManualOverride: boolean;
 };
 
-const SEEDED_BOND_PROFILES: Record<string, Omit<NormalizedBondProfile, "instrumentId" | "symbol">> = {
+const SEEDED_BOND_PROFILES: Record<string, Omit<NormalizedBondProfile, "instrumentId" | "symbol" | "secYield" | "distributionYield" | "yieldToMaturity" | "yieldAsOfDate" | "optionAdjustedSpread" | "expenseRatio" | "isManualOverride">> = {
   SGOV: {
     durationCategory: "ultra-short",
     bondType: "treasury",
@@ -26,7 +36,10 @@ const SEEDED_BOND_PROFILES: Record<string, Omit<NormalizedBondProfile, "instrume
     rateSensitivity: "low",
     inflationSensitivity: "low",
     recessionSensitivity: "positive",
-    liquidityRole: "cash-like stability"
+    liquidityRole: "cash-like stability",
+    effectiveDuration: 0.1,
+    averageMaturity: 0.1,
+    spreadDuration: 0
   },
   BIL: {
     durationCategory: "ultra-short",
@@ -38,7 +51,10 @@ const SEEDED_BOND_PROFILES: Record<string, Omit<NormalizedBondProfile, "instrume
     rateSensitivity: "low",
     inflationSensitivity: "low",
     recessionSensitivity: "positive",
-    liquidityRole: "cash-like stability"
+    liquidityRole: "cash-like stability",
+    effectiveDuration: 0.15,
+    averageMaturity: 0.15,
+    spreadDuration: 0
   },
   SHY: {
     durationCategory: "short",
@@ -50,7 +66,10 @@ const SEEDED_BOND_PROFILES: Record<string, Omit<NormalizedBondProfile, "instrume
     rateSensitivity: "low",
     inflationSensitivity: "low",
     recessionSensitivity: "positive",
-    liquidityRole: "stability"
+    liquidityRole: "stability",
+    effectiveDuration: 1.9,
+    averageMaturity: 2,
+    spreadDuration: 0
   },
   IEF: {
     durationCategory: "intermediate",
@@ -62,7 +81,10 @@ const SEEDED_BOND_PROFILES: Record<string, Omit<NormalizedBondProfile, "instrume
     rateSensitivity: "medium",
     inflationSensitivity: "moderate negative",
     recessionSensitivity: "positive",
-    liquidityRole: "recession hedge"
+    liquidityRole: "recession hedge",
+    effectiveDuration: 7.5,
+    averageMaturity: 8,
+    spreadDuration: 0
   },
   TLT: {
     durationCategory: "long",
@@ -74,7 +96,10 @@ const SEEDED_BOND_PROFILES: Record<string, Omit<NormalizedBondProfile, "instrume
     rateSensitivity: "high",
     inflationSensitivity: "negative",
     recessionSensitivity: "positive",
-    liquidityRole: "long-duration recession hedge"
+    liquidityRole: "long-duration recession hedge",
+    effectiveDuration: 16.5,
+    averageMaturity: 25,
+    spreadDuration: 0
   },
   BND: {
     durationCategory: "intermediate",
@@ -86,7 +111,10 @@ const SEEDED_BOND_PROFILES: Record<string, Omit<NormalizedBondProfile, "instrume
     rateSensitivity: "medium",
     inflationSensitivity: "moderate negative",
     recessionSensitivity: "mixed",
-    liquidityRole: "core stability"
+    liquidityRole: "core stability",
+    effectiveDuration: 6.0,
+    averageMaturity: 8.5,
+    spreadDuration: 2.5
   },
   AGG: {
     durationCategory: "intermediate",
@@ -98,7 +126,10 @@ const SEEDED_BOND_PROFILES: Record<string, Omit<NormalizedBondProfile, "instrume
     rateSensitivity: "medium",
     inflationSensitivity: "moderate negative",
     recessionSensitivity: "mixed",
-    liquidityRole: "core stability"
+    liquidityRole: "core stability",
+    effectiveDuration: 6.0,
+    averageMaturity: 8.5,
+    spreadDuration: 2.5
   },
   TIP: {
     durationCategory: "intermediate",
@@ -110,7 +141,10 @@ const SEEDED_BOND_PROFILES: Record<string, Omit<NormalizedBondProfile, "instrume
     rateSensitivity: "medium",
     inflationSensitivity: "positive",
     recessionSensitivity: "mixed",
-    liquidityRole: "inflation hedge"
+    liquidityRole: "inflation hedge",
+    effectiveDuration: 6.5,
+    averageMaturity: 7.5,
+    spreadDuration: 0
   },
   LQD: {
     durationCategory: "intermediate",
@@ -122,7 +156,10 @@ const SEEDED_BOND_PROFILES: Record<string, Omit<NormalizedBondProfile, "instrume
     rateSensitivity: "medium",
     inflationSensitivity: "moderate negative",
     recessionSensitivity: "negative",
-    liquidityRole: "income"
+    liquidityRole: "income",
+    effectiveDuration: 8.0,
+    averageMaturity: 13,
+    spreadDuration: 7.5
   },
   HYG: {
     durationCategory: "short/intermediate",
@@ -134,7 +171,10 @@ const SEEDED_BOND_PROFILES: Record<string, Omit<NormalizedBondProfile, "instrume
     rateSensitivity: "medium",
     inflationSensitivity: "moderate",
     recessionSensitivity: "negative",
-    liquidityRole: "income with credit risk"
+    liquidityRole: "income with credit risk",
+    effectiveDuration: 3.5,
+    averageMaturity: 4.5,
+    spreadDuration: 3.5
   },
   BNDX: {
     durationCategory: "intermediate",
@@ -146,7 +186,10 @@ const SEEDED_BOND_PROFILES: Record<string, Omit<NormalizedBondProfile, "instrume
     rateSensitivity: "medium",
     inflationSensitivity: "moderate",
     recessionSensitivity: "mixed",
-    liquidityRole: "international diversification"
+    liquidityRole: "international diversification",
+    effectiveDuration: 7.0,
+    averageMaturity: 9,
+    spreadDuration: 2
   }
 };
 
@@ -182,7 +225,17 @@ export class BondProfileService {
         profile?.inflationSensitivity ?? instrument.inflationSensitivity ?? seeded?.inflationSensitivity ?? this.inflationSensitivityFor(durationCategory, Boolean(profile?.inflationLinked ?? instrument.inflationLinked)),
       recessionSensitivity:
         profile?.recessionSensitivity ?? instrument.recessionSensitivity ?? seeded?.recessionSensitivity ?? this.recessionSensitivityFor(bondType),
-      liquidityRole: profile?.liquidityRole ?? instrument.liquidityRole ?? seeded?.liquidityRole ?? "stability"
+      liquidityRole: profile?.liquidityRole ?? instrument.liquidityRole ?? seeded?.liquidityRole ?? "stability",
+      secYield: profile?.secYield ?? null,
+      distributionYield: profile?.distributionYield ?? null,
+      yieldToMaturity: profile?.yieldToMaturity ?? null,
+      yieldAsOfDate: profile?.yieldAsOfDate ?? null,
+      effectiveDuration: profile?.effectiveDuration ?? seeded?.effectiveDuration ?? null,
+      averageMaturity: profile?.averageMaturity ?? seeded?.averageMaturity ?? null,
+      spreadDuration: profile?.spreadDuration ?? seeded?.spreadDuration ?? null,
+      optionAdjustedSpread: profile?.optionAdjustedSpread ?? null,
+      expenseRatio: profile?.expenseRatio ?? null,
+      isManualOverride: profile?.isManualOverride ?? false
     };
   }
 

@@ -50,4 +50,8 @@ export class InstrumentService {
   updateInstrumentTaxonomy(input: Parameters<UniverseRepository["upsertInstrumentTaxonomy"]>[0]) {
     return this.repository.upsertInstrumentTaxonomy(input);
   }
+
+  updateBondProfile(input: Parameters<UniverseRepository["upsertBondProfiles"]>[0][number]) {
+    return this.repository.upsertBondProfiles([input]);
+  }
 }

@@ -130,6 +130,17 @@ function mapBondProfile(row: any): BondProfile {
     recessionSensitivity: row.recession_sensitivity,
     liquidityRole: row.liquidity_role,
     currency: row.currency,
+    secYield: row.sec_yield == null ? null : Number(row.sec_yield),
+    distributionYield: row.distribution_yield == null ? null : Number(row.distribution_yield),
+    yieldToMaturity: row.yield_to_maturity == null ? null : Number(row.yield_to_maturity),
+    yieldAsOfDate: row.yield_as_of_date,
+    effectiveDuration: row.effective_duration == null ? null : Number(row.effective_duration),
+    averageMaturity: row.average_maturity == null ? null : Number(row.average_maturity),
+    spreadDuration: row.spread_duration == null ? null : Number(row.spread_duration),
+    optionAdjustedSpread: row.option_adjusted_spread == null ? null : Number(row.option_adjusted_spread),
+    expenseRatio: row.expense_ratio == null ? null : Number(row.expense_ratio),
+    isManualOverride: Boolean(row.is_manual_override),
+    updatedAt: row.updated_at ?? null,
     providerMetadata: row.provider_metadata ?? {}
   };
 }
@@ -730,6 +741,16 @@ export class SupabaseUniverseRepository implements UniverseRepository {
         recession_sensitivity: item.recessionSensitivity,
         liquidity_role: item.liquidityRole,
         currency: item.currency,
+        sec_yield: item.secYield,
+        distribution_yield: item.distributionYield,
+        yield_to_maturity: item.yieldToMaturity,
+        yield_as_of_date: item.yieldAsOfDate,
+        effective_duration: item.effectiveDuration,
+        average_maturity: item.averageMaturity,
+        spread_duration: item.spreadDuration,
+        option_adjusted_spread: item.optionAdjustedSpread,
+        expense_ratio: item.expenseRatio,
+        is_manual_override: item.isManualOverride,
         provider_metadata: item.providerMetadata
       })),
       { onConflict: "instrument_id" }

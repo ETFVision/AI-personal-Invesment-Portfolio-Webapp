@@ -142,6 +142,17 @@ export type BondProfile = {
   recessionSensitivity: string | null;
   liquidityRole: string | null;
   currency: string | null;
+  secYield: number | null;
+  distributionYield: number | null;
+  yieldToMaturity: number | null;
+  yieldAsOfDate: string | null;
+  effectiveDuration: number | null;
+  averageMaturity: number | null;
+  spreadDuration: number | null;
+  optionAdjustedSpread: number | null;
+  expenseRatio: number | null;
+  isManualOverride: boolean;
+  updatedAt: string | null;
   providerMetadata: Record<string, unknown>;
 };
 
