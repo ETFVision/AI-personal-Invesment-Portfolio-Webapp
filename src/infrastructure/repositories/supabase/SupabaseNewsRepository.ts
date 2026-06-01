@@ -104,6 +104,7 @@ function mapWeekly(row: any): WeeklyNewsReconciliation {
     keyRisks: toStringArray(row.key_risks),
     keyOpportunities: toStringArray(row.key_opportunities),
     portfolioImplications: row.portfolio_implications ?? {},
+    coverageMetadata: row.coverage_metadata ?? {},
     modelUsed: row.model_used,
     tokenUsage: row.token_usage ?? {},
     costEstimate: row.cost_estimate == null ? null : Number(row.cost_estimate),
@@ -329,6 +330,7 @@ export class SupabaseNewsRepository implements NewsRepository {
       key_risks: input.keyRisks,
       key_opportunities: input.keyOpportunities,
       portfolio_implications: input.portfolioImplications,
+      coverage_metadata: input.coverageMetadata,
       model_used: input.modelUsed,
       token_usage: input.tokenUsage,
       cost_estimate: input.costEstimate

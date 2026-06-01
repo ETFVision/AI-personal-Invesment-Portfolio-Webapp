@@ -100,7 +100,7 @@ class FakeNewsRepository implements NewsRepository {
   async upsertGroups() {}
   async listGroups() { return []; }
   async upsertWeeklyReconciliation(input: UpsertWeeklyNewsReconciliationInput) {
-    const row = { ...input, id: input.id ?? "weekly-1", createdAt: "", updatedAt: "" };
+    const row = { ...input, coverageMetadata: input.coverageMetadata ?? {}, id: input.id ?? "weekly-1", createdAt: "", updatedAt: "" };
     this.weekly = [row];
     return row;
   }
@@ -209,9 +209,25 @@ test("deterministic classifier routes obvious stock news to equities", () => {
   assert.deepEqual(output.affectedInstruments, ["NVDA", "INTC"]);
 });
 
+test("deterministic classifier avoids false positives for gold rush and stock forecasts", () => {
+  const service = new NewsClassificationService(new FakeNewsRepository());
+  const goldRush = service.deterministicFallback(newsItem({
+    title: "Fleeing for their futures, a California exodus unleashes a Florida gold rush",
+    tickers: []
+  }));
+  assert.deepEqual(goldRush.affectedAssetClasses, []);
+
+  const chipForecast = service.deterministicFallback(newsItem({
+    title: "AMD, INTC and NVDA Forecasts - Chips Mixed Early on Monday",
+    tickers: ["AMD", "INTC", "NVDA"]
+  }));
+  assert.deepEqual(chipForecast.affectedAssetClasses, ["equities"]);
+  assert.deepEqual(chipForecast.affectedMacroCategories, []);
+});
+
 test("weekly reconciliation groups classified news and creates draft summary", async () => {
   const repository = new FakeNewsRepository();
-  repository.items = [newsItem({ id: "eq" }), newsItem({ id: "rate", title: "Fed rate outlook changes" })];
+  repository.items = [newsItem({ id: "eq" }), newsItem({ id: "rate", title: "Fed rate outlook changes", tickers: [] })];
   repository.classifications = [
     classification({ newsItemId: "eq", affectedAssetClasses: ["equities"], sentiment: "positive" }),
     classification({ newsItemId: "rate", affectedAssetClasses: ["macro"], affectedMacroCategories: ["rates"], sentiment: "negative" })
@@ -221,6 +237,8 @@ test("weekly reconciliation groups classified news and creates draft summary", a
   assert.equal(weekly.status, "draft");
   assert.match(weekly.equitiesSummary ?? "", /equities/);
   assert.match(weekly.ratesSummary ?? "", /rates/);
+  assert.equal((weekly.coverageMetadata.bucketCounts as Record<string, number>).equities, 1);
+  assert.equal(weekly.coverageMetadata.classifiedInPeriod, 2);
 });
 
 test("weekly reconciliation does not dump ticker-linked market news into macro", async () => {
@@ -243,6 +261,32 @@ test("weekly reconciliation does not dump ticker-linked market news into macro",
   const grouped = service.groupByBucket(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
   assert.equal(grouped.get("equities")?.length, 1);
   assert.equal(grouped.get("macro")?.length, 0);
+});
+
+test("weekly reconciliation avoids gold and geopolitical false positives for equity-like titles", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "gold-rush",
+      title: "Fleeing for their futures, a California exodus unleashes a Florida gold rush",
+      tickers: []
+    }),
+    newsItem({
+      id: "defense-stocks",
+      title: "The Pentagon Has $50 Billion in War Damage to Repair. These Defense Stocks Stand to Win.",
+      tickers: ["LMT"]
+    })
+  ];
+  repository.classifications = [
+    classification({ newsItemId: "gold-rush", affectedAssetClasses: [], affectedMacroCategories: [] }),
+    classification({ newsItemId: "defense-stocks", affectedAssetClasses: [], affectedMacroCategories: [] })
+  ];
+  const service = new WeeklyNewsReconciliationService(repository);
+  const grouped = service.groupByBucket(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
+  assert.equal(grouped.get("gold")?.length, 0);
+  assert.equal(grouped.get("geopolitical")?.length, 0);
+  assert.equal(grouped.get("equities")?.length, 1);
+  assert.equal(grouped.get("macro")?.length, 1);
 });
 
 test("cron protection rejects missing or invalid secret", () => {

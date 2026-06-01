@@ -84,6 +84,7 @@ export type WeeklyNewsReconciliation = {
   keyRisks: string[];
   keyOpportunities: string[];
   portfolioImplications: Record<string, unknown>;
+  coverageMetadata: Record<string, unknown>;
   modelUsed: string | null;
   tokenUsage: Record<string, unknown>;
   costEstimate: number | null;

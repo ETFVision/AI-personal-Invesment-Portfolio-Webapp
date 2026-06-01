@@ -37,6 +37,19 @@ function ReconciliationSection({ title, value }: { title: string; value: string 
   );
 }
 
+function coverageNumber(metadata: Record<string, unknown>, key: string) {
+  const value = metadata[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function bucketCount(metadata: Record<string, unknown>, key: string) {
+  const buckets = typeof metadata.bucketCounts === "object" && metadata.bucketCounts !== null
+    ? metadata.bucketCounts as Record<string, unknown>
+    : {};
+  const value = buckets[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
 export default async function NewsPage({ searchParams }: NewsPageProps) {
   const params = await searchParams;
   const container = createContainer();
@@ -184,6 +197,24 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                     <div className="rounded-md border bg-muted/30 p-3">
                       <div className="font-medium">{item.periodStart} to {item.periodEnd} - {item.status}</div>
                       <div className="mt-1 text-xs text-muted-foreground">Newest reconciliation shown. Older drafts remain stored below the latest entry count.</div>
+                    </div>
+                    <div className="grid gap-3 text-sm md:grid-cols-4">
+                      <div className="rounded-md border p-3">
+                        <p className="text-xs uppercase text-muted-foreground">Classified in period</p>
+                        <p className="mt-1 text-xl font-semibold">{coverageNumber(item.coverageMetadata, "classifiedInPeriod")}</p>
+                      </div>
+                      <div className="rounded-md border p-3">
+                        <p className="text-xs uppercase text-muted-foreground">Included</p>
+                        <p className="mt-1 text-xl font-semibold">{coverageNumber(item.coverageMetadata, "includedInReconciliation")}</p>
+                      </div>
+                      <div className="rounded-md border p-3">
+                        <p className="text-xs uppercase text-muted-foreground">Excluded by limit</p>
+                        <p className="mt-1 text-xl font-semibold">{coverageNumber(item.coverageMetadata, "excludedByWeeklyLimit")}</p>
+                      </div>
+                      <div className="rounded-md border p-3">
+                        <p className="text-xs uppercase text-muted-foreground">Equity items</p>
+                        <p className="mt-1 text-xl font-semibold">{bucketCount(item.coverageMetadata, "equities")}</p>
+                      </div>
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
                       <ReconciliationSection title="Equities" value={item.equitiesSummary} />

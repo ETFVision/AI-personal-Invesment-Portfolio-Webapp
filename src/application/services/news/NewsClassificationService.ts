@@ -8,6 +8,7 @@ const labels: NewsClassificationLabel[] = ["short_term_noise", "medium_term_them
 const cryptoSymbols = new Set(["BTC", "BTCUSD", "ETH", "ETHUSD", "SOL", "SOLUSD", "IBIT", "FBTC", "BITB", "ARKB", "ETHA", "ETHE", "FETH"]);
 const bondSymbols = new Set(["BND", "AGG", "SHY", "IEF", "TLT", "TIP", "LQD", "HYG", "SGOV", "BIL", "BNDX"]);
 const goldSymbols = new Set(["GLD", "IAU"]);
+const companyOrEquityTerms = ["stock", "stocks", "equity", "equities", "s&p 500", "nasdaq", "dow", "spy", "qqq", "earnings", "shares", "forecast", "forecasts"];
 
 function includesAny(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term));
@@ -93,12 +94,15 @@ export class NewsClassificationService {
     const hasTicker = symbols.length > 0;
     const isCrypto = symbols.some((symbol) => cryptoSymbols.has(symbol)) || includesAny(text, ["bitcoin", "ethereum", "solana", "crypto"]);
     const isBond = symbols.some((symbol) => bondSymbols.has(symbol)) || includesAny(text, ["treasury", "bond", "yield curve", "credit spread"]);
-    const isGold = symbols.some((symbol) => goldSymbols.has(symbol)) || includesAny(text, ["gold", "commodity", "commodities"]);
-    const isRates = includesAny(text, ["fed", "federal reserve", "interest rate", "rate cut", "rate hike", "yield", "treasury yield"]);
+    const isCompanyOrEquity = hasTicker || includesAny(text, companyOrEquityTerms);
+    const isGold = symbols.some((symbol) => goldSymbols.has(symbol)) ||
+      /\bgold\b/.test(text) && !includesAny(text, ["gold rush", "golden", "goldman"]) ||
+      includesAny(text, ["gold price", "bullion", "precious metal", "precious metals", "commodity", "commodities"]);
+    const isRates = !isCompanyOrEquity && includesAny(text, ["fed", "federal reserve", "interest rate", "rate cut", "rate hike", "yield", "treasury yield"]);
     const isInflation = includesAny(text, ["inflation", "cpi", "pce", "prices"]);
     const isCurrency = includesAny(text, ["dollar", "usd", "currency", "fx"]);
-    const isGeopolitical = includesAny(text, ["war", "geopolitical", "sanction", "tariff", "conflict"]);
-    const isEquityMarket = hasTicker || includesAny(text, ["stock", "stocks", "equity", "equities", "s&p 500", "nasdaq", "dow", "spy", "qqq", "earnings", "shares"]);
+    const isGeopolitical = !isCompanyOrEquity && includesAny(text, ["war", "geopolitical", "sanction", "tariff", "conflict"]);
+    const isEquityMarket = isCompanyOrEquity;
     const affectedAssetClasses = [
       isCrypto ? "crypto" : null,
       isBond ? "bonds" : null,

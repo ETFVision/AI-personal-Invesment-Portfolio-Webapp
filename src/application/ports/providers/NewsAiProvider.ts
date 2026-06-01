@@ -50,6 +50,7 @@ export type NewsAiReconciliationOutput = {
   keyRisks: string[];
   keyOpportunities: string[];
   portfolioImplications: Record<string, unknown>;
+  coverageMetadata?: Record<string, unknown>;
   tokenUsage?: Record<string, unknown>;
   costEstimate?: number | null;
 };

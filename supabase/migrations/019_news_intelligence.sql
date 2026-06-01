@@ -87,6 +87,7 @@ create table if not exists weekly_news_reconciliations (
   key_risks jsonb not null default '[]',
   key_opportunities jsonb not null default '[]',
   portfolio_implications jsonb not null default '{}',
+  coverage_metadata jsonb not null default '{}',
   model_used text,
   token_usage jsonb not null default '{}',
   cost_estimate numeric(18, 6),
