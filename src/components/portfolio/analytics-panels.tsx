@@ -177,7 +177,6 @@ export function PerformancePanel({ dashboard }: { dashboard: PortfolioDashboard 
     <div className="space-y-6">
       <LongTermPerformanceCharts
         dashboard={dashboard}
-        benchmarkComparison={primaryBenchmark}
       />
       <ShortTermPerformanceGrid
         metrics={shortTermMetrics}
@@ -278,13 +277,12 @@ function getShortTermBenchmarkSpread(
 }
 
 function LongTermPerformanceCharts({
-  dashboard,
-  benchmarkComparison
+  dashboard
 }: {
   dashboard: PortfolioDashboard;
-  benchmarkComparison: PortfolioDashboard["benchmarkComparisons"][number] | undefined;
 }) {
-  if (!benchmarkComparison || benchmarkComparison.points.length < 2) {
+  const comparisons = dashboard.benchmarkComparisons.filter((comparison) => comparison.points.length >= 2);
+  if (comparisons.length === 0) {
     return (
       <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
         The long-term benchmark charts will appear once benchmark history is available.
@@ -296,31 +294,31 @@ function LongTermPerformanceCharts({
     <div className="space-y-3">
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">Longer-term performance</span>
-        <span className="text-muted-foreground">Portfolio vs benchmark return</span>
+        <span className="text-muted-foreground">Portfolio vs benchmarks</span>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
-        <ComparisonPeriodChart
+        <MultiBenchmarkPeriodChart
           label="1Y"
-          points={buildComparisonSeriesForPeriod(benchmarkComparison.points, "1Y")}
+          comparisons={comparisons}
           portfolioMetric={dashboard.performance.find((metric) => metric.label === "1Y")}
           portfolioCurrency={dashboard.portfolio.baseCurrency}
-          benchmarkName={benchmarkComparison.benchmark.name}
+          period="1Y"
           fallbackMessage="Needs 1Y history"
         />
-        <ComparisonPeriodChart
+        <MultiBenchmarkPeriodChart
           label="YTD"
-          points={buildComparisonSeriesForPeriod(benchmarkComparison.points, "YTD")}
+          comparisons={comparisons}
           portfolioMetric={dashboard.performance.find((metric) => metric.label === "YTD")}
           portfolioCurrency={dashboard.portfolio.baseCurrency}
-          benchmarkName={benchmarkComparison.benchmark.name}
+          period="YTD"
           fallbackMessage="Needs YTD history"
         />
-        <ComparisonPeriodChart
+        <MultiBenchmarkPeriodChart
           label="Since inception"
-          points={buildComparisonSeriesForPeriod(benchmarkComparison.points, "Since inception")}
+          comparisons={comparisons}
           portfolioMetric={dashboard.performance.find((metric) => metric.label === "Since inception")}
           portfolioCurrency={dashboard.portfolio.baseCurrency}
-          benchmarkName={benchmarkComparison.benchmark.name}
+          period="Since inception"
           fallbackMessage="Needs inception history"
         />
       </div>
@@ -350,22 +348,30 @@ function buildComparisonSeriesForPeriod(
   return filtered.length >= 2 ? filtered : points.slice(-2);
 }
 
-function ComparisonPeriodChart({
+function MultiBenchmarkPeriodChart({
   label,
-  points,
+  comparisons,
   portfolioMetric,
   portfolioCurrency,
-  benchmarkName,
+  period,
   fallbackMessage
 }: {
   label: string;
-  points: PortfolioDashboard["benchmarkComparisons"][number]["points"];
+  comparisons: PortfolioDashboard["benchmarkComparisons"];
   portfolioMetric: PerformanceMetric | undefined;
   portfolioCurrency: string;
-  benchmarkName: string;
+  period: "1Y" | "YTD" | "Since inception";
   fallbackMessage: string;
 }) {
-  if (points.length < 2) {
+  const periodComparisons = comparisons
+    .map((comparison) => ({
+      comparison,
+      points: buildComparisonSeriesForPeriod(comparison.points, period)
+    }))
+    .filter((item) => item.points.length >= 2);
+  const portfolioPoints = periodComparisons[0]?.points ?? [];
+
+  if (portfolioPoints.length < 2) {
     return (
       <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
         {fallbackMessage}
@@ -373,15 +379,22 @@ function ComparisonPeriodChart({
     );
   }
 
-  const basePortfolioReturn = points[0].portfolioReturn;
-  const baseBenchmarkReturn = points[0].benchmarkReturn;
   const rebaseReturn = (current: number, baseline: number) => {
     const denominator = 1 + baseline;
     return denominator === 0 ? 0 : (1 + current) / denominator - 1;
   };
-  const seriesA = points.map((point) => rebaseReturn(point.portfolioReturn, basePortfolioReturn));
-  const seriesB = points.map((point) => rebaseReturn(point.benchmarkReturn, baseBenchmarkReturn));
-  const allValues = [...seriesA, ...seriesB];
+  const basePortfolioReturn = portfolioPoints[0].portfolioReturn;
+  const portfolioSeries = portfolioPoints.map((point) => rebaseReturn(point.portfolioReturn, basePortfolioReturn));
+  const benchmarkSeries = periodComparisons.map(({ comparison, points }) => {
+    const baseBenchmarkReturn = points[0].benchmarkReturn;
+    return {
+      id: comparison.benchmark.id,
+      name: comparison.benchmark.name,
+      values: points.map((point) => rebaseReturn(point.benchmarkReturn, baseBenchmarkReturn)),
+      latestValue: rebaseReturn(points[points.length - 1].benchmarkReturn, baseBenchmarkReturn)
+    };
+  });
+  const allValues = [...portfolioSeries, ...benchmarkSeries.flatMap((series) => series.values)];
   const minValue = Math.min(...allValues, 0);
   const maxValue = Math.max(...allValues, 0);
   const range = Math.max(maxValue - minValue, 0.01);
@@ -391,12 +404,12 @@ function ComparisonPeriodChart({
   const right = 92;
   const top = 12;
   const bottom = 88;
-  const xStep = points.length === 1 ? 0 : (right - left) / (points.length - 1);
 
   const buildPath = (series: number[]) =>
     series
       .map((value, index) => {
-        const x = left + index * xStep;
+        const step = series.length === 1 ? 0 : (right - left) / (series.length - 1);
+        const x = left + index * step;
         const y = bottom - ((value - minValue) / range) * (bottom - top);
         return `${x},${y}`;
       })
@@ -407,37 +420,58 @@ function ComparisonPeriodChart({
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-medium">{label}</div>
-          <div className="text-xs text-muted-foreground">{benchmarkName}</div>
+          <div className="text-xs text-muted-foreground">{benchmarkSeries.length} benchmark{benchmarkSeries.length === 1 ? "" : "s"}</div>
         </div>
-        <div className="text-xs text-muted-foreground">Portfolio / benchmark</div>
+        <div className="text-xs text-muted-foreground">Portfolio / benchmarks</div>
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${label} portfolio versus benchmark chart`} className="h-44 w-full">
         <line x1={left} y1={bottom} x2={right} y2={bottom} className="stroke-muted" strokeWidth="0.7" />
         <line x1={left} y1={top} x2={right} y2={top} className="stroke-muted" strokeWidth="0.4" strokeDasharray="2 2" />
-        <polyline points={buildPath(seriesA)} fill="none" className="stroke-primary" strokeWidth="1.8" strokeLinecap="round" />
-        <polyline points={buildPath(seriesB)} fill="none" className="stroke-emerald-600" strokeWidth="1.8" strokeLinecap="round" />
-        <text x={left} y={97} textAnchor="start" className="fill-muted-foreground text-[4px]">{points[0].snapshotDate.slice(0, 7)}</text>
-        <text x={right} y={97} textAnchor="end" className="fill-muted-foreground text-[4px]">{points[points.length - 1].snapshotDate.slice(0, 7)}</text>
+        <polyline points={buildPath(portfolioSeries)} fill="none" className="stroke-primary" strokeWidth="2.1" strokeLinecap="round" />
+        {benchmarkSeries.map((series, index) => (
+          <polyline
+            key={series.id}
+            points={buildPath(series.values)}
+            fill="none"
+            stroke={chartColors[(index + 1) % chartColors.length]}
+            strokeWidth="1.4"
+            strokeLinecap="round"
+          />
+        ))}
+        <text x={left} y={97} textAnchor="start" className="fill-muted-foreground text-[4px]">{portfolioPoints[0].snapshotDate.slice(0, 7)}</text>
+        <text x={right} y={97} textAnchor="end" className="fill-muted-foreground text-[4px]">{portfolioPoints[portfolioPoints.length - 1].snapshotDate.slice(0, 7)}</text>
       </svg>
-      <div className="mt-3 grid gap-2 rounded-md bg-muted/50 p-3 text-sm sm:grid-cols-2">
+      <div className="mt-3 grid gap-2 rounded-md bg-muted/50 p-3 text-sm">
         <div>
-          <div className="text-xs text-muted-foreground">Portfolio</div>
-          <div className={(portfolioMetric?.percentChange ?? seriesA[seriesA.length - 1] ?? 0) < 0 ? "text-destructive" : "text-emerald-600"}>
-            {portfolioMetric?.percentChange == null ? formatPercent(seriesA[seriesA.length - 1] ?? 0) : formatPercent(portfolioMetric.percentChange)}
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+              Portfolio
+            </span>
+            <span className={(portfolioMetric?.percentChange ?? portfolioSeries[portfolioSeries.length - 1] ?? 0) < 0 ? "text-destructive" : "text-emerald-600"}>
+              {portfolioMetric?.percentChange == null ? formatPercent(portfolioSeries[portfolioSeries.length - 1] ?? 0) : formatPercent(portfolioMetric.percentChange)}
+            </span>
           </div>
-          <div className="text-xs text-muted-foreground">
+          <div className="mt-1 text-xs text-muted-foreground">
             {portfolioMetric?.valueChange == null
               ? "Flow-adjusted"
               : formatCurrencyWithCode(portfolioMetric.valueChange, portfolioCurrency)}
           </div>
         </div>
-        <div>
-          <div className="text-xs text-muted-foreground">{benchmarkName}</div>
-          <div className={seriesB[seriesB.length - 1] < 0 ? "text-destructive" : "text-emerald-600"}>{formatPercent(seriesB[seriesB.length - 1] ?? 0)}</div>
-          <div className="text-xs text-muted-foreground">
-            {formatCurrencyWithCode(points[points.length - 1].benchmarkValue - points[0].benchmarkValue, portfolioCurrency)}
+        <div className="grid gap-1">
+          {benchmarkSeries.slice(0, 7).map((series, index) => (
+            <div key={series.id} className="flex items-center justify-between gap-3 text-xs">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: chartColors[(index + 1) % chartColors.length] }} />
+                {series.name}
+              </span>
+              <span className={series.latestValue < 0 ? "text-destructive" : "text-emerald-600"}>{formatPercent(series.latestValue)}</span>
+            </div>
+          ))}
+          {benchmarkSeries.length > 7 ? (
+            <div className="text-xs text-muted-foreground">+{benchmarkSeries.length - 7} more benchmark{benchmarkSeries.length - 7 === 1 ? "" : "s"}</div>
+          ) : null}
           </div>
-        </div>
       </div>
     </div>
   );
