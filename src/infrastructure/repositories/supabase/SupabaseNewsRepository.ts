@@ -359,14 +359,25 @@ export class SupabaseNewsRepository implements NewsRepository {
   }
 
   async listWeeklyReconciliations(limit = 8) {
-    const { data, error } = await this.db.from("weekly_news_reconciliations").select("*").order("period_end", { ascending: false }).limit(limit);
+    const { data, error } = await this.db
+      .from("weekly_news_reconciliations")
+      .select("*")
+      .order("period_end", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .limit(limit);
     if (isMissingNewsTable(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapWeekly);
   }
 
   async getLatestWeeklyReconciliation() {
-    const { data, error } = await this.db.from("weekly_news_reconciliations").select("*").order("period_end", { ascending: false }).limit(1).maybeSingle();
+    const { data, error } = await this.db
+      .from("weekly_news_reconciliations")
+      .select("*")
+      .order("period_end", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
     if (isMissingNewsTable(error)) return null;
     if (error) throw new Error(error.message);
     return data ? mapWeekly(data) : null;
