@@ -166,3 +166,23 @@ test("rolling benchmark returns require a recent baseline", () => {
   assert.equal(comparison.rolling7DayPortfolioReturn, null);
   assert.equal(comparison.rolling30DayPortfolioReturn, null);
 });
+
+test("benchmark comparisons ignore stale tiny portfolio snapshots when manual capital is known", () => {
+  const service = new BenchmarkComparisonService();
+  const comparisons = service.calculateComparisons({
+    benchmarks: [benchmark()],
+    minimumCapitalBase: 1_000,
+    portfolioSnapshots: [
+      portfolioSnapshot({ snapshotDate: "2026-01-02", totalValue: 10 }),
+      portfolioSnapshot({ snapshotDate: "2026-06-01", totalValue: 1_100 })
+    ],
+    benchmarkSnapshots: [
+      benchmarkSnapshot({ snapshotDate: "2026-01-02", levelValue: 100 }),
+      benchmarkSnapshot({ snapshotDate: "2026-06-01", levelValue: 120 })
+    ]
+  });
+
+  assert.equal(comparisons.length, 1);
+  assert.equal(comparisons[0].points.length, 1);
+  assert.equal(comparisons[0].cumulativePortfolioReturn, 0);
+});

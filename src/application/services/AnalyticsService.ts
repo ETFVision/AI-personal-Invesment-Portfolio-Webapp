@@ -108,7 +108,7 @@ export class AnalyticsService {
       snapshots: input.snapshots,
       transactions: input.transactions
     }).map((metric) => {
-      if (!hasIncompleteManualCapitalHistory || !["1Y", "YTD", "Since inception"].includes(metric.label)) return metric;
+      if (!hasIncompleteManualCapitalHistory) return metric;
       return {
         ...metric,
         valueChange: manualPortfolioValueChange,

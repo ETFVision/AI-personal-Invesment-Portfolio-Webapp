@@ -72,7 +72,9 @@ test("dashboard long-term performance ignores tiny stale snapshots when manual c
   const oneYear = dashboard.performance.find((metric) => metric.label === "1Y");
   const ytd = dashboard.performance.find((metric) => metric.label === "YTD");
   const sinceInception = dashboard.performance.find((metric) => metric.label === "Since inception");
+  const daily = dashboard.performance.find((metric) => metric.label === "Daily");
 
+  assert.equal(daily?.percentChange, 200 / 1100);
   assert.equal(oneYear?.percentChange, 200 / 1100);
   assert.equal(ytd?.percentChange, 200 / 1100);
   assert.equal(sinceInception?.percentChange, 200 / 1100);
