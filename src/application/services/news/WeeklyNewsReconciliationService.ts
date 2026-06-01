@@ -19,6 +19,8 @@ const cryptoSymbols = new Set(["BTC", "BTCUSD", "ETH", "ETHUSD", "SOL", "SOLUSD"
 const bondSymbols = new Set(["BND", "AGG", "SHY", "IEF", "TLT", "TIP", "LQD", "HYG", "SGOV", "BIL", "BNDX"]);
 const goldSymbols = new Set(["GLD", "IAU"]);
 const equityTerms = ["stock", "stocks", "equity", "equities", "s&p 500", "nasdaq", "dow", "spy", "qqq", "earnings", "shares", "forecast", "forecasts"];
+const goldFalsePositiveTerms = ["gold rush", "golden", "goldman"];
+const financialGoldTerms = ["gold price", "spot gold", "bullion", "precious metal", "precious metals", "gold etf", "gold futures"];
 
 function textIncludesAny(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term));
@@ -110,9 +112,10 @@ export class WeeklyNewsReconciliationService {
     const symbols = item.tickers.map((ticker) => ticker.toUpperCase());
     const isEquityLike = item.tickers.length > 0 || textIncludesAny(title, equityTerms);
     const hasGoldSymbol = symbols.some((symbol) => goldSymbols.has(symbol));
-    const hasGoldFalsePositiveText = textIncludesAny(title, ["gold rush", "golden", "goldman"]);
+    const hasGoldFalsePositiveText = textIncludesAny(title, goldFalsePositiveTerms) && !textIncludesAny(title, financialGoldTerms);
     const hasGoldClass = classes.some((entry) => entry.includes("gold") || entry.includes("commodity"));
     if (classes.some((entry) => entry.includes("bond")) || symbols.some((symbol) => bondSymbols.has(symbol))) return "bonds";
+    if (hasGoldFalsePositiveText) return isEquityLike ? "equities" : "macro";
     if (
       hasGoldSymbol ||
       (!hasGoldFalsePositiveText && (hasGoldClass || /\bgold\b/.test(title)))

@@ -344,7 +344,7 @@ test("weekly reconciliation ignores stale gold classification for gold rush head
     newsItem({
       id: "gold-rush",
       title: "Fleeing for their futures, a California exodus unleashes a Florida gold rush",
-      tickers: []
+      tickers: ["GLD"]
     })
   ];
   repository.classifications = [
@@ -358,7 +358,32 @@ test("weekly reconciliation ignores stale gold classification for gold rush head
   const service = new WeeklyNewsReconciliationService(repository);
   const grouped = service.groupByBucket(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
   assert.equal(grouped.get("gold")?.length, 0);
-  assert.equal(grouped.get("macro")?.length, 1);
+  assert.equal(
+    Array.from(grouped.entries()).filter(([bucket]) => bucket !== "gold").reduce((sum, [, items]) => sum + items.length, 0),
+    1
+  );
+});
+
+test("weekly reconciliation keeps explicit financial gold headlines in gold bucket", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "spot-gold",
+      title: "Spot gold trades near $4,460/oz after ISM Manufacturing PMI rises to 54",
+      tickers: []
+    })
+  ];
+  repository.classifications = [
+    classification({
+      newsItemId: "spot-gold",
+      classificationModel: "deterministic_fallback",
+      affectedAssetClasses: ["gold/commodities"],
+      affectedMacroCategories: []
+    })
+  ];
+  const service = new WeeklyNewsReconciliationService(repository);
+  const grouped = service.groupByBucket(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
+  assert.equal(grouped.get("gold")?.length, 1);
 });
 
 test("cron protection rejects missing or invalid secret", () => {
