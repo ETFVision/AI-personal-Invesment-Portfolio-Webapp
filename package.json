@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/risk-math.test.js .test-build/tests/taxonomy.test.js .test-build/tests/performance.test.js"
+    "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/risk-math.test.js .test-build/tests/taxonomy.test.js .test-build/tests/performance.test.js .test-build/tests/analytics.test.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

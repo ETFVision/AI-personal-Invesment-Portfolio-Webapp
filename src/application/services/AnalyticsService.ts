@@ -26,6 +26,22 @@ function cashFlowAmount(transaction: Transaction) {
   return Math.abs(transaction.netAmount ?? transaction.grossAmount ?? 0);
 }
 
+function transactionAmount(transaction: Transaction) {
+  const gross = transaction.quantity && transaction.price ? transaction.quantity * transaction.price : 0;
+  if (gross !== 0) return gross;
+  return transaction.grossAmount ?? Math.abs(transaction.netAmount ?? 0);
+}
+
+function recordedCapitalCoverage(transactions: Transaction[]) {
+  const deposits = transactions
+    .filter((transaction) => transaction.transactionType === "deposit_cash")
+    .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
+  const buys = transactions
+    .filter((transaction) => transaction.transactionType === "buy")
+    .reduce((sum, transaction) => sum + transactionAmount(transaction) + transaction.fees, 0);
+  return deposits + buys;
+}
+
 function calculateRealizedGainLoss(transactions: Transaction[]) {
   const lots = new Map<string, { quantity: number; cost: number }>();
   let realizedGainLoss = 0;
@@ -81,6 +97,25 @@ export class AnalyticsService {
     const unrealizedGainLoss = totalHoldingsMarketValue - investedAmount;
     const unrealizedGainLossPercent = investedAmount === 0 ? 0 : unrealizedGainLoss / investedAmount;
     const realizedGainLoss = calculateRealizedGainLoss(input.transactions);
+    const manualCapitalBase = investedAmount + totalCash;
+    const manualPortfolioValueChange = totalValueEstimate - manualCapitalBase;
+    const hasIncompleteManualCapitalHistory =
+      manualCapitalBase > 0 && recordedCapitalCoverage(input.transactions) < manualCapitalBase * 0.8;
+    const portfolioPerformance = this.performanceService.calculatePortfolioPerformance({
+      currentValue: totalValueEstimate,
+      investedAmount,
+      cashAmount: totalCash,
+      snapshots: input.snapshots,
+      transactions: input.transactions
+    }).map((metric) => {
+      if (!hasIncompleteManualCapitalHistory || !["1Y", "YTD", "Since inception"].includes(metric.label)) return metric;
+      return {
+        ...metric,
+        valueChange: manualPortfolioValueChange,
+        percentChange: manualCapitalBase === 0 ? null : manualPortfolioValueChange / manualCapitalBase,
+        baselineDate: null
+      };
+    });
     const productPerformance: ProductPerformance[] = input.holdingValuations.map((valuation) => {
       const productTransactions = input.transactions.filter((transaction) => transactionMatchesHolding(transaction, valuation.holding));
       const realized = calculateRealizedGainLoss(productTransactions);
@@ -171,13 +206,7 @@ export class AnalyticsService {
         .filter((row) => row.gainLoss < 0)
         .sort((a, b) => a.gainLossPercent - b.gainLossPercent)
         .slice(0, 5),
-      performance: this.performanceService.calculatePortfolioPerformance({
-        currentValue: totalValueEstimate,
-        investedAmount,
-        cashAmount: totalCash,
-        snapshots: input.snapshots,
-        transactions: input.transactions
-      }),
+      performance: portfolioPerformance,
       productPerformance,
       cashPerformance,
       cashPercent: totalValueEstimate === 0 ? 0 : totalCash / totalValueEstimate,

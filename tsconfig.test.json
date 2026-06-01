@@ -17,7 +17,9 @@
     "tests/**/*.ts",
     "src/application/services/risk/riskMath.ts",
     "src/application/services/taxonomy/TaxonomyService.ts",
-    "src/application/services/PerformanceService.ts"
+    "src/application/services/PerformanceService.ts",
+    "src/application/services/AllocationService.ts",
+    "src/application/services/AnalyticsService.ts"
   ],
   "exclude": ["node_modules"]
 }
