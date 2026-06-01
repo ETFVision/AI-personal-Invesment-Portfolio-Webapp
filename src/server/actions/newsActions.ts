@@ -8,33 +8,42 @@ function formString(formData: FormData, key: string) {
 }
 
 export async function runDailyNewsIngestionAction() {
-  await createContainer().authProvider.requireUser();
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  let target = "/news?error=News%20ingestion%20failed.";
   try {
-    const result = await createContainer().jobs.dailyNewsIngestion.run();
-    redirect(`/news?message=Fetched%20${result.ingestion.articlesFetched}%20articles%20and%20classified%20${result.classification.classified}.`);
+    const result = await container.jobs.dailyNewsIngestion.run();
+    target = `/news?message=Fetched%20${result.ingestion.articlesFetched}%20articles%20and%20classified%20${result.classification.classified}.`;
   } catch (error) {
-    redirect(`/news?error=${encodeURIComponent(error instanceof Error ? error.message : "News ingestion failed.")}`);
+    target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "News ingestion failed.")}`;
   }
+  redirect(target);
 }
 
 export async function runWeeklyNewsReconciliationAction() {
-  await createContainer().authProvider.requireUser();
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  let target = "/news?error=Weekly%20reconciliation%20failed.";
   try {
-    const reconciliation = await createContainer().jobs.weeklyNewsReconciliation.run();
-    redirect(`/news?message=${encodeURIComponent(`Weekly reconciliation created for ${reconciliation.periodStart} to ${reconciliation.periodEnd}.`)}`);
+    const reconciliation = await container.jobs.weeklyNewsReconciliation.run();
+    target = `/news?message=${encodeURIComponent(`Weekly reconciliation created for ${reconciliation.periodStart} to ${reconciliation.periodEnd}.`)}`;
   } catch (error) {
-    redirect(`/news?error=${encodeURIComponent(error instanceof Error ? error.message : "Weekly reconciliation failed.")}`);
+    target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "Weekly reconciliation failed.")}`;
   }
+  redirect(target);
 }
 
 export async function reclassifyPendingNewsAction() {
-  await createContainer().authProvider.requireUser();
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  let target = "/news?error=News%20classification%20failed.";
   try {
-    const result = await createContainer().newsClassificationService.classifyPending();
-    redirect(`/news?message=${encodeURIComponent(`Classified ${result.classified} of ${result.requested} pending articles.`)}`);
+    const result = await container.newsClassificationService.classifyPending();
+    target = `/news?message=${encodeURIComponent(`Classified ${result.classified} of ${result.requested} pending articles.`)}`;
   } catch (error) {
-    redirect(`/news?error=${encodeURIComponent(error instanceof Error ? error.message : "News classification failed.")}`);
+    target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "News classification failed.")}`;
   }
+  redirect(target);
 }
 
 export async function duplicateOverrideAction(formData: FormData) {
