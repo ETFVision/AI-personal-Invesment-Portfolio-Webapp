@@ -70,6 +70,10 @@ function rollingBenchmarkReturn(latest: BenchmarkComparisonPoint, baseline: Benc
   return baseline ? cumulativeReturn(latest.benchmarkValue, baseline.benchmarkValue) : null;
 }
 
+function latestBenchmarkOnOrBefore(points: BenchmarkSnapshot[], targetDate: string) {
+  return points.filter((point) => point.snapshotDate <= targetDate).at(-1);
+}
+
 export class BenchmarkComparisonService {
   calculateComparisons(input: {
     portfolioSnapshots: PortfolioSnapshot[];
@@ -124,20 +128,19 @@ export class BenchmarkComparisonService {
       };
     }
 
-    const portfolioByDate = new Map(portfolioSeries.map((point) => [point.snapshotDate, point]));
-    const benchmarkByDate = new Map(benchmarkSeries.map((point) => [point.snapshotDate, point]));
-    const commonDates = portfolioSeries
-      .map((point) => point.snapshotDate)
-      .filter((date) => benchmarkByDate.has(date))
-      .sort((a, b) => a.localeCompare(b));
+    const alignedPoints = portfolioSeries
+      .map((portfolioPoint) => ({
+        portfolioPoint,
+        benchmarkPoint: latestBenchmarkOnOrBefore(benchmarkSeries, portfolioPoint.snapshotDate)
+      }))
+      .filter((point): point is { portfolioPoint: PortfolioSnapshot; benchmarkPoint: BenchmarkSnapshot } => Boolean(point.benchmarkPoint));
 
-    if (commonDates.length === 0) {
+    if (alignedPoints.length === 0) {
       return null;
     }
 
-    const baselineDate = commonDates[0];
-    const baselinePortfolio = portfolioByDate.get(baselineDate)!;
-    const baselineBenchmark = benchmarkByDate.get(baselineDate)!;
+    const baselinePortfolio = alignedPoints[0].portfolioPoint;
+    const baselineBenchmark = alignedPoints[0].benchmarkPoint;
 
     const useManualCapitalFallback = minimumCapitalBase > 0 && baselinePortfolio.totalValue < minimumCapitalBase * 0.8;
     let portfolioPeak = baselinePortfolio.totalValue;
@@ -145,13 +148,12 @@ export class BenchmarkComparisonService {
     let cumulativePortfolioReturn = 0;
     const points: BenchmarkComparisonPoint[] = [];
 
-    for (let index = 0; index < commonDates.length; index += 1) {
-      const snapshotDate = commonDates[index];
-      const portfolioPoint = portfolioByDate.get(snapshotDate)!;
-      const benchmarkPoint = benchmarkByDate.get(snapshotDate)!;
-      const previousDate = commonDates[index - 1];
+    for (let index = 0; index < alignedPoints.length; index += 1) {
+      const { portfolioPoint, benchmarkPoint } = alignedPoints[index];
+      const snapshotDate = portfolioPoint.snapshotDate;
+      const previousPoint = alignedPoints[index - 1]?.portfolioPoint;
+      const previousDate = previousPoint?.snapshotDate;
       if (index > 0 && previousDate) {
-        const previousPortfolio = portfolioByDate.get(previousDate)!;
         if (useManualCapitalFallback) {
           cumulativePortfolioReturn = simpleManualReturn({
             currentValue: portfolioPoint.totalValue,
@@ -159,9 +161,9 @@ export class BenchmarkComparisonService {
             transactions,
             minimumCapitalBase
           }) ?? cumulativePortfolioReturn;
-        } else if (previousPortfolio.totalValue !== 0) {
+        } else if (previousPoint.totalValue !== 0) {
           const netFlow = externalPortfolioFlow(transactions, previousDate, snapshotDate);
-          cumulativePortfolioReturn = (1 + cumulativePortfolioReturn) * (1 + ((portfolioPoint.totalValue - netFlow) / previousPortfolio.totalValue - 1)) - 1;
+          cumulativePortfolioReturn = (1 + cumulativePortfolioReturn) * (1 + ((portfolioPoint.totalValue - netFlow) / previousPoint.totalValue - 1)) - 1;
         }
       }
       portfolioPeak = Math.max(portfolioPeak, portfolioPoint.totalValue);

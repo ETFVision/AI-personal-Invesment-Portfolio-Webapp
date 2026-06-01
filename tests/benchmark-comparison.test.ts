@@ -167,6 +167,25 @@ test("rolling benchmark returns require a recent baseline", () => {
   assert.equal(comparison.rolling30DayPortfolioReturn, null);
 });
 
+test("benchmark comparison uses nearest prior benchmark date when exact portfolio date is missing", () => {
+  const service = new BenchmarkComparisonService();
+  const [comparison] = service.calculateComparisons({
+    benchmarks: [benchmark()],
+    portfolioSnapshots: [
+      portfolioSnapshot({ snapshotDate: "2026-01-05", totalValue: 100 }),
+      portfolioSnapshot({ snapshotDate: "2026-01-06", totalValue: 110 })
+    ],
+    benchmarkSnapshots: [
+      benchmarkSnapshot({ snapshotDate: "2026-01-02", levelValue: 200 }),
+      benchmarkSnapshot({ snapshotDate: "2026-01-06", levelValue: 240 })
+    ]
+  });
+
+  assert.equal(comparison.points.length, 2);
+  assertClose(comparison.cumulativePortfolioReturn, 0.1);
+  assertClose(comparison.cumulativeBenchmarkReturn, 0.2);
+});
+
 test("benchmark comparisons keep history but guard returns from stale tiny portfolio snapshots", () => {
   const service = new BenchmarkComparisonService();
   const comparisons = service.calculateComparisons({
