@@ -9,6 +9,7 @@ import type {
 } from "@/application/ports/repositories/NewsRepository";
 import type { NewsClassification, NewsGroup, NewsIngestionLog, NewsItem, WeeklyNewsReconciliation } from "@/domain/news/types";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
+import { hashText } from "@/application/services/news/newsText";
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -48,6 +49,10 @@ function mapNewsItem(row: any): NewsItem {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+function stableSourceId(item: UpsertNewsItemInput) {
+  return item.sourceId?.trim() || item.url?.trim() || hashText(`${item.title}|${item.publishedAt ?? ""}|${item.contentHash}`);
 }
 
 function mapClassification(row: any): NewsClassification {
@@ -172,7 +177,7 @@ export class SupabaseNewsRepository implements NewsRepository {
       input.map((item) => ({
         id: item.id,
         source_provider: item.sourceProvider,
-        source_id: item.sourceId,
+        source_id: stableSourceId(item),
         url: item.url,
         title: item.title,
         summary: item.summary,

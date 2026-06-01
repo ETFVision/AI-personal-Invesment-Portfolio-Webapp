@@ -1,7 +1,7 @@
 create table if not exists news_items (
   id uuid primary key default gen_random_uuid(),
   source_provider text not null,
-  source_id text,
+  source_id text not null,
   url text,
   title text not null,
   summary text,
@@ -112,8 +112,7 @@ create table if not exists news_ingestion_logs (
 );
 
 create unique index if not exists idx_news_items_provider_source_id
-  on news_items (source_provider, source_id)
-  where source_id is not null;
+  on news_items (source_provider, source_id);
 create unique index if not exists idx_news_items_provider_url
   on news_items (source_provider, url)
   where url is not null;
