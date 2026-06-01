@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 import { PerformanceService } from "../src/application/services/PerformanceService";
 import type { PortfolioSnapshot, Transaction } from "../src/domain/portfolio/types";
 
+function assertClose(actual: number | null | undefined, expected: number, tolerance = 1e-10) {
+  assert.ok(actual != null);
+  assert.ok(Math.abs(actual - expected) < tolerance, `Expected ${actual} to be close to ${expected}`);
+}
+
 function transaction(input: Partial<Transaction>): Transaction {
   return {
     id: input.id ?? "tx",
@@ -86,7 +91,7 @@ test("portfolio YTD uses first available snapshot when portfolio starts after ye
   const ytd = metrics.find((metric) => metric.label === "YTD");
   assert.equal(ytd?.baselineDate, "2026-02-01");
   assert.equal(ytd?.valueChange, 2_000);
-  assert.equal(ytd?.percentChange, 0.2);
+  assertClose(ytd?.percentChange, 0.2);
 });
 
 test("portfolio period returns ignore future-dated cash flows", () => {
@@ -103,5 +108,5 @@ test("portfolio period returns ignore future-dated cash flows", () => {
 
   const sinceYearStart = metrics.find((metric) => metric.label === "YTD");
   assert.equal(sinceYearStart?.valueChange, 2_000);
-  assert.equal(sinceYearStart?.percentChange, 0.2);
+  assertClose(sinceYearStart?.percentChange, 0.2);
 });

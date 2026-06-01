@@ -73,7 +73,7 @@ function transaction(input: Partial<Transaction>): Transaction {
   };
 }
 
-test("benchmark comparison uses aligned simple returns", () => {
+test("benchmark comparison uses aligned portfolio TWR and benchmark price returns", () => {
   const service = new BenchmarkComparisonService();
   const [comparison] = service.calculateComparisons({
     benchmarks: [benchmark()],
@@ -92,7 +92,7 @@ test("benchmark comparison uses aligned simple returns", () => {
   assertClose(comparison.relativeOutperformance, -0.1);
 });
 
-test("portfolio deposits are not counted as benchmark-comparison gains", () => {
+test("portfolio deposits are removed from benchmark-comparison TWR", () => {
   const service = new BenchmarkComparisonService();
   const [comparison] = service.calculateComparisons({
     benchmarks: [benchmark()],
@@ -107,7 +107,7 @@ test("portfolio deposits are not counted as benchmark-comparison gains", () => {
     transactions: [transaction({ transactionType: "deposit_cash", transactionDate: "2026-01-03", netAmount: 40 })]
   });
 
-  assertClose(comparison.cumulativePortfolioReturn, 10 / 140);
+  assertClose(comparison.cumulativePortfolioReturn, 0.1);
 });
 
 test("portfolio withdrawals are not counted as benchmark-comparison losses", () => {
@@ -126,6 +126,26 @@ test("portfolio withdrawals are not counted as benchmark-comparison losses", () 
   });
 
   assertClose(comparison.cumulativePortfolioReturn, 0.1);
+});
+
+test("portfolio TWR chains multiple cash-flow-adjusted subperiods", () => {
+  const service = new BenchmarkComparisonService();
+  const [comparison] = service.calculateComparisons({
+    benchmarks: [benchmark()],
+    portfolioSnapshots: [
+      portfolioSnapshot({ snapshotDate: "2026-01-02", totalValue: 100 }),
+      portfolioSnapshot({ snapshotDate: "2026-01-03", totalValue: 110 }),
+      portfolioSnapshot({ snapshotDate: "2026-01-04", totalValue: 176 })
+    ],
+    benchmarkSnapshots: [
+      benchmarkSnapshot({ snapshotDate: "2026-01-02", levelValue: 100 }),
+      benchmarkSnapshot({ snapshotDate: "2026-01-03", levelValue: 110 }),
+      benchmarkSnapshot({ snapshotDate: "2026-01-04", levelValue: 121 })
+    ],
+    transactions: [transaction({ transactionType: "deposit_cash", transactionDate: "2026-01-04", netAmount: 50 })]
+  });
+
+  assertClose(comparison.cumulativePortfolioReturn, 0.26);
 });
 
 test("rolling benchmark returns require a recent baseline", () => {

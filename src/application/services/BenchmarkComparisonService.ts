@@ -18,31 +18,26 @@ function cashFlowAmount(transaction: Transaction) {
   return Math.abs(transaction.netAmount ?? transaction.grossAmount ?? 0);
 }
 
-function flowAdjustedReturn(input: {
+function externalPortfolioFlow(transactions: Transaction[], startExclusive: string, endInclusive: string) {
+  return transactions
+    .filter((transaction) => transaction.transactionDate > startExclusive && transaction.transactionDate <= endInclusive)
+    .reduce((sum, transaction) => {
+      if (transaction.transactionType === "deposit_cash") return sum + cashFlowAmount(transaction);
+      if (transaction.transactionType === "withdraw_cash") return sum - cashFlowAmount(transaction);
+      return sum;
+    }, 0);
+}
+
+function simpleManualReturn(input: {
   currentValue: number;
-  baselineValue: number;
-  baselineDate: string;
   currentDate: string;
   transactions: Transaction[];
-  minimumCapitalBase?: number;
+  minimumCapitalBase: number;
 }) {
-  const periodTransactions = input.transactions.filter(
-    (transaction) => transaction.transactionDate > input.baselineDate && transaction.transactionDate <= input.currentDate
-  );
-  const deposits = periodTransactions
-    .filter((transaction) => transaction.transactionType === "deposit_cash")
+  const withdrawals = input.transactions
+    .filter((transaction) => transaction.transactionDate <= input.currentDate && transaction.transactionType === "withdraw_cash")
     .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
-  const withdrawals = periodTransactions
-    .filter((transaction) => transaction.transactionType === "withdraw_cash")
-    .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
-  const snapshotCapitalBase = input.baselineValue + deposits;
-  const manualCapitalBase = input.minimumCapitalBase ?? 0;
-  const useManualCapitalBase = manualCapitalBase > 0 && snapshotCapitalBase < manualCapitalBase * 0.8;
-  const denominator = useManualCapitalBase ? manualCapitalBase : snapshotCapitalBase;
-  const valueChange = useManualCapitalBase
-    ? input.currentValue + withdrawals - manualCapitalBase
-    : input.currentValue - input.baselineValue - deposits + withdrawals;
-  return denominator === 0 ? null : valueChange / denominator;
+  return input.minimumCapitalBase === 0 ? null : (input.currentValue + withdrawals - input.minimumCapitalBase) / input.minimumCapitalBase;
 }
 
 function drawdown(currentValue: number, peakValue: number) {
@@ -62,21 +57,13 @@ function rollingBaseline<T extends { snapshotDate: string }>(
     .sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate))[0];
 }
 
-function rollingFlowAdjustedReturn(input: {
+function rollingPortfolioReturn(input: {
   latest: BenchmarkComparisonPoint;
   baseline: BenchmarkComparisonPoint | undefined;
-  transactions: Transaction[];
-  minimumCapitalBase: number;
 }) {
   if (!input.baseline) return null;
-  return flowAdjustedReturn({
-    currentValue: input.latest.portfolioValue,
-    baselineValue: input.baseline.portfolioValue,
-    baselineDate: input.baseline.snapshotDate,
-    currentDate: input.latest.snapshotDate,
-    transactions: input.transactions,
-    minimumCapitalBase: input.minimumCapitalBase
-  });
+  const baselineReturnBase = 1 + input.baseline.portfolioReturn;
+  return baselineReturnBase === 0 ? null : (1 + input.latest.portfolioReturn) / baselineReturnBase - 1;
 }
 
 function rollingBenchmarkReturn(latest: BenchmarkComparisonPoint, baseline: BenchmarkComparisonPoint | undefined) {
@@ -151,27 +138,38 @@ export class BenchmarkComparisonService {
     const baselinePortfolio = portfolioByDate.get(baselineDate)!;
     const baselineBenchmark = benchmarkByDate.get(baselineDate)!;
 
+    const useManualCapitalFallback = minimumCapitalBase > 0 && baselinePortfolio.totalValue < minimumCapitalBase * 0.8;
     let portfolioPeak = baselinePortfolio.totalValue;
     let benchmarkPeak = baselineBenchmark.levelValue;
+    let cumulativePortfolioReturn = 0;
     const points: BenchmarkComparisonPoint[] = [];
 
-    for (const snapshotDate of commonDates) {
+    for (let index = 0; index < commonDates.length; index += 1) {
+      const snapshotDate = commonDates[index];
       const portfolioPoint = portfolioByDate.get(snapshotDate)!;
       const benchmarkPoint = benchmarkByDate.get(snapshotDate)!;
+      const previousDate = commonDates[index - 1];
+      if (index > 0 && previousDate) {
+        const previousPortfolio = portfolioByDate.get(previousDate)!;
+        if (useManualCapitalFallback) {
+          cumulativePortfolioReturn = simpleManualReturn({
+            currentValue: portfolioPoint.totalValue,
+            currentDate: snapshotDate,
+            transactions,
+            minimumCapitalBase
+          }) ?? cumulativePortfolioReturn;
+        } else if (previousPortfolio.totalValue !== 0) {
+          const netFlow = externalPortfolioFlow(transactions, previousDate, snapshotDate);
+          cumulativePortfolioReturn = (1 + cumulativePortfolioReturn) * (1 + ((portfolioPoint.totalValue - netFlow) / previousPortfolio.totalValue - 1)) - 1;
+        }
+      }
       portfolioPeak = Math.max(portfolioPeak, portfolioPoint.totalValue);
       benchmarkPeak = Math.max(benchmarkPeak, benchmarkPoint.levelValue);
       points.push({
         snapshotDate,
         portfolioValue: portfolioPoint.totalValue,
         benchmarkValue: benchmarkPoint.levelValue,
-        portfolioReturn: flowAdjustedReturn({
-          currentValue: portfolioPoint.totalValue,
-          baselineValue: baselinePortfolio.totalValue,
-          baselineDate,
-          currentDate: snapshotDate,
-          transactions,
-          minimumCapitalBase
-        }) ?? 0,
+        portfolioReturn: cumulativePortfolioReturn,
         benchmarkReturn: cumulativeReturn(benchmarkPoint.levelValue, baselineBenchmark.levelValue) ?? 0,
         portfolioDrawdown: drawdown(portfolioPoint.totalValue, portfolioPeak) ?? 0,
         benchmarkDrawdown: drawdown(benchmarkPoint.levelValue, benchmarkPeak) ?? 0
@@ -189,13 +187,13 @@ export class BenchmarkComparisonService {
       cumulativePortfolioReturn: latest.portfolioReturn,
       cumulativeBenchmarkReturn: latest.benchmarkReturn,
       relativeOutperformance: latest.portfolioReturn - latest.benchmarkReturn,
-      rolling1DayPortfolioReturn: rollingFlowAdjustedReturn({ latest, baseline: rolling1Baseline, transactions, minimumCapitalBase }),
+      rolling1DayPortfolioReturn: rollingPortfolioReturn({ latest, baseline: rolling1Baseline }),
       rolling1DayBenchmarkReturn: rollingBenchmarkReturn(latest, rolling1Baseline),
-      rolling7DayPortfolioReturn: rollingFlowAdjustedReturn({ latest, baseline: rolling7Baseline, transactions, minimumCapitalBase }),
+      rolling7DayPortfolioReturn: rollingPortfolioReturn({ latest, baseline: rolling7Baseline }),
       rolling7DayBenchmarkReturn: rollingBenchmarkReturn(latest, rolling7Baseline),
-      rolling30DayPortfolioReturn: rollingFlowAdjustedReturn({ latest, baseline: rolling30Baseline, transactions, minimumCapitalBase }),
+      rolling30DayPortfolioReturn: rollingPortfolioReturn({ latest, baseline: rolling30Baseline }),
       rolling30DayBenchmarkReturn: rollingBenchmarkReturn(latest, rolling30Baseline),
-      rolling90DayPortfolioReturn: rollingFlowAdjustedReturn({ latest, baseline: rolling90Baseline, transactions, minimumCapitalBase }),
+      rolling90DayPortfolioReturn: rollingPortfolioReturn({ latest, baseline: rolling90Baseline }),
       rolling90DayBenchmarkReturn: rollingBenchmarkReturn(latest, rolling90Baseline),
       portfolioMaxDrawdown: Math.min(...points.map((point) => point.portfolioDrawdown)),
       benchmarkMaxDrawdown: Math.min(...points.map((point) => point.benchmarkDrawdown)),

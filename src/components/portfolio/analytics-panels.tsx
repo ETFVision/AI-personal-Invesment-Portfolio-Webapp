@@ -294,7 +294,7 @@ function LongTermPerformanceCharts({
     <div className="space-y-3">
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">Longer-term performance</span>
-        <span className="text-muted-foreground">Flow-adjusted portfolio vs price-return benchmarks</span>
+        <span className="text-muted-foreground">TWR portfolio vs price-return benchmarks</span>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
         <MultiBenchmarkPeriodChart
@@ -467,7 +467,7 @@ function MultiBenchmarkPeriodChart({
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
             {portfolioMetric?.valueChange == null
-              ? "Flow-adjusted"
+              ? "Time-weighted"
               : formatCurrencyWithCode(portfolioMetric.valueChange, portfolioCurrency)}
           </div>
         </div>
@@ -511,7 +511,7 @@ export function PerformanceLineChart({ metrics, currency }: { metrics: Performan
     <div className="space-y-3">
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">Longer-term performance</span>
-        <span className="text-muted-foreground">Flow-adjusted return</span>
+        <span className="text-muted-foreground">Time-weighted return</span>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
         {chartMetrics.map((item) => (

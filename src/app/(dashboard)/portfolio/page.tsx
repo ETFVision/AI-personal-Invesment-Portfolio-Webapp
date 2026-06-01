@@ -172,7 +172,7 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         <CardHeader>
           <CardTitle>Performance</CardTitle>
           <CardDescription>
-            Simple flow-adjusted returns from stored snapshots. Deposits and withdrawals are excluded from gains where transaction history supports it.
+            Time-weighted returns from stored snapshots. Deposits and withdrawals are excluded from gains where transaction history supports it.
           </CardDescription>
         </CardHeader>
         <CardContent>

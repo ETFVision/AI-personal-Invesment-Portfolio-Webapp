@@ -63,6 +63,20 @@ function buildSnapshotMetric(
   };
 }
 
+function externalPortfolioFlow(transactions: Transaction[], startExclusive: string, endInclusive: string) {
+  return transactions
+    .filter((transaction) => transaction.transactionDate > startExclusive && transaction.transactionDate <= endInclusive)
+    .reduce((sum, transaction) => {
+      if (transaction.transactionType === "deposit_cash") return sum + cashFlowAmount(transaction);
+      if (transaction.transactionType === "withdraw_cash") return sum - cashFlowAmount(transaction);
+      return sum;
+    }, 0);
+}
+
+function chainReturn(subperiodReturns: number[]) {
+  return subperiodReturns.reduce((product, value) => product * (1 + value), 1) - 1;
+}
+
 export class PerformanceService {
   calculatePortfolioPerformance(input: {
     currentValue: number;
@@ -72,12 +86,12 @@ export class PerformanceService {
     transactions: Transaction[];
   }): PerformanceMetric[] {
     return [
-      this.buildPortfolioFlowAdjustedMetric("Daily", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(1), input.investedAmount + input.cashAmount),
-      this.buildPortfolioFlowAdjustedMetric("Weekly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(7), input.investedAmount + input.cashAmount),
-      this.buildPortfolioFlowAdjustedMetric("Monthly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(30), input.investedAmount + input.cashAmount),
-      this.buildPortfolioFlowAdjustedMetric("1Y", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(365), input.investedAmount + input.cashAmount),
-      this.buildPortfolioFlowAdjustedMetric("YTD", input.currentValue, input.snapshots, input.transactions, startOfYearIsoDate(), input.investedAmount + input.cashAmount),
-      this.buildPortfolioSinceInceptionMetric(input.currentValue, input.investedAmount, input.cashAmount, input.transactions)
+      this.buildPortfolioTwrMetric("Daily", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(1), input.investedAmount + input.cashAmount),
+      this.buildPortfolioTwrMetric("Weekly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(7), input.investedAmount + input.cashAmount),
+      this.buildPortfolioTwrMetric("Monthly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(30), input.investedAmount + input.cashAmount),
+      this.buildPortfolioTwrMetric("1Y", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(365), input.investedAmount + input.cashAmount),
+      this.buildPortfolioTwrMetric("YTD", input.currentValue, input.snapshots, input.transactions, startOfYearIsoDate(), input.investedAmount + input.cashAmount),
+      this.buildPortfolioSinceInceptionMetric(input.currentValue, input.investedAmount, input.cashAmount, input.snapshots, input.transactions)
     ];
   }
 
@@ -114,7 +128,7 @@ export class PerformanceService {
     ];
   }
 
-  private buildPortfolioFlowAdjustedMetric(
+  private buildPortfolioTwrMetric(
     label: PerformanceMetric["label"],
     currentValue: number,
     snapshots: PortfolioSnapshot[],
@@ -137,14 +151,46 @@ export class PerformanceService {
       .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
     const snapshotCapitalBase = baseline.totalValue + deposits;
     const useManualCapitalBase = manualCapitalBase > 0 && snapshotCapitalBase < manualCapitalBase * 0.8;
-    const denominator = useManualCapitalBase ? manualCapitalBase : snapshotCapitalBase;
-    const valueChange = useManualCapitalBase
-      ? currentValue + withdrawals - manualCapitalBase
-      : currentValue - baseline.totalValue - deposits + withdrawals;
+    const valueChange = currentValue - baseline.totalValue - deposits + withdrawals;
+    if (useManualCapitalBase) {
+      const manualValueChange = currentValue + withdrawals - manualCapitalBase;
+      return {
+        label,
+        valueChange: manualValueChange,
+        percentChange: manualCapitalBase === 0 ? null : manualValueChange / manualCapitalBase,
+        baselineDate: baseline.snapshotDate
+      };
+    }
+
+    const orderedSnapshots = [...snapshots]
+      .filter((snapshot) => snapshot.snapshotDate >= baseline.snapshotDate && snapshot.snapshotDate <= currentDate)
+      .sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+    const lastSnapshot = orderedSnapshots.at(-1);
+    const endpoint: PortfolioSnapshot = {
+      id: "current",
+      portfolioId: baseline.portfolioId,
+      snapshotDate: currentDate,
+      totalValue: currentValue,
+      cashValue: 0,
+      investedValue: currentValue,
+      currency: baseline.currency
+    };
+    const series = lastSnapshot && lastSnapshot.snapshotDate === currentDate
+      ? orderedSnapshots
+      : [...orderedSnapshots, endpoint];
+    const returns: number[] = [];
+    for (let index = 1; index < series.length; index += 1) {
+      const previous = series[index - 1];
+      const current = series[index];
+      if (previous.totalValue === 0) continue;
+      const netFlow = externalPortfolioFlow(transactions, previous.snapshotDate, current.snapshotDate);
+      returns.push((current.totalValue - netFlow) / previous.totalValue - 1);
+    }
+
     return {
       label,
       valueChange,
-      percentChange: denominator === 0 ? null : valueChange / denominator,
+      percentChange: returns.length === 0 ? null : chainReturn(returns),
       baselineDate: baseline.snapshotDate
     };
   }
@@ -153,8 +199,21 @@ export class PerformanceService {
     currentValue: number,
     investedAmount: number,
     cashAmount: number,
+    snapshots: PortfolioSnapshot[],
     transactions: Transaction[]
   ): PerformanceMetric {
+    if (snapshots.length > 0) {
+      const firstSnapshot = [...snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate))[0];
+      return this.buildPortfolioTwrMetric(
+        "Since inception",
+        currentValue,
+        snapshots,
+        transactions,
+        firstSnapshot.snapshotDate,
+        investedAmount + cashAmount
+      );
+    }
+
     const deposits = transactions
       .filter((transaction) => transaction.transactionType === "deposit_cash")
       .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
