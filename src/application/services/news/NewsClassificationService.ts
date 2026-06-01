@@ -18,7 +18,11 @@ export const canonicalNewsThemes: NewsCanonicalTheme[] = [
   "Consumer",
   "Healthcare",
   "Financials",
-  "Technology"
+  "Technology",
+  "Industrials",
+  "Quality",
+  "Dividend",
+  "Defensive"
 ];
 const cryptoSymbols = new Set(["BTC", "BTCUSD", "ETH", "ETHUSD", "SOL", "SOLUSD", "IBIT", "FBTC", "BITB", "ARKB", "ETHA", "ETHE", "FETH"]);
 const bondSymbols = new Set(["BND", "AGG", "SHY", "IEF", "TLT", "TIP", "LQD", "HYG", "SGOV", "BIL", "BNDX"]);
@@ -157,7 +161,11 @@ export class NewsClassificationService {
       includesAny(text, ["consumer", "retail", "shopping", "costco", "nike", "disney", "netflix"]) ? "Consumer" : null,
       includesAny(text, ["healthcare", "health care", "pharma", "biotech", "drug", "fda", "lilly", "unitedhealth"]) ? "Healthcare" : null,
       includesAny(text, ["bank", "banks", "financial", "financials", "jpmorgan", "goldman", "fintech"]) ? "Financials" : null,
-      includesAny(text, ["technology", "software", "cloud", "semiconductor", "chip", "chips", "intel", "amd", "broadcom"]) ? "Technology" : null
+      includesAny(text, ["technology", "software", "cloud", "semiconductor", "chip", "chips", "intel", "amd", "broadcom"]) ? "Technology" : null,
+      includesAny(text, ["industrial", "industrials", "infrastructure", "manufacturing", "factory", "pentagon", "defense", "aerospace"]) ? "Industrials" : null,
+      includesAny(text, ["quality", "strong balance sheet", "cash flow", "profitability", "moat"]) ? "Quality" : null,
+      includesAny(text, ["dividend", "yield income", "payout"]) ? "Dividend" : null,
+      includesAny(text, ["defensive", "staples", "utilities", "recession proof", "safe haven"]) ? "Defensive" : null
     ].filter((entry): entry is NewsCanonicalTheme => Boolean(entry));
     const primaryTheme = themeSignals[0] ?? (isEquityMarket ? "Technology" : isGold ? "Inflation" : isCrypto ? "Technology" : null);
     const secondaryThemes = Array.from(new Set(themeSignals.filter((theme) => theme !== primaryTheme))).slice(0, 5);

@@ -1,9 +1,13 @@
 import type { NewsRepository } from "@/application/ports/repositories/NewsRepository";
 import type { NewsFilters } from "@/application/ports/repositories/NewsRepository";
-import type { NewsThemeSummary } from "@/domain/news/types";
+import type { NewsThemeIntelligence, NewsThemeSummary } from "@/domain/news/types";
+import type { ThemeIntelligenceService } from "./ThemeIntelligenceService";
 
 export class NewsDashboardService {
-  constructor(private readonly repository: NewsRepository) {}
+  constructor(
+    private readonly repository: NewsRepository,
+    private readonly themeIntelligenceService: ThemeIntelligenceService
+  ) {}
 
   async getDashboard(filters?: NewsFilters) {
     const [latestNews, weeklyReconciliations, ingestionLogs, latestWeeklyReconciliation] = await Promise.all([
@@ -12,13 +16,31 @@ export class NewsDashboardService {
       this.repository.listIngestionLogs(10),
       this.repository.getLatestWeeklyReconciliation()
     ]);
+    const periodStart = latestWeeklyReconciliation?.periodStart;
+    const periodEnd = latestWeeklyReconciliation?.periodEnd;
+    const themeIntelligence = periodStart && periodEnd
+      ? await this.themeIntelligenceService.getThemeIntelligence(periodStart, periodEnd)
+      : this.emptyThemeIntelligence();
 
     return {
       latestNews,
       weeklyReconciliations,
       ingestionLogs,
       latestWeeklyReconciliation,
-      themeSummary: this.themeSummaryFromCoverage(latestWeeklyReconciliation?.coverageMetadata)
+      themeSummary: themeIntelligence.topThemesThisWeek.length
+        ? themeIntelligence.topThemesThisWeek
+        : this.themeSummaryFromCoverage(latestWeeklyReconciliation?.coverageMetadata),
+      themeIntelligence
+    };
+  }
+
+  private emptyThemeIntelligence(): NewsThemeIntelligence {
+    return {
+      topThemesThisWeek: [],
+      emergingThemes: [],
+      persistentThemes: [],
+      structuralThemes: [],
+      reviewQueue: []
     };
   }
 

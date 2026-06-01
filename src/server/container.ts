@@ -17,6 +17,7 @@ import { NewsDeduplicationService } from "@/application/services/news/NewsDedupl
 import { NewsIngestionService } from "@/application/services/news/NewsIngestionService";
 import { NewsInstrumentLinkingService } from "@/application/services/news/NewsInstrumentLinkingService";
 import { NewsProviderService } from "@/application/services/news/NewsProviderService";
+import { ThemeIntelligenceService } from "@/application/services/news/ThemeIntelligenceService";
 import { WeeklyNewsReconciliationService } from "@/application/services/news/WeeklyNewsReconciliationService";
 import { MarketVisionService } from "@/application/services/marketVision/MarketVisionService";
 import { MacroIndicatorService } from "@/application/services/marketVision/MacroIndicatorService";
@@ -93,7 +94,8 @@ export function createContainer() {
     enableWeeklyReconciliation: env.ENABLE_WEEKLY_NEWS_RECONCILIATION,
     reconciliationModel: env.NEWS_RECONCILIATION_MODEL
   });
-  const newsDashboardService = new NewsDashboardService(newsRepository);
+  const themeIntelligenceService = new ThemeIntelligenceService(newsRepository);
+  const newsDashboardService = new NewsDashboardService(newsRepository, themeIntelligenceService);
   const allocationService = new AllocationService();
   const performanceService = new PerformanceService();
   const analyticsService = new AnalyticsService(allocationService, performanceService);
@@ -132,6 +134,7 @@ export function createContainer() {
     newsInstrumentLinkingService,
     newsClassificationService,
     weeklyNewsReconciliationService,
+    themeIntelligenceService,
     newsDashboardService,
     allocationService,
     performanceService,

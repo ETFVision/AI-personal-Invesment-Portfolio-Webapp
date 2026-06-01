@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { NewsDeduplicationService } from "../src/application/services/news/NewsDeduplicationService";
 import { NewsInstrumentLinkingService } from "../src/application/services/news/NewsInstrumentLinkingService";
 import { NewsClassificationService, validateNewsClassificationOutput } from "../src/application/services/news/NewsClassificationService";
+import { ThemeIntelligenceService } from "../src/application/services/news/ThemeIntelligenceService";
 import { WeeklyNewsReconciliationService } from "../src/application/services/news/WeeklyNewsReconciliationService";
 import { isCronSecretValid } from "../src/application/services/news/cronSecret";
 import type { NewsClassification, NewsIngestionLog, NewsItem, WeeklyNewsReconciliation } from "../src/domain/news/types";
@@ -324,6 +325,28 @@ test("weekly reconciliation summarizes canonical themes", async () => {
   assert.equal(summaries.find((item) => item.theme === "AI")?.count, 1);
   assert.equal(summaries.find((item) => item.theme === "Technology")?.count, 1);
   assert.equal(summaries.find((item) => item.theme === "Rates")?.averageConfidence, 65);
+});
+
+test("theme intelligence calculates hierarchy, trend, and review queue", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({ id: "old-ai", title: "AI spending rises", publishedAt: "2026-05-19T00:00:00.000Z", tickers: ["NVDA"] }),
+    newsItem({ id: "ai-1", title: "AI infrastructure spending rises", publishedAt: "2026-06-01T00:00:00.000Z", tickers: ["NVDA"] }),
+    newsItem({ id: "ai-2", title: "Nvidia AI demand expands", publishedAt: "2026-06-02T00:00:00.000Z", tickers: ["NVDA"] }),
+    newsItem({ id: "bad", title: "AI chip demand accelerates", publishedAt: "2026-06-03T00:00:00.000Z", tickers: ["NVDA"] })
+  ];
+  repository.classifications = [
+    classification({ newsItemId: "old-ai", primaryTheme: "AI", secondaryThemes: ["Technology"], themeConfidence: 80 }),
+    classification({ newsItemId: "ai-1", primaryTheme: "AI", secondaryThemes: ["Technology"], themeConfidence: 80 }),
+    classification({ newsItemId: "ai-2", primaryTheme: "AI", secondaryThemes: ["Technology"], themeConfidence: 70, persistenceScore: 70 }),
+    classification({ newsItemId: "bad", primaryTheme: "Credit", secondaryThemes: [], themeConfidence: 90 })
+  ];
+  const service = new ThemeIntelligenceService(repository);
+  const intelligence = await service.getThemeIntelligence("2026-06-01", "2026-06-07");
+  const ai = intelligence.topThemesThisWeek.find((item) => item.theme === "AI");
+  assert.equal(ai?.categories?.includes("Investment"), true);
+  assert.equal(ai?.trend, "Rising");
+  assert.ok(intelligence.reviewQueue.some((item) => item.reason.includes("AI/technology")));
 });
 
 test("weekly reconciliation does not dump ticker-linked market news into macro", async () => {

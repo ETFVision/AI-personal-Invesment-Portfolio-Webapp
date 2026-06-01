@@ -61,6 +61,12 @@ function formatThemeConfidence(value: number) {
   return `${Math.round(value)}%`;
 }
 
+function trendTone(value?: string) {
+  if (value === "Rising") return "text-emerald-600";
+  if (value === "Declining") return "text-amber-600";
+  return "text-muted-foreground";
+}
+
 export default async function NewsPage({ searchParams }: NewsPageProps) {
   const params = await searchParams;
   const container = createContainer();
@@ -202,29 +208,79 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Top themes this week</CardTitle>
-          <CardDescription>Canonical themes run alongside asset-class buckets so future Market Vision and scoring can separate “what asset class” from “what driver.”</CardDescription>
+          <CardTitle>Theme Intelligence Summary</CardTitle>
+          <CardDescription>Canonical themes run alongside asset-class buckets so future Market Vision and scoring can separate asset exposure from market drivers.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-5">
           {dashboard.themeSummary.length === 0 ? (
             <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">No theme summary yet. Run Weekly reconcile after articles are classified.</div>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {dashboard.themeSummary.slice(0, 9).map((theme) => (
-                <div key={theme.theme} className="rounded-md border p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-medium">{theme.theme}</p>
-                    <span className="text-sm text-muted-foreground">{theme.count} items</span>
+            <>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {dashboard.themeSummary.slice(0, 9).map((theme) => (
+                  <div key={theme.theme} className="rounded-md border p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{theme.theme}</p>
+                        <p className="text-xs text-muted-foreground">{theme.categories?.join(" / ") ?? "Theme"}</p>
+                      </div>
+                      <span className="text-sm text-muted-foreground">{theme.count} items</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-4 gap-2 text-xs text-muted-foreground">
+                      <span>Conf {formatThemeConfidence(theme.averageConfidence)}</span>
+                      <span>Sev {theme.averageSeverity}/100</span>
+                      <span>Persist {theme.averagePersistence}/100</span>
+                      <span className={trendTone(theme.trend)}>{theme.trend ?? "Stable"}</span>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">{theme.topHeadlines.slice(0, 2).join("; ")}</p>
                   </div>
-                  <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-                    <span>Conf {formatThemeConfidence(theme.averageConfidence)}</span>
-                    <span>Sev {theme.averageSeverity}/100</span>
-                    <span>Persist {theme.averagePersistence}/100</span>
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">{theme.topHeadlines.slice(0, 2).join("; ")}</p>
+                ))}
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-md border p-3">
+                  <p className="text-sm font-medium">Emerging themes</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {dashboard.themeIntelligence.emergingThemes.length
+                      ? dashboard.themeIntelligence.emergingThemes.map((theme) => theme.theme).join(", ")
+                      : "No rising theme signal yet."}
+                  </p>
                 </div>
-              ))}
-            </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-sm font-medium">Persistent themes</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {dashboard.themeIntelligence.persistentThemes.length
+                      ? dashboard.themeIntelligence.persistentThemes.map((theme) => theme.theme).join(", ")
+                      : "No persistent theme signal yet."}
+                  </p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-sm font-medium">Structural themes</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {dashboard.themeIntelligence.structuralThemes.length
+                      ? dashboard.themeIntelligence.structuralThemes.map((theme) => theme.theme).join(", ")
+                      : "No structural theme signal yet."}
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-md border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium">Classification review queue</p>
+                  <span className="text-xs text-muted-foreground">{dashboard.themeIntelligence.reviewQueue.length} flagged</span>
+                </div>
+                {dashboard.themeIntelligence.reviewQueue.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted-foreground">No suspicious or low-confidence theme classifications in the current weekly set.</p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {dashboard.themeIntelligence.reviewQueue.slice(0, 5).map((item) => (
+                      <div key={item.newsItemId} className="rounded-md bg-muted/40 p-2 text-sm">
+                        <div className="font-medium">{item.title}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{item.primaryTheme ?? "Unmapped"} · {formatThemeConfidence(item.themeConfidence)} · {item.reason}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -287,7 +343,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                           <div key={theme.theme} className="rounded-md border p-3 text-sm">
                             <div className="flex items-center justify-between gap-3">
                               <span className="font-medium">{theme.theme}</span>
-                              <span className="text-xs text-muted-foreground">{theme.count} items</span>
+                              <span className="text-xs text-muted-foreground">{theme.count} items · {theme.trend ?? "Stable"}</span>
                             </div>
                             <p className="mt-2 text-xs leading-5 text-muted-foreground">{theme.topHeadlines.slice(0, 2).join("; ") || "No headline sample."}</p>
                           </div>

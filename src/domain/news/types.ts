@@ -16,7 +16,13 @@ export type NewsCanonicalTheme =
   | "Consumer"
   | "Healthcare"
   | "Financials"
-  | "Technology";
+  | "Technology"
+  | "Industrials"
+  | "Quality"
+  | "Dividend"
+  | "Defensive";
+export type NewsThemeCategory = "Macro" | "Sector" | "Investment";
+export type NewsThemeTrend = "Rising" | "Stable" | "Declining";
 
 export type NewsItem = {
   id: string;
@@ -150,14 +156,36 @@ export type NewsDashboard = {
   ingestionLogs: NewsIngestionLog[];
   latestWeeklyReconciliation: WeeklyNewsReconciliation | null;
   themeSummary: NewsThemeSummary[];
+  themeIntelligence: NewsThemeIntelligence;
 };
 
 export type NewsThemeSummary = {
   theme: NewsCanonicalTheme;
+  categories?: NewsThemeCategory[];
   count: number;
   averageConfidence: number;
   averageSeverity: number;
   averagePersistence: number;
+  rolling4WeekFrequency?: number;
+  trend?: NewsThemeTrend;
   structuralCount: number;
   topHeadlines: string[];
+};
+
+export type NewsThemeReviewItem = {
+  newsItemId: string;
+  title: string;
+  publishedAt: string | null;
+  primaryTheme: NewsCanonicalTheme | null;
+  secondaryThemes: NewsCanonicalTheme[];
+  themeConfidence: number;
+  reason: string;
+};
+
+export type NewsThemeIntelligence = {
+  topThemesThisWeek: NewsThemeSummary[];
+  emergingThemes: NewsThemeSummary[];
+  persistentThemes: NewsThemeSummary[];
+  structuralThemes: NewsThemeSummary[];
+  reviewQueue: NewsThemeReviewItem[];
 };
