@@ -400,3 +400,54 @@ Residual risks / follow-ups:
 - Risk cache invalidation currently relies mainly on taxonomy version/date behavior; later it should consider latest snapshot and price freshness.
 - Add methodology tooltips for snapshot volatility, covariance risk contribution, proxy risk contribution, and synthetic drawdown.
 - Add explicit tests for cash-only, crypto-heavy, and bond-heavy portfolio reports at the service level.
+
+## 2026-06-01 - Pre-Bond Intelligence Checkpoint
+
+Purpose:
+- Capture the current QA state before starting the Bond Intelligence Foundation layer.
+- Keep a running checkpoint that future QA reviews should update after each major layer is completed.
+
+Current readiness:
+- The existing app foundation is ready to proceed to Bond Intelligence.
+- No critical QA blocker is currently recorded for moving into the next layer.
+- The strongest foundations already in place are the cloud-portable service/repository structure, provider-agnostic market data flow, instrument universe, canonical taxonomy, benchmark comparisons, and risk analytics cache.
+
+Layer status summary:
+- Core MVP is stable enough for continued development after auth, setup, cash, holdings, transaction, dashboard, and Vercel build fixes.
+- FMP market data integration is working through server-side provider adapters, with retry and partial-response handling.
+- Portfolio analytics is usable after return, cash-flow, inception, and dashboard UX fixes.
+- Benchmarking is integrated into dashboard performance, with aligned benchmark dates and chart baseline fixes.
+- Instrument universe and watchlist layers are seeded, refreshable, and using derived market metrics for faster UI loading.
+- Taxonomy normalization is in place, so raw FMP sector/theme values should not drive intelligence logic directly.
+- Risk analytics is functional, including volatility, drawdown, concentration, correlation, diversification, covariance-based risk contribution, and cached derived reports.
+
+Important fixes already completed:
+- Fixed Supabase/Auth cookie typing and Vercel build issues.
+- Preserved the no-direct-Supabase/FMP-in-UI architecture rule.
+- Prevented deposits and cash additions from being incorrectly counted as portfolio returns.
+- Moved portfolio return methodology toward TWR-style chained returns where snapshot and cash-flow data supports it.
+- Aligned benchmark comparisons to nearest valid benchmark dates.
+- Fixed risk correlations to align uneven price histories by date instead of array position.
+- Added canonical sector/theme normalization and removed duplicate theme exposure from the risk page.
+- Added derived risk reports and derived instrument market metrics for faster loading.
+
+Low-priority improvements carried forward:
+- Add FX-aware portfolio values, returns, cash performance, risk, and allocation reporting.
+- Add clearer UI methodology tooltips for TWR, benchmark price returns, manual-capital fallback, snapshot volatility, covariance risk contribution, proxy risk contribution, and synthetic drawdown.
+- Add true money-weighted return / XIRR as a separate personal-investor return metric.
+- Clarify benchmark price-return versus total-return methodology, especially for dividend ETFs and bond ETFs.
+- Add adjusted-close support if provider data and plan limits allow it.
+- Add provider health/status logs for failed symbols, stale prices, rate limits, refresh duration, and skipped fresh instruments.
+- Add a stronger human approval workflow for universe additions, removals, activation changes, and inactive/reference instrument review.
+- Add taxonomy manual override audit trail and unmapped provider-value review workflow.
+- Improve risk cache invalidation using latest snapshot, latest price, and taxonomy version inputs.
+- Add service-level tests for cash-only, crypto-heavy, and bond-heavy risk reports.
+- Add CSV / IBKR ingestion after manual-entry flows remain stable.
+
+Next recommended layer:
+- Bond Intelligence Foundation.
+
+Future QA process:
+- After each completed major layer, append a new dated QA entry to this file.
+- Update this checkpoint or add a new checkpoint before moving into the next major phase.
+- Carry unresolved low-priority items forward until they are either implemented, superseded, or explicitly deferred.
