@@ -12,6 +12,7 @@ import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 import { hashText } from "@/application/services/news/newsText";
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
+type DbRow = Record<string, unknown>;
 
 function isMissingNewsTable(error: { code?: string; message?: string } | null) {
   const message = error?.message?.toLowerCase() ?? "";
@@ -53,6 +54,10 @@ function mapNewsItem(row: any): NewsItem {
 
 function stableSourceId(item: UpsertNewsItemInput) {
   return item.sourceId?.trim() || item.url?.trim() || hashText(`${item.title}|${item.publishedAt ?? ""}|${item.contentHash}`);
+}
+
+function compactPayload(payload: DbRow) {
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
 }
 
 function mapClassification(row: any): NewsClassification {
@@ -174,7 +179,7 @@ export class SupabaseNewsRepository implements NewsRepository {
   async upsertNewsItems(input: UpsertNewsItemInput[]) {
     if (input.length === 0) return [];
     const { data, error } = await this.db.from("news_items").upsert(
-      input.map((item) => ({
+      input.map((item) => compactPayload({
         id: item.id,
         source_provider: item.sourceProvider,
         source_id: stableSourceId(item),

@@ -22,7 +22,8 @@ create table if not exists news_items (
   is_duplicate boolean not null default false,
   duplicate_of_id uuid references news_items(id) on delete set null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint news_items_source_provider_source_id_key unique (source_provider, source_id)
 );
 
 create table if not exists news_classifications (
@@ -111,8 +112,6 @@ create table if not exists news_ingestion_logs (
   constraint news_ingestion_logs_status_check check (status in ('success', 'partial_success', 'failed'))
 );
 
-create unique index if not exists idx_news_items_provider_source_id
-  on news_items (source_provider, source_id);
 create unique index if not exists idx_news_items_provider_url
   on news_items (source_provider, url)
   where url is not null;
