@@ -201,6 +201,7 @@ export default async function RiskPage() {
   }
 
   const dashboard = await container.portfolioService.getDashboard(portfolio.id);
+  const bondReport = await container.bondService.getPortfolioBondAnalytics(dashboard);
   const cachedRiskReport = await container.riskAnalyticsRepository.getLatestRiskReport(portfolio.id);
   const cachedReport = cachedRiskReport?.report as Partial<RiskAnalyticsReport> | null | undefined;
   const canUseCachedReport = cachedReport?.taxonomyVersion === RISK_TAXONOMY_VERSION;
@@ -302,6 +303,45 @@ export default async function RiskPage() {
             <div className="text-3xl font-semibold">{formatMaybePercent(report.drawdown.maxDrawdown)}</div>
             <p className="mt-2 text-sm text-muted-foreground">
               {report.drawdown.drawdownDurationDays ?? 0} current drawdown day{report.drawdown.drawdownDurationDays === 1 ? "" : "s"}.
+            </p>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Bond volatility role</CardTitle>
+            <CardDescription>Current bond ETF risk contribution and allocation.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-semibold">{formatPercent(report.riskByAssetClass.find((item) => item.label === "bond_etf")?.percent ?? 0)}</div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Bond ETFs are {formatPercent(bondReport.totalBondAllocation)} of the portfolio by current value.
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Bond duration exposure</CardTitle>
+            <CardDescription>Long-duration and cash-like bond sleeve exposure.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-semibold">{formatPercent(bondReport.longDurationExposure)}</div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {formatPercent(bondReport.cashLikeExposure)} is classified as cash-like bond ETF exposure.
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Bond credit risk</CardTitle>
+            <CardDescription>Corporate and high-yield bond ETF exposure.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-semibold">{formatPercent(bondReport.creditRiskExposure)}</div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              High-yield exposure is {formatPercent(bondReport.highYieldExposure)}.
             </p>
           </CardContent>
         </Card>

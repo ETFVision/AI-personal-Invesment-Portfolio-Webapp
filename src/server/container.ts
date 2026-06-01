@@ -10,6 +10,7 @@ import { InstrumentService } from "@/application/services/InstrumentService";
 import { PortfolioService } from "@/application/services/PortfolioService";
 import { MarketDataService } from "@/application/services/MarketDataService";
 import { PerformanceService } from "@/application/services/PerformanceService";
+import { BondService } from "@/application/services/bonds/BondService";
 import { RiskAnalyticsService } from "@/application/services/risk/RiskAnalyticsService";
 import { RiskAnalyticsDataService } from "@/application/services/risk/RiskAnalyticsDataService";
 import { MetadataRefreshService } from "@/application/services/MetadataRefreshService";
@@ -40,6 +41,7 @@ export function createContainer() {
   const assetMetadataService = new AssetMetadataService(marketDataRepository, assetMetadataProvider);
   const instrumentMarketService = new InstrumentMarketService(universeRepository, marketDataProvider);
   const instrumentService = new InstrumentService(universeRepository);
+  const bondService = new BondService(universeRepository);
   const watchlistService = new WatchlistService(universeRepository);
   const universeManagementService = new UniverseManagementService(universeRepository);
   const metadataRefreshService = new MetadataRefreshService(universeRepository, assetMetadataProvider);
@@ -65,6 +67,7 @@ export function createContainer() {
     marketDataProvider,
     assetMetadataProvider,
     instrumentService,
+    bondService,
     instrumentMarketService,
     watchlistService,
     universeManagementService,

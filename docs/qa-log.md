@@ -451,3 +451,48 @@ Future QA process:
 - After each completed major layer, append a new dated QA entry to this file.
 - Update this checkpoint or add a new checkpoint before moving into the next major phase.
 - Carry unresolved low-priority items forward until they are either implemented, superseded, or explicitly deferred.
+
+## 2026-06-01 - Bond Intelligence Foundation Implementation QA
+
+Scope:
+- Bond ETF classification.
+- Duration exposure.
+- Credit exposure.
+- Inflation-linked exposure.
+- Treasury/corporate split.
+- Cash-like bond exposure.
+- Bond Intelligence dashboard.
+- Risk Analytics bond summary integration.
+
+Implemented:
+- Added deterministic bond services:
+  - `BondService`
+  - `BondAnalyticsService`
+  - `BondProfileService`
+  - `DurationAnalysisService`
+  - `CreditExposureService`
+- Added `/bonds` dashboard route.
+- Added Bonds navigation item.
+- Added bond analytics cards to the Risk Analytics page.
+- Added seed normalization migration for bond ETF classifications, including BNDX.
+- Added tests for bond classification, duration exposure, credit exposure, inflation-linked exposure, treasury/corporate split, cash-like allocation, no-bond case, and bond-heavy warning case.
+
+Validation run:
+- `npm.cmd run lint`
+- `npm.cmd run test`
+- `npm.cmd run typecheck`
+- `npm.cmd run build`
+
+Findings:
+- No AI, recommendations, Market Vision, scoring, or telemetry logic was added.
+- Bond calculations are deterministic and service-layer based.
+- UI components read through server services and do not call Supabase or FMP directly.
+- Existing `bond_profiles` remains the source of curated fixed-income classifications.
+- FMP metadata remains supplemental and does not overwrite curated bond profile logic in this layer.
+
+Residual risks / follow-ups:
+- Apply `supabase/migrations/016_bond_intelligence_foundation.sql` in Supabase before expecting BND/AGG/BNDX and related profiles to show the newest canonical classifications in deployed data.
+- Bond math is intentionally simple; duration convexity, yield, spread duration, SEC yield, effective duration, and option-adjusted spread remain future enhancements.
+- Multi-currency bond exposure still relies on native value estimates until FX conversion is implemented.
+- Add manual bond profile editing/admin review later if the curated classifications need user-level overrides in the UI.
+- Add deeper integration into future allocation, scenario, Market Vision, and recommendation layers after those modules exist.
