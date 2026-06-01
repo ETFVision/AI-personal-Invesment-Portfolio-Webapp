@@ -167,7 +167,7 @@ test("rolling benchmark returns require a recent baseline", () => {
   assert.equal(comparison.rolling30DayPortfolioReturn, null);
 });
 
-test("benchmark comparisons ignore stale tiny portfolio snapshots when manual capital is known", () => {
+test("benchmark comparisons keep history but guard returns from stale tiny portfolio snapshots", () => {
   const service = new BenchmarkComparisonService();
   const comparisons = service.calculateComparisons({
     benchmarks: [benchmark()],
@@ -183,6 +183,8 @@ test("benchmark comparisons ignore stale tiny portfolio snapshots when manual ca
   });
 
   assert.equal(comparisons.length, 1);
-  assert.equal(comparisons[0].points.length, 1);
-  assert.equal(comparisons[0].cumulativePortfolioReturn, 0);
+  assert.equal(comparisons[0].points.length, 2);
+  assert.equal(comparisons[0].points[0].portfolioReturn, 0);
+  assert.equal(comparisons[0].cumulativePortfolioReturn, 0.1);
+  assertClose(comparisons[0].cumulativeBenchmarkReturn, 0.2);
 });

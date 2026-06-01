@@ -79,9 +79,7 @@ export class BenchmarkComparisonService {
     minimumCapitalBase?: number;
   }): BenchmarkComparison[] {
     const minimumCapitalBase = input.minimumCapitalBase ?? 0;
-    const portfolioSeries = [...input.portfolioSnapshots]
-      .filter((snapshot) => minimumCapitalBase === 0 || snapshot.totalValue >= minimumCapitalBase * 0.8)
-      .sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+    const portfolioSeries = [...input.portfolioSnapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
     if (portfolioSeries.length === 0) return [];
 
     return input.benchmarks
