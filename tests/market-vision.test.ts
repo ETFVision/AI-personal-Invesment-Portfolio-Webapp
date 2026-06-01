@@ -36,6 +36,7 @@ class FakeMarketVisionRepository implements MarketVisionRepository {
   async upsertReport(input: UpsertMarketVisionReportInput) {
     const existingIndex = input.id ? this.reports.findIndex((report) => report.id === input.id) : -1;
     const now = "2026-06-01T00:00:00.000Z";
+    const existing = existingIndex >= 0 ? this.reports[existingIndex] : null;
     const report: MarketVisionReport = {
       id: input.id ?? `report-${this.reports.length + 1}`,
       reportDate: input.reportDate,
@@ -55,7 +56,9 @@ class FakeMarketVisionRepository implements MarketVisionRepository {
       opportunities: input.opportunities,
       risks: input.risks,
       portfolioImplications: input.portfolioImplications,
-      classificationSummary: { shortTermNoise: 0, mediumTermThemes: 0, structuralLongTermShifts: 0 },
+      classificationSummary: input.classificationSummary ??
+        existing?.classificationSummary ??
+        { shortTermNoise: 0, mediumTermThemes: 0, structuralLongTermShifts: 0 },
       sourceType: input.sourceType,
       status: input.status,
       createdAt: now,
@@ -168,4 +171,30 @@ test("dashboard supports empty-state handling when no reports exist", async () =
   assert.equal(dashboard.selectedReport, null);
   assert.equal(dashboard.latestPublishedReport, null);
   assert.deepEqual(dashboard.themeEvents, []);
+});
+
+test("saving a draft preserves existing classification summary when not supplied", async () => {
+  const repository = new FakeMarketVisionRepository();
+  const service = new MarketVisionService(repository);
+
+  const draft = await service.createDraft({
+    title: "Classification Summary",
+    reportDate: "2026-06-01",
+    classificationSummary: { shortTermNoise: 1, mediumTermThemes: 2, structuralLongTermShifts: 3 }
+  });
+
+  const saved = await service.saveDraft({
+    ...draft,
+    id: draft.id,
+    title: "Updated Classification Summary",
+    classificationSummary: undefined,
+    sourceType: "manual",
+    status: "draft"
+  });
+
+  assert.deepEqual(saved.classificationSummary, {
+    shortTermNoise: 1,
+    mediumTermThemes: 2,
+    structuralLongTermShifts: 3
+  });
 });

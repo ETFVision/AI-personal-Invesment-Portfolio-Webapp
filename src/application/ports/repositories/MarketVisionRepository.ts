@@ -1,5 +1,6 @@
 import type {
   MacroIndicator,
+  ClassificationSummary,
   MarketThemeEvent,
   MarketVisionReport,
   MarketVisionSourceType,
@@ -26,6 +27,7 @@ export type UpsertMarketVisionReportInput = {
   opportunities: string[];
   risks: string[];
   portfolioImplications: PortfolioImplications;
+  classificationSummary?: ClassificationSummary;
   sourceType: MarketVisionSourceType;
   status: MarketVisionStatus;
 };

@@ -70,6 +70,7 @@ export class MarketVisionService {
       opportunities: input?.opportunities ?? [],
       risks: input?.risks ?? [],
       portfolioImplications: input?.portfolioImplications ?? emptyPortfolioImplications,
+      classificationSummary: input?.classificationSummary,
       sourceType: input?.sourceType ?? "manual",
       status: input?.status ?? "draft"
     });

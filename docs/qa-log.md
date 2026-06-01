@@ -685,3 +685,64 @@ Residual risks / follow-ups:
 - Add FMP market context ingestion in a later phase.
 - Add OpenAI summarisation only after the deterministic report workflow and data sources are QA'd.
 - Add richer error/loading UX if report workflows become more complex.
+
+## 2026-06-01 - Market Vision Skeleton Comprehensive QA
+
+Scope:
+- Market Vision Skeleton only.
+- Report page structure, manual workflow, data models, service/repository architecture, UI/UX, future AI compatibility, and database readiness.
+- Explicitly excluded AI summarisation, news feeds, recommendations, scoring, and telemetry.
+
+Architecture assessment:
+- Market Vision UI uses server actions and services; Supabase access remains isolated in `SupabaseMarketVisionRepository`.
+- No FMP, FRED, or OpenAI calls are made from UI components.
+- `MarketVisionService`, `MacroIndicatorService`, and `MarketThemeService` keep deterministic logic centralized.
+- Future AI hooks exist as interfaces/placeholders only, without generation behavior.
+- Cloud portability is preserved because the repository interface can later be backed by Cloud SQL/PostgreSQL without changing UI components.
+
+Data model assessment:
+- `market_vision_reports` supports weekly manual reports with executive, equity, bond, gold, crypto, rates, inflation, currency, geopolitical, risks, opportunities, and portfolio implication sections.
+- `macro_indicators` supports rates, inflation, yields, employment, growth, currency, commodities, and liquidity with provider/source tracking for future FRED/FMP ingestion.
+- `market_theme_events` supports deterministic classification into short-term noise, medium-term theme, and structural long-term shift with severity, persistence, confidence, and affected exposure fields.
+- Theme events cascade on report deletion, preventing orphaned rows.
+- Latest report retrieval is indexed by status and report date.
+
+UX assessment:
+- The Market Vision page has a clear CIO-style section order and keeps manual draft editing separate from published report reading.
+- Empty state, draft/published/archived status indicators, report selector, macro indicator cards, theme table, risks/opportunities, and portfolio implications are present.
+- The page remains mobile-friendly through grid-based layouts and compact cards.
+
+Critical issues:
+- None found.
+
+Medium-priority issues fixed:
+- Missing-table handling now gracefully covers `market_vision_reports`, `macro_indicators`, and `market_theme_events`, so the page degrades safely before migration 018 is applied.
+- Report upserts no longer overwrite `classification_summary` with `{}` when saving manual drafts.
+- Draft creation now preserves an explicitly supplied classification summary, which protects future generated/imported workflows.
+
+Tests added or improved:
+- Added a regression test confirming draft saves preserve an existing classification summary when the save payload does not supply one.
+
+Validation run:
+- `npm.cmd run lint`
+- `npm.cmd run test`
+- `npm.cmd run typecheck`
+- `npm.cmd run build`
+
+Low-priority improvements:
+- Add manual create/edit UI for market theme events once the skeleton moves beyond report-section editing.
+- Add report versioning or revision history before AI-generated drafts are introduced.
+- Add role-based admin permissions for report publishing if multiple users/accounts are supported.
+- Add richer field-level validation for report period dates and publish readiness.
+- Add source citation fields for future FRED/FMP/news-derived report sections.
+- Add a structured portfolio implication schema per asset class before recommendations are connected.
+- Add dedicated loading/error components if report workflows become more interactive.
+
+Future AI compatibility assessment:
+- Ready for a later AI generation service because report fields, theme classifications, source type, status, and prompt/provider placeholders are already separated from UI rendering.
+- AI output should write drafts only, with human review before publish.
+- News and macro retrieval should be implemented as provider services and background jobs, not direct UI calls.
+
+Production-readiness assessment:
+- Ready as a manual Market Vision skeleton after migration 018 is applied in Supabase.
+- Not yet production-ready as an automated CIO briefing, because data streams, source citations, AI summarisation, versioning, and approval workflow hardening remain future phases.

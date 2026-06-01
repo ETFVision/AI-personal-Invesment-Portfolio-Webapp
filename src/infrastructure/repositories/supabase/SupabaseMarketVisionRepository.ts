@@ -15,7 +15,14 @@ import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
 function isMissingMarketVisionTable(error: { code?: string; message?: string } | null) {
-  return Boolean(error && (error.code === "42P01" || error.message?.toLowerCase().includes("market_vision")));
+  const message = error?.message?.toLowerCase() ?? "";
+  return Boolean(
+    error &&
+      (error.code === "42P01" ||
+        message.includes("market_vision") ||
+        message.includes("macro_indicators") ||
+        message.includes("market_theme_events"))
+  );
 }
 
 function toStringArray(value: unknown) {
@@ -126,7 +133,7 @@ function reportPayload(input: UpsertMarketVisionReportInput) {
     opportunities: input.opportunities,
     risks: input.risks,
     portfolio_implications: input.portfolioImplications,
-    classification_summary: {},
+    classification_summary: input.classificationSummary,
     source_type: input.sourceType,
     status: input.status
   };
