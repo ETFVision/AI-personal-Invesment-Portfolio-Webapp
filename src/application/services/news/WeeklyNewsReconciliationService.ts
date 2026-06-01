@@ -15,6 +15,13 @@ const buckets = [
 ] as const;
 
 type Bucket = typeof buckets[number];
+const cryptoSymbols = new Set(["BTC", "BTCUSD", "ETH", "ETHUSD", "SOL", "SOLUSD", "IBIT", "FBTC", "BITB", "ARKB", "ETHA", "ETHE", "FETH"]);
+const bondSymbols = new Set(["BND", "AGG", "SHY", "IEF", "TLT", "TIP", "LQD", "HYG", "SGOV", "BIL", "BNDX"]);
+const goldSymbols = new Set(["GLD", "IAU"]);
+
+function textIncludesAny(text: string, terms: string[]) {
+  return terms.some((term) => text.includes(term));
+}
 
 export class WeeklyNewsReconciliationService {
   constructor(
@@ -79,22 +86,32 @@ export class WeeklyNewsReconciliationService {
     const grouped = new Map<Bucket, typeof items>();
     for (const bucket of buckets) grouped.set(bucket, []);
     for (const item of items) {
-      const classes = item.classification.affectedAssetClasses.map((entry) => entry.toLowerCase());
-      const macros = item.classification.affectedMacroCategories.map((entry) => entry.toLowerCase());
-      const title = item.title.toLowerCase();
-      const bucket =
-        classes.some((entry) => entry.includes("bond")) ? "bonds" :
-        classes.some((entry) => entry.includes("gold") || entry.includes("commodity")) ? "gold" :
-        classes.some((entry) => entry.includes("crypto")) ? "crypto" :
-        macros.some((entry) => entry.includes("rate")) ? "rates" :
-        macros.some((entry) => entry.includes("inflation")) ? "inflation" :
-        macros.some((entry) => entry.includes("currency") || entry.includes("usd")) ? "currency" :
-        title.includes("war") || title.includes("geopolitical") ? "geopolitical" :
-        classes.some((entry) => entry.includes("equity") || entry.includes("stock")) ? "equities" :
-        "macro";
+      const bucket = this.inferBucket(item);
       grouped.set(bucket, [...(grouped.get(bucket) ?? []), item]);
     }
     return grouped;
+  }
+
+  inferBucket(item: Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>[number]): Bucket {
+    const classes = item.classification.affectedAssetClasses.map((entry) => entry.toLowerCase());
+    const macros = item.classification.affectedMacroCategories.map((entry) => entry.toLowerCase());
+    const title = `${item.title} ${item.summary ?? ""}`.toLowerCase();
+    const symbols = item.tickers.map((ticker) => ticker.toUpperCase());
+    if (classes.some((entry) => entry.includes("bond")) || symbols.some((symbol) => bondSymbols.has(symbol))) return "bonds";
+    if (classes.some((entry) => entry.includes("gold") || entry.includes("commodity")) || symbols.some((symbol) => goldSymbols.has(symbol))) return "gold";
+    if (classes.some((entry) => entry.includes("crypto")) || symbols.some((symbol) => cryptoSymbols.has(symbol))) return "crypto";
+    if (macros.some((entry) => entry.includes("rate")) || textIncludesAny(title, ["fed", "interest rate", "rate cut", "rate hike", "treasury yield"])) return "rates";
+    if (macros.some((entry) => entry.includes("inflation")) || textIncludesAny(title, ["inflation", "cpi", "pce"])) return "inflation";
+    if (macros.some((entry) => entry.includes("currency") || entry.includes("usd")) || textIncludesAny(title, ["usd", "dollar", "currency", "fx"])) return "currency";
+    if (macros.some((entry) => entry.includes("geopolitical")) || textIncludesAny(title, ["war", "geopolitical", "sanction", "tariff", "conflict"])) return "geopolitical";
+    if (
+      classes.some((entry) => entry.includes("equity") || entry.includes("stock")) ||
+      item.tickers.length > 0 ||
+      textIncludesAny(title, ["stock", "stocks", "equity", "equities", "s&p 500", "nasdaq", "dow", "spy", "qqq", "earnings", "shares"])
+    ) {
+      return "equities";
+    }
+    return "macro";
   }
 
   private deterministicSummary(bucket: Bucket, items: Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>) {

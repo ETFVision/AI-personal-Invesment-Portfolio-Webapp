@@ -5,6 +5,13 @@ import { clampScore } from "./newsText";
 
 const sentiments: NewsSentiment[] = ["positive", "neutral", "negative", "mixed"];
 const labels: NewsClassificationLabel[] = ["short_term_noise", "medium_term_theme", "structural_long_term_shift", "existential_risk"];
+const cryptoSymbols = new Set(["BTC", "BTCUSD", "ETH", "ETHUSD", "SOL", "SOLUSD", "IBIT", "FBTC", "BITB", "ARKB", "ETHA", "ETHE", "FETH"]);
+const bondSymbols = new Set(["BND", "AGG", "SHY", "IEF", "TLT", "TIP", "LQD", "HYG", "SGOV", "BIL", "BNDX"]);
+const goldSymbols = new Set(["GLD", "IAU"]);
+
+function includesAny(text: string, terms: string[]) {
+  return terms.some((term) => text.includes(term));
+}
 
 export function validateNewsClassificationOutput(input: unknown) {
   const row = typeof input === "object" && input !== null ? input as Record<string, unknown> : {};
@@ -82,18 +89,48 @@ export class NewsClassificationService {
     const negative = /\b(warn|fall|drop|lawsuit|probe|risk|war|default|recession|inflation|hack|fraud|miss)\b/.test(text);
     const positive = /\b(beat|surge|rise|growth|profit|approval|record|upgrade)\b/.test(text);
     const structural = /\b(ai|semiconductor|energy transition|deglobalization|demographic|regulation)\b/.test(text);
+    const symbols = item.tickers.map((ticker) => ticker.toUpperCase());
+    const hasTicker = symbols.length > 0;
+    const isCrypto = symbols.some((symbol) => cryptoSymbols.has(symbol)) || includesAny(text, ["bitcoin", "ethereum", "solana", "crypto"]);
+    const isBond = symbols.some((symbol) => bondSymbols.has(symbol)) || includesAny(text, ["treasury", "bond", "yield curve", "credit spread"]);
+    const isGold = symbols.some((symbol) => goldSymbols.has(symbol)) || includesAny(text, ["gold", "commodity", "commodities"]);
+    const isRates = includesAny(text, ["fed", "federal reserve", "interest rate", "rate cut", "rate hike", "yield", "treasury yield"]);
+    const isInflation = includesAny(text, ["inflation", "cpi", "pce", "prices"]);
+    const isCurrency = includesAny(text, ["dollar", "usd", "currency", "fx"]);
+    const isGeopolitical = includesAny(text, ["war", "geopolitical", "sanction", "tariff", "conflict"]);
+    const isEquityMarket = hasTicker || includesAny(text, ["stock", "stocks", "equity", "equities", "s&p 500", "nasdaq", "dow", "spy", "qqq", "earnings", "shares"]);
+    const affectedAssetClasses = [
+      isCrypto ? "crypto" : null,
+      isBond ? "bonds" : null,
+      isGold ? "gold/commodities" : null,
+      !isCrypto && !isBond && !isGold && isEquityMarket ? "equities" : null,
+      !isEquityMarket && (isRates || isInflation || isCurrency || isGeopolitical) ? "macro" : null
+    ].filter((entry): entry is string => Boolean(entry));
+    const affectedMacroCategories = [
+      isRates ? "rates" : null,
+      isInflation ? "inflation" : null,
+      isCurrency ? "currency" : null,
+      isGeopolitical ? "geopolitical" : null
+    ].filter((entry): entry is string => Boolean(entry));
+    const affectedThemes = [
+      /\b(ai|artificial intelligence|nvidia|nvda)\b/.test(text) ? "AI / Automation" : null,
+      /\b(semiconductor|chip|chips|intel|nvidia|amd|tsm|asml)\b/.test(text) ? "Semiconductors" : null,
+      isRates || isBond ? "Interest Rate Sensitive" : null,
+      isInflation || isGold ? "Inflation Hedge" : null,
+      isCrypto ? "Crypto / Digital Assets" : null
+    ].filter((entry): entry is string => Boolean(entry));
     return {
       sentiment: negative ? "negative" as const : positive ? "positive" as const : "neutral" as const,
       eventType: structural ? "theme_update" : "news_update",
       classification: structural ? "medium_term_theme" as const : "short_term_noise" as const,
       severityScore: negative ? 55 : positive ? 45 : 25,
       persistenceScore: structural ? 65 : 20,
-      confidenceScore: 45,
-      affectedAssetClasses: [],
+      confidenceScore: affectedAssetClasses.length > 0 ? 60 : 40,
+      affectedAssetClasses,
       affectedSectors: [],
-      affectedThemes: structural ? ["Potential market theme"] : [],
+      affectedThemes: affectedThemes.length > 0 ? affectedThemes : structural ? ["Potential market theme"] : [],
       affectedInstruments: item.tickers,
-      affectedMacroCategories: [],
+      affectedMacroCategories,
       reasoningSummary: "Deterministic fallback classification used because AI news classification is disabled."
     };
   }

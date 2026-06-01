@@ -811,3 +811,83 @@ Future improvements:
 - Add news source citations into Market Vision drafts.
 - Add BigQuery export path for larger-scale historical news analysis.
 - Add telemetry later to compare news classification persistence against eventual portfolio/market outcomes.
+
+## 2026-06-01 - News Intelligence Layer Comprehensive QA
+
+Scope:
+- News Intelligence Layer only.
+- Reviewed FMP ingestion, deduplication, instrument linking, deterministic classification, weekly reconciliation, cron route protection, UI, Market Vision handoff, database integrity, and architecture boundaries.
+- Explicitly excluded scoring, buy/sell recommendations, telemetry learning, and unrestricted chatbot behavior.
+
+Live behavior observed:
+- Daily ingestion can complete as `partial_success` when FMP returns duplicates.
+- Example healthy run: `80 fetched, 68 saved, 16 duplicates`.
+- Latest article cards are based on the displayed latest 60 rows, while ingestion logs report the full job run. This explains why UI duplicate counts can differ from log duplicate counts.
+- Weekly reconciliation can be created and shown as a draft.
+
+Architecture assessment:
+- UI components do not call Supabase, FMP, or OpenAI directly.
+- News data access remains isolated in `NewsRepository` / `SupabaseNewsRepository`.
+- FMP is isolated behind `NewsProvider` / `FmpNewsProvider`.
+- OpenAI is isolated behind `NewsAiProvider` and remains disabled by default.
+- Cron routes are protected by `CRON_SECRET` and can be triggered by Vercel Cron or Google Cloud Scheduler.
+- News jobs are reusable application job classes, not Vercel-specific logic.
+
+Data model assessment:
+- `news_items` stores normalized provider data, canonical hashes, source IDs, related instruments, duplicate flags, and raw provider metadata.
+- `news_classifications` stores structured classification output without recommendation fields.
+- `news_groups` and `weekly_news_reconciliations` are sufficient for Market Vision input preparation.
+- `news_ingestion_logs` records provider/job metrics and failure messages.
+- Follow-up migrations 020 and 021 harden the unique source ID constraint and repair duplicate source keys.
+
+Critical issues fixed:
+- `news_items` upsert failed when Supabase received an explicit null/undefined `id`.
+- `news_classifications` upsert failed when Supabase received an explicit null/undefined `id`.
+- `ON CONFLICT` failed because the database needed a concrete unique constraint on `(source_provider, source_id)`.
+- Same-batch duplicate FMP articles caused `ON CONFLICT DO UPDATE command cannot affect row a second time`.
+- News server actions caught Next.js redirects and surfaced `NEXT_REDIRECT`.
+
+Medium-priority issues fixed:
+- Deterministic fallback classification left many articles with no affected asset class, causing weekly reconciliation to default too many equity/ticker-linked items into macro.
+- Weekly reconciliation now routes obvious ticker/index/stock-market articles to equities even if older classifications are sparse.
+- Manual duplicate override no longer marks canonical articles as duplicates of themselves.
+- Non-ASCII separator artifacts in the News page were replaced with ASCII separators.
+
+Classification quality assessment:
+- Deterministic fallback now routes obvious equities, bonds, gold/commodities, crypto, rates, inflation, currency, and geopolitical items more cleanly.
+- Obvious stock/index examples such as Nvidia/Intel and S&P 500/SPY should route to equities instead of macro.
+- AI classification remains optional and disabled by default, so nuanced classification will still be limited until the AI flag is intentionally enabled.
+
+Cost-control assessment:
+- Daily fetch volume is capped by env config.
+- Per-instrument article volume is capped by env config.
+- Classification skips duplicate articles.
+- Classification skips already-classified articles.
+- Weekly reconciliation caps article volume through env config.
+- Token/cost tracking fields are present for AI-enabled phases.
+
+Testing added or improved:
+- Deterministic stock-news classification routes to equities and semiconductor themes.
+- Weekly reconciliation does not dump ticker-linked market news into macro.
+- Existing tests continue to cover deduplication hash behavior, symbol linking, JSON validation, duplicate skip behavior, classification payload defaults, weekly grouping, and cron secret validation.
+
+Validation run:
+- `npm.cmd run lint`
+- `npm.cmd run test`
+- `npm.cmd run typecheck`
+- `npm.cmd run build`
+
+Low-priority improvements:
+- Add a dedicated reclassify-all-deterministic action for existing fallback classifications if historical cleanup is needed.
+- Add manual classification editing for one-off article corrections.
+- Add a canonical-article selector for marking a canonical article as duplicate of another article.
+- Add clearer UI text explaining that cards show the latest 60 displayed rows, while logs show full job totals.
+- Add source quality filters once FMP source quality patterns are known.
+- Add fuzzy matching for near-duplicate titles beyond normalized title/date hashing.
+- Add source citation extraction for Market Vision drafts.
+- Add provider health metrics for FMP endpoint latency, 429s, and empty responses.
+
+Production-readiness assessment:
+- Ready as a News Intelligence foundation after migrations 019, 020, and 021 are applied in Supabase and Vercel has redeployed the latest commit.
+- Suitable for collecting, normalizing, deduplicating, linking, classifying, and reconciling news for Market Vision input.
+- Not yet a final CIO-quality narrative layer until AI classification/reconciliation, source citations, manual review tooling, and quality filters are added.

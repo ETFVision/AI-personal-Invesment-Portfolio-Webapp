@@ -128,7 +128,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                   <tr key={item.id} className="border-t align-top">
                     <td className="py-3 pr-3">
                       <div className="max-w-xl font-medium">{item.title}</div>
-                      <div className="text-xs text-muted-foreground">{item.sourceName ?? item.sourceProvider} {item.url ? "· linked source" : ""}</div>
+                      <div className="text-xs text-muted-foreground">{item.sourceName ?? item.sourceProvider} {item.url ? "- linked source" : ""}</div>
                     </td>
                     <td className="py-3 pr-3">{formatDate(item.publishedAt)}</td>
                     <td className="py-3 pr-3">{item.tickers.length ? item.tickers.join(", ") : "Unlinked"}</td>
@@ -141,11 +141,13 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                     </td>
                     <td className="py-3 pr-3">
                       <div>{item.isDuplicate ? "Duplicate" : "Canonical"}</div>
-                      <form action={duplicateOverrideAction} className="mt-2">
-                        <input type="hidden" name="newsItemId" value={item.id} />
-                        <input type="hidden" name="duplicateOfId" value={item.isDuplicate ? "" : item.id} />
-                        <Button type="submit" size="sm" variant="outline">{item.isDuplicate ? "Mark canonical" : "Mark duplicate"}</Button>
-                      </form>
+                      {item.isDuplicate ? (
+                        <form action={duplicateOverrideAction} className="mt-2">
+                          <input type="hidden" name="newsItemId" value={item.id} />
+                          <input type="hidden" name="duplicateOfId" value="" />
+                          <Button type="submit" size="sm" variant="outline">Mark canonical</Button>
+                        </form>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -166,7 +168,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
               <p className="text-muted-foreground">No weekly reconciliation has been created yet.</p>
             ) : dashboard.weeklyReconciliations.map((item) => (
               <div key={item.id} className="rounded-md border p-3">
-                <div className="font-medium">{item.periodStart} to {item.periodEnd} · {item.status}</div>
+                <div className="font-medium">{item.periodStart} to {item.periodEnd} - {item.status}</div>
                 <p className="mt-1 text-muted-foreground">{item.macroSummary ?? item.equitiesSummary ?? "No summary available."}</p>
               </div>
             ))}
@@ -183,7 +185,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
               <p className="text-muted-foreground">No ingestion jobs have run yet.</p>
             ) : dashboard.ingestionLogs.map((log) => (
               <div key={log.id} className="rounded-md border p-3">
-                <div className="font-medium">{log.jobName} · {log.status}</div>
+                <div className="font-medium">{log.jobName} - {log.status}</div>
                 <div className="text-muted-foreground">
                   {log.articlesFetched} fetched, {log.articlesInserted} saved, {log.duplicatesDetected} duplicates
                 </div>
