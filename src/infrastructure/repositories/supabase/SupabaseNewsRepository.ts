@@ -57,7 +57,7 @@ function stableSourceId(item: UpsertNewsItemInput) {
 }
 
 function compactPayload(payload: DbRow) {
-  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
+  return Object.fromEntries(Object.entries(payload).filter(([key, value]) => value !== undefined && !(key === "id" && value === null)));
 }
 
 function mapClassification(row: any): NewsClassification {

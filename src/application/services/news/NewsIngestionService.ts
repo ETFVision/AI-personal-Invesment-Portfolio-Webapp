@@ -3,6 +3,12 @@ import type { NewsRepository } from "@/application/ports/repositories/NewsReposi
 import type { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
 import { NewsDeduplicationService } from "./NewsDeduplicationService";
 import { NewsInstrumentLinkingService } from "./NewsInstrumentLinkingService";
+import { hashText } from "./newsText";
+
+function sourceKey(input: { sourceProvider: string; sourceId: string | null; url: string | null; title: string; publishedAt: string | null; contentHash: string }) {
+  const sourceId = input.sourceId?.trim() || input.url?.trim() || hashText(`${input.title}|${input.publishedAt ?? ""}|${input.contentHash}`);
+  return `${input.sourceProvider}|${sourceId}`;
+}
 
 export class NewsIngestionService {
   constructor(
@@ -38,8 +44,15 @@ export class NewsIngestionService {
       articlesFetched = fetched.length;
 
       const rows = [];
+      const batchKeys = new Set<string>();
       for (const article of fetched) {
         const prepared = this.deduplicationService.prepare(article);
+        const key = sourceKey(prepared);
+        if (batchKeys.has(key)) {
+          duplicatesDetected += 1;
+          continue;
+        }
+        batchKeys.add(key);
         const canonical = await this.newsRepository.findCanonicalArticle(prepared);
         const deduped = this.deduplicationService.markAgainstCanonical(article, canonical);
         const linked = this.linkingService.link(article, newsTracked);
