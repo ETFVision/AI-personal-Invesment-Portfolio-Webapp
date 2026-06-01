@@ -57,7 +57,11 @@ function stableSourceId(item: UpsertNewsItemInput) {
 }
 
 function compactPayload(payload: DbRow) {
-  return Object.fromEntries(Object.entries(payload).filter(([key, value]) => value !== undefined && !(key === "id" && value === null)));
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
+}
+
+function payloadId(id: string | null | undefined) {
+  return id?.trim() || undefined;
 }
 
 function mapClassification(row: any): NewsClassification {
@@ -180,7 +184,7 @@ export class SupabaseNewsRepository implements NewsRepository {
     if (input.length === 0) return [];
     const { data, error } = await this.db.from("news_items").upsert(
       input.map((item) => compactPayload({
-        id: item.id,
+        id: payloadId(item.id),
         source_provider: item.sourceProvider,
         source_id: stableSourceId(item),
         url: item.url,
@@ -236,8 +240,8 @@ export class SupabaseNewsRepository implements NewsRepository {
   async upsertClassifications(input: UpsertNewsClassificationInput[]) {
     if (input.length === 0) return;
     const { error } = await this.db.from("news_classifications").upsert(
-      input.map((item) => ({
-        id: item.id,
+      input.map((item) => compactPayload({
+        id: payloadId(item.id),
         news_item_id: item.newsItemId,
         classification_model: item.classificationModel,
         sentiment: item.sentiment,
@@ -279,8 +283,8 @@ export class SupabaseNewsRepository implements NewsRepository {
   async upsertGroups(input: UpsertNewsGroupInput[]) {
     if (input.length === 0) return;
     const { error } = await this.db.from("news_groups").upsert(
-      input.map((item) => ({
-        id: item.id,
+      input.map((item) => compactPayload({
+        id: payloadId(item.id),
         group_key: item.groupKey,
         group_title: item.groupTitle,
         group_type: item.groupType,
@@ -308,8 +312,8 @@ export class SupabaseNewsRepository implements NewsRepository {
   }
 
   async upsertWeeklyReconciliation(input: UpsertWeeklyNewsReconciliationInput) {
-    const { data, error } = await this.db.from("weekly_news_reconciliations").upsert({
-      id: input.id,
+    const { data, error } = await this.db.from("weekly_news_reconciliations").upsert(compactPayload({
+      id: payloadId(input.id),
       period_start: input.periodStart,
       period_end: input.periodEnd,
       status: input.status,
@@ -328,7 +332,7 @@ export class SupabaseNewsRepository implements NewsRepository {
       model_used: input.modelUsed,
       token_usage: input.tokenUsage,
       cost_estimate: input.costEstimate
-    }, { onConflict: "period_start,period_end,status" }).select("*").single();
+    }), { onConflict: "period_start,period_end,status" }).select("*").single();
     if (error) throw new Error(error.message);
     return mapWeekly(data);
   }
