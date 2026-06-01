@@ -171,7 +171,9 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
       <Card>
         <CardHeader>
           <CardTitle>Performance</CardTitle>
-          <CardDescription>Daily, weekly, monthly, 1Y, YTD, and since-inception movement from stored portfolio snapshots.</CardDescription>
+          <CardDescription>
+            Simple flow-adjusted returns from stored snapshots. Deposits and withdrawals are excluded from gains where transaction history supports it.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <PerformancePanel dashboard={dashboard} />

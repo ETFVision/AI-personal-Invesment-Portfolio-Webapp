@@ -294,7 +294,7 @@ function LongTermPerformanceCharts({
     <div className="space-y-3">
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">Longer-term performance</span>
-        <span className="text-muted-foreground">Portfolio vs benchmarks</span>
+        <span className="text-muted-foreground">Flow-adjusted portfolio vs price-return benchmarks</span>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
         <MultiBenchmarkPeriodChart
@@ -345,7 +345,11 @@ function buildComparisonSeriesForPeriod(
         : points[0].snapshotDate;
 
   const filtered = points.filter((point) => point.snapshotDate >= startIso);
-  return filtered.length >= 2 ? filtered : points.slice(-2);
+  return filtered.length >= 2 ? filtered : [];
+}
+
+function parseChartDate(value: string) {
+  return new Date(`${value}T00:00:00.000Z`).getTime();
 }
 
 function MultiBenchmarkPeriodChart({
@@ -384,20 +388,30 @@ function MultiBenchmarkPeriodChart({
     return denominator === 0 ? 0 : (1 + current) / denominator - 1;
   };
   const basePortfolioReturn = portfolioPoints[0].portfolioReturn;
-  const portfolioSeries = portfolioPoints.map((point) => rebaseReturn(point.portfolioReturn, basePortfolioReturn));
+  const portfolioSeries = portfolioPoints.map((point) => ({
+    date: point.snapshotDate,
+    value: rebaseReturn(point.portfolioReturn, basePortfolioReturn)
+  }));
   const benchmarkSeries = periodComparisons.map(({ comparison, points }) => {
     const baseBenchmarkReturn = points[0].benchmarkReturn;
     return {
       id: comparison.benchmark.id,
       name: comparison.benchmark.name,
-      values: points.map((point) => rebaseReturn(point.benchmarkReturn, baseBenchmarkReturn)),
+      values: points.map((point) => ({
+        date: point.snapshotDate,
+        value: rebaseReturn(point.benchmarkReturn, baseBenchmarkReturn)
+      })),
       latestValue: rebaseReturn(points[points.length - 1].benchmarkReturn, baseBenchmarkReturn)
     };
   });
-  const allValues = [...portfolioSeries, ...benchmarkSeries.flatMap((series) => series.values)];
+  const allValues = [...portfolioSeries.map((point) => point.value), ...benchmarkSeries.flatMap((series) => series.values.map((point) => point.value))];
+  const allDates = [...portfolioSeries.map((point) => point.date), ...benchmarkSeries.flatMap((series) => series.values.map((point) => point.date))];
   const minValue = Math.min(...allValues, 0);
   const maxValue = Math.max(...allValues, 0);
   const range = Math.max(maxValue - minValue, 0.01);
+  const minDate = Math.min(...allDates.map(parseChartDate));
+  const maxDate = Math.max(...allDates.map(parseChartDate));
+  const dateRange = Math.max(maxDate - minDate, 1);
   const width = 100;
   const height = 100;
   const left = 8;
@@ -405,12 +419,11 @@ function MultiBenchmarkPeriodChart({
   const top = 12;
   const bottom = 88;
 
-  const buildPath = (series: number[]) =>
+  const buildPath = (series: Array<{ date: string; value: number }>) =>
     series
-      .map((value, index) => {
-        const step = series.length === 1 ? 0 : (right - left) / (series.length - 1);
-        const x = left + index * step;
-        const y = bottom - ((value - minValue) / range) * (bottom - top);
+      .map((point) => {
+        const x = left + ((parseChartDate(point.date) - minDate) / dateRange) * (right - left);
+        const y = bottom - ((point.value - minValue) / range) * (bottom - top);
         return `${x},${y}`;
       })
       .join(" ");
@@ -448,8 +461,8 @@ function MultiBenchmarkPeriodChart({
               <span className="h-2.5 w-2.5 rounded-full bg-primary" />
               Portfolio
             </span>
-            <span className={(portfolioMetric?.percentChange ?? portfolioSeries[portfolioSeries.length - 1] ?? 0) < 0 ? "text-destructive" : "text-emerald-600"}>
-              {portfolioMetric?.percentChange == null ? formatPercent(portfolioSeries[portfolioSeries.length - 1] ?? 0) : formatPercent(portfolioMetric.percentChange)}
+            <span className={(portfolioMetric?.percentChange ?? portfolioSeries[portfolioSeries.length - 1]?.value ?? 0) < 0 ? "text-destructive" : "text-emerald-600"}>
+              {portfolioMetric?.percentChange == null ? formatPercent(portfolioSeries[portfolioSeries.length - 1]?.value ?? 0) : formatPercent(portfolioMetric.percentChange)}
             </span>
           </div>
           <div className="mt-1 text-xs text-muted-foreground">

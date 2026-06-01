@@ -17,6 +17,16 @@ function startOfYearIsoDate() {
   return `${new Date().getUTCFullYear()}-01-01`;
 }
 
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function findBaselineSnapshot<T extends { snapshotDate: string }>(snapshots: T[], targetDate: string) {
+  const sorted = [...snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+  const onOrBefore = sorted.filter((snapshot) => snapshot.snapshotDate <= targetDate).at(-1);
+  return onOrBefore ?? sorted.find((snapshot) => snapshot.snapshotDate >= targetDate);
+}
+
 function transactionAmount(transaction: Transaction) {
   const gross = transaction.quantity && transaction.price ? transaction.quantity * transaction.price : 0;
   if (gross !== 0) return gross;
@@ -33,9 +43,7 @@ function buildSnapshotMetric(
   snapshots: PortfolioSnapshot[],
   targetDate: string
 ): PerformanceMetric {
-  const baseline = snapshots
-    .filter((snapshot) => snapshot.snapshotDate <= targetDate)
-    .sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate))[0];
+  const baseline = findBaselineSnapshot(snapshots, targetDate);
 
   if (!baseline || baseline.totalValue === 0) {
     return {
@@ -114,12 +122,13 @@ export class PerformanceService {
     targetDate: string,
     manualCapitalBase = 0
   ): PerformanceMetric {
-    const baseline = snapshots
-      .filter((snapshot) => snapshot.snapshotDate <= targetDate)
-      .sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate))[0];
+    const baseline = findBaselineSnapshot(snapshots, targetDate);
     if (!baseline) return buildSnapshotMetric(label, currentValue, snapshots, targetDate);
 
-    const periodTransactions = transactions.filter((transaction) => transaction.transactionDate > baseline.snapshotDate);
+    const currentDate = todayIsoDate();
+    const periodTransactions = transactions.filter(
+      (transaction) => transaction.transactionDate > baseline.snapshotDate && transaction.transactionDate <= currentDate
+    );
     const deposits = periodTransactions
       .filter((transaction) => transaction.transactionType === "deposit_cash")
       .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
@@ -171,12 +180,13 @@ export class PerformanceService {
     transactions: Transaction[],
     targetDate: string
   ): PerformanceMetric {
-    const baseline = snapshots
-      .filter((snapshot) => snapshot.snapshotDate <= targetDate)
-      .sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate))[0];
+    const baseline = findBaselineSnapshot(snapshots, targetDate);
     if (!baseline) return { label, valueChange: null, percentChange: null, baselineDate: null };
 
-    const periodTransactions = transactions.filter((transaction) => transaction.transactionDate > baseline.snapshotDate);
+    const currentDate = todayIsoDate();
+    const periodTransactions = transactions.filter(
+      (transaction) => transaction.transactionDate > baseline.snapshotDate && transaction.transactionDate <= currentDate
+    );
     const buys = periodTransactions
       .filter((transaction) => transaction.transactionType === "buy")
       .reduce((sum, transaction) => sum + transactionAmount(transaction) + transaction.fees, 0);
@@ -227,12 +237,13 @@ export class PerformanceService {
     transactions: Transaction[],
     targetDate: string
   ): PerformanceMetric {
-    const baseline = snapshots
-      .filter((snapshot) => snapshot.snapshotDate <= targetDate)
-      .sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate))[0];
+    const baseline = findBaselineSnapshot(snapshots, targetDate);
     if (!baseline) return { label, valueChange: null, percentChange: null, baselineDate: null };
 
-    const periodTransactions = transactions.filter((transaction) => transaction.transactionDate > baseline.snapshotDate);
+    const currentDate = todayIsoDate();
+    const periodTransactions = transactions.filter(
+      (transaction) => transaction.transactionDate > baseline.snapshotDate && transaction.transactionDate <= currentDate
+    );
     const deposits = periodTransactions
       .filter((transaction) => transaction.transactionType === "deposit_cash")
       .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);

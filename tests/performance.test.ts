@@ -72,3 +72,36 @@ test("portfolio 1Y and YTD fall back to manual capital base when snapshots preda
   assert.equal(ytd?.valueChange, 100);
   assert.equal(ytd?.percentChange, 100 / 13_500);
 });
+
+test("portfolio YTD uses first available snapshot when portfolio starts after year start", () => {
+  const service = new PerformanceService();
+  const metrics = service.calculatePortfolioPerformance({
+    currentValue: 12_000,
+    investedAmount: 10_000,
+    cashAmount: 0,
+    snapshots: [snapshot({ snapshotDate: "2026-02-01", totalValue: 10_000 })],
+    transactions: []
+  });
+
+  const ytd = metrics.find((metric) => metric.label === "YTD");
+  assert.equal(ytd?.baselineDate, "2026-02-01");
+  assert.equal(ytd?.valueChange, 2_000);
+  assert.equal(ytd?.percentChange, 0.2);
+});
+
+test("portfolio period returns ignore future-dated cash flows", () => {
+  const service = new PerformanceService();
+  const metrics = service.calculatePortfolioPerformance({
+    currentValue: 12_000,
+    investedAmount: 10_000,
+    cashAmount: 0,
+    snapshots: [snapshot({ snapshotDate: "2026-01-01", totalValue: 10_000 })],
+    transactions: [
+      transaction({ transactionType: "deposit_cash", transactionDate: "2099-01-01", netAmount: 50_000 })
+    ]
+  });
+
+  const sinceYearStart = metrics.find((metric) => metric.label === "YTD");
+  assert.equal(sinceYearStart?.valueChange, 2_000);
+  assert.equal(sinceYearStart?.percentChange, 0.2);
+});
