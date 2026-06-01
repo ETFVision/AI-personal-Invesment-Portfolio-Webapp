@@ -87,9 +87,23 @@ class FakeNewsRepository implements NewsRepository {
   async listUnclassifiedNews(limit: number) {
     return this.items.filter((item) => !this.classifications.some((classification) => classification.newsItemId === item.id)).slice(0, limit);
   }
+  async listDeterministicallyClassifiedNews(limit: number) {
+    return this.items
+      .map((item) => ({
+        ...item,
+        classification: this.classifications.find((row) => row.newsItemId === item.id && row.classificationModel === "deterministic_fallback")
+      }))
+      .filter((item): item is NewsItem & { classification: NewsClassification } => Boolean(item.classification))
+      .slice(0, limit);
+  }
   async getClassification(newsItemId: string) { return this.classifications.find((row) => row.newsItemId === newsItemId) ?? null; }
   async upsertClassifications(input: UpsertNewsClassificationInput[]) {
-    this.classifications.push(...input.map((item, index) => ({ ...item, id: item.id ?? `classification-${index}`, createdAt: "", updatedAt: "" })));
+    for (const item of input) {
+      const next = { ...item, id: item.id ?? `classification-${this.classifications.length + 1}`, createdAt: "", updatedAt: "" };
+      const existingIndex = this.classifications.findIndex((row) => row.newsItemId === item.newsItemId && row.classificationModel === item.classificationModel);
+      if (existingIndex >= 0) this.classifications[existingIndex] = next;
+      else this.classifications.push(next);
+    }
   }
   async listClassifiedNewsForPeriod(_periodStart = "", _periodEnd = "") {
     return this.items
@@ -223,6 +237,41 @@ test("deterministic classifier avoids false positives for gold rush and stock fo
   }));
   assert.deepEqual(chipForecast.affectedAssetClasses, ["equities"]);
   assert.deepEqual(chipForecast.affectedMacroCategories, []);
+});
+
+test("latest deterministic reclassification updates stale fallback rows only", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "gold-rush",
+      title: "Fleeing for their futures, a California exodus unleashes a Florida gold rush",
+      tickers: []
+    }),
+    newsItem({
+      id: "manual-gold",
+      title: "Gold price rises as investors seek bullion",
+      tickers: ["GLD"]
+    })
+  ];
+  repository.classifications = [
+    classification({
+      newsItemId: "gold-rush",
+      classificationModel: "deterministic_fallback",
+      affectedAssetClasses: ["gold/commodities"],
+      affectedThemes: ["Inflation Hedge"]
+    }),
+    classification({
+      newsItemId: "manual-gold",
+      classificationModel: "manual_review",
+      affectedAssetClasses: ["gold/commodities"]
+    })
+  ];
+  const service = new NewsClassificationService(repository);
+  const result = await service.reclassifyLatestDeterministic(10);
+  assert.equal(result.requested, 1);
+  assert.equal(result.reclassified, 1);
+  assert.deepEqual(repository.classifications.find((row) => row.newsItemId === "gold-rush")?.affectedAssetClasses, []);
+  assert.deepEqual(repository.classifications.find((row) => row.newsItemId === "manual-gold")?.affectedAssetClasses, ["gold/commodities"]);
 });
 
 test("weekly reconciliation groups classified news and creates draft summary", async () => {

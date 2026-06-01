@@ -46,6 +46,19 @@ export async function reclassifyPendingNewsAction() {
   redirect(target);
 }
 
+export async function reclassifyLatestDeterministicNewsAction() {
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  let target = "/news?error=News%20reclassification%20failed.";
+  try {
+    const result = await container.newsClassificationService.reclassifyLatestDeterministic();
+    target = `/news?message=${encodeURIComponent(`Reclassified ${result.reclassified} of ${result.requested} latest deterministic articles.`)}`;
+  } catch (error) {
+    target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "News reclassification failed.")}`;
+  }
+  redirect(target);
+}
+
 export async function duplicateOverrideAction(formData: FormData) {
   await createContainer().authProvider.requireUser();
   const newsItemId = formString(formData, "newsItemId");

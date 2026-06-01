@@ -1,5 +1,11 @@
 import { createContainer } from "@/server/container";
-import { duplicateOverrideAction, reclassifyPendingNewsAction, runDailyNewsIngestionAction, runWeeklyNewsReconciliationAction } from "@/server/actions/newsActions";
+import {
+  duplicateOverrideAction,
+  reclassifyLatestDeterministicNewsAction,
+  reclassifyPendingNewsAction,
+  runDailyNewsIngestionAction,
+  runWeeklyNewsReconciliationAction
+} from "@/server/actions/newsActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,6 +84,9 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
           </form>
           <form action={reclassifyPendingNewsAction}>
             <SubmitButton variant="outline" pendingLabel="Classifying...">Classify pending</SubmitButton>
+          </form>
+          <form action={reclassifyLatestDeterministicNewsAction}>
+            <SubmitButton variant="outline" pendingLabel="Reclassifying...">Reclassify latest</SubmitButton>
           </form>
           <form action={runWeeklyNewsReconciliationAction}>
             <SubmitButton variant="secondary" pendingLabel="Reconciling...">Weekly reconcile</SubmitButton>

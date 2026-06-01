@@ -231,6 +231,25 @@ export class SupabaseNewsRepository implements NewsRepository {
     return (data ?? []).filter((row: any) => !row.news_classifications?.length).map(mapNewsItem);
   }
 
+  async listDeterministicallyClassifiedNews(limit: number) {
+    const { data, error } = await this.db
+      .from("news_items")
+      .select("*, news_classifications!inner(*)")
+      .eq("is_duplicate", false)
+      .eq("news_classifications.classification_model", "deterministic_fallback")
+      .order("published_at", { ascending: false })
+      .limit(limit);
+    if (isMissingNewsTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? [])
+      .map((row: any) => {
+        const fallbackClassification = row.news_classifications?.find?.((classification: any) => classification.classification_model === "deterministic_fallback")
+          ?? row.news_classifications?.[0];
+        return fallbackClassification ? { ...mapNewsItem(row), classification: mapClassification(fallbackClassification) } : null;
+      })
+      .filter((row): row is NewsItem & { classification: NewsClassification } => Boolean(row));
+  }
+
   async getClassification(newsItemId: string) {
     const { data, error } = await this.db.from("news_classifications").select("*").eq("news_item_id", newsItemId).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (isMissingNewsTable(error)) return null;
