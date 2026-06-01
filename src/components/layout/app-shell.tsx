@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
   { href: "/portfolio", label: "Dashboard", icon: Home },
+  { href: "/market-vision", label: "Market Vision", icon: Globe2 },
   { href: "/cash", label: "Cash", icon: Banknote },
   { href: "/holdings", label: "Holdings", icon: Table2 },
   { href: "/transactions", label: "Transactions", icon: PlusCircle },
   { href: "/portfolio#allocation", label: "Allocation", icon: BarChart3 },
   { href: "/risk", label: "Risk", icon: ShieldCheck },
   { href: "/bonds", label: "Bonds", icon: Landmark },
-  { href: "/market-vision", label: "Market Vision", icon: Globe2 },
   { href: "/universe", label: "Universe", icon: Layers3 },
   { href: "/watchlists", label: "Watchlists", icon: Bookmark },
   { href: "/setup", label: "Settings", icon: Settings }
