@@ -52,6 +52,9 @@ function classification(overrides: Partial<NewsClassification> = {}): NewsClassi
     affectedAssetClasses: overrides.affectedAssetClasses ?? ["equities"],
     affectedSectors: overrides.affectedSectors ?? [],
     affectedThemes: overrides.affectedThemes ?? ["AI / Automation"],
+    primaryTheme: overrides.primaryTheme ?? "AI",
+    secondaryThemes: overrides.secondaryThemes ?? [],
+    themeConfidence: overrides.themeConfidence ?? 70,
     affectedInstruments: overrides.affectedInstruments ?? ["NVDA"],
     affectedMacroCategories: overrides.affectedMacroCategories ?? [],
     reasoningSummary: overrides.reasoningSummary ?? "Theme update.",
@@ -219,8 +222,23 @@ test("deterministic classifier routes obvious stock news to equities", () => {
     summary: "Semiconductor stocks are in focus."
   }));
   assert.deepEqual(output.affectedAssetClasses, ["equities"]);
+  assert.equal(output.primaryTheme, "AI");
+  assert.ok(output.secondaryThemes.includes("Technology"));
   assert.ok(output.affectedThemes.includes("Semiconductors"));
   assert.deepEqual(output.affectedInstruments, ["NVDA", "INTC"]);
+});
+
+test("deterministic classifier assigns canonical macro themes", () => {
+  const service = new NewsClassificationService(new FakeNewsRepository());
+  const output = service.deterministicFallback(newsItem({
+    title: "Fed rate cut hopes rise after inflation and jobs data cool",
+    tickers: []
+  }));
+  assert.deepEqual(output.affectedAssetClasses, ["macro"]);
+  assert.equal(output.primaryTheme, "Rates");
+  assert.ok(output.secondaryThemes.includes("Inflation"));
+  assert.ok(output.secondaryThemes.includes("Employment"));
+  assert.ok(output.themeConfidence > 0);
 });
 
 test("deterministic classifier avoids false positives for gold rush and stock forecasts", () => {
@@ -287,7 +305,25 @@ test("weekly reconciliation groups classified news and creates draft summary", a
   assert.match(weekly.equitiesSummary ?? "", /equities/);
   assert.match(weekly.ratesSummary ?? "", /rates/);
   assert.equal((weekly.coverageMetadata.bucketCounts as Record<string, number>).equities, 1);
+  assert.equal((weekly.coverageMetadata.themeSummaries as Array<{ theme: string; count: number }>)[0]?.theme, "AI");
   assert.equal(weekly.coverageMetadata.classifiedInPeriod, 2);
+});
+
+test("weekly reconciliation summarizes canonical themes", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({ id: "ai", title: "AI infrastructure spending rises", tickers: ["NVDA"] }),
+    newsItem({ id: "rates", title: "Fed rate cut odds rise", tickers: [] })
+  ];
+  repository.classifications = [
+    classification({ newsItemId: "ai", primaryTheme: "AI", secondaryThemes: ["Technology"], themeConfidence: 80 }),
+    classification({ newsItemId: "rates", affectedAssetClasses: ["macro"], primaryTheme: "Rates", secondaryThemes: ["Inflation"], themeConfidence: 65 })
+  ];
+  const service = new WeeklyNewsReconciliationService(repository);
+  const summaries = service.summarizeThemes(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
+  assert.equal(summaries.find((item) => item.theme === "AI")?.count, 1);
+  assert.equal(summaries.find((item) => item.theme === "Technology")?.count, 1);
+  assert.equal(summaries.find((item) => item.theme === "Rates")?.averageConfidence, 65);
 });
 
 test("weekly reconciliation does not dump ticker-linked market news into macro", async () => {

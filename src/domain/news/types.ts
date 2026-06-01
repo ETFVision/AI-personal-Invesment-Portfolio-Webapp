@@ -3,6 +3,20 @@ export type NewsClassificationLabel = "short_term_noise" | "medium_term_theme" |
 export type NewsGroupType = "company" | "sector" | "theme" | "macro" | "geopolitical" | "asset_class";
 export type WeeklyNewsStatus = "draft" | "published" | "archived";
 export type NewsIngestionStatus = "success" | "partial_success" | "failed";
+export type NewsCanonicalTheme =
+  | "Rates"
+  | "Inflation"
+  | "Growth"
+  | "Employment"
+  | "Currency"
+  | "Geopolitical"
+  | "Energy"
+  | "AI"
+  | "Credit"
+  | "Consumer"
+  | "Healthcare"
+  | "Financials"
+  | "Technology";
 
 export type NewsItem = {
   id: string;
@@ -44,6 +58,9 @@ export type NewsClassification = {
   affectedAssetClasses: string[];
   affectedSectors: string[];
   affectedThemes: string[];
+  primaryTheme: NewsCanonicalTheme | null;
+  secondaryThemes: NewsCanonicalTheme[];
+  themeConfidence: number;
   affectedInstruments: string[];
   affectedMacroCategories: string[];
   reasoningSummary: string | null;
@@ -132,4 +149,15 @@ export type NewsDashboard = {
   weeklyReconciliations: WeeklyNewsReconciliation[];
   ingestionLogs: NewsIngestionLog[];
   latestWeeklyReconciliation: WeeklyNewsReconciliation | null;
+  themeSummary: NewsThemeSummary[];
+};
+
+export type NewsThemeSummary = {
+  theme: NewsCanonicalTheme;
+  count: number;
+  averageConfidence: number;
+  averageSeverity: number;
+  averagePersistence: number;
+  structuralCount: number;
+  topHeadlines: string[];
 };

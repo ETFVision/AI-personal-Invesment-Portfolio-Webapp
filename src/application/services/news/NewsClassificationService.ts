@@ -1,10 +1,25 @@
 import type { NewsAiProvider } from "@/application/ports/providers/NewsAiProvider";
 import type { NewsRepository } from "@/application/ports/repositories/NewsRepository";
-import type { NewsClassification, NewsClassificationLabel, NewsItem, NewsSentiment } from "@/domain/news/types";
+import type { NewsCanonicalTheme, NewsClassification, NewsClassificationLabel, NewsItem, NewsSentiment } from "@/domain/news/types";
 import { clampScore } from "./newsText";
 
 const sentiments: NewsSentiment[] = ["positive", "neutral", "negative", "mixed"];
 const labels: NewsClassificationLabel[] = ["short_term_noise", "medium_term_theme", "structural_long_term_shift", "existential_risk"];
+export const canonicalNewsThemes: NewsCanonicalTheme[] = [
+  "Rates",
+  "Inflation",
+  "Growth",
+  "Employment",
+  "Currency",
+  "Geopolitical",
+  "Energy",
+  "AI",
+  "Credit",
+  "Consumer",
+  "Healthcare",
+  "Financials",
+  "Technology"
+];
 const cryptoSymbols = new Set(["BTC", "BTCUSD", "ETH", "ETHUSD", "SOL", "SOLUSD", "IBIT", "FBTC", "BITB", "ARKB", "ETHA", "ETHE", "FETH"]);
 const bondSymbols = new Set(["BND", "AGG", "SHY", "IEF", "TLT", "TIP", "LQD", "HYG", "SGOV", "BIL", "BNDX"]);
 const goldSymbols = new Set(["GLD", "IAU"]);
@@ -23,6 +38,12 @@ export function validateNewsClassificationOutput(input: unknown) {
 
   const toStringArray = (value: unknown) =>
     Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, 20) : [];
+  const toTheme = (value: unknown) =>
+    typeof value === "string" && canonicalNewsThemes.includes(value as NewsCanonicalTheme)
+      ? value as NewsCanonicalTheme
+      : null;
+  const toThemeArray = (value: unknown) =>
+    toStringArray(value).filter((item): item is NewsCanonicalTheme => canonicalNewsThemes.includes(item as NewsCanonicalTheme));
 
   return {
     sentiment,
@@ -34,6 +55,9 @@ export function validateNewsClassificationOutput(input: unknown) {
     affectedAssetClasses: toStringArray(row.affectedAssetClasses),
     affectedSectors: toStringArray(row.affectedSectors),
     affectedThemes: toStringArray(row.affectedThemes),
+    primaryTheme: toTheme(row.primaryTheme),
+    secondaryThemes: toThemeArray(row.secondaryThemes),
+    themeConfidence: clampScore(row.themeConfidence),
     affectedInstruments: toStringArray(row.affectedInstruments),
     affectedMacroCategories: toStringArray(row.affectedMacroCategories),
     reasoningSummary: typeof row.reasoningSummary === "string" ? row.reasoningSummary.slice(0, 800) : "No reliable structured reasoning returned."
@@ -120,6 +144,23 @@ export class NewsClassificationService {
     const isCurrency = includesAny(text, ["dollar", "usd", "currency", "fx"]);
     const isGeopolitical = !isCompanyOrEquity && includesAny(text, ["war", "geopolitical", "sanction", "tariff", "conflict"]);
     const isEquityMarket = isCompanyOrEquity;
+    const themeSignals: NewsCanonicalTheme[] = [
+      isRates ? "Rates" : null,
+      isInflation ? "Inflation" : null,
+      includesAny(text, ["jobs", "payroll", "employment", "unemployment", "labor market"]) ? "Employment" : null,
+      includesAny(text, ["gdp", "growth", "recession", "slowdown", "expansion"]) ? "Growth" : null,
+      isCurrency ? "Currency" : null,
+      isGeopolitical ? "Geopolitical" : null,
+      includesAny(text, ["oil", "energy", "crude", "natural gas", "xom", "cvx"]) ? "Energy" : null,
+      /\b(ai|artificial intelligence|nvidia|nvda)\b/.test(text) ? "AI" : null,
+      isBond || includesAny(text, ["credit", "debt", "spread", "high yield", "investment grade"]) ? "Credit" : null,
+      includesAny(text, ["consumer", "retail", "shopping", "costco", "nike", "disney", "netflix"]) ? "Consumer" : null,
+      includesAny(text, ["healthcare", "health care", "pharma", "biotech", "drug", "fda", "lilly", "unitedhealth"]) ? "Healthcare" : null,
+      includesAny(text, ["bank", "banks", "financial", "financials", "jpmorgan", "goldman", "fintech"]) ? "Financials" : null,
+      includesAny(text, ["technology", "software", "cloud", "semiconductor", "chip", "chips", "intel", "amd", "broadcom"]) ? "Technology" : null
+    ].filter((entry): entry is NewsCanonicalTheme => Boolean(entry));
+    const primaryTheme = themeSignals[0] ?? (isEquityMarket ? "Technology" : isGold ? "Inflation" : isCrypto ? "Technology" : null);
+    const secondaryThemes = Array.from(new Set(themeSignals.filter((theme) => theme !== primaryTheme))).slice(0, 5);
     const affectedAssetClasses = [
       isCrypto ? "crypto" : null,
       isBond ? "bonds" : null,
@@ -150,6 +191,9 @@ export class NewsClassificationService {
       affectedAssetClasses,
       affectedSectors: [],
       affectedThemes: affectedThemes.length > 0 ? affectedThemes : structural ? ["Potential market theme"] : [],
+      primaryTheme,
+      secondaryThemes,
+      themeConfidence: primaryTheme ? 65 : 35,
       affectedInstruments: item.tickers,
       affectedMacroCategories,
       reasoningSummary: "Deterministic fallback classification used because AI news classification is disabled."

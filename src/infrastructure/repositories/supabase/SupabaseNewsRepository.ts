@@ -7,7 +7,8 @@ import type {
   UpsertNewsItemInput,
   UpsertWeeklyNewsReconciliationInput
 } from "@/application/ports/repositories/NewsRepository";
-import type { NewsClassification, NewsGroup, NewsIngestionLog, NewsItem, WeeklyNewsReconciliation } from "@/domain/news/types";
+import type { NewsCanonicalTheme, NewsClassification, NewsGroup, NewsIngestionLog, NewsItem, WeeklyNewsReconciliation } from "@/domain/news/types";
+import { canonicalNewsThemes } from "@/application/services/news/NewsClassificationService";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 import { hashText } from "@/application/services/news/newsText";
 
@@ -21,6 +22,14 @@ function isMissingNewsTable(error: { code?: string; message?: string } | null) {
 
 function toStringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function toTheme(value: unknown) {
+  return typeof value === "string" && canonicalNewsThemes.includes(value as NewsCanonicalTheme) ? value as NewsCanonicalTheme : null;
+}
+
+function toThemeArray(value: unknown) {
+  return toStringArray(value).filter((item): item is NewsCanonicalTheme => canonicalNewsThemes.includes(item as NewsCanonicalTheme));
 }
 
 function mapNewsItem(row: any): NewsItem {
@@ -78,6 +87,9 @@ function mapClassification(row: any): NewsClassification {
     affectedAssetClasses: toStringArray(row.affected_asset_classes),
     affectedSectors: toStringArray(row.affected_sectors),
     affectedThemes: toStringArray(row.affected_themes),
+    primaryTheme: toTheme(row.primary_theme),
+    secondaryThemes: toThemeArray(row.secondary_themes),
+    themeConfidence: Number(row.theme_confidence ?? 0),
     affectedInstruments: toStringArray(row.affected_instruments),
     affectedMacroCategories: toStringArray(row.affected_macro_categories),
     reasoningSummary: row.reasoning_summary,
@@ -273,6 +285,9 @@ export class SupabaseNewsRepository implements NewsRepository {
         affected_asset_classes: item.affectedAssetClasses,
         affected_sectors: item.affectedSectors,
         affected_themes: item.affectedThemes,
+        primary_theme: item.primaryTheme,
+        secondary_themes: item.secondaryThemes,
+        theme_confidence: item.themeConfidence,
         affected_instruments: item.affectedInstruments,
         affected_macro_categories: item.affectedMacroCategories,
         reasoning_summary: item.reasoningSummary

@@ -56,6 +56,11 @@ function bucketCount(metadata: Record<string, unknown>, key: string) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function formatThemeConfidence(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "-";
+  return `${Math.round(value)}%`;
+}
+
 export default async function NewsPage({ searchParams }: NewsPageProps) {
   const params = await searchParams;
   const container = createContainer();
@@ -151,6 +156,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                   <th className="py-2 pr-3">Article</th>
                   <th className="py-2 pr-3">Published</th>
                   <th className="py-2 pr-3">Linked</th>
+                  <th className="py-2 pr-3">Theme</th>
                   <th className="py-2 pr-3">Classification</th>
                   <th className="py-2 pr-3">Severity</th>
                   <th className="py-2 pr-3">Duplicate</th>
@@ -165,6 +171,10 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                     </td>
                     <td className="py-3 pr-3">{formatDate(item.publishedAt)}</td>
                     <td className="py-3 pr-3">{item.tickers.length ? item.tickers.join(", ") : "Unlinked"}</td>
+                    <td className="py-3 pr-3">
+                      <div>{item.classification?.primaryTheme ?? "Unmapped"}</div>
+                      <div className="text-xs text-muted-foreground">{formatThemeConfidence(item.classification?.themeConfidence ?? 0)}</div>
+                    </td>
                     <td className="py-3 pr-3">
                       <div>{item.classification?.classification ?? "Pending"}</div>
                       <div className="text-xs text-muted-foreground">{item.classification?.sentiment ?? "-"}</div>
@@ -186,6 +196,35 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                 ))}
               </tbody>
             </table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Top themes this week</CardTitle>
+          <CardDescription>Canonical themes run alongside asset-class buckets so future Market Vision and scoring can separate “what asset class” from “what driver.”</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {dashboard.themeSummary.length === 0 ? (
+            <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">No theme summary yet. Run Weekly reconcile after articles are classified.</div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {dashboard.themeSummary.slice(0, 9).map((theme) => (
+                <div key={theme.theme} className="rounded-md border p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium">{theme.theme}</p>
+                    <span className="text-sm text-muted-foreground">{theme.count} items</span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                    <span>Conf {formatThemeConfidence(theme.averageConfidence)}</span>
+                    <span>Sev {theme.averageSeverity}/100</span>
+                    <span>Persist {theme.averagePersistence}/100</span>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{theme.topHeadlines.slice(0, 2).join("; ")}</p>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -226,6 +265,9 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                       </div>
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
+                      <div className="md:col-span-2">
+                        <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">Asset Views</p>
+                      </div>
                       <ReconciliationSection title="Equities" value={item.equitiesSummary} />
                       <ReconciliationSection title="Bonds" value={item.bondsSummary} />
                       <ReconciliationSection title="Gold / Commodities" value={item.goldSummary} />
@@ -235,6 +277,22 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                       <ReconciliationSection title="Inflation" value={item.inflationSummary} />
                       <ReconciliationSection title="Currency" value={item.currencySummary} />
                       <ReconciliationSection title="Geopolitical" value={item.geopoliticalSummary} />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium uppercase text-muted-foreground">Theme Views</p>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {dashboard.themeSummary.length === 0 ? (
+                          <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">No theme views available for this draft.</div>
+                        ) : dashboard.themeSummary.slice(0, 8).map((theme) => (
+                          <div key={theme.theme} className="rounded-md border p-3 text-sm">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-medium">{theme.theme}</span>
+                              <span className="text-xs text-muted-foreground">{theme.count} items</span>
+                            </div>
+                            <p className="mt-2 text-xs leading-5 text-muted-foreground">{theme.topHeadlines.slice(0, 2).join("; ") || "No headline sample."}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ))}

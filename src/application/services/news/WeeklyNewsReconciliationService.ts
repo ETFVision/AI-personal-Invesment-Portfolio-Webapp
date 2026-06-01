@@ -1,5 +1,6 @@
 import type { NewsAiProvider } from "@/application/ports/providers/NewsAiProvider";
 import type { NewsRepository } from "@/application/ports/repositories/NewsRepository";
+import { canonicalNewsThemes } from "./NewsClassificationService";
 import { endOfUtcWeek, startOfUtcWeek } from "./newsText";
 
 const buckets = [
@@ -42,6 +43,7 @@ export class WeeklyNewsReconciliationService {
     const limited = classified.slice(0, this.config.maxArticlesPerWeek);
     const grouped = this.groupByBucket(limited);
     const bucketCounts = Object.fromEntries(buckets.map((bucket) => [bucket, grouped.get(bucket)?.length ?? 0]));
+    const themeSummaries = this.summarizeThemes(limited);
 
     const aiOutput =
       this.config.enableWeeklyReconciliation && this.aiProvider
@@ -55,7 +57,10 @@ export class WeeklyNewsReconciliationService {
               severityScore: item.classification.severityScore,
               persistenceScore: item.classification.persistenceScore,
               affectedAssetClasses: item.classification.affectedAssetClasses,
-              affectedMacroCategories: item.classification.affectedMacroCategories
+              affectedMacroCategories: item.classification.affectedMacroCategories,
+              primaryTheme: item.classification.primaryTheme,
+              secondaryThemes: item.classification.secondaryThemes,
+              themeConfidence: item.classification.themeConfidence
             }))
           })
         : null;
@@ -87,7 +92,8 @@ export class WeeklyNewsReconciliationService {
         includedInReconciliation: limited.length,
         excludedByWeeklyLimit: Math.max(0, classified.length - limited.length),
         maxArticlesPerWeek: this.config.maxArticlesPerWeek,
-        bucketCounts
+        bucketCounts,
+        themeSummaries
       },
       modelUsed: this.config.enableWeeklyReconciliation ? this.config.reconciliationModel : "deterministic_fallback",
       tokenUsage: aiOutput?.tokenUsage ?? {},
@@ -142,6 +148,39 @@ export class WeeklyNewsReconciliationService {
       .slice(0, 3)
       .map((item) => item.title);
     return `${items.length} ${bucket} items classified. Main items: ${top.join("; ")}.`;
+  }
+
+  summarizeThemes(items: Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>) {
+    return canonicalNewsThemes
+      .map((theme) => {
+        const themeItems = items.filter((item) =>
+          item.classification.primaryTheme === theme ||
+          item.classification.secondaryThemes.includes(theme)
+        );
+        if (themeItems.length === 0) return null;
+        const confidenceTotal = themeItems.reduce((sum, item) => sum + item.classification.themeConfidence, 0);
+        const severityTotal = themeItems.reduce((sum, item) => sum + item.classification.severityScore, 0);
+        const persistenceTotal = themeItems.reduce((sum, item) => sum + item.classification.persistenceScore, 0);
+        return {
+          theme,
+          count: themeItems.length,
+          averageConfidence: Math.round(confidenceTotal / themeItems.length),
+          averageSeverity: Math.round(severityTotal / themeItems.length),
+          averagePersistence: Math.round(persistenceTotal / themeItems.length),
+          structuralCount: themeItems.filter((item) => item.classification.classification === "structural_long_term_shift").length,
+          topHeadlines: this.topThemeHeadlines(themeItems)
+        };
+      })
+      .filter((summary): summary is NonNullable<typeof summary> => Boolean(summary))
+      .sort((a, b) => b.count - a.count || b.averagePersistence - a.averagePersistence || b.averageSeverity - a.averageSeverity);
+  }
+
+  private topThemeHeadlines(items: Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>) {
+    return items
+      .slice()
+      .sort((a, b) => b.classification.severityScore + b.classification.persistenceScore - (a.classification.severityScore + a.classification.persistenceScore))
+      .slice(0, 3)
+      .map((item) => item.title);
   }
 
   private topHeadlines(items: Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>, sentiment: "positive" | "negative") {

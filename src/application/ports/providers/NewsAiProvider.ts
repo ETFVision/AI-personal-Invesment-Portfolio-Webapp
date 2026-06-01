@@ -1,3 +1,5 @@
+import type { NewsCanonicalTheme } from "@/domain/news/types";
+
 export type NewsAiClassificationInput = {
   title: string;
   summary: string | null;
@@ -16,6 +18,9 @@ export type NewsAiClassificationOutput = {
   affectedAssetClasses: string[];
   affectedSectors: string[];
   affectedThemes: string[];
+  primaryTheme: NewsCanonicalTheme | null;
+  secondaryThemes: NewsCanonicalTheme[];
+  themeConfidence: number;
   affectedInstruments: string[];
   affectedMacroCategories: string[];
   reasoningSummary: string;
@@ -34,6 +39,9 @@ export type NewsAiReconciliationInput = {
     persistenceScore: number;
     affectedAssetClasses: string[];
     affectedMacroCategories: string[];
+    primaryTheme: NewsCanonicalTheme | null;
+    secondaryThemes: NewsCanonicalTheme[];
+    themeConfidence: number;
   }>;
 };
 
