@@ -131,6 +131,7 @@ function ScenarioTable({ report }: { report: BondAnalyticsReport }) {
 }
 
 function BondProfileEditor({ holdings }: { holdings: BondHoldingExposure[] }) {
+  const editableHoldings = holdings.filter((holding) => holding.profileCanBeEdited);
   return (
     <Card>
       <CardHeader>
@@ -138,7 +139,11 @@ function BondProfileEditor({ holdings }: { holdings: BondHoldingExposure[] }) {
         <CardDescription>Manual overrides for curated bond ETF fields. Percent inputs should be decimals, e.g. 0.045 for 4.5%.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {holdings.map((holding) => (
+        {editableHoldings.length === 0 ? (
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            No curated bond ETF profile is available to edit. Add a seeded bond ETF from the universe to enable profile overrides.
+          </p>
+        ) : editableHoldings.map((holding) => (
           <form key={holding.holdingId} action={saveBondProfileAction} className="grid gap-3 rounded-md border p-4 md:grid-cols-4">
             <input type="hidden" name="instrumentId" value={holding.instrumentId} />
             <input type="hidden" name="symbol" value={holding.symbol} />

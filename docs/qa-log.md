@@ -547,3 +547,66 @@ Residual risks / follow-ups:
 - Yield and duration placeholders should eventually be replaced or reviewed against issuer/provider data.
 - Scenario math is first-order and does not include convexity, currency hedging, callable bond behavior, changing yield curves, or credit migration.
 - Manual profile editing is intentionally simple; a fuller admin workflow can add audit history and review status later.
+
+## 2026-06-01 - Bond Intelligence Layer QA
+
+Scope:
+- Bond ETF universe and classification accuracy.
+- Duration, credit, treasury/corporate, inflation-linked, cash-like, recession-hedge, and credit-risk exposure calculations.
+- Rate, inflation, and recession sensitivity labels.
+- Portfolio and Risk Analytics integration.
+- Bond profile migrations and data integrity.
+- Service architecture, taxonomy consistency, UI/UX, edge cases, and test coverage.
+
+Fixes made:
+- Updated the runtime universe seed service so the `Seed universe` action uses the same Bond Intelligence classifications as the migrations and services.
+- Corrected aggregate bond seed labels from coarse `aggregate` duration to `intermediate` duration and `mixed investment grade` credit quality.
+- Corrected HYG seed labels to `short/intermediate`, `high yield`, and negative recession sensitivity.
+- Corrected SGOV/BIL/SHY/IEF/TLT/TIP/LQD classifications to the canonical foundation labels.
+- Counted government inflation-linked bonds as treasury/government exposure in treasury split calculations.
+- Replaced the misleading bond profile coverage heuristic with a check for populated duration/type/credit fields.
+- Prevented manual bond profile edits from attempting to write invalid rows for manually entered bond ETFs that are not in the curated instrument universe.
+- Hid bond profile edit forms for non-curated synthetic/manual bond ETF rows and added a clear empty state.
+
+Tests added or improved:
+- Full seeded bond ETF universe classification test for SGOV, BIL, SHY, IEF, TLT, BND, AGG, TIP, LQD, HYG, and BNDX.
+- Missing bond metadata test to confirm safe deterministic defaults.
+- Existing bond analytics tests confirmed duration exposure, treasury/corporate split, credit exposure, inflation-linked exposure, cash-like exposure, no-bond case, and bond-heavy warning case.
+
+Validation run:
+- `npm.cmd run lint`
+- `npm.cmd run test`
+- `npm.cmd run typecheck`
+- `npm.cmd run build`
+
+Findings:
+- Classification accuracy is good for the Phase 2/early Phase 3 fixed-income foundation.
+- Calculations are deterministic and centralized in bond services.
+- Bond ETFs are included in portfolio valuation through existing holdings/price flows and in risk analytics through existing risk contribution logic.
+- Cash-like bond ETFs are treated as bond ETFs with cash-like duration, not as actual cash balances.
+- `bond_profiles` links to `instruments` through the existing primary-key foreign key.
+- Manual bond profile overrides are stored in `bond_profiles` and are not overwritten by the enrichment migration.
+- FMP metadata is not used directly for bond intelligence classifications.
+- The Bond Intelligence page uses services/actions rather than direct Supabase or FMP calls.
+- Taxonomy is consistent with `Bonds / Fixed Income` and canonical themes for seeded bond ETFs.
+
+Critical issues:
+- None remaining after this QA pass.
+
+Medium-priority issues fixed:
+- Runtime seed action could reintroduce older/coarser bond classifications.
+- Treasury exposure did not explicitly include government inflation-linked exposure.
+- Manual bond profile edit action could attempt an invalid foreign-key write for synthetic manual bond ETF rows.
+
+Low-priority improvements:
+- Replace seeded effective-duration and spread-duration placeholders with issuer/provider-reviewed values.
+- Add an audit trail for manual bond profile changes.
+- Add explicit methodology text/tooltips for duration-based scenario impacts.
+- Add richer fixed-income data later if FMP proves insufficient for actual duration/yield/credit breakdown.
+- Add issuer/provider timestamp and confidence score per bond profile field.
+- Add service-level tests for inactive bond ETF holdings once inactive holdings behavior is explicitly defined.
+
+Production-readiness assessment:
+- Ready to proceed to the next layer after applying migrations 016 and 017 in Supabase.
+- Suitable for deterministic bond ETF exposure intelligence.
+- Not yet suitable for institutional-grade bond risk decomposition, because convexity, yield-curve shocks, callable behavior, currency hedging, and credit migration are intentionally out of scope.

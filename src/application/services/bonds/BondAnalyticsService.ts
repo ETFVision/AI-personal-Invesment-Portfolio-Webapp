@@ -40,6 +40,7 @@ export class BondAnalyticsService {
       const existingInstrument = instrumentBySymbol.get(symbol);
       if (!existingInstrument && valuation.holding.assetType !== "bond_etf") return [];
       const instrument = existingInstrument ?? this.syntheticInstrumentFromHolding(valuation.holding.assetId, symbol, valuation.holding.assetName, valuation.holding.costCurrency);
+      const profileCanBeEdited = Boolean(existingInstrument);
       const profile = profileByInstrumentId.get(instrument.id) ?? profileBySymbol.get(symbol) ?? null;
       const normalizedProfile = this.bondProfileService.normalizeProfile(instrument, profile);
       if (!normalizedProfile) return [];
@@ -74,7 +75,8 @@ export class BondAnalyticsService {
         estimatedRateShockDown1Pct: normalizedProfile.effectiveDuration == null ? null : normalizedProfile.effectiveDuration / 100,
         estimatedRateShockUp1Pct: normalizedProfile.effectiveDuration == null ? null : -normalizedProfile.effectiveDuration / 100,
         estimatedSpreadWidening1Pct: normalizedProfile.spreadDuration == null ? null : -normalizedProfile.spreadDuration / 100,
-        isManualOverride: normalizedProfile.isManualOverride
+        isManualOverride: normalizedProfile.isManualOverride,
+        profileCanBeEdited
       }];
     });
 
@@ -93,7 +95,7 @@ export class BondAnalyticsService {
       byCurrency.set(holding.currency, (byCurrency.get(holding.currency) ?? 0) + holding.value);
     }
 
-    const treasuryExposure = this.exposureByPredicate(bondHoldingsWithPercents, input.totalPortfolioValue, (holding) => holding.bondType === "treasury" || holding.bondType === "inflation-linked");
+    const treasuryExposure = this.exposureByPredicate(bondHoldingsWithPercents, input.totalPortfolioValue, (holding) => holding.bondType === "treasury" || holding.bondType === "inflation-linked" || holding.creditQuality === "government");
     const corporateExposure = this.exposureByPredicate(bondHoldingsWithPercents, input.totalPortfolioValue, (holding) => holding.bondType === "corporate" || holding.bondType === "high yield");
     const investmentGradeExposure = this.exposureByPredicate(
       bondHoldingsWithPercents,
@@ -138,7 +140,9 @@ export class BondAnalyticsService {
       diagnostics: this.buildDiagnostics({ cashLikeExposure, recessionHedgeExposure, inflationLinkedExposure, creditRiskExposure, longDurationExposure, totalBondValue }),
       allocationGuidance: this.buildAllocationGuidance({ totalBondAllocation: input.totalPortfolioValue === 0 ? 0 : totalBondValue / input.totalPortfolioValue, cashLikeExposure, recessionHedgeExposure, inflationLinkedExposure, highYieldExposure }),
       scenarioImpacts: this.buildScenarioImpacts(bondHoldingsWithPercents, totalBondValue, input.totalPortfolioValue),
-      profileCoverage: bondHoldingsWithPercents.length === 0 ? 1 : bondHoldingsWithPercents.filter((holding) => holding.durationCategory !== "intermediate" || holding.bondType !== "aggregate").length / bondHoldingsWithPercents.length
+      profileCoverage: bondHoldingsWithPercents.length === 0
+        ? 1
+        : bondHoldingsWithPercents.filter((holding) => holding.durationCategory && holding.bondType && holding.creditQuality).length / bondHoldingsWithPercents.length
     };
   }
 

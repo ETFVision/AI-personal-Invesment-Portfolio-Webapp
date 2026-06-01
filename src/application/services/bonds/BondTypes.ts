@@ -32,6 +32,7 @@ export type BondHoldingExposure = {
   estimatedRateShockUp1Pct: number | null;
   estimatedSpreadWidening1Pct: number | null;
   isManualOverride: boolean;
+  profileCanBeEdited: boolean;
 };
 
 export type BondRoleSummary = {

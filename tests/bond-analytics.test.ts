@@ -116,6 +116,32 @@ test("normalizes seeded bond ETF classifications deterministically", () => {
   assert.equal(profile?.recessionSensitivity, "positive");
 });
 
+test("classifies the seeded bond ETF universe consistently", () => {
+  const service = new BondProfileService();
+  const expected = new Map([
+    ["SGOV", ["ultra-short", "treasury", "government", false, "positive"]],
+    ["BIL", ["ultra-short", "treasury", "government", false, "positive"]],
+    ["SHY", ["short", "treasury", "government", false, "positive"]],
+    ["IEF", ["intermediate", "treasury", "government", false, "positive"]],
+    ["TLT", ["long", "treasury", "government", false, "positive"]],
+    ["BND", ["intermediate", "aggregate", "mixed investment grade", false, "mixed"]],
+    ["AGG", ["intermediate", "aggregate", "mixed investment grade", false, "mixed"]],
+    ["TIP", ["intermediate", "inflation-linked", "government", true, "mixed"]],
+    ["LQD", ["intermediate", "corporate", "investment grade", false, "negative"]],
+    ["HYG", ["short/intermediate", "high yield", "high yield", false, "negative"]],
+    ["BNDX", ["intermediate", "international", "investment grade", false, "mixed"]]
+  ]);
+
+  for (const [symbol, [duration, type, credit, inflationLinked, recession]] of expected.entries()) {
+    const profile = service.normalizeProfile(instrument({ id: symbol.toLowerCase(), symbol }));
+    assert.equal(profile?.durationCategory, duration);
+    assert.equal(profile?.bondType, type);
+    assert.equal(profile?.creditQuality, credit);
+    assert.equal(profile?.inflationLinked, inflationLinked);
+    assert.equal(profile?.recessionSensitivity, recession);
+  }
+});
+
 test("calculates duration, credit, inflation-linked, treasury, corporate, and cash-like exposure", () => {
   const service = new BondAnalyticsService();
   const report = service.calculateBondAnalytics({
@@ -151,6 +177,22 @@ test("calculates duration, credit, inflation-linked, treasury, corporate, and ca
   assert.equal(report.treasuryExposure, 0.4);
   assert.equal(report.corporateExposure, 0.1);
   assert.ok(report.scenarioImpacts.length >= 5);
+});
+
+test("handles missing bond metadata with safe deterministic defaults", () => {
+  const service = new BondAnalyticsService();
+  const report = service.calculateBondAnalytics({
+    totalPortfolioValue: 1000,
+    holdingValuations: [valuation({ holdingId: "manual-h", assetId: "manual-bond", ticker: "MANUAL", value: 250 })],
+    instruments: [],
+    bondProfiles: []
+  });
+
+  assert.equal(report.bondHoldings.length, 1);
+  assert.equal(report.bondHoldings[0]?.durationCategory, "intermediate");
+  assert.equal(report.bondHoldings[0]?.bondType, "aggregate");
+  assert.equal(report.bondHoldings[0]?.profileCanBeEdited, false);
+  assert.equal(report.totalBondAllocation, 0.25);
 });
 
 test("handles no-bond portfolio case without warnings", () => {

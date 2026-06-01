@@ -75,6 +75,10 @@ export async function saveBondProfileAction(formData: FormData) {
   await createContainer().authProvider.requireUser();
   const container = createContainer();
   const instrumentId = formString(formData, "instrumentId");
+  const instruments = await container.instrumentService.listInstruments({ isActive: true });
+  if (!instruments.some((instrument) => instrument.id === instrumentId)) {
+    redirect("/bonds?error=Bond%20profile%20can%20only%20be%20saved%20for%20curated%20instrument%20universe%20rows.");
+  }
   const symbol = formString(formData, "symbol") || null;
   await container.instrumentService.updateBondProfile({
     instrumentId,

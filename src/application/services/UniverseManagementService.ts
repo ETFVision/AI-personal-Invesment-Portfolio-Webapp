@@ -54,16 +54,16 @@ const seededInstruments: InstrumentSeed[] = [
   instrument("VNQ", "Vanguard Real Estate ETF", "etf", "ETF", "United States", "USD", "NYSE Arca", { thematicTags: ["reits", "real-estate"] }),
 
   // Bond / gold / cash-like ETFs
-  bondEtf("BND", "Vanguard Total Bond Market ETF", "aggregate", "aggregate", "investment_grade", "United States", "medium", "medium", "low", "stability"),
-  bondEtf("AGG", "iShares Core U.S. Aggregate Bond ETF", "aggregate", "aggregate", "investment_grade", "United States", "medium", "medium", "low", "stability"),
-  bondEtf("SHY", "iShares 1-3 Year Treasury Bond ETF", "short", "treasury", "treasury", "United States", "low", "low", "very_low", "stability"),
-  bondEtf("IEF", "iShares 7-10 Year Treasury Bond ETF", "intermediate", "treasury", "treasury", "United States", "medium", "medium", "very_low", "stability"),
-  bondEtf("TLT", "iShares 20+ Year Treasury Bond ETF", "long", "treasury", "treasury", "United States", "high", "high", "very_low", "stability"),
-  bondEtf("TIP", "iShares TIPS Bond ETF", "intermediate", "inflation-linked", "treasury", "United States", "medium", "low", "very_low", "inflation-hedge"),
-  bondEtf("LQD", "iShares iBoxx $ Investment Grade Corporate Bond ETF", "intermediate", "corporate", "investment_grade", "United States", "medium", "medium", "low", "income"),
-  bondEtf("HYG", "iShares iBoxx $ High Yield Corporate Bond ETF", "short", "corporate", "high_yield", "United States", "medium", "medium", "medium", "income"),
-  bondEtf("SGOV", "iShares 0-3 Month Treasury Bond ETF", "ultra-short", "treasury", "treasury", "United States", "very_low", "very_low", "very_low", "cash-like"),
-  bondEtf("BIL", "SPDR Bloomberg 1-3 Month T-Bill ETF", "ultra-short", "treasury", "treasury", "United States", "very_low", "very_low", "very_low", "cash-like"),
+  bondEtf("BND", "Vanguard Total Bond Market ETF", "intermediate", "aggregate", "mixed investment grade", "US", "medium", "moderate negative", "mixed", "core stability"),
+  bondEtf("AGG", "iShares Core U.S. Aggregate Bond ETF", "intermediate", "aggregate", "mixed investment grade", "US", "medium", "moderate negative", "mixed", "core stability"),
+  bondEtf("SHY", "iShares 1-3 Year Treasury Bond ETF", "short", "treasury", "government", "US", "low", "low", "positive", "stability"),
+  bondEtf("IEF", "iShares 7-10 Year Treasury Bond ETF", "intermediate", "treasury", "government", "US", "medium", "moderate negative", "positive", "recession hedge"),
+  bondEtf("TLT", "iShares 20+ Year Treasury Bond ETF", "long", "treasury", "government", "US", "high", "negative", "positive", "long-duration recession hedge"),
+  bondEtf("TIP", "iShares TIPS Bond ETF", "intermediate", "inflation-linked", "government", "US", "medium", "positive", "mixed", "inflation hedge"),
+  bondEtf("LQD", "iShares iBoxx $ Investment Grade Corporate Bond ETF", "intermediate", "corporate", "investment grade", "US", "medium", "moderate negative", "negative", "income"),
+  bondEtf("HYG", "iShares iBoxx $ High Yield Corporate Bond ETF", "short/intermediate", "high yield", "high yield", "US", "medium", "moderate", "negative", "income with credit risk"),
+  bondEtf("SGOV", "iShares 0-3 Month Treasury Bond ETF", "ultra-short", "treasury", "government", "US", "low", "low", "positive", "cash-like stability"),
+  bondEtf("BIL", "SPDR Bloomberg 1-3 Month T-Bill ETF", "ultra-short", "treasury", "government", "US", "low", "low", "positive", "cash-like stability"),
   goldEtf("GLD", "SPDR Gold Shares", "United States", "USD", "NYSE Arca"),
   goldEtf("IAU", "iShares Gold Trust", "United States", "USD", "NYSE Arca"),
 
@@ -184,16 +184,16 @@ const benchmarkProfiles: BenchmarkProfile[] = [
 ];
 
 const bondProfiles = [
-  bondProfile("BND", "aggregate", "aggregate", "investment_grade", "United States", "medium", "medium", "low", "stability", "USD"),
-  bondProfile("AGG", "aggregate", "aggregate", "investment_grade", "United States", "medium", "medium", "low", "stability", "USD"),
-  bondProfile("SHY", "short", "treasury", "treasury", "United States", "low", "low", "very_low", "stability", "USD"),
-  bondProfile("IEF", "intermediate", "treasury", "treasury", "United States", "medium", "medium", "very_low", "stability", "USD"),
-  bondProfile("TLT", "long", "treasury", "treasury", "United States", "high", "high", "very_low", "stability", "USD"),
-  bondProfile("TIP", "intermediate", "treasury", "treasury", "United States", "medium", "low", "very_low", "inflation-hedge", "USD"),
-  bondProfile("LQD", "intermediate", "corporate", "investment_grade", "United States", "medium", "medium", "low", "income", "USD"),
-  bondProfile("HYG", "short", "corporate", "high_yield", "United States", "medium", "medium", "medium", "income", "USD"),
-  bondProfile("SGOV", "ultra-short", "treasury", "treasury", "United States", "very_low", "very_low", "very_low", "cash-like", "USD"),
-  bondProfile("BIL", "ultra-short", "treasury", "treasury", "United States", "very_low", "very_low", "very_low", "cash-like", "USD")
+  bondProfile("BND", "intermediate", "aggregate", "mixed investment grade", "US", "medium", "moderate negative", "mixed", "core stability", "USD"),
+  bondProfile("AGG", "intermediate", "aggregate", "mixed investment grade", "US", "medium", "moderate negative", "mixed", "core stability", "USD"),
+  bondProfile("SHY", "short", "treasury", "government", "US", "low", "low", "positive", "stability", "USD"),
+  bondProfile("IEF", "intermediate", "treasury", "government", "US", "medium", "moderate negative", "positive", "recession hedge", "USD"),
+  bondProfile("TLT", "long", "treasury", "government", "US", "high", "negative", "positive", "long-duration recession hedge", "USD"),
+  bondProfile("TIP", "intermediate", "inflation-linked", "government", "US", "medium", "positive", "mixed", "inflation hedge", "USD"),
+  bondProfile("LQD", "intermediate", "corporate", "investment grade", "US", "medium", "moderate negative", "negative", "income", "USD"),
+  bondProfile("HYG", "short/intermediate", "high yield", "high yield", "US", "medium", "moderate", "negative", "income with credit risk", "USD"),
+  bondProfile("SGOV", "ultra-short", "treasury", "government", "US", "low", "low", "positive", "cash-like stability", "USD"),
+  bondProfile("BIL", "ultra-short", "treasury", "government", "US", "low", "low", "positive", "cash-like stability", "USD")
 ];
 
 const cryptoProfiles = [
@@ -331,7 +331,7 @@ function bondEtf(
       volatilityBucket: "low",
       durationCategory,
       treasuryClassification,
-      inflationLinked: durationCategory === "intermediate" && symbol === "TIP",
+      inflationLinked: symbol === "TIP",
       creditQuality,
       geoExposure: geography,
       rateSensitivity,
