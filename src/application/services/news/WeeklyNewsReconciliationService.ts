@@ -109,11 +109,13 @@ export class WeeklyNewsReconciliationService {
     const title = `${item.title} ${item.summary ?? ""}`.toLowerCase();
     const symbols = item.tickers.map((ticker) => ticker.toUpperCase());
     const isEquityLike = item.tickers.length > 0 || textIncludesAny(title, equityTerms);
+    const hasGoldSymbol = symbols.some((symbol) => goldSymbols.has(symbol));
+    const hasGoldFalsePositiveText = textIncludesAny(title, ["gold rush", "golden", "goldman"]);
+    const hasGoldClass = classes.some((entry) => entry.includes("gold") || entry.includes("commodity"));
     if (classes.some((entry) => entry.includes("bond")) || symbols.some((symbol) => bondSymbols.has(symbol))) return "bonds";
     if (
-      classes.some((entry) => entry.includes("gold") || entry.includes("commodity")) ||
-      symbols.some((symbol) => goldSymbols.has(symbol)) ||
-      (/\bgold\b/.test(title) && !textIncludesAny(title, ["gold rush", "golden", "goldman"]))
+      hasGoldSymbol ||
+      (!hasGoldFalsePositiveText && (hasGoldClass || /\bgold\b/.test(title)))
     ) return "gold";
     if (classes.some((entry) => entry.includes("crypto")) || symbols.some((symbol) => cryptoSymbols.has(symbol))) return "crypto";
     if (!isEquityLike && (macros.some((entry) => entry.includes("rate")) || textIncludesAny(title, ["fed", "interest rate", "rate cut", "rate hike", "treasury yield"]))) return "rates";

@@ -338,6 +338,29 @@ test("weekly reconciliation avoids gold and geopolitical false positives for equ
   assert.equal(grouped.get("macro")?.length, 1);
 });
 
+test("weekly reconciliation ignores stale gold classification for gold rush headlines", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "gold-rush",
+      title: "Fleeing for their futures, a California exodus unleashes a Florida gold rush",
+      tickers: []
+    })
+  ];
+  repository.classifications = [
+    classification({
+      newsItemId: "gold-rush",
+      classificationModel: "deterministic_fallback",
+      affectedAssetClasses: ["gold/commodities"],
+      affectedMacroCategories: []
+    })
+  ];
+  const service = new WeeklyNewsReconciliationService(repository);
+  const grouped = service.groupByBucket(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
+  assert.equal(grouped.get("gold")?.length, 0);
+  assert.equal(grouped.get("macro")?.length, 1);
+});
+
 test("cron protection rejects missing or invalid secret", () => {
   assert.equal(isCronSecretValid(undefined, "secret"), false);
   assert.equal(isCronSecretValid("secret", "bad"), false);
