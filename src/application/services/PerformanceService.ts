@@ -148,8 +148,9 @@ export class PerformanceService {
       .filter((transaction) => transaction.transactionType === "withdraw_cash")
       .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
     const capitalFallback = investedAmount + cashAmount;
-    const denominator = deposits > 0 ? deposits : capitalFallback;
-    const valueChange = deposits > 0 ? currentValue - deposits + withdrawals : currentValue - capitalFallback;
+    const netRecordedCapital = Math.max(0, deposits - withdrawals);
+    const denominator = Math.max(netRecordedCapital, capitalFallback);
+    const valueChange = currentValue + withdrawals - denominator;
     return {
       label: "Since inception",
       valueChange,

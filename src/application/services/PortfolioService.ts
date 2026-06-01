@@ -97,7 +97,8 @@ export class PortfolioService {
       portfolioSnapshots: snapshots,
       benchmarkSnapshots,
       benchmarks,
-      transactions
+      transactions,
+      minimumCapitalBase: analytics.investedAmount + analytics.totalCash
     }) ?? [];
 
     const portfolio = await this.repository.getPortfolioById(portfolioId);

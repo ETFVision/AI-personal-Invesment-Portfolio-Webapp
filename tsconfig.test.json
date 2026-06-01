@@ -16,7 +16,8 @@
   "include": [
     "tests/**/*.ts",
     "src/application/services/risk/riskMath.ts",
-    "src/application/services/taxonomy/TaxonomyService.ts"
+    "src/application/services/taxonomy/TaxonomyService.ts",
+    "src/application/services/PerformanceService.ts"
   ],
   "exclude": ["node_modules"]
 }
