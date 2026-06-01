@@ -610,3 +610,25 @@ Production-readiness assessment:
 - Ready to proceed to the next layer after applying migrations 016 and 017 in Supabase.
 - Suitable for deterministic bond ETF exposure intelligence.
 - Not yet suitable for institutional-grade bond risk decomposition, because convexity, yield-curve shocks, callable behavior, currency hedging, and credit migration are intentionally out of scope.
+
+## 2026-06-01 - Bond Intelligence Future Improvement Checkpoint
+
+Purpose:
+- Preserve lower-priority Bond Intelligence enhancements for future phases after the current foundation layer.
+
+Future improvements:
+- Replace seeded placeholders with issuer/provider-reviewed values for effective duration, spread duration, SEC yield, yield-to-maturity, distribution yield, average maturity, option-adjusted spread, and expense ratio.
+- Add bond data freshness indicators so the UI shows when each bond profile was last reviewed or refreshed.
+- Add field-level confidence/source labels for bond profile values:
+  - seeded
+  - manually reviewed
+  - provider-sourced
+  - stale
+  - missing
+- Add manual edit audit history for bond profiles, including changed field, previous value, new value, editor, and timestamp.
+- Add methodology tooltips for effective duration, rate-shock impact, spread duration, recession hedge role, inflation-linked exposure, and cash-like bond ETF treatment.
+- Improve scenario math later with convexity, yield-curve steepening/flattening, real-rate shocks, credit spread shocks by quality, currency hedging, callable bond behavior, and credit migration.
+- Add richer provider or issuer data only if FMP plus manual profiles becomes limiting for exact bond ETF duration, yield, credit breakdown, or maturity breakdown.
+- Integrate Bond Intelligence into the future allocation engine so allocation logic can distinguish cash-like ETFs, short treasuries, intermediate aggregate bonds, long treasuries, TIPS, corporate credit, and high yield.
+- Add bond-specific benchmarking for the bond sleeve against BND, AGG, short Treasury, long Treasury, TIPS, corporate bond, and high-yield proxies.
+- Add deeper service-level tests for inactive bond ETF behavior, manually edited profile persistence, bond-only portfolios, cash-like-only sleeves, TIPS-only sleeves, and high-yield-heavy sleeves.
