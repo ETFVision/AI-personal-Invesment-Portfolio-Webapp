@@ -64,11 +64,11 @@ export class PerformanceService {
     transactions: Transaction[];
   }): PerformanceMetric[] {
     return [
-      this.buildPortfolioFlowAdjustedMetric("Daily", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(1)),
-      this.buildPortfolioFlowAdjustedMetric("Weekly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(7)),
-      this.buildPortfolioFlowAdjustedMetric("Monthly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(30)),
-      this.buildPortfolioFlowAdjustedMetric("1Y", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(365)),
-      this.buildPortfolioFlowAdjustedMetric("YTD", input.currentValue, input.snapshots, input.transactions, startOfYearIsoDate()),
+      this.buildPortfolioFlowAdjustedMetric("Daily", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(1), input.investedAmount + input.cashAmount),
+      this.buildPortfolioFlowAdjustedMetric("Weekly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(7), input.investedAmount + input.cashAmount),
+      this.buildPortfolioFlowAdjustedMetric("Monthly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(30), input.investedAmount + input.cashAmount),
+      this.buildPortfolioFlowAdjustedMetric("1Y", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(365), input.investedAmount + input.cashAmount),
+      this.buildPortfolioFlowAdjustedMetric("YTD", input.currentValue, input.snapshots, input.transactions, startOfYearIsoDate(), input.investedAmount + input.cashAmount),
       this.buildPortfolioSinceInceptionMetric(input.currentValue, input.investedAmount, input.cashAmount, input.transactions)
     ];
   }
@@ -111,7 +111,8 @@ export class PerformanceService {
     currentValue: number,
     snapshots: PortfolioSnapshot[],
     transactions: Transaction[],
-    targetDate: string
+    targetDate: string,
+    manualCapitalBase = 0
   ): PerformanceMetric {
     const baseline = snapshots
       .filter((snapshot) => snapshot.snapshotDate <= targetDate)
@@ -125,8 +126,12 @@ export class PerformanceService {
     const withdrawals = periodTransactions
       .filter((transaction) => transaction.transactionType === "withdraw_cash")
       .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
-    const valueChange = currentValue - baseline.totalValue - deposits + withdrawals;
-    const denominator = baseline.totalValue + deposits;
+    const snapshotCapitalBase = baseline.totalValue + deposits;
+    const useManualCapitalBase = manualCapitalBase > 0 && snapshotCapitalBase < manualCapitalBase * 0.8;
+    const denominator = useManualCapitalBase ? manualCapitalBase : snapshotCapitalBase;
+    const valueChange = useManualCapitalBase
+      ? currentValue + withdrawals - manualCapitalBase
+      : currentValue - baseline.totalValue - deposits + withdrawals;
     return {
       label,
       valueChange,

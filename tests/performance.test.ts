@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PerformanceService } from "../src/application/services/PerformanceService";
-import type { Transaction } from "../src/domain/portfolio/types";
+import type { PortfolioSnapshot, Transaction } from "../src/domain/portfolio/types";
 
 function transaction(input: Partial<Transaction>): Transaction {
   return {
@@ -25,6 +25,18 @@ function transaction(input: Partial<Transaction>): Transaction {
   };
 }
 
+function snapshot(input: Partial<PortfolioSnapshot>): PortfolioSnapshot {
+  return {
+    id: input.id ?? "snapshot",
+    portfolioId: input.portfolioId ?? "portfolio",
+    snapshotDate: input.snapshotDate ?? "2026-01-01",
+    totalValue: input.totalValue ?? 0,
+    cashValue: input.cashValue ?? 0,
+    investedValue: input.investedValue ?? 0,
+    currency: input.currency ?? "USD"
+  };
+}
+
 test("portfolio since inception uses manual capital base when deposits are incomplete", () => {
   const service = new PerformanceService();
   const metrics = service.calculatePortfolioPerformance({
@@ -38,4 +50,25 @@ test("portfolio since inception uses manual capital base when deposits are incom
   const sinceInception = metrics.find((metric) => metric.label === "Since inception");
   assert.equal(sinceInception?.valueChange, 100);
   assert.equal(sinceInception?.percentChange, 100 / 13_500);
+});
+
+test("portfolio 1Y and YTD fall back to manual capital base when snapshots predate manual capital", () => {
+  const service = new PerformanceService();
+  const metrics = service.calculatePortfolioPerformance({
+    currentValue: 13_600,
+    investedAmount: 13_000,
+    cashAmount: 500,
+    snapshots: [
+      snapshot({ snapshotDate: "2025-01-01", totalValue: 100 }),
+      snapshot({ snapshotDate: "2026-01-01", totalValue: 100 })
+    ],
+    transactions: []
+  });
+
+  const oneYear = metrics.find((metric) => metric.label === "1Y");
+  const ytd = metrics.find((metric) => metric.label === "YTD");
+  assert.equal(oneYear?.valueChange, 100);
+  assert.equal(oneYear?.percentChange, 100 / 13_500);
+  assert.equal(ytd?.valueChange, 100);
+  assert.equal(ytd?.percentChange, 100 / 13_500);
 });

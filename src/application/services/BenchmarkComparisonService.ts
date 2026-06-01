@@ -35,8 +35,13 @@ function flowAdjustedReturn(input: {
   const withdrawals = periodTransactions
     .filter((transaction) => transaction.transactionType === "withdraw_cash")
     .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
-  const valueChange = input.currentValue - input.baselineValue - deposits + withdrawals;
-  const denominator = Math.max(input.baselineValue + deposits, input.minimumCapitalBase ?? 0);
+  const snapshotCapitalBase = input.baselineValue + deposits;
+  const manualCapitalBase = input.minimumCapitalBase ?? 0;
+  const useManualCapitalBase = manualCapitalBase > 0 && snapshotCapitalBase < manualCapitalBase * 0.8;
+  const denominator = useManualCapitalBase ? manualCapitalBase : snapshotCapitalBase;
+  const valueChange = useManualCapitalBase
+    ? input.currentValue + withdrawals - manualCapitalBase
+    : input.currentValue - input.baselineValue - deposits + withdrawals;
   return denominator === 0 ? null : valueChange / denominator;
 }
 
