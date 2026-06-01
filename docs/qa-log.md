@@ -746,3 +746,68 @@ Future AI compatibility assessment:
 Production-readiness assessment:
 - Ready as a manual Market Vision skeleton after migration 018 is applied in Supabase.
 - Not yet production-ready as an automated CIO briefing, because data streams, source citations, AI summarisation, versioning, and approval workflow hardening remain future phases.
+
+## 2026-06-01 - News Intelligence Layer Implementation Checkpoint
+
+Scope:
+- News ingestion, deduplication, instrument linking, classification foundation, weekly reconciliation foundation, cron routes, admin UI, and light Market Vision integration.
+- Explicitly excluded scoring, buy/sell recommendations, telemetry learning, and unrestricted chatbot behavior.
+
+Implemented:
+- Added FMP news provider behind a provider-agnostic `NewsProvider` port.
+- Added optional OpenAI news classification/reconciliation provider behind `NewsAiProvider`.
+- Added strict prompt templates that prohibit buy/sell recommendations.
+- Added deterministic fallback classification when AI flags are disabled.
+- Added daily ingestion and weekly reconciliation job classes.
+- Added protected cron-compatible routes:
+  - `/api/jobs/daily-news-ingestion`
+  - `/api/jobs/weekly-news-reconciliation`
+- Added `/news` admin dashboard for latest news, filters, duplicate indicators, classification status, weekly reconciliations, ingestion logs, manual pending classification, and duplicate override.
+- Added Market Vision integration showing the latest weekly news reconciliation and creating a draft from it.
+
+Database migration:
+- Added `supabase/migrations/019_news_intelligence.sql`.
+- New portable PostgreSQL tables:
+  - `news_items`
+  - `news_classifications`
+  - `news_groups`
+  - `weekly_news_reconciliations`
+  - `news_ingestion_logs`
+
+Architecture assessment:
+- UI components do not call Supabase, FMP, or OpenAI directly.
+- FMP and OpenAI keys remain server-side only.
+- Repository/service/provider boundaries are preserved.
+- Cron route protection uses `CRON_SECRET` and is compatible with Vercel Cron or Google Cloud Scheduler.
+- Cost controls are configurable through environment variables and service config.
+
+Tests added:
+- News normalization/deduplication hash behavior.
+- Instrument linking by symbol.
+- Classification JSON validation and score clamping.
+- Invalid model output fallback behavior.
+- Duplicate and already-classified skip behavior.
+- Weekly grouping and reconciliation creation.
+- Cron secret validation.
+
+Validation run:
+- `npm.cmd run lint`
+- `npm.cmd run test`
+- `npm.cmd run typecheck`
+- `npm.cmd run build`
+
+Known limitations:
+- FMP is the only live news provider in this phase.
+- AI classification and weekly reconciliation are disabled by default.
+- Weekly summaries use deterministic fallback until AI flags and `OPENAI_API_KEY` are configured.
+- Manual review UI is basic; it supports duplicate override and pending classification but not full article editing.
+- FMP endpoint availability can vary by plan, so first live run should be checked through ingestion logs.
+
+Future improvements:
+- Add source allowlists/denylists when real FMP source quality is observed.
+- Add fuzzy title matching beyond canonical title/date hashing.
+- Add richer manual review/edit workflow for classifications and linked instruments.
+- Add article quality scoring before AI classification.
+- Add news source citations into Market Vision drafts.
+- Add BigQuery export path for larger-scale historical news analysis.
+- Add telemetry later to compare news classification persistence against eventual portfolio/market outcomes.

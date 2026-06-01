@@ -1,0 +1,134 @@
+export type NewsSentiment = "positive" | "neutral" | "negative" | "mixed";
+export type NewsClassificationLabel = "short_term_noise" | "medium_term_theme" | "structural_long_term_shift" | "existential_risk";
+export type NewsGroupType = "company" | "sector" | "theme" | "macro" | "geopolitical" | "asset_class";
+export type WeeklyNewsStatus = "draft" | "published" | "archived";
+export type NewsIngestionStatus = "success" | "partial_success" | "failed";
+
+export type NewsItem = {
+  id: string;
+  sourceProvider: string;
+  sourceId: string | null;
+  url: string | null;
+  title: string;
+  summary: string | null;
+  contentSnippet: string | null;
+  publishedAt: string | null;
+  fetchedAt: string;
+  tickers: string[];
+  relatedInstrumentIds: string[];
+  rawSymbols: string[];
+  sourceName: string | null;
+  author: string | null;
+  imageUrl: string | null;
+  language: string | null;
+  country: string | null;
+  providerMetadata: Record<string, unknown>;
+  contentHash: string;
+  canonicalHash: string;
+  isDuplicate: boolean;
+  duplicateOfId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type NewsClassification = {
+  id: string;
+  newsItemId: string;
+  classificationModel: string;
+  sentiment: NewsSentiment;
+  eventType: string | null;
+  classification: NewsClassificationLabel;
+  severityScore: number;
+  persistenceScore: number;
+  confidenceScore: number;
+  affectedAssetClasses: string[];
+  affectedSectors: string[];
+  affectedThemes: string[];
+  affectedInstruments: string[];
+  affectedMacroCategories: string[];
+  reasoningSummary: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type NewsGroup = {
+  id: string;
+  groupKey: string;
+  groupTitle: string;
+  groupType: NewsGroupType;
+  periodStart: string;
+  periodEnd: string;
+  relatedNewsItemIds: string[];
+  affectedInstruments: string[];
+  affectedThemes: string[];
+  affectedAssetClasses: string[];
+  groupSummary: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WeeklyNewsReconciliation = {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  status: WeeklyNewsStatus;
+  equitiesSummary: string | null;
+  bondsSummary: string | null;
+  goldSummary: string | null;
+  cryptoSummary: string | null;
+  macroSummary: string | null;
+  ratesSummary: string | null;
+  inflationSummary: string | null;
+  currencySummary: string | null;
+  geopoliticalSummary: string | null;
+  keyRisks: string[];
+  keyOpportunities: string[];
+  portfolioImplications: Record<string, unknown>;
+  modelUsed: string | null;
+  tokenUsage: Record<string, unknown>;
+  costEstimate: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type NewsIngestionLog = {
+  id: string;
+  jobName: string;
+  sourceProvider: string;
+  startedAt: string;
+  completedAt: string | null;
+  status: NewsIngestionStatus;
+  instrumentsRequested: number;
+  articlesFetched: number;
+  articlesInserted: number;
+  duplicatesDetected: number;
+  errorMessage: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type NormalizedNewsArticle = {
+  sourceProvider: string;
+  sourceId: string | null;
+  url: string | null;
+  title: string;
+  summary: string | null;
+  contentSnippet: string | null;
+  publishedAt: string | null;
+  fetchedAt: string;
+  tickers: string[];
+  rawSymbols: string[];
+  sourceName: string | null;
+  author: string | null;
+  imageUrl: string | null;
+  language: string | null;
+  country: string | null;
+  providerMetadata: Record<string, unknown>;
+};
+
+export type NewsDashboard = {
+  latestNews: Array<NewsItem & { classification?: NewsClassification | null }>;
+  weeklyReconciliations: WeeklyNewsReconciliation[];
+  ingestionLogs: NewsIngestionLog[];
+  latestWeeklyReconciliation: WeeklyNewsReconciliation | null;
+};

@@ -34,6 +34,30 @@ export async function createMarketVisionDraftAction() {
   redirect(`/market-vision?reportId=${report.id}&message=Draft%20created.`);
 }
 
+export async function createMarketVisionDraftFromLatestNewsAction() {
+  await createContainer().authProvider.requireUser();
+  const container = createContainer();
+  const weekly = await container.newsRepository.getLatestWeeklyReconciliation();
+  const report = await container.marketVisionService.createDraft({
+    title: weekly ? `Market Vision - ${weekly.periodEnd}` : undefined,
+    reportDate: weekly?.periodEnd,
+    reportPeriodStart: weekly?.periodStart ?? undefined,
+    reportPeriodEnd: weekly?.periodEnd ?? undefined,
+    globalMarketSummary: weekly?.macroSummary ?? "",
+    equityView: weekly?.equitiesSummary ?? "",
+    bondView: weekly?.bondsSummary ?? "",
+    goldView: weekly?.goldSummary ?? "",
+    cryptoView: weekly?.cryptoSummary ?? "",
+    ratesView: weekly?.ratesSummary ?? "",
+    inflationView: weekly?.inflationSummary ?? "",
+    currencyView: weekly?.currencySummary ?? "",
+    geopoliticalRiskView: weekly?.geopoliticalSummary ?? "",
+    opportunities: weekly?.keyOpportunities ?? [],
+    risks: weekly?.keyRisks ?? []
+  });
+  redirect(`/market-vision?reportId=${report.id}&message=Draft%20created%20from%20latest%20news%20reconciliation.`);
+}
+
 export async function saveMarketVisionDraftAction(formData: FormData) {
   await createContainer().authProvider.requireUser();
   const reportId = formString(formData, "reportId");

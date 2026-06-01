@@ -2,6 +2,7 @@ import { Archive, FilePenLine, Send } from "lucide-react";
 import { createContainer } from "@/server/container";
 import {
   archiveMarketVisionReportAction,
+  createMarketVisionDraftFromLatestNewsAction,
   createMarketVisionDraftAction,
   publishMarketVisionReportAction,
   saveMarketVisionDraftAction
@@ -259,6 +260,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
   const container = createContainer();
   await container.authProvider.requireUser();
   const dashboard = await container.marketVisionService.getDashboard(params?.reportId);
+  const latestWeeklyNews = await container.newsRepository.getLatestWeeklyReconciliation();
   const indicatorViews = container.macroIndicatorService.buildIndicatorViews(dashboard.macroIndicators as MacroIndicator[]);
   const report = dashboard.selectedReport;
 
@@ -338,6 +340,26 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             </div>
             <ReportActions report={report} />
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Latest weekly news reconciliation</CardTitle>
+              <CardDescription>News Intelligence input prepared for manual Market Vision drafting.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {!latestWeeklyNews ? (
+                <p className="text-muted-foreground">No weekly news reconciliation has been created yet.</p>
+              ) : (
+                <>
+                  <p className="font-medium">{latestWeeklyNews.periodStart} to {latestWeeklyNews.periodEnd} · {latestWeeklyNews.status}</p>
+                  <p className="text-muted-foreground">{latestWeeklyNews.macroSummary ?? latestWeeklyNews.equitiesSummary ?? "No summary available."}</p>
+                  <form action={createMarketVisionDraftFromLatestNewsAction}>
+                    <SubmitButton variant="outline" pendingLabel="Creating draft...">Create draft from news</SubmitButton>
+                  </form>
+                </>
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>

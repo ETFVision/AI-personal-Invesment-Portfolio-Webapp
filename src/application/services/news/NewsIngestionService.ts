@@ -1,0 +1,106 @@
+import type { NewsProvider } from "@/application/ports/providers/NewsProvider";
+import type { NewsRepository } from "@/application/ports/repositories/NewsRepository";
+import type { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
+import { NewsDeduplicationService } from "./NewsDeduplicationService";
+import { NewsInstrumentLinkingService } from "./NewsInstrumentLinkingService";
+
+export class NewsIngestionService {
+  constructor(
+    private readonly newsRepository: NewsRepository,
+    private readonly universeRepository: UniverseRepository,
+    private readonly provider: NewsProvider,
+    private readonly deduplicationService = new NewsDeduplicationService(),
+    private readonly linkingService = new NewsInstrumentLinkingService(),
+    private readonly config = {
+      maxArticlesPerDay: 80,
+      maxArticlesPerInstrument: 3
+    }
+  ) {}
+
+  async ingestDailyNews() {
+    const startedAt = new Date().toISOString();
+    let articlesFetched = 0;
+    let articlesInserted = 0;
+    let duplicatesDetected = 0;
+    let instrumentsRequested = 0;
+
+    try {
+      const instruments = await this.universeRepository.listInstruments({ isActive: true, limit: 500 });
+      const newsTracked = instruments.filter((instrument) => instrument.symbol && instrument.assetClass !== "other");
+      instrumentsRequested = newsTracked.length;
+      const symbols = newsTracked.map((instrument) => instrument.symbol as string);
+      const fetched = await this.provider.fetchNews({
+        symbols,
+        maxArticlesPerInstrument: this.config.maxArticlesPerInstrument,
+        maxArticlesTotal: this.config.maxArticlesPerDay,
+        includeGeneralMarketNews: true
+      });
+      articlesFetched = fetched.length;
+
+      const rows = [];
+      for (const article of fetched) {
+        const prepared = this.deduplicationService.prepare(article);
+        const canonical = await this.newsRepository.findCanonicalArticle(prepared);
+        const deduped = this.deduplicationService.markAgainstCanonical(article, canonical);
+        const linked = this.linkingService.link(article, newsTracked);
+        if (deduped.isDuplicate) duplicatesDetected += 1;
+        rows.push({
+          sourceProvider: deduped.sourceProvider,
+          sourceId: deduped.sourceId,
+          url: deduped.url,
+          title: deduped.title,
+          summary: deduped.summary,
+          contentSnippet: deduped.contentSnippet,
+          publishedAt: deduped.publishedAt,
+          fetchedAt: deduped.fetchedAt,
+          tickers: linked.linkedSymbols.length > 0 ? linked.linkedSymbols : deduped.tickers,
+          relatedInstrumentIds: linked.relatedInstrumentIds,
+          rawSymbols: deduped.rawSymbols,
+          sourceName: deduped.sourceName,
+          author: deduped.author,
+          imageUrl: deduped.imageUrl,
+          language: deduped.language,
+          country: deduped.country,
+          providerMetadata: { ...deduped.providerMetadata, linkConfidence: linked.linkConfidence },
+          contentHash: deduped.contentHash,
+          canonicalHash: deduped.canonicalHash,
+          isDuplicate: deduped.isDuplicate,
+          duplicateOfId: deduped.duplicateOfId
+        });
+      }
+
+      const inserted = await this.newsRepository.upsertNewsItems(rows);
+      articlesInserted = inserted.length;
+      await this.newsRepository.insertIngestionLog({
+        jobName: "daily-news-ingestion",
+        sourceProvider: this.provider.name,
+        startedAt,
+        completedAt: new Date().toISOString(),
+        status: duplicatesDetected > 0 ? "partial_success" : "success",
+        instrumentsRequested,
+        articlesFetched,
+        articlesInserted,
+        duplicatesDetected,
+        errorMessage: null,
+        metadata: { symbols: symbols.slice(0, 100) }
+      });
+
+      return { status: "success" as const, instrumentsRequested, articlesFetched, articlesInserted, duplicatesDetected };
+    } catch (error) {
+      await this.newsRepository.insertIngestionLog({
+        jobName: "daily-news-ingestion",
+        sourceProvider: this.provider.name,
+        startedAt,
+        completedAt: new Date().toISOString(),
+        status: "failed",
+        instrumentsRequested,
+        articlesFetched,
+        articlesInserted,
+        duplicatesDetected,
+        errorMessage: error instanceof Error ? error.message : "Unknown news ingestion error.",
+        metadata: {}
+      });
+      throw error;
+    }
+  }
+}
