@@ -42,6 +42,7 @@ export class GlobalNewsIngestionService {
     let duplicatesDetected = 0;
     let articlesFiltered = 0;
     let failedQueryGroups = 0;
+    let rateLimitHit = false;
 
     if (!this.config.enabled) {
       await this.newsRepository.insertIngestionLog({
@@ -57,7 +58,7 @@ export class GlobalNewsIngestionService {
         errorMessage: null,
         metadata: { skipped: true, reason: "ENABLE_GDELT_INGESTION is false." }
       });
-      return { status: "success" as const, queryGroupsRequested: 0, articlesFetched: 0, articlesInserted: 0, duplicatesDetected: 0, articlesFiltered: 0, failedQueryGroups: 0, skipped: true };
+      return { status: "success" as const, queryGroupsRequested: 0, articlesFetched: 0, articlesInserted: 0, duplicatesDetected: 0, articlesFiltered: 0, failedQueryGroups: 0, rateLimitHit: false, skipped: true };
     }
 
     try {
@@ -78,7 +79,7 @@ export class GlobalNewsIngestionService {
           errorMessage: null,
           metadata: { skipped: true, reason: "Recent GDELT ingestion already completed.", latestCompletedAt: logs[0]?.completedAt }
         });
-        return { status: "success" as const, queryGroupsRequested: 0, articlesFetched: 0, articlesInserted: 0, duplicatesDetected: 0, articlesFiltered: 0, failedQueryGroups: 0, skipped: true };
+        return { status: "success" as const, queryGroupsRequested: 0, articlesFetched: 0, articlesInserted: 0, duplicatesDetected: 0, articlesFiltered: 0, failedQueryGroups: 0, rateLimitHit: false, skipped: true };
       }
 
       const groups = await this.gdeltRepository.listActiveQueryGroups();
@@ -198,7 +199,9 @@ export class GlobalNewsIngestionService {
             metadata: { queryKey: group.queryKey, canonicalTheme: group.canonicalTheme, category: group.category }
           });
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : "Unknown GDELT query group error.";
           failedQueryGroups += 1;
+          rateLimitHit = errorMessage.includes("status 429");
           await this.gdeltRepository.insertIngestionLog({
             jobName: "gdelt-query-group-ingestion",
             queryGroupId: group.id,
@@ -208,9 +211,10 @@ export class GlobalNewsIngestionService {
             articlesFetched: groupFetched,
             articlesInserted: 0,
             duplicatesDetected: groupDuplicates,
-            errorMessage: error instanceof Error ? error.message : "Unknown GDELT query group error.",
-            metadata: { queryKey: group.queryKey, canonicalTheme: group.canonicalTheme, category: group.category }
+            errorMessage,
+            metadata: { queryKey: group.queryKey, canonicalTheme: group.canonicalTheme, category: group.category, rateLimitHit }
           });
+          if (rateLimitHit) break;
         }
       }
 
@@ -253,11 +257,15 @@ export class GlobalNewsIngestionService {
         articlesFetched,
         articlesInserted,
         duplicatesDetected,
-        errorMessage: failedQueryGroups === queryGroupsRequested && queryGroupsRequested > 0 ? "All GDELT query groups failed." : null,
-        metadata: { queryGroupsRequested, failedQueryGroups, articlesFiltered, recentWindowHours: this.config.recentWindowHours }
+        errorMessage: rateLimitHit
+          ? "GDELT rate limit hit; remaining query groups were skipped for this refresh."
+          : failedQueryGroups === queryGroupsRequested && queryGroupsRequested > 0
+            ? "All GDELT query groups failed."
+            : null,
+        metadata: { queryGroupsRequested, failedQueryGroups, articlesFiltered, recentWindowHours: this.config.recentWindowHours, rateLimitHit }
       });
 
-      return { status, queryGroupsRequested, articlesFetched, articlesInserted, duplicatesDetected, articlesFiltered, failedQueryGroups, skipped: false };
+      return { status, queryGroupsRequested, articlesFetched, articlesInserted, duplicatesDetected, articlesFiltered, failedQueryGroups, rateLimitHit, skipped: false };
     } catch (error) {
       await this.newsRepository.insertIngestionLog({
         jobName: "gdelt-news-ingestion",
@@ -270,7 +278,7 @@ export class GlobalNewsIngestionService {
         articlesInserted,
         duplicatesDetected,
         errorMessage: error instanceof Error ? error.message : "Unknown GDELT ingestion error.",
-        metadata: { queryGroupsRequested, failedQueryGroups, articlesFiltered }
+        metadata: { queryGroupsRequested, failedQueryGroups, articlesFiltered, rateLimitHit }
       });
       throw error;
     }

@@ -28,7 +28,7 @@ export async function runGdeltNewsIngestionAction() {
     const result = await container.jobs.gdeltNewsIngestion.run({ force: true });
     const suffix = result.skipped
       ? "GDELT ingestion is disabled. Set ENABLE_GDELT_INGESTION=true and redeploy/restart."
-      : `GDELT fetched ${result.articlesFetched}, saved ${result.articlesInserted}, filtered ${result.articlesFiltered}, duplicates ${result.duplicatesDetected}, failed query groups ${result.failedQueryGroups}.`;
+      : `GDELT fetched ${result.articlesFetched}, saved ${result.articlesInserted}, filtered ${result.articlesFiltered}, duplicates ${result.duplicatesDetected}, failed query groups ${result.failedQueryGroups}${result.rateLimitHit ? ". Rate limit hit; wait a few minutes before refreshing again." : "."}`;
     target = `/news?source=gdelt&message=${encodeURIComponent(suffix)}`;
   } catch (error) {
     target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "GDELT ingestion failed.")}`;

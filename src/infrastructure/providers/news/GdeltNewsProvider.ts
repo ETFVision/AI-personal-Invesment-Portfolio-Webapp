@@ -22,7 +22,10 @@ async function fetchJsonWithRetry(url: URL) {
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-      if (response.status === 429 || response.status >= 500) {
+      if (response.status === 429) {
+        throw new GdeltProviderError("GDELT request failed with status 429.", 429);
+      }
+      if (response.status >= 500) {
         lastError = new GdeltProviderError(`GDELT request failed with status ${response.status}.`, response.status);
         if (attempt < 2) {
           await sleep(700 * attempt);

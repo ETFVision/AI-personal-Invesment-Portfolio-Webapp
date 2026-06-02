@@ -29,6 +29,11 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
 }
 
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+}
+
 function tone(score: number) {
   if (score >= 75) return "text-destructive";
   if (score >= 50) return "text-amber-600";
@@ -228,6 +233,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                   <th className="py-2 pr-3">Fetched</th>
                   <th className="py-2 pr-3">Saved</th>
                   <th className="py-2 pr-3">Duplicates</th>
+                  <th className="py-2 pr-3">Last run</th>
                   <th className="py-2 pr-3">Last error</th>
                 </tr>
               </thead>
@@ -243,6 +249,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                     <td className="py-3 pr-3">{latestLog?.articlesFetched ?? 0}</td>
                     <td className="py-3 pr-3">{latestLog?.articlesInserted ?? 0}</td>
                     <td className="py-3 pr-3">{latestLog?.duplicatesDetected ?? 0}</td>
+                    <td className="py-3 pr-3 text-xs text-muted-foreground">{formatDateTime(latestLog?.completedAt ?? latestLog?.startedAt)}</td>
                     <td className="max-w-sm py-3 pr-3 text-xs text-muted-foreground">{latestLog?.errorMessage ?? "-"}</td>
                   </tr>
                 ))}

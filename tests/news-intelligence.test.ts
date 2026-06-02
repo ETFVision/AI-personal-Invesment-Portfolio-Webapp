@@ -1006,7 +1006,8 @@ test("GDELT ingestion records failed query groups without breaking successful gr
   const gdeltRepository = new FakeGdeltRepository();
   gdeltRepository.groups = [
     gdeltQueryGroup({ id: "success", queryKey: "macro_rates_policy", canonicalTheme: "Rates" }),
-    gdeltQueryGroup({ id: "failed", queryKey: "energy_commodities", canonicalTheme: "Energy" })
+    gdeltQueryGroup({ id: "failed", queryKey: "energy_commodities", canonicalTheme: "Energy" }),
+    gdeltQueryGroup({ id: "skipped", queryKey: "currency_usd", canonicalTheme: "Currency" })
   ];
   const article = new GdeltNormalizationService().normalize({
     url: "https://example.com/rates",
@@ -1033,9 +1034,12 @@ test("GDELT ingestion records failed query groups without breaking successful gr
   const result = await service.ingestGlobalNews({ force: true });
 
   assert.equal(result.failedQueryGroups, 1);
+  assert.equal(result.rateLimitHit, true);
   assert.equal(result.articlesInserted, 1);
   assert.equal(gdeltRepository.logs.find((log) => log.queryGroupId === "failed")?.status, "failed");
   assert.equal(gdeltRepository.logs.find((log) => log.queryGroupId === "success")?.status, "success");
+  assert.equal(gdeltRepository.logs.find((log) => log.queryGroupId === "skipped"), undefined);
+  assert.match(newsRepository.logs[0]?.errorMessage ?? "", /rate limit/i);
 });
 
 test("news dashboard exposes latest status for each active GDELT query group", async () => {
