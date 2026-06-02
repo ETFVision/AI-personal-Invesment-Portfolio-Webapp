@@ -93,6 +93,18 @@ function periodValueChange(currentValue: number, percentChange: number | null) {
 }
 
 function derivedProductMetrics(valuation: HoldingValuation, metric: HoldingMarketMetric): PerformanceMetric[] {
+  const sparseHistoryFallback = (percentChange: number | null) => {
+    if (
+      percentChange === 0 &&
+      metric.sinceInceptionReturn != null &&
+      metric.sinceInceptionReturn !== 0 &&
+      valuation.holding.averageCost != null &&
+      valuation.holding.averageCost > 0
+    ) {
+      return metric.sinceInceptionReturn;
+    }
+    return percentChange;
+  };
   const build = (
     label: PerformanceMetric["label"],
     percentChange: number | null,
@@ -106,10 +118,10 @@ function derivedProductMetrics(valuation: HoldingValuation, metric: HoldingMarke
 
   return [
     build("Daily", metric.dailyReturn),
-    build("Weekly", metric.weeklyReturn),
-    build("Monthly", metric.monthlyReturn),
-    build("1Y", metric.oneYearReturn),
-    build("YTD", metric.ytdReturn),
+    build("Weekly", sparseHistoryFallback(metric.weeklyReturn)),
+    build("Monthly", sparseHistoryFallback(metric.monthlyReturn)),
+    build("1Y", sparseHistoryFallback(metric.oneYearReturn)),
+    build("YTD", sparseHistoryFallback(metric.ytdReturn)),
     build("Since inception", metric.sinceInceptionReturn, valuation.holding.firstPurchaseDate)
   ];
 }
