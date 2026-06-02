@@ -3,6 +3,7 @@ import type {
   MacroIndicatorRepository,
   UpsertMacroObservationInput,
   UpsertMacroRegimeSnapshotInput,
+  UpsertMacroThemeSignalInput,
   UpsertMacroTrendInput
 } from "@/application/ports/repositories/MacroIndicatorRepository";
 import type {
@@ -10,6 +11,7 @@ import type {
   MacroIngestionLog,
   MacroObservation,
   MacroRegimeSnapshot,
+  MacroThemeSignal,
   MacroTrend
 } from "@/domain/macro/types";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
@@ -93,6 +95,25 @@ function mapRegime(row: any): MacroRegimeSnapshot {
     dollarRegime: row.dollar_regime,
     commoditiesRegime: row.commodities_regime,
     overallMacroSummary: row.overall_macro_summary,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapMacroThemeSignal(row: any): MacroThemeSignal {
+  return {
+    id: row.id,
+    signalDate: row.signal_date,
+    sourceProvider: row.source_provider,
+    sourceIndicatorCode: row.source_indicator_code,
+    theme: row.theme,
+    themeCategory: row.theme_category,
+    direction: row.direction,
+    regimeLabel: row.regime_label,
+    severityScore: Number(row.severity_score ?? 0),
+    persistenceScore: Number(row.persistence_score ?? 0),
+    confidenceScore: Number(row.confidence_score ?? 0),
+    explanation: row.explanation ?? "",
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -232,6 +253,40 @@ export class SupabaseMacroIndicatorRepository implements MacroIndicatorRepositor
     if (missing(error)) return null;
     if (error) throw new Error(error.message);
     return data ? mapRegime(data) : null;
+  }
+
+  async upsertMacroThemeSignals(input: UpsertMacroThemeSignalInput[]) {
+    if (input.length === 0) return;
+    const { error } = await this.db.from("macro_theme_signals").upsert(
+      input.map((item) => ({
+        signal_date: item.signalDate,
+        source_provider: item.sourceProvider,
+        source_indicator_code: item.sourceIndicatorCode,
+        theme: item.theme,
+        theme_category: item.themeCategory,
+        direction: item.direction,
+        regime_label: item.regimeLabel,
+        severity_score: item.severityScore,
+        persistence_score: item.persistenceScore,
+        confidence_score: item.confidenceScore,
+        explanation: item.explanation
+      })),
+      { onConflict: "signal_date,source_provider,source_indicator_code,theme" }
+    );
+    if (missing(error)) return;
+    if (error) throw new Error(error.message);
+  }
+
+  async listMacroThemeSignalsForPeriod(periodStart: string, periodEnd: string) {
+    const { data, error } = await this.db
+      .from("macro_theme_signals")
+      .select("*")
+      .gte("signal_date", periodStart)
+      .lte("signal_date", periodEnd)
+      .order("signal_date", { ascending: false });
+    if (missing(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapMacroThemeSignal);
   }
 
   async insertIngestionLog(input: InsertMacroIngestionLogInput) {

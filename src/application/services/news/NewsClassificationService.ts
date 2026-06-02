@@ -11,6 +11,7 @@ export const canonicalNewsThemes: NewsCanonicalTheme[] = [
   "Inflation",
   "Growth",
   "Employment",
+  "Yield Curve",
   "Currency",
   "Geopolitical",
   "Energy",

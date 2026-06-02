@@ -4,12 +4,14 @@ import type {
   MacroIngestionLog,
   MacroObservation,
   MacroRegimeSnapshot,
+  MacroThemeSignal,
   MacroTrend
 } from "@/domain/macro/types";
 
 export type UpsertMacroObservationInput = Omit<MacroObservation, "id" | "createdAt" | "updatedAt">;
 export type UpsertMacroTrendInput = Omit<MacroTrend, "id" | "createdAt" | "updatedAt">;
 export type UpsertMacroRegimeSnapshotInput = Omit<MacroRegimeSnapshot, "id" | "createdAt" | "updatedAt">;
+export type UpsertMacroThemeSignalInput = Omit<MacroThemeSignal, "id" | "createdAt" | "updatedAt">;
 export type InsertMacroIngestionLogInput = Omit<MacroIngestionLog, "id" | "createdAt">;
 
 export interface MacroIndicatorRepository {
@@ -21,6 +23,8 @@ export interface MacroIndicatorRepository {
   listLatestTrends(indicatorIds?: string[]): Promise<MacroTrend[]>;
   upsertRegimeSnapshot(input: UpsertMacroRegimeSnapshotInput): Promise<MacroRegimeSnapshot>;
   getLatestRegimeSnapshot(): Promise<MacroRegimeSnapshot | null>;
+  upsertMacroThemeSignals(input: UpsertMacroThemeSignalInput[]): Promise<void>;
+  listMacroThemeSignalsForPeriod(periodStart: string, periodEnd: string): Promise<MacroThemeSignal[]>;
   insertIngestionLog(input: InsertMacroIngestionLogInput): Promise<void>;
   listIngestionLogs(limit?: number): Promise<MacroIngestionLog[]>;
   getDashboard(): Promise<MacroDashboard>;

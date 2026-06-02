@@ -1,5 +1,7 @@
+import type { MacroThemeSignal } from "@/domain/macro/types";
 import type { NewsCanonicalTheme, NewsThemeCategory, NewsThemeIntelligence, NewsThemeReviewItem, NewsThemeSummary, NewsThemeTrend } from "@/domain/news/types";
 import type { NewsRepository } from "@/application/ports/repositories/NewsRepository";
+import type { MacroIndicatorRepository } from "@/application/ports/repositories/MacroIndicatorRepository";
 import { canonicalNewsThemes } from "./NewsClassificationService";
 import { NewsSummaryCorrectionService } from "./NewsSummaryCorrectionService";
 import { NewsSummaryEligibilityService } from "./NewsSummaryEligibilityService";
@@ -9,6 +11,7 @@ export const themeHierarchy: Record<NewsCanonicalTheme, NewsThemeCategory[]> = {
   Inflation: ["Macro"],
   Growth: ["Macro", "Investment"],
   Employment: ["Macro"],
+  "Yield Curve": ["Macro"],
   Currency: ["Macro"],
   Geopolitical: ["Macro"],
   Energy: ["Macro"],
@@ -66,6 +69,7 @@ function trendFrom(current: number, priorAverage: number, weeksWithData: number)
 export class ThemeIntelligenceService {
   constructor(
     private readonly repository: NewsRepository,
+    private readonly macroRepository?: MacroIndicatorRepository,
     private readonly eligibilityService = new NewsSummaryEligibilityService(),
     private readonly correctionService = new NewsSummaryCorrectionService()
   ) {}
@@ -74,11 +78,13 @@ export class ThemeIntelligenceService {
     const start = parseDate(periodStart);
     const priorStart = isoDate(shiftDays(start, -21));
     const all = this.eligibilityService.filter(await this.repository.listClassifiedNewsForPeriod(priorStart, periodEnd));
+    const macroSignals = this.macroRepository ? await this.macroRepository.listMacroThemeSignalsForPeriod(priorStart, periodEnd) : [];
     const current = all.filter((item) => {
       const published = item.publishedAt ? new Date(item.publishedAt) : null;
       return published && published >= start && published <= new Date(`${periodEnd}T23:59:59.999Z`);
     });
-    const summaries = this.summarizeThemes(current, all, periodStart, periodEnd);
+    const currentMacroSignals = macroSignals.filter((signal) => signal.signalDate >= periodStart && signal.signalDate <= periodEnd);
+    const summaries = this.summarizeThemes(current, all, periodStart, periodEnd, currentMacroSignals, macroSignals);
     return {
       topThemesThisWeek: summaries.slice(0, 8),
       emergingThemes: summaries.filter((item) => item.trend === "Rising" && (item.weeksWithData ?? 0) >= 4).slice(0, 5),
@@ -88,26 +94,46 @@ export class ThemeIntelligenceService {
     };
   }
 
-  summarizeThemes(current: ClassifiedNews, allWindow: ClassifiedNews, periodStart: string, periodEnd: string): NewsThemeSummary[] {
+  summarizeThemes(
+    current: ClassifiedNews,
+    allWindow: ClassifiedNews,
+    periodStart: string,
+    periodEnd: string,
+    currentMacroSignals: MacroThemeSignal[] = [],
+    allMacroSignals: MacroThemeSignal[] = []
+  ): NewsThemeSummary[] {
     return canonicalNewsThemes
       .flatMap((theme): NewsThemeSummary[] => {
         const currentItems = this.itemsForTheme(current, theme);
-        if (currentItems.length === 0) return [];
-        const weeklyCounts = this.weeklyCountsForTheme(allWindow, theme, periodStart, periodEnd);
+        const currentSignals = currentMacroSignals.filter((signal) => signal.theme === theme);
+        if (currentItems.length === 0 && currentSignals.length === 0) return [];
+        const weeklyCounts = this.weeklyCountsForTheme(allWindow, theme, periodStart, periodEnd, allMacroSignals);
         const priorAverage = average(weeklyCounts.slice(0, 3));
         const weeksWithData = weeklyCounts.filter((count) => count > 0).length;
+        const signalSeverity = currentSignals.map((signal) => signal.severityScore);
+        const signalPersistence = currentSignals.map((signal) => signal.persistenceScore);
+        const signalConfidence = currentSignals.map((signal) => signal.confidenceScore);
+        const newsCount = currentItems.length;
+        const macroSignalCount = currentSignals.length;
         return [{
           theme,
           categories: themeHierarchy[theme],
-          count: currentItems.length,
-          averageConfidence: average(currentItems.map((item) => item.classification.themeConfidence)),
-          averageSeverity: average(currentItems.map((item) => item.classification.severityScore)),
-          averagePersistence: average(currentItems.map((item) => item.classification.persistenceScore)),
+          count: newsCount + macroSignalCount,
+          newsItemCount: newsCount,
+          macroSignalCount,
+          sources: [
+            newsCount > 0 ? "News" : null,
+            macroSignalCount > 0 ? "FRED" : null
+          ].filter((source): source is string => Boolean(source)),
+          averageConfidence: average([...currentItems.map((item) => item.classification.themeConfidence), ...signalConfidence]),
+          averageSeverity: average([...currentItems.map((item) => item.classification.severityScore), ...signalSeverity]),
+          averagePersistence: average([...currentItems.map((item) => item.classification.persistenceScore), ...signalPersistence]),
           rolling4WeekFrequency: weeklyCounts.reduce((sum, count) => sum + count, 0),
           weeksWithData,
-          trend: trendFrom(currentItems.length, priorAverage, weeksWithData),
+          trend: trendFrom(newsCount + macroSignalCount, priorAverage, weeksWithData),
           structuralCount: currentItems.filter((item) => item.classification.classification === "structural_long_term_shift").length,
-          topHeadlines: this.topHeadlines(currentItems)
+          topHeadlines: this.topHeadlines(currentItems),
+          topMacroSignals: currentSignals.slice(0, 3).map((signal) => signal.explanation)
         }];
       })
       .sort((a, b) => b.count - a.count || b.averagePersistence - a.averagePersistence || b.averageSeverity - a.averageSeverity);
@@ -167,15 +193,21 @@ export class ThemeIntelligenceService {
     return this.correctionService.correctedThemes(item, Array.from(themes));
   }
 
-  private weeklyCountsForTheme(items: ClassifiedNews, theme: NewsCanonicalTheme, periodStart: string, periodEnd: string) {
+  private weeklyCountsForTheme(items: ClassifiedNews, theme: NewsCanonicalTheme, periodStart: string, periodEnd: string, macroSignals: MacroThemeSignal[] = []) {
     const end = parseDate(periodEnd);
     return [3, 2, 1, 0].map((offset) => {
       const weekStart = shiftDays(parseDate(periodStart), -7 * offset);
       const weekEnd = offset === 0 ? end : shiftDays(weekStart, 6);
-      return this.itemsForTheme(items, theme).filter((item) => {
+      const newsCount = this.itemsForTheme(items, theme).filter((item) => {
         const published = item.publishedAt ? new Date(item.publishedAt) : null;
         return published && published >= weekStart && published <= new Date(`${isoDate(weekEnd)}T23:59:59.999Z`);
       }).length;
+      const signalCount = macroSignals.filter((signal) =>
+        signal.theme === theme &&
+        signal.signalDate >= isoDate(weekStart) &&
+        signal.signalDate <= isoDate(weekEnd)
+      ).length;
+      return newsCount + signalCount;
     });
   }
 

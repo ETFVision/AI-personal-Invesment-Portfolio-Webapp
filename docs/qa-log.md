@@ -1640,3 +1640,58 @@ Low-priority improvements for later:
 Production-readiness assessment:
 - Weekly summaries should now be materially cleaner after rerunning reclassification and weekly reconciliation.
 - This remains deterministic summary hygiene, not recommendation logic.
+
+## 2026-06-02 - Geopolitical Mapping And FRED Macro Theme Signals
+
+Scope:
+- Fixed geopolitical theme mapping before AI Market Vision.
+- Added structured FRED macro-theme signals for Theme Intelligence and Weekly Reconciliation.
+- Kept FRED observations separate from `news_items`.
+- Did not add AI Market Vision, recommendations, scoring, or telemetry.
+
+Problem observed:
+- Iran, Middle East talks, sanctions, export controls, and trade restrictions were not always appearing as Geopolitical.
+- Rates, Inflation, Growth, Employment, Yield Curve, Currency, and Energy themes could be absent from Theme Intelligence when there were no matching news articles, even though FRED macro trends existed.
+
+What changed:
+- Added migration `030_macro_theme_signals.sql`.
+- Added `macro_theme_signals` as a portable PostgreSQL table for FRED-derived structured macro theme inputs.
+- Added `Yield Curve` to the canonical news theme taxonomy.
+- Added `FredThemeSignalService` and `MacroThemeSignalService`.
+- FRED ingestion now generates macro theme signals after trends/regime snapshots are refreshed.
+- Theme Intelligence now combines:
+  - News-derived themes from FMP/GDELT.
+  - Macro data-derived themes from FRED signals.
+- Weekly Reconciliation theme metadata now includes FRED macro signals even when news item count is zero.
+- UI now shows separate News and FRED signal counts in Theme Intelligence cards.
+- Geopolitical keyword handling now covers Iran, Middle East, Israel, sanctions, war/conflict, military/missile, election risk, political instability, peace talks, tariff escalation, export controls, trade restrictions, maritime disruption, and supply-chain disruption.
+
+Validation performed:
+- `npm.cmd run test` passed: 100 tests.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd run build` passed.
+
+Tests added or updated:
+- Iran/Middle East/sanctions/election/trade-restriction headlines map to Geopolitical.
+- Oil plus geopolitical headline maps to Geopolitical with Energy as a secondary theme.
+- FRED trends map to Rates, Inflation, Growth, Employment, Yield Curve, Currency, and Energy macro signals.
+- FRED oil pressure can add an Inflation macro signal when the move is material.
+- Weekly Reconciliation includes macro signals with zero news items.
+- Theme Intelligence separates FRED signal counts from news item counts.
+
+Critical issues:
+- None.
+
+Medium-priority issues:
+- None.
+
+Low-priority improvements for later:
+- Add a dedicated Macro Theme Signals table/view on the Macro dashboard.
+- Add manual override/review controls for macro signal severity and regime labels.
+- Add explicit correction reason metadata for geopolitical reclassification.
+- Add deeper FRED regime aggregation so multiple indicators can merge into one weekly macro theme narrative.
+
+Production-readiness assessment:
+- Ready as a pre-AI Market Vision input hardening layer.
+- After applying migration 030, run FRED refresh/backfill once to populate macro theme signals, then run weekly reconciliation.

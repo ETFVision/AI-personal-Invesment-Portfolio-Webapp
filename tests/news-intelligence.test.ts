@@ -17,6 +17,8 @@ import { GdeltNormalizationService, gdeltNormalizationInternals } from "../src/i
 import { gdeltProviderInternals } from "../src/infrastructure/providers/news/GdeltNewsProvider";
 import { isJwtIssuedAtFutureError } from "../src/infrastructure/repositories/supabase/supabaseErrors";
 import type { GdeltArticleMetadata, GdeltIngestionLog, GdeltQueryGroup, NewsClassification, NewsIngestionLog, NewsItem, NormalizedNewsArticle, WeeklyNewsReconciliation } from "../src/domain/news/types";
+import type { MacroIndicatorRepository } from "../src/application/ports/repositories/MacroIndicatorRepository";
+import type { MacroThemeSignal } from "../src/domain/macro/types";
 import type { GdeltNewsProvider, GdeltProviderArticle } from "../src/application/ports/providers/GdeltNewsProvider";
 import type { NewsProvider } from "../src/application/ports/providers/NewsProvider";
 import type { GdeltRepository, InsertGdeltIngestionLogInput, UpsertGdeltArticleMetadataInput } from "../src/application/ports/repositories/GdeltRepository";
@@ -261,6 +263,32 @@ class FakeGdeltRepository implements GdeltRepository {
   }
 }
 
+class FakeMacroSignalRepository implements Partial<MacroIndicatorRepository> {
+  constructor(private readonly signals: MacroThemeSignal[]) {}
+  async listMacroThemeSignalsForPeriod(periodStart: string, periodEnd: string) {
+    return this.signals.filter((signal) => signal.signalDate >= periodStart && signal.signalDate <= periodEnd);
+  }
+}
+
+function macroSignal(overrides: Partial<MacroThemeSignal> = {}): MacroThemeSignal {
+  return {
+    id: overrides.id ?? "macro-signal-1",
+    signalDate: overrides.signalDate ?? "2026-06-01",
+    sourceProvider: overrides.sourceProvider ?? "fred",
+    sourceIndicatorCode: overrides.sourceIndicatorCode ?? "FEDFUNDS",
+    theme: overrides.theme ?? "Rates",
+    themeCategory: overrides.themeCategory ?? "Macro",
+    direction: overrides.direction ?? "rising",
+    regimeLabel: overrides.regimeLabel ?? "restrictive",
+    severityScore: overrides.severityScore ?? 42,
+    persistenceScore: overrides.persistenceScore ?? 70,
+    confidenceScore: overrides.confidenceScore ?? 85,
+    explanation: overrides.explanation ?? "FEDFUNDS is restrictive and rising.",
+    createdAt: "",
+    updatedAt: ""
+  };
+}
+
 class FakeGdeltProvider implements GdeltNewsProvider {
   readonly name = "gdelt" as const;
   constructor(private readonly articles: GdeltProviderArticle[]) {}
@@ -480,6 +508,35 @@ test("deterministic classifier assigns canonical macro themes", () => {
   assert.ok(output.secondaryThemes.includes("Inflation"));
   assert.ok(output.secondaryThemes.includes("Employment"));
   assert.ok(output.themeConfidence > 0);
+});
+
+test("deterministic classifier maps geopolitical examples", () => {
+  const service = new NewsClassificationService(new FakeNewsRepository());
+  const examples = [
+    "Oil rises as Iran and Middle East peace talks stall",
+    "Sanctions hit shipping after new conflict escalation",
+    "Election risk and political instability weigh on markets",
+    "Trade restrictions and export controls pressure chip supply chains"
+  ];
+  for (const [index, title] of examples.entries()) {
+    const output = service.deterministicFallback(newsItem({ id: `geo-${index}`, title, summary: "", tickers: [] }));
+    assert.equal(output.primaryTheme, "Geopolitical");
+    assert.ok(output.affectedMacroCategories.includes("geopolitical"));
+  }
+});
+
+test("deterministic classifier allows geopolitical oil headlines to carry Energy", () => {
+  const service = new NewsClassificationService(new FakeNewsRepository());
+  const output = service.deterministicFallback(newsItem({
+    id: "geo-oil",
+    title: "Oil jumps as Iran conflict raises maritime disruption risk",
+    summary: "",
+    tickers: []
+  }));
+  assert.equal(output.primaryTheme, "Geopolitical");
+  assert.ok(output.secondaryThemes.includes("Energy"));
+  assert.ok(output.affectedMacroCategories.includes("geopolitical"));
+  assert.ok(output.affectedMacroCategories.includes("energy"));
 });
 
 test("deterministic classifier avoids loose Credit theme mappings", () => {
@@ -835,6 +892,27 @@ test("weekly reconciliation summarizes canonical themes", async () => {
   assert.equal(summaries.find((item) => item.theme === "Rates")?.averageConfidence, 65);
 });
 
+test("weekly reconciliation includes FRED macro signals with zero news items", async () => {
+  const repository = new FakeNewsRepository();
+  const macroRepository = new FakeMacroSignalRepository([
+    macroSignal({ id: "rates", theme: "Rates", sourceIndicatorCode: "FEDFUNDS", explanation: "FEDFUNDS is restrictive." }),
+    macroSignal({ id: "inflation", theme: "Inflation", sourceIndicatorCode: "CPIAUCSL", explanation: "CPI is moderating." })
+  ]);
+  const service = new WeeklyNewsReconciliationService(
+    repository,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    macroRepository as unknown as MacroIndicatorRepository
+  );
+  await service.reconcileWeek("2026-06-01", "2026-06-07");
+  const summaries = repository.weekly[0]?.coverageMetadata.themeSummaries as Array<{ theme: string; newsItemCount: number; macroSignalCount: number }> | undefined;
+  assert.equal(repository.items.length, 0);
+  assert.equal(summaries?.find((item) => item.theme === "Rates")?.newsItemCount, 0);
+  assert.equal(summaries?.find((item) => item.theme === "Rates")?.macroSignalCount, 1);
+});
+
 test("theme intelligence calculates hierarchy, trend, and review queue", async () => {
   const repository = new FakeNewsRepository();
   repository.items = [
@@ -855,6 +933,19 @@ test("theme intelligence calculates hierarchy, trend, and review queue", async (
   assert.equal(ai?.categories?.includes("Investment"), true);
   assert.equal(ai?.trend, "Low confidence trend");
   assert.ok(intelligence.reviewQueue.some((item) => item.reason.includes("AI/technology")));
+});
+
+test("theme intelligence includes FRED macro signals separately from news counts", async () => {
+  const repository = new FakeNewsRepository();
+  const macroRepository = new FakeMacroSignalRepository([
+    macroSignal({ id: "curve", theme: "Yield Curve", sourceIndicatorCode: "T10Y2Y", explanation: "T10Y2Y remains inverted." })
+  ]);
+  const service = new ThemeIntelligenceService(repository, macroRepository as unknown as MacroIndicatorRepository);
+  const intelligence = await service.getThemeIntelligence("2026-06-01", "2026-06-07");
+  const curve = intelligence.topThemesThisWeek.find((theme) => theme.theme === "Yield Curve");
+  assert.equal(curve?.newsItemCount, 0);
+  assert.equal(curve?.macroSignalCount, 1);
+  assert.equal(curve?.sources?.includes("FRED"), true);
 });
 
 test("theme intelligence marks one-week trend as insufficient history", async () => {
@@ -1166,7 +1257,7 @@ test("GDELT relevance filter drops non-English and loose query matches", () => {
   assert.equal(service.isRelevant(unrelatedRates as GdeltProviderArticle), false);
 });
 
-test("GDELT theme mapping assigns macro trade classifications without recommendations", () => {
+test("GDELT theme mapping assigns export-control stories to geopolitical without recommendations", () => {
   const service = new GdeltThemeMappingService();
   const mapping = service.map({
     title: "New export controls raise semiconductor supply chain risks",
@@ -1174,14 +1265,14 @@ test("GDELT theme mapping assigns macro trade classifications without recommenda
     primaryTheme: "Trade / Supply Chain",
     category: "trade_supply_chain"
   });
-  assert.equal(mapping.primaryTheme, "Trade / Supply Chain");
-  assert.deepEqual(mapping.affectedMacroCategories, ["trade_supply_chain"]);
+  assert.equal(mapping.primaryTheme, "Geopolitical");
+  assert.ok(mapping.affectedMacroCategories.includes("geopolitical"));
   assert.ok(mapping.affectedAssetClasses.includes("macro"));
   assert.equal(mapping.reasoningSummary.includes("buy"), false);
   assert.equal(mapping.reasoningSummary.includes("sell"), false);
 });
 
-test("weekly reconciliation buckets non-equity trade supply-chain news as macro", async () => {
+test("weekly reconciliation buckets export-control stories as geopolitical", async () => {
   const repository = new FakeNewsRepository();
   repository.items = [
     newsItem({
@@ -1203,7 +1294,7 @@ test("weekly reconciliation buckets non-equity trade supply-chain news as macro"
   ];
   const service = new WeeklyNewsReconciliationService(repository);
   const grouped = service.groupByBucket(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
-  assert.equal(grouped.get("macro")?.length, 1);
+  assert.equal(grouped.get("geopolitical")?.length, 1);
   assert.equal(grouped.get("equities")?.length, 0);
 });
 
@@ -1271,8 +1362,8 @@ test("GDELT ingestion stores normalized news, classifications, metadata, and log
   assert.equal(result.articlesInserted, 1);
   assert.equal(newsRepository.items[0]?.sourceProvider, "gdelt");
   assert.deepEqual(newsRepository.items[0]?.tickers, []);
-  assert.equal(newsRepository.classifications[0]?.primaryTheme, "Trade / Supply Chain");
-  assert.deepEqual(newsRepository.classifications[0]?.affectedMacroCategories, ["trade_supply_chain"]);
+  assert.equal(newsRepository.classifications[0]?.primaryTheme, "Geopolitical");
+  assert.ok(newsRepository.classifications[0]?.affectedMacroCategories.includes("geopolitical"));
   assert.equal(gdeltRepository.metadata.length, 1);
   assert.equal(gdeltRepository.groups[0]?.failureCount, 0);
   assert.notEqual(gdeltRepository.groups[0]?.nextRunAt, null);

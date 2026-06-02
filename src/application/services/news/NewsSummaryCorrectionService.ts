@@ -13,6 +13,7 @@ const goldTerms = ["gold price", "spot gold", "gold prices", "bullion", "preciou
 const goldFalsePositiveTerms = ["gold rush", "golden", "goldman"];
 const oilEnergyTerms = ["oil", "crude", "opec", "natural gas", "lng"];
 const currencyTerms = ["peso", "dollar", "us dollar", "usd", "dxy", "currency", "fx", "yen", "euro"];
+const geopoliticalTerms = ["iran", "middle east", "israel", "sanction", "sanctions", "war", "conflict", "military", "missile", "election risk", "political instability", "peace talks", "tariff escalation", "export controls", "trade restrictions", "maritime disruption", "supply chain disruption", "geopolitical"];
 const aiTerms = ["ai", "artificial intelligence", "agentic ai", "nvidia", "nvda", "semiconductor", "chip", "chips", "data center"];
 const healthcareTerms = ["healthcare", "health care", "pharma", "biotech", "drug", "fda", "abbvie", "pfizer", "lilly", "unitedhealth"];
 const broadEquityTerms = ["stock", "stocks", "equity", "equities", "s&p 500", "nasdaq", "dow", "wall street", "earnings", "shares"];
@@ -46,6 +47,7 @@ export class NewsSummaryCorrectionService {
     const hasBond = symbols.some((symbol) => bondSymbols.has(symbol));
     const hasCrypto = symbols.some((symbol) => cryptoSymbols.has(symbol)) || includesAny(text, ["bitcoin", "ethereum", "solana", "crypto"]);
     const hasCurrency = includesAny(text, currencyTerms);
+    const hasGeopolitical = includesAny(text, geopoliticalTerms);
     const isEquity = symbols.length > 0 || includesAny(text, broadEquityTerms);
     const isFundStructureWithoutCredit = includesAny(text, fundStructureTerms) && !includesAny(text, creditRiskTerms);
 
@@ -53,6 +55,7 @@ export class NewsSummaryCorrectionService {
     if (hasCrypto) return "crypto";
     if (hasGold) return "gold";
     if (hasBond && !hasGold) return "bonds";
+    if (hasGeopolitical && !isEquity) return "geopolitical";
     if (hasCurrency && !isEquity) return "currency";
     if (includesAny(text, oilEnergyTerms) && !isEquity) return "macro";
     if (isEquity) return "equities";
@@ -79,6 +82,7 @@ export class NewsSummaryCorrectionService {
       next.add("Inflation");
       next.add("Energy");
     }
+    if (includesAny(text, geopoliticalTerms)) next.add("Geopolitical");
     if (includesAny(text, currencyTerms)) next.add("Currency");
     if (includesAny(text, oilEnergyTerms)) next.add("Energy");
     if (symbols.some((symbol) => healthcareSymbols.has(symbol)) || includesAny(text, healthcareTerms)) {

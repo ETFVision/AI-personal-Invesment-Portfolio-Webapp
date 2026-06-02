@@ -1,7 +1,9 @@
 import type { MacroIndicatorCategory } from "@/domain/marketVision/types";
+import type { NewsCanonicalTheme } from "@/domain/news/types";
 
 export type MacroFrequency = "daily" | "weekly" | "monthly" | "quarterly" | string;
 export type MacroDirection = "rising" | "falling" | "stable" | "insufficient_data";
+export type MacroThemeSignalDirection = MacroDirection | "mixed";
 export type MacroAcceleration = "accelerating" | "decelerating" | "stable" | "insufficient_data";
 export type MacroIngestionStatus = "success" | "partial_success" | "failed";
 
@@ -83,6 +85,23 @@ export type MacroIngestionLog = {
   errorMessage: string | null;
   metadata: Record<string, unknown>;
   createdAt: string;
+};
+
+export type MacroThemeSignal = {
+  id: string;
+  signalDate: string;
+  sourceProvider: "fred";
+  sourceIndicatorCode: string;
+  theme: NewsCanonicalTheme;
+  themeCategory: "Macro";
+  direction: MacroThemeSignalDirection;
+  regimeLabel: string;
+  severityScore: number;
+  persistenceScore: number;
+  confidenceScore: number;
+  explanation: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type MacroDashboardIndicator = MacroIndicatorDefinition & {

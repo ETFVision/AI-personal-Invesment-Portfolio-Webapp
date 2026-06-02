@@ -1,5 +1,7 @@
 import type { NewsAiProvider } from "@/application/ports/providers/NewsAiProvider";
+import type { MacroIndicatorRepository } from "@/application/ports/repositories/MacroIndicatorRepository";
 import type { NewsRepository } from "@/application/ports/repositories/NewsRepository";
+import type { MacroThemeSignal } from "@/domain/macro/types";
 import { canonicalNewsThemes } from "./NewsClassificationService";
 import { NewsSummaryCorrectionService } from "./NewsSummaryCorrectionService";
 import { NewsSummaryEligibilityService } from "./NewsSummaryEligibilityService";
@@ -44,16 +46,18 @@ export class WeeklyNewsReconciliationService {
       reconciliationModel: "gpt-5.4-mini"
     },
     private readonly eligibilityService = new NewsSummaryEligibilityService(),
-    private readonly correctionService = new NewsSummaryCorrectionService()
+    private readonly correctionService = new NewsSummaryCorrectionService(),
+    private readonly macroRepository?: MacroIndicatorRepository
   ) {}
 
   async reconcileWeek(periodStart = startOfUtcWeek(), periodEnd = endOfUtcWeek()) {
     const classified = await this.repository.listClassifiedNewsForPeriod(periodStart, periodEnd);
     const eligible = this.eligibilityService.filter(classified);
     const limited = eligible.slice(0, this.config.maxArticlesPerWeek);
+    const macroSignals = this.macroRepository ? await this.macroRepository.listMacroThemeSignalsForPeriod(periodStart, periodEnd) : [];
     const grouped = this.groupByBucket(limited);
     const bucketCounts = Object.fromEntries(buckets.map((bucket) => [bucket, grouped.get(bucket)?.length ?? 0]));
-    const themeSummaries = this.summarizeThemes(limited);
+    const themeSummaries = this.summarizeThemes(limited, macroSignals);
 
     const aiOutput =
       this.config.enableWeeklyReconciliation && this.aiProvider
@@ -166,22 +170,34 @@ export class WeeklyNewsReconciliationService {
     return `${items.length} ${bucket} items classified. Main items: ${top.join("; ")}.`;
   }
 
-  summarizeThemes(items: Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>) {
+  summarizeThemes(items: Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>, macroSignals: MacroThemeSignal[] = []) {
     return canonicalNewsThemes
       .map((theme) => {
         const themeItems = items.filter((item) => this.effectiveThemes(item).includes(theme));
-        if (themeItems.length === 0) return null;
+        const themeSignals = macroSignals.filter((signal) => signal.theme === theme);
+        if (themeItems.length === 0 && themeSignals.length === 0) return null;
         const confidenceTotal = themeItems.reduce((sum, item) => sum + item.classification.themeConfidence, 0);
         const severityTotal = themeItems.reduce((sum, item) => sum + item.classification.severityScore, 0);
         const persistenceTotal = themeItems.reduce((sum, item) => sum + item.classification.persistenceScore, 0);
+        const signalConfidenceTotal = themeSignals.reduce((sum, signal) => sum + signal.confidenceScore, 0);
+        const signalSeverityTotal = themeSignals.reduce((sum, signal) => sum + signal.severityScore, 0);
+        const signalPersistenceTotal = themeSignals.reduce((sum, signal) => sum + signal.persistenceScore, 0);
+        const denominator = Math.max(1, themeItems.length + themeSignals.length);
         return {
           theme,
-          count: themeItems.length,
-          averageConfidence: Math.round(confidenceTotal / themeItems.length),
-          averageSeverity: Math.round(severityTotal / themeItems.length),
-          averagePersistence: Math.round(persistenceTotal / themeItems.length),
+          count: themeItems.length + themeSignals.length,
+          newsItemCount: themeItems.length,
+          macroSignalCount: themeSignals.length,
+          sources: [
+            themeItems.length > 0 ? "News" : null,
+            themeSignals.length > 0 ? "FRED" : null
+          ].filter((source): source is string => Boolean(source)),
+          averageConfidence: Math.round((confidenceTotal + signalConfidenceTotal) / denominator),
+          averageSeverity: Math.round((severityTotal + signalSeverityTotal) / denominator),
+          averagePersistence: Math.round((persistenceTotal + signalPersistenceTotal) / denominator),
           structuralCount: themeItems.filter((item) => item.classification.classification === "structural_long_term_shift").length,
-          topHeadlines: this.topThemeHeadlines(themeItems)
+          topHeadlines: this.topThemeHeadlines(themeItems),
+          topMacroSignals: themeSignals.slice(0, 3).map((signal) => signal.explanation)
         };
       })
       .filter((summary): summary is NonNullable<typeof summary> => Boolean(summary))

@@ -1,6 +1,7 @@
 import type { MacroDataProvider } from "@/application/ports/providers/MacroDataProvider";
 import type { MacroIndicatorRepository } from "@/application/ports/repositories/MacroIndicatorRepository";
 import { MacroTrendService } from "./MacroTrendService";
+import { MacroThemeSignalService } from "./MacroThemeSignalService";
 
 function yearsAgo(years: number) {
   const date = new Date();
@@ -13,7 +14,8 @@ export class MacroIndicatorIngestionService {
     private readonly repository: MacroIndicatorRepository,
     private readonly provider: MacroDataProvider,
     private readonly trendService = new MacroTrendService(),
-    private readonly config = { backfillYears: 5 }
+    private readonly config = { backfillYears: 5 },
+    private readonly themeSignalService = new MacroThemeSignalService(repository)
   ) {}
 
   async ingest(input: { backfill?: boolean } = {}) {
@@ -63,6 +65,7 @@ export class MacroIndicatorIngestionService {
 
       if (computedTrends.length > 0) {
         await this.repository.upsertRegimeSnapshot(this.trendService.classifyRegime(indicators, computedTrends));
+        await this.themeSignalService.refreshFromFredTrends(indicators, computedTrends);
       }
 
       const status = indicatorsFailed > 0 && indicatorsSuccessful === 0

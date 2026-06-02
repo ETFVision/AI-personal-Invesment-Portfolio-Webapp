@@ -344,9 +344,9 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="font-medium">{theme.theme}</p>
-                        <p className="text-xs text-muted-foreground">{theme.categories?.join(" / ") ?? "Theme"}</p>
+                        <p className="text-xs text-muted-foreground">{theme.categories?.join(" / ") ?? "Theme"} - {(theme.sources ?? ["News"]).join(" + ")}</p>
                       </div>
-                      <span className="text-sm text-muted-foreground">{theme.count} items</span>
+                      <span className="text-sm text-muted-foreground">{theme.count} signals</span>
                     </div>
                     <div className="mt-2 grid grid-cols-4 gap-2 text-xs text-muted-foreground">
                       <span>Conf {formatThemeConfidence(theme.averageConfidence)}</span>
@@ -354,7 +354,12 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                       <span>Persist {theme.averagePersistence}/100</span>
                       <span className={trendTone(theme.trend)}>{theme.trend ?? "Stable"}</span>
                     </div>
-                    <p className="mt-2 text-xs text-muted-foreground">{theme.topHeadlines.slice(0, 2).join("; ")}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      News {theme.newsItemCount ?? theme.count} - FRED signals {theme.macroSignalCount ?? 0}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {theme.topHeadlines.slice(0, 2).join("; ") || theme.topMacroSignals?.slice(0, 2).join("; ") || "No sample available."}
+                    </p>
                   </div>
                 ))}
               </div>

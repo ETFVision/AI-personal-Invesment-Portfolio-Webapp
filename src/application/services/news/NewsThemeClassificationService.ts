@@ -46,8 +46,9 @@ const themeKeywords: Array<{ theme: NewsCanonicalTheme; terms: string[]; macro?:
   { theme: "Inflation", macro: "inflation", terms: ["inflation", "cpi", "pce", "price pressure", "prices", "pmi"] },
   { theme: "Growth", macro: "growth", terms: ["gdp", "growth", "recession", "slowdown", "expansion", "soft landing", "economic outlook", "stock market", "s&p 500 futures", "market opens", "wall street"] },
   { theme: "Employment", macro: "employment", terms: ["jobs", "payroll", "employment", "unemployment", "labor market", "wages"] },
+  { theme: "Yield Curve", macro: "yield_curve", terms: ["yield curve", "curve inversion", "inverted curve", "10y2y", "10y3m", "steepening", "flattening"] },
   { theme: "Currency", macro: "currency", terms: ["dollar", "usd", "dxy", "currency", "fx", "foreign exchange"] },
-  { theme: "Geopolitical", macro: "geopolitical", terms: ["war", "geopolitical", "sanction", "sanctions", "conflict", "military escalation", "election"] },
+  { theme: "Geopolitical", macro: "geopolitical", terms: ["iran", "middle east", "israel", "sanction", "sanctions", "war", "conflict", "military", "missile", "election risk", "political instability", "peace talks", "tariff escalation", "export controls", "trade restrictions", "maritime disruption", "supply chain disruption", "geopolitical"] },
   { theme: "Energy", macro: "energy", terms: ["oil", "opec", "crude", "natural gas", "lng", "energy"] },
   { theme: "Trade / Supply Chain", macro: "trade_supply_chain", terms: ["tariff", "tariffs", "trade war", "export control", "export controls", "supply chain"], structural: true },
   { theme: "Credit", macro: "credit", terms: ["credit spread", "credit spreads", "corporate credit", "high yield", "investment grade", "default", "defaults", "debt market", "bond market"] },
@@ -110,7 +111,7 @@ export class NewsThemeClassificationService {
     const hasTicker = symbols.length > 0;
     const isBroadMarket = includesAny(text, ["s&p 500", "nasdaq", "dow", "stock market", "wall street", "market opens"]);
     const isEquity = hasTicker || isBroadMarket || includesAny(text, ["stock", "stocks", "equity", "equities", "earnings", "shares", "forecast", "forecasts"]);
-    const isMacro = macroCategories.length > 0 || Boolean(input.providerPrimaryTheme && ["Rates", "Inflation", "Growth", "Employment", "Currency", "Geopolitical", "Energy", "Credit", "Trade / Supply Chain"].includes(input.providerPrimaryTheme));
+    const isMacro = macroCategories.length > 0 || Boolean(input.providerPrimaryTheme && ["Rates", "Inflation", "Growth", "Employment", "Yield Curve", "Currency", "Geopolitical", "Energy", "Credit", "Trade / Supply Chain"].includes(input.providerPrimaryTheme));
 
     const orderedThemes = unique([
       ...keywordThemes,

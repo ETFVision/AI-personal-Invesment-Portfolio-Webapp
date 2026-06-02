@@ -134,8 +134,8 @@ export function createContainer() {
     maxArticlesPerWeek: env.MAX_NEWS_ARTICLES_PER_WEEK,
     enableWeeklyReconciliation: env.ENABLE_WEEKLY_NEWS_RECONCILIATION,
     reconciliationModel: env.NEWS_RECONCILIATION_MODEL
-  });
-  const themeIntelligenceService = new ThemeIntelligenceService(newsRepository);
+  }, undefined, undefined, macroIndicatorRepository);
+  const themeIntelligenceService = new ThemeIntelligenceService(newsRepository, macroIndicatorRepository);
   const newsDashboardService = new NewsDashboardService(newsRepository, themeIntelligenceService, gdeltRepository);
   const allocationService = new AllocationService();
   const performanceService = new PerformanceService();

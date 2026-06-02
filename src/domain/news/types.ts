@@ -8,6 +8,7 @@ export type NewsCanonicalTheme =
   | "Inflation"
   | "Growth"
   | "Employment"
+  | "Yield Curve"
   | "Currency"
   | "Geopolitical"
   | "Energy"
@@ -222,6 +223,9 @@ export type NewsThemeSummary = {
   theme: NewsCanonicalTheme;
   categories?: NewsThemeCategory[];
   count: number;
+  newsItemCount?: number;
+  macroSignalCount?: number;
+  sources?: string[];
   averageConfidence: number;
   averageSeverity: number;
   averagePersistence: number;
@@ -230,6 +234,7 @@ export type NewsThemeSummary = {
   trend?: NewsThemeTrend;
   structuralCount: number;
   topHeadlines: string[];
+  topMacroSignals?: string[];
 };
 
 export type NewsThemeReviewItem = {

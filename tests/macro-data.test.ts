@@ -4,10 +4,11 @@ import { fredProviderInternals } from "../src/infrastructure/providers/macro/Fre
 import { MacroContextService } from "../src/application/services/macro/MacroContextService";
 import { MacroTrendService, macroTrendInternals } from "../src/application/services/macro/MacroTrendService";
 import { MacroIndicatorIngestionService } from "../src/application/services/macro/MacroIndicatorIngestionService";
+import { FredThemeSignalService } from "../src/application/services/macro/FredThemeSignalService";
 import { isCronSecretValid } from "../src/application/services/news/cronSecret";
 import type { MacroDataProvider, MacroProviderObservation } from "../src/application/ports/providers/MacroDataProvider";
-import type { MacroIndicatorRepository, InsertMacroIngestionLogInput, UpsertMacroObservationInput, UpsertMacroRegimeSnapshotInput, UpsertMacroTrendInput } from "../src/application/ports/repositories/MacroIndicatorRepository";
-import type { MacroIndicatorDefinition, MacroIngestionLog, MacroObservation, MacroRegimeSnapshot, MacroTrend } from "../src/domain/macro/types";
+import type { MacroIndicatorRepository, InsertMacroIngestionLogInput, UpsertMacroObservationInput, UpsertMacroRegimeSnapshotInput, UpsertMacroThemeSignalInput, UpsertMacroTrendInput } from "../src/application/ports/repositories/MacroIndicatorRepository";
+import type { MacroIndicatorDefinition, MacroIngestionLog, MacroObservation, MacroRegimeSnapshot, MacroThemeSignal, MacroTrend } from "../src/domain/macro/types";
 
 function indicator(overrides: Partial<MacroIndicatorDefinition> = {}): MacroIndicatorDefinition {
   return {
@@ -67,6 +68,7 @@ class FakeMacroRepository implements MacroIndicatorRepository {
   observations: MacroObservation[] = [];
   trends: MacroTrend[] = [];
   regimes: MacroRegimeSnapshot[] = [];
+  signals: MacroThemeSignal[] = [];
   logs: MacroIngestionLog[] = [];
 
   async listIndicators() { return this.indicators.filter((item) => item.isActive); }
@@ -107,6 +109,16 @@ class FakeMacroRepository implements MacroIndicatorRepository {
     return next;
   }
   async getLatestRegimeSnapshot() { return this.regimes[0] ?? null; }
+  async upsertMacroThemeSignals(input: UpsertMacroThemeSignalInput[]) {
+    for (const row of input) {
+      const next = { ...row, id: `signal-${row.sourceIndicatorCode}-${row.theme}-${row.signalDate}`, createdAt: "", updatedAt: "" };
+      this.signals = this.signals.filter((signal) => !(signal.sourceProvider === row.sourceProvider && signal.sourceIndicatorCode === row.sourceIndicatorCode && signal.theme === row.theme && signal.signalDate === row.signalDate));
+      this.signals.push(next);
+    }
+  }
+  async listMacroThemeSignalsForPeriod(periodStart: string, periodEnd: string) {
+    return this.signals.filter((signal) => signal.signalDate >= periodStart && signal.signalDate <= periodEnd);
+  }
   async insertIngestionLog(input: InsertMacroIngestionLogInput) {
     this.logs.push({ ...input, id: `log-${this.logs.length + 1}`, createdAt: "" });
   }
@@ -222,6 +234,7 @@ test("macro ingestion inserts observations and updates repeated refreshes", asyn
   assert.equal(second.observationsUpdated, 2);
   assert.equal(repo.trends.length, 1);
   assert.equal(repo.regimes.length, 1);
+  assert.ok(repo.signals.some((signal) => signal.theme === "Rates"));
 });
 
 test("macro ingestion logs partial failure", async () => {
@@ -254,6 +267,36 @@ test("macro utility functions classify direction and percent change", () => {
   assert.equal(macroTrendInternals.direction(-1), "falling");
   assert.equal(macroTrendInternals.direction(null), "insufficient_data");
   assert.ok(Math.abs((macroTrendInternals.percentChange(110, 100) ?? 0) - 0.1) < 0.000001);
+});
+
+test("FRED theme signal service maps macro trends into canonical themes", () => {
+  const service = new FredThemeSignalService();
+  const indicators = [
+    indicator({ id: "cpi", indicatorCode: "CPIAUCSL", category: "inflation", frequency: "monthly" }),
+    indicator({ id: "fed", indicatorCode: "FEDFUNDS", category: "interest_rates" }),
+    indicator({ id: "gdp", indicatorCode: "GDP", category: "growth", frequency: "quarterly" }),
+    indicator({ id: "unrate", indicatorCode: "UNRATE", category: "employment", frequency: "monthly" }),
+    indicator({ id: "curve", indicatorCode: "T10Y2Y", category: "yields" }),
+    indicator({ id: "usd", indicatorCode: "DTWEXBGS", category: "currency" }),
+    indicator({ id: "oil", indicatorCode: "DCOILWTICO", category: "commodities" })
+  ];
+  const signals = service.generate(indicators, [
+    trend({ indicatorId: "cpi", direction: "rising", asOfDate: "2026-06-01" }),
+    trend({ indicatorId: "fed", direction: "rising", asOfDate: "2026-06-01" }),
+    trend({ indicatorId: "gdp", direction: "falling", asOfDate: "2026-06-01" }),
+    trend({ indicatorId: "unrate", direction: "rising", asOfDate: "2026-06-01" }),
+    trend({ indicatorId: "curve", latestValue: -0.2, direction: "rising", asOfDate: "2026-06-01" }),
+    trend({ indicatorId: "usd", direction: "rising", asOfDate: "2026-06-01" }),
+    trend({ indicatorId: "oil", direction: "rising", oneMonthChange: 8, asOfDate: "2026-06-01" })
+  ]);
+  assert.ok(signals.some((signal) => signal.theme === "Inflation"));
+  assert.ok(signals.some((signal) => signal.theme === "Rates"));
+  assert.ok(signals.some((signal) => signal.theme === "Growth"));
+  assert.ok(signals.some((signal) => signal.theme === "Employment" && signal.direction === "falling"));
+  assert.ok(signals.some((signal) => signal.theme === "Yield Curve" && signal.regimeLabel.includes("inverted")));
+  assert.ok(signals.some((signal) => signal.theme === "Currency"));
+  assert.ok(signals.some((signal) => signal.theme === "Energy"));
+  assert.ok(signals.some((signal) => signal.theme === "Inflation" && signal.sourceIndicatorCode === "DCOILWTICO"));
 });
 
 test("macro context service creates reusable Market Vision, bond, and risk context", () => {
