@@ -157,7 +157,7 @@ export function createContainer() {
       refreshPortfolioPrices: new RefreshPortfolioPricesJob(marketDataService),
       refreshBenchmarkData: new RefreshBenchmarkDataJob(benchmarkService),
       dailyNewsIngestion: new DailyNewsIngestionJob(newsIngestionService, newsClassificationService),
-      weeklyNewsReconciliation: new WeeklyNewsReconciliationJob(weeklyNewsReconciliationService)
+      weeklyNewsReconciliation: new WeeklyNewsReconciliationJob(weeklyNewsReconciliationService, newsClassificationService)
     }
   };
 }

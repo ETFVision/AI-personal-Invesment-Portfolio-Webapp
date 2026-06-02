@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { NewsDeduplicationService } from "../src/application/services/news/NewsDeduplicationService";
+import { WeeklyNewsReconciliationJob } from "../src/application/jobs/WeeklyNewsReconciliationJob";
 import { NewsInstrumentLinkingService } from "../src/application/services/news/NewsInstrumentLinkingService";
 import { NewsClassificationService, validateNewsClassificationOutput } from "../src/application/services/news/NewsClassificationService";
 import { ThemeIntelligenceService } from "../src/application/services/news/ThemeIntelligenceService";
@@ -363,6 +364,35 @@ test("weekly deterministic reclassification updates current period stale theme r
   assert.equal(result.reclassified, 2);
   assert.notEqual(repository.classifications.find((row) => row.newsItemId === "fund-fees")?.primaryTheme, "Credit");
   assert.equal(repository.classifications.find((row) => row.newsItemId === "dell")?.primaryTheme, "Technology");
+});
+
+test("weekly reconciliation job reclassifies deterministic rows before summarizing", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "fund-fees",
+      title: "ETFs Aren't Always Cheaper Than Mutual Funds. Here's What to Compare Instead.",
+      summary: "",
+      contentSnippet: "",
+      publishedAt: "2026-06-02T00:00:00.000Z",
+      tickers: []
+    })
+  ];
+  repository.classifications = [
+    classification({
+      newsItemId: "fund-fees",
+      classificationModel: "deterministic_fallback",
+      affectedAssetClasses: ["bonds"],
+      primaryTheme: "Credit",
+      secondaryThemes: [],
+      themeConfidence: 65
+    })
+  ];
+  const classificationService = new NewsClassificationService(repository);
+  const reconciliationService = new WeeklyNewsReconciliationService(repository);
+  await new WeeklyNewsReconciliationJob(reconciliationService, classificationService).run(new Date("2026-06-02T00:00:00.000Z"));
+  assert.notEqual(repository.classifications.find((row) => row.newsItemId === "fund-fees")?.primaryTheme, "Credit");
+  assert.doesNotMatch(repository.weekly[0]?.bondsSummary ?? "", /ETFs Aren't Always Cheaper/);
 });
 
 test("weekly reconciliation groups classified news and creates draft summary", async () => {
