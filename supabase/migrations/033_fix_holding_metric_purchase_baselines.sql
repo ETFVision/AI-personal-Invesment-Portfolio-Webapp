@@ -1,64 +1,6 @@
--- Derived position-aware metrics for Holdings and Portfolio pages.
--- Raw instrument_prices/instrument_market_metrics stay the source of truth.
-
-alter table holdings
-  add column if not exists instrument_id uuid references instruments(id) on delete set null;
-
-create index if not exists idx_holdings_instrument on holdings (instrument_id);
-create index if not exists idx_holdings_portfolio_active on holdings (portfolio_id, is_active);
-
-update holdings
-set instrument_id = instruments.id
-from instruments
-where holdings.instrument_id is null
-  and holdings.ticker is not null
-  and upper(holdings.ticker) = upper(instruments.symbol);
-
-create table if not exists holding_market_metrics (
-  holding_id uuid primary key references holdings(id) on delete cascade,
-  portfolio_id uuid not null references portfolios(id) on delete cascade,
-  instrument_id uuid references instruments(id) on delete set null,
-  latest_price numeric(28, 10),
-  latest_price_date date,
-  market_value numeric(28, 10) not null default 0,
-  daily_return numeric(28, 10),
-  weekly_return numeric(28, 10),
-  monthly_return numeric(28, 10),
-  ytd_return numeric(28, 10),
-  one_year_return numeric(28, 10),
-  three_year_return numeric(28, 10),
-  five_year_return numeric(28, 10),
-  since_inception_return numeric(28, 10),
-  fifty_two_week_low numeric(28, 10),
-  fifty_two_week_high numeric(28, 10),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create index if not exists idx_holding_market_metrics_portfolio on holding_market_metrics (portfolio_id);
-create index if not exists idx_holding_market_metrics_instrument on holding_market_metrics (instrument_id);
-create index if not exists idx_holding_market_metrics_latest_date on holding_market_metrics (latest_price_date desc);
-
-drop trigger if exists trg_holding_market_metrics_updated_at on holding_market_metrics;
-create trigger trg_holding_market_metrics_updated_at before update on holding_market_metrics for each row execute function set_updated_at();
-
-create table if not exists portfolio_current_metrics (
-  portfolio_id uuid primary key references portfolios(id) on delete cascade,
-  total_cash numeric(28, 10) not null default 0,
-  total_holdings_market_value numeric(28, 10) not null default 0,
-  total_value_estimate numeric(28, 10) not null default 0,
-  invested_amount numeric(28, 10) not null default 0,
-  unrealized_gain_loss numeric(28, 10) not null default 0,
-  unrealized_gain_loss_percent numeric(28, 10) not null default 0,
-  latest_price_date date,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create index if not exists idx_portfolio_current_metrics_latest_date on portfolio_current_metrics (latest_price_date desc);
-
-drop trigger if exists trg_portfolio_current_metrics_updated_at on portfolio_current_metrics;
-create trigger trg_portfolio_current_metrics_updated_at before update on portfolio_current_metrics for each row execute function set_updated_at();
+-- Fix position-period baselines for recently purchased holdings.
+-- If a period is clamped to the holding inception date and price history is sparse,
+-- use the holding average cost instead of accidentally using the latest price.
 
 create or replace function refresh_holding_portfolio_metrics(target_portfolio_id uuid default null)
 returns void
@@ -351,30 +293,3 @@ end;
 $$;
 
 select refresh_holding_portfolio_metrics();
-
-alter table holding_market_metrics enable row level security;
-alter table portfolio_current_metrics enable row level security;
-
-drop policy if exists "users can read own holding market metrics" on holding_market_metrics;
-create policy "users can read own holding market metrics" on holding_market_metrics
-  for select using (
-    exists (
-      select 1 from portfolios
-      join users on users.id = portfolios.user_id
-      where portfolios.id = holding_market_metrics.portfolio_id
-        and users.auth_provider = 'supabase'
-        and users.auth_provider_user_id = auth.uid()::text
-    )
-  );
-
-drop policy if exists "users can read own portfolio current metrics" on portfolio_current_metrics;
-create policy "users can read own portfolio current metrics" on portfolio_current_metrics
-  for select using (
-    exists (
-      select 1 from portfolios
-      join users on users.id = portfolios.user_id
-      where portfolios.id = portfolio_current_metrics.portfolio_id
-        and users.auth_provider = 'supabase'
-        and users.auth_provider_user_id = auth.uid()::text
-    )
-  );
