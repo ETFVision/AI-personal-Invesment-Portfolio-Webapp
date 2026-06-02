@@ -3,6 +3,7 @@ import type { NewsRepository } from "@/application/ports/repositories/NewsReposi
 import type { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
 import { NewsDeduplicationService } from "./NewsDeduplicationService";
 import { NewsInstrumentLinkingService } from "./NewsInstrumentLinkingService";
+import { SourceQualityService } from "./SourceQualityService";
 import { hashText } from "./newsText";
 
 function sourceKey(input: { sourceProvider: string; sourceId: string | null; url: string | null; title: string; publishedAt: string | null; contentHash: string }) {
@@ -20,7 +21,8 @@ export class NewsIngestionService {
     private readonly config = {
       maxArticlesPerDay: 80,
       maxArticlesPerInstrument: 3
-    }
+    },
+    private readonly sourceQualityService = new SourceQualityService()
   ) {}
 
   async ingestDailyNews() {
@@ -74,6 +76,10 @@ export class NewsIngestionService {
             ? { ...prepared, isDuplicate: false, duplicateOfId: null }
             : this.deduplicationService.markAgainstCanonical(article, canonical);
           const linked = this.linkingService.link(article, newsTracked);
+          const sourceQuality = this.sourceQualityService.assess({
+            sourceName: deduped.sourceName,
+            url: deduped.url
+          });
           if (isSameCanonicalArticle) articlesUpdated += 1;
           if (deduped.isDuplicate) duplicatesDetected += 1;
           rows.push({
@@ -89,6 +95,8 @@ export class NewsIngestionService {
             relatedInstrumentIds: linked.relatedInstrumentIds,
             rawSymbols: deduped.rawSymbols,
             sourceName: deduped.sourceName,
+            sourceQualityScore: sourceQuality.sourceQualityScore,
+            sourceQualityTier: sourceQuality.sourceQualityTier,
             author: deduped.author,
             imageUrl: deduped.imageUrl,
             language: deduped.language,

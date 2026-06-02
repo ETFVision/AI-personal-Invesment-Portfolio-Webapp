@@ -5,6 +5,7 @@ import type { NewsClassification } from "@/domain/news/types";
 import { GdeltRelevanceService } from "./GdeltRelevanceService";
 import { GdeltThemeMappingService } from "./GdeltThemeMappingService";
 import { NewsDeduplicationService } from "./NewsDeduplicationService";
+import { SourceQualityService } from "./SourceQualityService";
 import { hashText } from "./newsText";
 
 function sleep(ms: number) {
@@ -31,7 +32,8 @@ export class GlobalNewsIngestionService {
       recentWindowHours: 24,
       queryDelayMs: 1200,
       minRefreshMinutes: 30
-    }
+    },
+    private readonly sourceQualityService = new SourceQualityService()
   ) {}
 
   async ingestGlobalNews(input: { force?: boolean } = {}) {
@@ -136,6 +138,10 @@ export class GlobalNewsIngestionService {
               duplicatesDetected += 1;
               groupDuplicates += 1;
             }
+            const sourceQuality = this.sourceQualityService.assess({
+              sourceName: deduped.sourceName,
+              url: deduped.url
+            });
             const mapping = this.themeMappingService.map({
               title: article.title,
               summary: article.summary,
@@ -155,6 +161,8 @@ export class GlobalNewsIngestionService {
               relatedInstrumentIds: [],
               rawSymbols: [],
               sourceName: deduped.sourceName,
+              sourceQualityScore: sourceQuality.sourceQualityScore,
+              sourceQualityTier: sourceQuality.sourceQualityTier,
               author: deduped.author,
               imageUrl: deduped.imageUrl,
               language: deduped.language,

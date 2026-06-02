@@ -292,6 +292,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                     <td className="py-3 pr-3">
                       <div>{item.sourceProvider === "gdelt" ? "GDELT" : "FMP"}</div>
                       <div className="text-xs text-muted-foreground">{item.country ?? item.language ?? "-"}</div>
+                      <div className="text-xs text-muted-foreground">{item.sourceQualityTier.replace("_", " ")} - {item.sourceQualityScore}/100</div>
                     </td>
                     <td className="py-3 pr-3">{item.tickers.length ? item.tickers.join(", ") : "Unlinked"}</td>
                     <td className="py-3 pr-3">

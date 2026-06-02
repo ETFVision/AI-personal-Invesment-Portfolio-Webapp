@@ -24,6 +24,7 @@ export type NewsCanonicalTheme =
   | "Defensive";
 export type NewsThemeCategory = "Macro" | "Sector" | "Investment";
 export type NewsThemeTrend = "Rising" | "Stable" | "Declining" | "Low confidence trend" | "Insufficient history";
+export type SourceQualityTier = "tier_1" | "tier_2" | "tier_3";
 
 export type NewsItem = {
   id: string;
@@ -39,6 +40,8 @@ export type NewsItem = {
   relatedInstrumentIds: string[];
   rawSymbols: string[];
   sourceName: string | null;
+  sourceQualityScore: number;
+  sourceQualityTier: SourceQualityTier;
   author: string | null;
   imageUrl: string | null;
   language: string | null;

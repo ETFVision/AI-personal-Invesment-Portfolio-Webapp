@@ -1346,3 +1346,50 @@ Production-readiness assessment:
 - More stable as a macro/world-news input layer.
 - Ready for another live refresh and weekly reconciliation QA.
 - Ready to feed Market Vision source panels after query group status is verified in the app.
+
+## 2026-06-02 - News Source Quality Foundation
+
+Scope:
+- Added deterministic publisher quality scoring before the next theme-classification pass.
+- Focused only on source quality metadata for FMP and GDELT news ingestion.
+- Did not add recommendations, scoring, telemetry, or AI Market Vision generation.
+
+What changed:
+- Added `SourceQualityService` with deterministic source-name and domain matching.
+- Added migration `028_news_source_quality.sql`.
+- Added `source_quality_score` and `source_quality_tier` to `news_items`.
+- Updated FMP and GDELT ingestion to score every saved article at ingestion time.
+- Updated the News page to display the quality tier and score in the source column.
+- Added unit coverage for Tier 1, Tier 2, Tier 3, and domain normalization behavior.
+
+Current scoring policy:
+- Tier 1: Reuters, Bloomberg, Financial Times, Wall Street Journal.
+- Tier 2: CNBC, MarketWatch, Barron's, Seeking Alpha, Yahoo Finance.
+- Tier 3: general blogs, known lower-context finance sites, unknown publishers, and missing sources.
+- Existing rows default to Tier 3 / 45 until refreshed or backfilled.
+
+Validation performed:
+- `npm.cmd run test` passed: 87 tests.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd run build` passed.
+
+Critical issues:
+- None.
+
+Medium-priority issues:
+- None.
+
+Low-priority improvements for later:
+- Add an admin-editable source quality mapping table.
+- Add source quality override controls.
+- Add source quality weighting inside weekly reconciliation.
+- Add source quality display in Market Vision source panels.
+- Add historical backfill job for old articles if needed.
+
+Setup requirement:
+- Apply `supabase/migrations/028_news_source_quality.sql` after Vercel redeploys.
+
+Production-readiness assessment:
+- Ready as a deterministic source quality foundation.
+- Safe to use for future weekly reconciliation confidence, Market Vision citation selection, and recommendation-confidence inputs.

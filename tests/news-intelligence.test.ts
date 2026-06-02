@@ -11,6 +11,7 @@ import { WeeklyNewsReconciliationService } from "../src/application/services/new
 import { GdeltRelevanceService } from "../src/application/services/news/GdeltRelevanceService";
 import { GdeltThemeMappingService } from "../src/application/services/news/GdeltThemeMappingService";
 import { GlobalNewsIngestionService } from "../src/application/services/news/GlobalNewsIngestionService";
+import { SourceQualityService, sourceQualityInternals } from "../src/application/services/news/SourceQualityService";
 import { isCronSecretValid } from "../src/application/services/news/cronSecret";
 import { GdeltNormalizationService, gdeltNormalizationInternals } from "../src/infrastructure/providers/news/GdeltNormalizationService";
 import { gdeltProviderInternals } from "../src/infrastructure/providers/news/GdeltNewsProvider";
@@ -38,6 +39,8 @@ function newsItem(overrides: Partial<NewsItem> = {}): NewsItem {
     relatedInstrumentIds: overrides.relatedInstrumentIds ?? ["inst-1"],
     rawSymbols: overrides.rawSymbols ?? ["NVDA"],
     sourceName: null,
+    sourceQualityScore: overrides.sourceQualityScore ?? 45,
+    sourceQualityTier: overrides.sourceQualityTier ?? "tier_3",
     author: null,
     imageUrl: null,
     language: "en",
@@ -261,6 +264,23 @@ test("news deduplication uses canonical title and date hash", () => {
   });
   const second = service.prepare({ ...first, sourceId: "2", url: "https://example.com/2", title: "Markets rally after Fed decision" });
   assert.equal(first.canonicalHash, second.canonicalHash);
+});
+
+test("source quality service assigns deterministic publisher tiers", () => {
+  const service = new SourceQualityService();
+  assert.deepEqual(service.assess({ sourceName: "Reuters", url: "https://www.reuters.com/markets/" }), {
+    sourceQualityScore: 95,
+    sourceQualityTier: "tier_1"
+  });
+  assert.deepEqual(service.assess({ sourceName: "CNBC", url: "https://www.cnbc.com/markets/" }), {
+    sourceQualityScore: 80,
+    sourceQualityTier: "tier_2"
+  });
+  assert.deepEqual(service.assess({ sourceName: "Unknown blog", url: "https://example-blog.test/article" }), {
+    sourceQualityScore: 45,
+    sourceQualityTier: "tier_3"
+  });
+  assert.equal(sourceQualityInternals.domainFromUrl("https://www.wsj.com/markets"), "wsj.com");
 });
 
 test("daily ingestion updates repeated canonical articles without marking them duplicate", async () => {
