@@ -100,6 +100,20 @@ class FakeNewsRepository implements NewsRepository {
       .filter((item): item is NewsItem & { classification: NewsClassification } => Boolean(item.classification))
       .slice(0, limit);
   }
+  async listDeterministicallyClassifiedNewsForPeriod(periodStart: string, periodEnd: string) {
+    const start = new Date(`${periodStart}T00:00:00.000Z`);
+    const end = new Date(`${periodEnd}T23:59:59.999Z`);
+    return this.items
+      .filter((item) => {
+        const published = item.publishedAt ? new Date(item.publishedAt) : null;
+        return !item.isDuplicate && published && published >= start && published <= end;
+      })
+      .map((item) => ({
+        ...item,
+        classification: this.classifications.find((row) => row.newsItemId === item.id && row.classificationModel === "deterministic_fallback")
+      }))
+      .filter((item): item is NewsItem & { classification: NewsClassification } => Boolean(item.classification));
+  }
   async getClassification(newsItemId: string) { return this.classifications.find((row) => row.newsItemId === newsItemId) ?? null; }
   async upsertClassifications(input: UpsertNewsClassificationInput[]) {
     for (const item of input) {
@@ -318,6 +332,37 @@ test("latest deterministic reclassification updates stale fallback rows only", a
   assert.equal(result.reclassified, 1);
   assert.deepEqual(repository.classifications.find((row) => row.newsItemId === "gold-rush")?.affectedAssetClasses, []);
   assert.deepEqual(repository.classifications.find((row) => row.newsItemId === "manual-gold")?.affectedAssetClasses, ["gold/commodities"]);
+});
+
+test("weekly deterministic reclassification updates current period stale theme rows", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "fund-fees",
+      title: "ETFs Aren't Always Cheaper Than Mutual Funds. Here's What to Compare Instead.",
+      summary: "",
+      contentSnippet: "",
+      publishedAt: "2026-06-02T00:00:00.000Z",
+      tickers: []
+    }),
+    newsItem({
+      id: "dell",
+      title: "Dell Just Unveiled a New Weapon Against Apple",
+      summary: "",
+      contentSnippet: "",
+      publishedAt: "2026-06-03T00:00:00.000Z",
+      tickers: ["DELL", "AAPL"]
+    })
+  ];
+  repository.classifications = [
+    classification({ newsItemId: "fund-fees", classificationModel: "deterministic_fallback", primaryTheme: "Credit", secondaryThemes: [], themeConfidence: 65 }),
+    classification({ newsItemId: "dell", classificationModel: "deterministic_fallback", primaryTheme: "Consumer", secondaryThemes: [], themeConfidence: 65 })
+  ];
+  const service = new NewsClassificationService(repository);
+  const result = await service.reclassifyDeterministicForPeriod("2026-06-01", "2026-06-07");
+  assert.equal(result.reclassified, 2);
+  assert.notEqual(repository.classifications.find((row) => row.newsItemId === "fund-fees")?.primaryTheme, "Credit");
+  assert.equal(repository.classifications.find((row) => row.newsItemId === "dell")?.primaryTheme, "Technology");
 });
 
 test("weekly reconciliation groups classified news and creates draft summary", async () => {

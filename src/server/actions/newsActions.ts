@@ -59,6 +59,21 @@ export async function reclassifyLatestDeterministicNewsAction() {
   redirect(target);
 }
 
+export async function reclassifyCurrentWeekDeterministicNewsAction() {
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  let target = "/news?error=Weekly%20news%20reclassification%20failed.";
+  try {
+    const latest = await container.newsRepository.getLatestWeeklyReconciliation();
+    if (!latest) throw new Error("Run Weekly reconcile once before reclassifying the current week.");
+    const result = await container.newsClassificationService.reclassifyDeterministicForPeriod(latest.periodStart, latest.periodEnd);
+    target = `/news?message=${encodeURIComponent(`Reclassified ${result.reclassified} of ${result.requested} deterministic articles for ${result.periodStart} to ${result.periodEnd}.`)}`;
+  } catch (error) {
+    target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "Weekly news reclassification failed.")}`;
+  }
+  redirect(target);
+}
+
 export async function duplicateOverrideAction(formData: FormData) {
   await createContainer().authProvider.requireUser();
   const newsItemId = formString(formData, "newsItemId");

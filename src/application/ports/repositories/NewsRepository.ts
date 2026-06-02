@@ -31,6 +31,7 @@ export interface NewsRepository {
   markDuplicate(newsItemId: string, duplicateOfId: string | null): Promise<void>;
   listUnclassifiedNews(limit: number): Promise<NewsItem[]>;
   listDeterministicallyClassifiedNews(limit: number): Promise<Array<NewsItem & { classification: NewsClassification }>>;
+  listDeterministicallyClassifiedNewsForPeriod(periodStart: string, periodEnd: string): Promise<Array<NewsItem & { classification: NewsClassification }>>;
   getClassification(newsItemId: string): Promise<NewsClassification | null>;
   upsertClassifications(input: UpsertNewsClassificationInput[]): Promise<void>;
   listClassifiedNewsForPeriod(periodStart: string, periodEnd: string): Promise<Array<NewsItem & { classification: NewsClassification }>>;

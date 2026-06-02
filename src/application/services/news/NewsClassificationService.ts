@@ -132,6 +132,23 @@ export class NewsClassificationService {
     return { requested: rows.length, reclassified: classifications.length };
   }
 
+  async reclassifyDeterministicForPeriod(periodStart: string, periodEnd: string) {
+    const rows = await this.repository.listDeterministicallyClassifiedNewsForPeriod(periodStart, periodEnd);
+    const classifications: Array<Omit<NewsClassification, "id" | "createdAt" | "updatedAt">> = [];
+
+    for (const item of rows) {
+      if (!this.shouldClassify(item)) continue;
+      classifications.push({
+        newsItemId: item.id,
+        classificationModel: "deterministic_fallback",
+        ...this.deterministicFallback(item)
+      });
+    }
+
+    await this.repository.upsertClassifications(classifications);
+    return { requested: rows.length, reclassified: classifications.length, periodStart, periodEnd };
+  }
+
   deterministicFallback(item: NewsItem) {
     const text = `${item.title} ${item.summary ?? ""}`.toLowerCase();
     const negative = /\b(warn|fall|drop|lawsuit|probe|risk|war|default|recession|inflation|hack|fraud|miss)\b/.test(text);

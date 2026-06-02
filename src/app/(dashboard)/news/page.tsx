@@ -1,6 +1,7 @@
 import { createContainer } from "@/server/container";
 import {
   duplicateOverrideAction,
+  reclassifyCurrentWeekDeterministicNewsAction,
   reclassifyLatestDeterministicNewsAction,
   reclassifyPendingNewsAction,
   runDailyNewsIngestionAction,
@@ -98,6 +99,9 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
           </form>
           <form action={reclassifyLatestDeterministicNewsAction}>
             <SubmitButton variant="outline" pendingLabel="Reclassifying...">Reclassify latest</SubmitButton>
+          </form>
+          <form action={reclassifyCurrentWeekDeterministicNewsAction}>
+            <SubmitButton variant="outline" pendingLabel="Reclassifying week...">Reclassify week</SubmitButton>
           </form>
           <form action={runWeeklyNewsReconciliationAction}>
             <SubmitButton variant="secondary" pendingLabel="Reconciling...">Weekly reconcile</SubmitButton>
