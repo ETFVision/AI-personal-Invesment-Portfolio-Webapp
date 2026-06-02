@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PerformanceService } from "../src/application/services/PerformanceService";
-import type { PortfolioSnapshot, Transaction } from "../src/domain/portfolio/types";
+import type { HoldingSnapshot, HoldingValuation, PortfolioSnapshot, Transaction } from "../src/domain/portfolio/types";
 
 function assertClose(actual: number | null | undefined, expected: number, tolerance = 1e-10) {
   assert.ok(actual != null);
@@ -39,6 +39,50 @@ function snapshot(input: Partial<PortfolioSnapshot>): PortfolioSnapshot {
     cashValue: input.cashValue ?? 0,
     investedValue: input.investedValue ?? 0,
     currency: input.currency ?? "USD"
+  };
+}
+
+function holdingValuation(input: Partial<HoldingValuation>): HoldingValuation {
+  return {
+    holding: {
+      id: "holding-voo",
+      portfolioId: "portfolio",
+      assetId: "asset-voo",
+      assetType: "etf",
+      ticker: "VOO",
+      assetName: "Vanguard S&P 500 ETF",
+      accountName: null,
+      brokerName: null,
+      quantity: 10,
+      averageCost: 450,
+      costCurrency: "USD",
+      firstPurchaseDate: "2026-01-01",
+      notes: null
+    },
+    unitPrice: 695.49,
+    value: 6954.9,
+    valueCurrency: "USD",
+    priceDate: "2026-06-01",
+    priceProvider: "fmp",
+    valuationSource: "market_price",
+    ...input
+  };
+}
+
+function holdingSnapshot(input: Partial<HoldingSnapshot>): HoldingSnapshot {
+  return {
+    id: "holding-snapshot",
+    portfolioId: "portfolio",
+    holdingId: "holding-voo",
+    assetId: "asset-voo",
+    snapshotDate: "2026-06-01",
+    quantity: 10,
+    marketPrice: 6.9,
+    marketValue: 69,
+    costBasis: 4500,
+    unrealizedGainLoss: null,
+    currency: "USD",
+    ...input
   };
 }
 
@@ -109,4 +153,32 @@ test("portfolio period returns ignore future-dated cash flows", () => {
   const sinceYearStart = metrics.find((metric) => metric.label === "YTD");
   assert.equal(sinceYearStart?.valueChange, 2_000);
   assertClose(sinceYearStart?.percentChange, 0.2);
+});
+
+test("holding period returns suppress implausibly tiny stale baselines", () => {
+  const service = new PerformanceService();
+  const metrics = service.calculateProductPerformance({
+    valuation: holdingValuation({}),
+    snapshots: [holdingSnapshot({ snapshotDate: "2026-06-01", marketValue: 69 })],
+    transactions: []
+  });
+
+  const daily = metrics.find((metric) => metric.label === "Daily");
+  assert.equal(daily?.baselineDate, "2026-06-01");
+  assert.equal(daily?.valueChange, null);
+  assert.equal(daily?.percentChange, null);
+});
+
+test("holding period returns keep normal baseline calculations", () => {
+  const service = new PerformanceService();
+  const metrics = service.calculateProductPerformance({
+    valuation: holdingValuation({ value: 5000 }),
+    snapshots: [holdingSnapshot({ snapshotDate: "2026-06-01", marketValue: 4500, marketPrice: 450 })],
+    transactions: []
+  });
+
+  const daily = metrics.find((metric) => metric.label === "Daily");
+  assert.equal(daily?.baselineDate, "2026-06-01");
+  assert.equal(daily?.valueChange, 500);
+  assertClose(daily?.percentChange, 500 / 4500);
 });

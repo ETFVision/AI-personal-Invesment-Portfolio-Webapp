@@ -77,6 +77,12 @@ function chainReturn(subperiodReturns: number[]) {
   return subperiodReturns.reduce((product, value) => product * (1 + value), 1) - 1;
 }
 
+function isImplausibleProductPeriodReturn(percentChange: number, denominator: number, currentValue: number, buys: number, sells: number) {
+  const noOffsettingTrades = buys === 0 && sells === 0;
+  const denominatorIsTiny = denominator > 0 && currentValue > 0 && denominator < currentValue * 0.1;
+  return noOffsettingTrades && denominatorIsTiny && Math.abs(percentChange) > 10;
+}
+
 export class PerformanceService {
   calculatePortfolioPerformance(input: {
     currentValue: number;
@@ -260,10 +266,22 @@ export class PerformanceService {
       .reduce((sum, transaction) => sum + transaction.fees + transactionAmount(transaction), 0);
     const valueChange = currentValue - baseline.marketValue - buys + sells + income - fees;
     const denominator = baseline.marketValue + buys;
+    const percentChange = denominator === 0 ? null : valueChange / denominator;
+    if (
+      percentChange != null &&
+      isImplausibleProductPeriodReturn(percentChange, denominator, currentValue, buys, sells)
+    ) {
+      return {
+        label,
+        valueChange: null,
+        percentChange: null,
+        baselineDate: baseline.snapshotDate
+      };
+    }
     return {
       label,
       valueChange,
-      percentChange: denominator === 0 ? null : valueChange / denominator,
+      percentChange,
       baselineDate: baseline.snapshotDate
     };
   }
