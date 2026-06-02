@@ -1,6 +1,7 @@
 import type { NewsCanonicalTheme, NewsThemeCategory, NewsThemeIntelligence, NewsThemeReviewItem, NewsThemeSummary, NewsThemeTrend } from "@/domain/news/types";
 import type { NewsRepository } from "@/application/ports/repositories/NewsRepository";
 import { canonicalNewsThemes } from "./NewsClassificationService";
+import { NewsSummaryEligibilityService } from "./NewsSummaryEligibilityService";
 
 export const themeHierarchy: Record<NewsCanonicalTheme, NewsThemeCategory[]> = {
   Rates: ["Macro"],
@@ -62,12 +63,15 @@ function trendFrom(current: number, priorAverage: number, weeksWithData: number)
 }
 
 export class ThemeIntelligenceService {
-  constructor(private readonly repository: NewsRepository) {}
+  constructor(
+    private readonly repository: NewsRepository,
+    private readonly eligibilityService = new NewsSummaryEligibilityService()
+  ) {}
 
   async getThemeIntelligence(periodStart: string, periodEnd: string): Promise<NewsThemeIntelligence> {
     const start = parseDate(periodStart);
     const priorStart = isoDate(shiftDays(start, -21));
-    const all = await this.repository.listClassifiedNewsForPeriod(priorStart, periodEnd);
+    const all = this.eligibilityService.filter(await this.repository.listClassifiedNewsForPeriod(priorStart, periodEnd));
     const current = all.filter((item) => {
       const published = item.publishedAt ? new Date(item.publishedAt) : null;
       return published && published >= start && published <= new Date(`${periodEnd}T23:59:59.999Z`);

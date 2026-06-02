@@ -424,7 +424,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                       <div className="font-medium">{item.periodStart} to {item.periodEnd} - {item.status}</div>
                       <div className="mt-1 text-xs text-muted-foreground">Newest reconciliation shown. Older drafts remain stored below the latest entry count.</div>
                     </div>
-                    <div className="grid gap-3 text-sm md:grid-cols-4">
+                    <div className="grid gap-3 text-sm md:grid-cols-5">
                       <div className="rounded-md border p-3">
                         <p className="text-xs uppercase text-muted-foreground">Classified in period</p>
                         <p className="mt-1 text-xl font-semibold">{coverageNumber(item.coverageMetadata, "classifiedInPeriod")}</p>
@@ -432,6 +432,10 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                       <div className="rounded-md border p-3">
                         <p className="text-xs uppercase text-muted-foreground">Included</p>
                         <p className="mt-1 text-xl font-semibold">{coverageNumber(item.coverageMetadata, "includedInReconciliation")}</p>
+                      </div>
+                      <div className="rounded-md border p-3">
+                        <p className="text-xs uppercase text-muted-foreground">Excluded by quality</p>
+                        <p className="mt-1 text-xl font-semibold">{coverageNumber(item.coverageMetadata, "excludedByEligibility")}</p>
                       </div>
                       <div className="rounded-md border p-3">
                         <p className="text-xs uppercase text-muted-foreground">Excluded by limit</p>

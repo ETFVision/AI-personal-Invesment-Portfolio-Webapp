@@ -1,6 +1,7 @@
 import type { NewsAiProvider } from "@/application/ports/providers/NewsAiProvider";
 import type { NewsRepository } from "@/application/ports/repositories/NewsRepository";
 import { canonicalNewsThemes } from "./NewsClassificationService";
+import { NewsSummaryEligibilityService } from "./NewsSummaryEligibilityService";
 import { endOfUtcWeek, startOfUtcWeek } from "./newsText";
 
 const buckets = [
@@ -40,12 +41,14 @@ export class WeeklyNewsReconciliationService {
       maxArticlesPerWeek: 250,
       enableWeeklyReconciliation: false,
       reconciliationModel: "gpt-5.4-mini"
-    }
+    },
+    private readonly eligibilityService = new NewsSummaryEligibilityService()
   ) {}
 
   async reconcileWeek(periodStart = startOfUtcWeek(), periodEnd = endOfUtcWeek()) {
     const classified = await this.repository.listClassifiedNewsForPeriod(periodStart, periodEnd);
-    const limited = classified.slice(0, this.config.maxArticlesPerWeek);
+    const eligible = this.eligibilityService.filter(classified);
+    const limited = eligible.slice(0, this.config.maxArticlesPerWeek);
     const grouped = this.groupByBucket(limited);
     const bucketCounts = Object.fromEntries(buckets.map((bucket) => [bucket, grouped.get(bucket)?.length ?? 0]));
     const themeSummaries = this.summarizeThemes(limited);
@@ -94,8 +97,9 @@ export class WeeklyNewsReconciliationService {
         periodStart,
         periodEnd,
         classifiedInPeriod: classified.length,
+        excludedByEligibility: Math.max(0, classified.length - eligible.length),
         includedInReconciliation: limited.length,
-        excludedByWeeklyLimit: Math.max(0, classified.length - limited.length),
+        excludedByWeeklyLimit: Math.max(0, eligible.length - limited.length),
         maxArticlesPerWeek: this.config.maxArticlesPerWeek,
         bucketCounts,
         themeSummaries

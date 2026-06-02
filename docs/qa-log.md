@@ -1547,3 +1547,45 @@ Production-readiness assessment:
 - GDELT macro input quality is meaningfully better.
 - Ready for another live GDELT batch refresh followed by reclassification and weekly reconciliation.
 - Current filters are intentionally conservative to protect Market Vision inputs from noisy macro summaries.
+
+## 2026-06-02 - Existing GDELT Noise Exclusion In Summaries
+
+Scope:
+- Added summary-time eligibility filtering so previously stored noisy GDELT rows no longer pollute Theme Intelligence or Weekly Reconciliation.
+- Preserved raw article storage for auditability; no articles are deleted.
+- Did not add recommendations, scoring, telemetry, or AI Market Vision generation.
+
+Problem observed:
+- After GDELT ingestion filtering was improved, old noisy articles still appeared in weekly summaries because they were already stored and classified.
+- Reclassifying alone could not remove those rows from weekly/theme counts.
+
+What changed:
+- Added `NewsSummaryEligibilityService`.
+- Weekly reconciliation now filters ineligible GDELT rows before bucketing and summarizing.
+- Theme Intelligence now filters ineligible GDELT rows before calculating theme counts and review queues.
+- Weekly coverage metadata now includes `excludedByEligibility`.
+- News page now displays `Excluded by quality`.
+
+Validation performed:
+- `npm.cmd run test` passed: 93 tests.
+- `npm.cmd run typecheck` passed.
+
+Tests added or updated:
+- Weekly reconciliation excludes noisy stored GDELT rows without deleting them.
+- Theme Intelligence excludes noisy stored GDELT rows from summaries and review queue.
+- Test helper now respects source provider, language, and provider metadata overrides.
+
+Critical issues:
+- None.
+
+Medium-priority issues:
+- None.
+
+Low-priority improvements for later:
+- Add a visible filtered-article review table for admin inspection.
+- Add manual restore/approve controls for filtered rows.
+- Store explicit eligibility reason codes for diagnostics.
+
+Production-readiness assessment:
+- Existing noisy GDELT rows should no longer dominate Market Vision source summaries after rerunning weekly reconciliation.
+- Safer foundation for future Market Vision generation.

@@ -27,7 +27,7 @@ import type { Instrument } from "../src/domain/universe/types";
 function newsItem(overrides: Partial<NewsItem> = {}): NewsItem {
   return {
     id: overrides.id ?? "news-1",
-    sourceProvider: "test",
+    sourceProvider: overrides.sourceProvider ?? "test",
     sourceId: overrides.sourceId ?? "source-1",
     url: overrides.url ?? "https://example.com/a",
     title: overrides.title ?? "AI infrastructure spending rises",
@@ -43,9 +43,9 @@ function newsItem(overrides: Partial<NewsItem> = {}): NewsItem {
     sourceQualityTier: overrides.sourceQualityTier ?? "tier_3",
     author: null,
     imageUrl: null,
-    language: "en",
+    language: overrides.language ?? "en",
     country: null,
-    providerMetadata: {},
+    providerMetadata: overrides.providerMetadata ?? {},
     contentHash: overrides.contentHash ?? "content",
     canonicalHash: overrides.canonicalHash ?? "canonical",
     isDuplicate: overrides.isDuplicate ?? false,
@@ -769,6 +769,52 @@ test("weekly reconciliation groups classified news and creates draft summary", a
   assert.equal(weekly.coverageMetadata.classifiedInPeriod, 2);
 });
 
+test("weekly reconciliation excludes noisy stored GDELT rows without deleting them", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "clean",
+      title: "Central bank policy shift moves global currency markets",
+      sourceProvider: "gdelt",
+      language: "English",
+      tickers: [],
+      providerMetadata: { macroCategory: "currency" }
+    }),
+    newsItem({
+      id: "noise",
+      title: "O yapılarda elektrik, su ve doğalgaz tamamen kesiliyor",
+      sourceProvider: "gdelt",
+      language: "Turkish",
+      tickers: [],
+      providerMetadata: { macroCategory: "geopolitical" }
+    })
+  ];
+  repository.classifications = [
+    classification({
+      newsItemId: "clean",
+      affectedAssetClasses: ["macro"],
+      affectedMacroCategories: ["currency"],
+      primaryTheme: "Currency",
+      secondaryThemes: [],
+      themeConfidence: 65
+    }),
+    classification({
+      newsItemId: "noise",
+      affectedAssetClasses: ["macro"],
+      affectedMacroCategories: ["geopolitical"],
+      primaryTheme: null,
+      secondaryThemes: [],
+      themeConfidence: 30
+    })
+  ];
+  const service = new WeeklyNewsReconciliationService(repository);
+  const weekly = await service.reconcileWeek("2026-06-01", "2026-06-07");
+  assert.equal(weekly.coverageMetadata.classifiedInPeriod, 2);
+  assert.equal(weekly.coverageMetadata.includedInReconciliation, 1);
+  assert.equal(weekly.coverageMetadata.excludedByEligibility, 1);
+  assert.equal((weekly.coverageMetadata.bucketCounts as Record<string, number>).currency, 1);
+});
+
 test("weekly reconciliation summarizes canonical themes", async () => {
   const repository = new FakeNewsRepository();
   repository.items = [
@@ -820,6 +866,34 @@ test("theme intelligence marks one-week trend as insufficient history", async ()
   const intelligence = await service.getThemeIntelligence("2026-06-01", "2026-06-07");
   assert.equal(intelligence.topThemesThisWeek.find((item) => item.theme === "AI")?.trend, "Insufficient history");
   assert.equal(intelligence.emergingThemes.length, 0);
+});
+
+test("theme intelligence excludes noisy stored GDELT rows from summaries and review queue", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "noise",
+      title: "تراجع أسعار النفط في آسيا وسط استمرار الغموض",
+      sourceProvider: "gdelt",
+      language: "Arabic",
+      tickers: [],
+      providerMetadata: { macroCategory: "energy_commodities" }
+    })
+  ];
+  repository.classifications = [
+    classification({
+      newsItemId: "noise",
+      affectedAssetClasses: ["macro"],
+      affectedMacroCategories: ["energy"],
+      primaryTheme: null,
+      secondaryThemes: [],
+      themeConfidence: 30
+    })
+  ];
+  const service = new ThemeIntelligenceService(repository);
+  const intelligence = await service.getThemeIntelligence("2026-06-01", "2026-06-07");
+  assert.equal(intelligence.topThemesThisWeek.length, 0);
+  assert.equal(intelligence.reviewQueue.length, 0);
 });
 
 test("weekly reconciliation does not dump ticker-linked market news into macro", async () => {
