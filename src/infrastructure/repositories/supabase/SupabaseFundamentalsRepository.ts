@@ -18,7 +18,9 @@ function asArray(value: unknown): string[] {
 }
 
 function numberOrNull(value: unknown) {
-  return value == null ? null : Number(value);
+  if (value == null) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function mapInstrument(row: any): Instrument {
@@ -202,40 +204,65 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
   async listEligibleStockInstruments(limit = 20) {
-    const { data: stockInstruments, error: stockError } = await this.db
-      .from("instruments")
-      .select("*")
-      .eq("is_active", true)
-      .eq("asset_class", "stock")
-      .order("symbol")
-      .limit(limit);
-    if (stockError) throw new Error(stockError.message);
-
     const byId = new Map<string, Instrument>();
-    for (const instrument of (stockInstruments ?? []).map(mapInstrument)) byId.set(instrument.id, instrument);
+    const addInstruments = (rows: any[] | null) => {
+      for (const instrument of (rows ?? []).map(mapInstrument)) {
+        if (byId.size >= limit) break;
+        if (instrument.symbol && instrument.assetClass === "stock") byId.set(instrument.id, instrument);
+      }
+    };
 
-    const remaining = Math.max(limit - byId.size, 0);
-    if (remaining > 0) {
-      const { data: holdingRows, error: holdingError } = await this.db
-        .from("holdings")
-        .select("ticker")
+    const { data: holdingRows, error: holdingError } = await this.db
+      .from("holdings")
+      .select("ticker")
+      .eq("is_active", true)
+      .eq("asset_type", "stock")
+      .not("ticker", "is", null)
+      .limit(limit);
+    if (!holdingError) {
+      const holdingSymbols = Array.from(new Set((holdingRows ?? []).map((row: any) => String(row.ticker ?? "").trim().toUpperCase()).filter(Boolean)));
+      if (holdingSymbols.length > 0) {
+        const { data: holdingInstruments, error: holdingInstrumentError } = await this.db
+          .from("instruments")
+          .select("*")
+          .eq("asset_class", "stock")
+          .in("symbol", holdingSymbols);
+        if (holdingInstrumentError) throw new Error(holdingInstrumentError.message);
+        addInstruments(holdingInstruments);
+      }
+    }
+
+    if (byId.size < limit) {
+      const { data: watchlistRows, error: watchlistError } = await this.db
+        .from("watchlist_items")
+        .select("instrument_id")
         .eq("is_active", true)
-        .eq("asset_type", "stock")
-        .not("ticker", "is", null)
         .limit(limit);
-      if (!holdingError) {
-        const holdingSymbols = Array.from(new Set((holdingRows ?? []).map((row: any) => String(row.ticker ?? "").trim().toUpperCase()).filter(Boolean)));
-        if (holdingSymbols.length > 0) {
-          const { data: holdingInstruments, error: holdingInstrumentError } = await this.db
+      if (!watchlistError) {
+        const watchlistInstrumentIds = Array.from(new Set((watchlistRows ?? []).map((row: any) => String(row.instrument_id ?? "")).filter(Boolean)));
+        if (watchlistInstrumentIds.length > 0) {
+          const { data: watchlistInstruments, error: watchlistInstrumentError } = await this.db
             .from("instruments")
             .select("*")
+            .eq("is_active", true)
             .eq("asset_class", "stock")
-            .in("symbol", holdingSymbols)
-            .limit(remaining);
-          if (holdingInstrumentError) throw new Error(holdingInstrumentError.message);
-          for (const instrument of (holdingInstruments ?? []).map(mapInstrument)) byId.set(instrument.id, instrument);
+            .in("id", watchlistInstrumentIds);
+          if (watchlistInstrumentError) throw new Error(watchlistInstrumentError.message);
+          addInstruments(watchlistInstruments);
         }
       }
+    }
+
+    if (byId.size < limit) {
+      const { data: stockInstruments, error: stockError } = await this.db
+        .from("instruments")
+        .select("*")
+        .eq("is_active", true)
+        .eq("asset_class", "stock")
+        .order("symbol")
+        .limit(limit);
+      if (stockError) throw new Error(stockError.message);
+      addInstruments(stockInstruments);
     }
 
     return Array.from(byId.values())

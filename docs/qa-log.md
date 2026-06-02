@@ -1903,3 +1903,96 @@ Validation performed:
 - `npm.cmd test` passed: 111 tests.
 - `npm.cmd run lint` passed.
 - `npm.cmd run build` passed.
+
+## 2026-06-02 - Company Fundamentals Layer QA
+
+Scope:
+- Reviewed the completed Company Fundamentals Layer before Recommendation Engine V1.
+- Covered stock-only scope, FMP provider integration, database schema, ingestion workflow, normalization, deterministic scoring, freshness, cost controls, UI, service/repository architecture, and test coverage.
+- Explicitly did not build recommendations, buy/sell logic, telemetry, scoring recommendations, or Portfolio Assistant behavior.
+
+Fundamentals Layer score:
+- 84/100.
+
+Data provider assessment:
+- FMP is the only active fundamentals provider and is behind `FundamentalsProvider`.
+- FMP API key is read server-side only from environment variables.
+- FMP calls are made through provider/service code, not UI components.
+- Provider responses are preserved in `provider_metadata`.
+- 429/5xx requests retry with bounded attempts; unsupported 402/403/404 responses safely return empty rows and are handled as partial/missing data.
+
+Database integrity assessment:
+- Tables are portable PostgreSQL with primary keys, foreign keys, indexes, and unique constraints for profiles, statements, ratios, and scores.
+- Duplicate prevention is present for:
+  - `company_profiles.instrument_id`
+  - `financial_statements.instrument_id + statement_type + period + fiscal_year + fiscal_quarter`
+  - `financial_ratios.instrument_id + period + report_date`
+  - `fundamental_scores.instrument_id + as_of_date`
+- No fundamentals tables are intended to store ETF, bond ETF, gold ETF, crypto, or benchmark rows because repository eligibility is stock-only.
+
+Normalization assessment:
+- Profile, income statement, balance sheet, cash flow, and ratio fields are normalized with raw payload preservation.
+- Missing provider values remain `null` rather than being treated as zero.
+- Derived fallback ratios now fill missing P/E, price/sales, price/book, margins, ROE, ROA, debt/equity, FCF yield, revenue growth, EPS growth, net income growth, and FCF growth when statements provide enough data.
+- Repository numeric mapping now guards against non-finite numbers rather than passing `NaN` into services.
+
+Scoring accuracy assessment:
+- Scores remain deterministic 0-100 values.
+- High valuation reduces valuation score; cheap valuation alone does not guarantee high overall score.
+- Growth, profitability, valuation, balance sheet, cash flow, quality, and overall scores are calculated centrally in `FundamentalScoringService`.
+- Overall score weights are now centralized in `FUNDAMENTAL_SCORE_WEIGHTS`:
+  - growth 20%
+  - profitability 20%
+  - valuation 20%
+  - balance sheet 15%
+  - cash flow 15%
+  - quality 10%
+- Score confidence falls when normalized inputs are missing.
+- Sector-aware scoring is explicitly preliminary; the explanation says sector-aware peer medians are reserved for a later phase.
+
+UI/UX assessment:
+- Stock instrument detail pages show a Fundamentals tab with profile, ratios, statement snapshot, scores, explanation, warnings, market cap, shares outstanding, and diluted EPS.
+- Non-stock instrument detail pages do not show a misleading Fundamentals tab.
+- Fundamentals overview page provides stock-only coverage, refresh status, score components, confidence, freshness, and warnings.
+- Universe and Watchlist directories now show compact stock-only fundamentals context: Overall, Valuation, Quality, and freshness. ETF/bond/crypto rows do not show fundamentals.
+
+Cost-control assessment:
+- Refresh uses `ENABLE_FUNDAMENTALS_REFRESH`.
+- Refresh skips recently refreshed stocks unless force is used.
+- Refresh respects `FUNDAMENTALS_MAX_STOCKS_PER_REFRESH`.
+- Refresh frequency uses `FUNDAMENTALS_REFRESH_FREQUENCY_DAYS`.
+- Refresh logs partial failures and failed symbols.
+- Manual single-symbol refresh is supported by server action inputs; scheduled route is protected by `CRON_SECRET`.
+
+Critical issues:
+- None found.
+
+Medium-priority issues fixed automatically:
+- Eligible stock selection now prioritizes current stock holdings, then active stock watchlist instruments, then active stock universe rows. This avoids a broad universe batch crowding out actual holdings.
+- Repository numeric mapping now returns `null` for invalid numeric values instead of `NaN`.
+- Score weights are centralized for auditability and future Recommendation Engine consumption.
+- Universe and Watchlist stock rows now surface compact fundamentals score context without showing fundamentals for non-stocks.
+
+Low-priority improvements for later:
+- Add sector-relative scoring using sector and industry medians, especially for banks, financials, utilities, semiconductors, and software.
+- Add explicit refresh age by table type: profile, statements, ratios, and scores.
+- Add a fundamentals coverage widget to the Portfolio dashboard or Holdings page.
+- Add duplicate/no-orphan SQL QA queries to an Admin/System Health page.
+- Add database-side advisory lock or job-run guard for overlapping fundamentals refreshes if cron frequency increases.
+- Add provider fallback support later if FMP endpoint coverage is incomplete for certain symbols.
+
+Tests added/updated:
+- FMP profile normalization preserves nulls and raw provider data.
+- Fundamental scoring produces deterministic scores and confidence.
+- Missing ratios are derived from financial statements.
+- Refresh excludes non-stocks and logs partial success.
+- Cron secret validation uses the shared protection helper.
+
+Validation performed:
+- `npm.cmd run lint` passed.
+- `npm.cmd test` passed: 124 tests.
+- `npm.cmd run build` passed.
+- `npm.cmd run typecheck` passed after build regenerated route types.
+
+Production-readiness assessment:
+- READY FOR RECOMMENDATION ENGINE as an input layer with one caveat: Recommendation Engine V1 should treat sector-aware scoring as preliminary until sector-relative peer median scoring is implemented.

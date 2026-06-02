@@ -100,6 +100,8 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
     isActive: status === "inactive" ? false : status === "all" ? undefined : true
   });
   const rows = await container.instrumentMarketService.buildInstrumentMarketViews(instruments, { lookbackYears: 1 });
+  const fundamentalsRows = await container.fundamentalsRepository.listSummaryRows();
+  const fundamentalsByInstrumentId = new Map(fundamentalsRows.map((row) => [row.instrument.id, row]));
   const filteredRows = type ? rows.filter((row) => instrumentBucket(row) === type) : rows;
   const groupedRows = groupByAssetClass(filteredRows);
 
@@ -180,7 +182,7 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
                             <h3 className="text-sm font-semibold">{sector}</h3>
                             <p className="text-xs text-muted-foreground">{sectorRows.length} instruments</p>
                           </div>
-                          <InstrumentDirectoryTable rows={sortRows(sectorRows)} />
+                          <InstrumentDirectoryTable rows={sortRows(sectorRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} />
                         </div>
                       ))}
                   </CardContent>
@@ -195,7 +197,7 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
                   <CardDescription>{groupRows.length} instruments ranked by daily return. Open a symbol for full context.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <InstrumentDirectoryTable rows={sortRows(groupRows)} />
+                  <InstrumentDirectoryTable rows={sortRows(groupRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} />
                 </CardContent>
               </Card>
             );

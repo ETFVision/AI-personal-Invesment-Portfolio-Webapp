@@ -103,6 +103,8 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
     .map((item) => instrumentById.get(item.instrumentId))
     .filter((instrument): instrument is NonNullable<typeof instrument> => Boolean(instrument));
   const marketRows = await container.instrumentMarketService.buildInstrumentMarketViews(selectedInstruments, { lookbackYears: 1 });
+  const fundamentalsRows = await container.fundamentalsRepository.listSummaryRows();
+  const fundamentalsByInstrumentId = new Map(fundamentalsRows.map((row) => [row.instrument.id, row]));
   const itemByInstrumentId = new Map(activeItems.map((item) => [item.instrumentId, item]));
   const rows = marketRows.map((row) => {
     const item = itemByInstrumentId.get(row.instrument.id);
@@ -178,7 +180,7 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
                             <h3 className="text-sm font-semibold">{sector}</h3>
                             <p className="text-xs text-muted-foreground">{sectorRows.length} instruments</p>
                           </div>
-                          <InstrumentDirectoryTable rows={sortRows(sectorRows)} emptyMessage="No watchlist instruments matched your filters." />
+                          <InstrumentDirectoryTable rows={sortRows(sectorRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} emptyMessage="No watchlist instruments matched your filters." />
                         </div>
                       ))}
                   </CardContent>
@@ -193,7 +195,7 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
                   <CardDescription>{groupRows.length} watchlist instruments. Open a symbol for full context.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <InstrumentDirectoryTable rows={sortRows(groupRows)} emptyMessage="No watchlist instruments matched your filters." />
+                  <InstrumentDirectoryTable rows={sortRows(groupRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} emptyMessage="No watchlist instruments matched your filters." />
                 </CardContent>
               </Card>
             );

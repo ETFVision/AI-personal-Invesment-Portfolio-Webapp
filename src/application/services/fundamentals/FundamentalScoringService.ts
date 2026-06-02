@@ -1,5 +1,14 @@
 import type { CompanyProfile, FinancialRatio, FinancialStatement, FundamentalScore } from "@/domain/fundamentals/types";
 
+export const FUNDAMENTAL_SCORE_WEIGHTS = {
+  growth: 0.2,
+  profitability: 0.2,
+  valuation: 0.2,
+  balanceSheet: 0.15,
+  cashFlow: 0.15,
+  quality: 0.1
+} as const;
+
 function clamp(value: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, value));
 }
@@ -112,14 +121,15 @@ export class FundamentalScoringService {
       scoreMargin(latestRatio?.operatingMargin ?? null)
     ]);
 
-    const weightedInputs = [
-      { score: growthScore, weight: 0.2 },
-      { score: profitabilityScore, weight: 0.2 },
-      { score: valuationScore, weight: 0.2 },
-      { score: balanceSheetScore, weight: 0.15 },
-      { score: cashFlowScore, weight: 0.15 },
-      { score: qualityScore, weight: 0.1 }
-    ].filter((item): item is { score: number; weight: number } => item.score != null);
+    const weightedCandidates: Array<{ score: number | null; weight: number }> = [
+      { score: growthScore, weight: FUNDAMENTAL_SCORE_WEIGHTS.growth },
+      { score: profitabilityScore, weight: FUNDAMENTAL_SCORE_WEIGHTS.profitability },
+      { score: valuationScore, weight: FUNDAMENTAL_SCORE_WEIGHTS.valuation },
+      { score: balanceSheetScore, weight: FUNDAMENTAL_SCORE_WEIGHTS.balanceSheet },
+      { score: cashFlowScore, weight: FUNDAMENTAL_SCORE_WEIGHTS.cashFlow },
+      { score: qualityScore, weight: FUNDAMENTAL_SCORE_WEIGHTS.quality }
+    ];
+    const weightedInputs = weightedCandidates.filter((item): item is { score: number; weight: number } => item.score != null);
     const totalWeight = weightedInputs.reduce((sum, item) => sum + item.weight, 0);
     const overallFundamentalScore =
       totalWeight === 0 ? null : weightedInputs.reduce((sum, item) => sum + item.score * item.weight, 0) / totalWeight;
@@ -165,14 +175,7 @@ export class FundamentalScoringService {
         latestIncomeStatement: income,
         latestCashFlowStatement: cashFlow,
         latestBalanceSheet: balanceSheet,
-        weights: {
-          growth: 0.2,
-          profitability: 0.2,
-          valuation: 0.2,
-          balanceSheet: 0.15,
-          cashFlow: 0.15,
-          quality: 0.1
-        }
+        weights: FUNDAMENTAL_SCORE_WEIGHTS
       }
     };
   }
@@ -182,5 +185,6 @@ export const fundamentalScoringInternals = {
   scorePositivePercent,
   scoreLowerBetter,
   scoreHigherBetter,
-  scoreMargin
+  scoreMargin,
+  FUNDAMENTAL_SCORE_WEIGHTS
 };
