@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   Banknote,
+  BarChart3,
   Bookmark,
   Database,
   Globe2,
@@ -45,6 +46,7 @@ const navGroups = [
     items: [
       { href: "/market-vision", label: "Market Vision", icon: Globe2 },
       { href: "/news", label: "News & Themes", icon: Newspaper },
+      { href: "/fundamentals", label: "Fundamentals", icon: BarChart3 },
       { href: "/risk", label: "Risk", icon: ShieldCheck },
       { href: "/bonds", label: "Fixed Income", icon: Landmark },
       { href: "/recommendations", label: "Recommendations", icon: Sparkles }

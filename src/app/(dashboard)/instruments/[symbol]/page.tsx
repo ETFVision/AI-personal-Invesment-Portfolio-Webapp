@@ -13,9 +13,10 @@ import {
   ThemesPanel
 } from "@/components/instruments/instrument-cards";
 import { instrumentTypeLabel, resolveInstrumentType, type CanonicalInstrumentType } from "@/application/services/instruments/InstrumentTypeResolver";
+import type { FundamentalsDetail } from "@/domain/fundamentals/types";
 import type { BondProfile, Instrument, InstrumentMarketView } from "@/domain/universe/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatPercent } from "@/lib/utils";
+import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 
 type InstrumentDetailPageProps = {
   params: Promise<{ symbol: string }>;
@@ -23,6 +24,100 @@ type InstrumentDetailPageProps = {
 
 function detailId(label: string) {
   return label.toLowerCase().replaceAll(" ", "-");
+}
+
+function score(value: number | null | undefined) {
+  return value == null ? "-" : `${Math.round(value)}/100`;
+}
+
+function ratio(value: number | null | undefined) {
+  return value == null ? "-" : formatNumber(value);
+}
+
+function percent(value: number | null | undefined) {
+  return value == null ? "-" : formatPercent(value);
+}
+
+function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
+  if (!detail) {
+    return <PlaceholderPanel title="Fundamentals" description="No fundamentals are linked to this stock yet. Refresh fundamentals from the Fundamentals overview page." />;
+  }
+  const latestRatio = detail.latestRatio;
+  const latestIncome = detail.statements.find((statement) => statement.statementType === "income_statement");
+  const latestCashFlow = detail.statements.find((statement) => statement.statementType === "cash_flow");
+  const latestBalance = detail.statements.find((statement) => statement.statementType === "balance_sheet");
+  const currency = detail.profile?.currency ?? detail.instrument.currency ?? "USD";
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Fundamental Scores</CardTitle>
+          <CardDescription>Deterministic company fundamentals only. No buy/sell recommendation is generated.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryMetric label="Overall" value={score(detail.latestScore?.overallFundamentalScore)} />
+          <SummaryMetric label="Growth" value={score(detail.latestScore?.growthScore)} />
+          <SummaryMetric label="Profitability" value={score(detail.latestScore?.profitabilityScore)} />
+          <SummaryMetric label="Valuation" value={score(detail.latestScore?.valuationScore)} />
+          <SummaryMetric label="Balance sheet" value={score(detail.latestScore?.balanceSheetScore)} />
+          <SummaryMetric label="Cash flow" value={score(detail.latestScore?.cashFlowScore)} />
+          <SummaryMetric label="Quality" value={score(detail.latestScore?.qualityScore)} />
+          <SummaryMetric label="Confidence" value={detail.latestScore ? formatPercent(detail.latestScore.scoreConfidence / 100) : "-"} />
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Company Profile</CardTitle>
+            <CardDescription>Normalized provider profile linked to the canonical instrument.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+            <SummaryMetric label="Sector" value={detail.profile?.sector ?? detail.instrument.canonicalSector ?? "-"} />
+            <SummaryMetric label="Industry" value={detail.profile?.industry ?? detail.instrument.industry ?? "-"} />
+            <SummaryMetric label="Market cap" value={detail.profile?.marketCap == null ? "-" : formatCurrencyWithCode(detail.profile.marketCap, currency)} />
+            <SummaryMetric label="Beta" value={ratio(detail.profile?.beta)} />
+            <SummaryMetric label="Country" value={detail.profile?.country ?? "-"} />
+            <SummaryMetric label="Last refreshed" value={detail.profile?.lastRefreshedAt?.slice(0, 10) ?? "-"} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Latest Ratios</CardTitle>
+            <CardDescription>Valuation, growth, profitability and leverage inputs.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+            <SummaryMetric label="P/E" value={ratio(latestRatio?.peRatio)} />
+            <SummaryMetric label="Price / sales" value={ratio(latestRatio?.priceToSales)} />
+            <SummaryMetric label="Gross margin" value={percent(latestRatio?.grossMargin)} />
+            <SummaryMetric label="Operating margin" value={percent(latestRatio?.operatingMargin)} />
+            <SummaryMetric label="Revenue growth" value={percent(latestRatio?.revenueGrowth)} />
+            <SummaryMetric label="EPS growth" value={percent(latestRatio?.epsGrowth)} />
+            <SummaryMetric label="ROE" value={percent(latestRatio?.roe)} />
+            <SummaryMetric label="Debt / equity" value={ratio(latestRatio?.debtToEquity)} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Statements Snapshot</CardTitle>
+          <CardDescription>Latest normalized income, cash flow and balance sheet records.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryMetric label="Revenue" value={latestIncome?.revenue == null ? "-" : formatCurrencyWithCode(latestIncome.revenue, currency)} />
+          <SummaryMetric label="Net income" value={latestIncome?.netIncome == null ? "-" : formatCurrencyWithCode(latestIncome.netIncome, currency)} />
+          <SummaryMetric label="Free cash flow" value={latestCashFlow?.freeCashFlow == null ? "-" : formatCurrencyWithCode(latestCashFlow.freeCashFlow, currency)} />
+          <SummaryMetric label="Operating cash flow" value={latestCashFlow?.operatingCashFlow == null ? "-" : formatCurrencyWithCode(latestCashFlow.operatingCashFlow, currency)} />
+          <SummaryMetric label="Cash" value={latestBalance?.cashAndEquivalents == null ? "-" : formatCurrencyWithCode(latestBalance.cashAndEquivalents, currency)} />
+          <SummaryMetric label="Total debt" value={latestBalance?.totalDebt == null ? "-" : formatCurrencyWithCode(latestBalance.totalDebt, currency)} />
+          <SummaryMetric label="Equity" value={latestBalance?.shareholdersEquity == null ? "-" : formatCurrencyWithCode(latestBalance.shareholdersEquity, currency)} />
+          <SummaryMetric label="Warnings" value={detail.missingDataWarnings.length === 0 ? "-" : detail.missingDataWarnings.join("; ")} />
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 function BondProfilePanel({ profile }: { profile: BondProfile | null }) {
@@ -69,7 +164,7 @@ function PerformancePanel({ marketView }: { marketView: InstrumentMarketView }) 
   );
 }
 
-function tabsForType(type: CanonicalInstrumentType, instrument: Instrument, marketView: InstrumentMarketView, bondProfile: BondProfile | null) {
+function tabsForType(type: CanonicalInstrumentType, instrument: Instrument, marketView: InstrumentMarketView, bondProfile: BondProfile | null, fundamentalsDetail: FundamentalsDetail | null) {
   const common = {
     overview: <InstrumentSummaryCard marketView={marketView} />,
     news: <NewsSummaryCard />,
@@ -86,7 +181,7 @@ function tabsForType(type: CanonicalInstrumentType, instrument: Instrument, mark
       { label: "Themes", content: common.themes },
       { label: "Risk", content: common.risk },
       { label: "Market Vision Context", content: common.marketVision },
-      { label: "Fundamentals", content: <PlaceholderPanel title="Fundamentals" description="Reserved for the upcoming Fundamentals Layer." /> },
+      { label: "Fundamentals", content: <FundamentalsPanel detail={fundamentalsDetail} /> },
       { label: "Recommendations", content: common.recommendations },
       { label: "Telemetry", content: <PlaceholderPanel title="Telemetry" description="Reserved for future telemetry learning." /> }
     ];
@@ -165,7 +260,8 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
   const type = resolveInstrumentType(instrument);
   const typeLabel = instrumentTypeLabel(type);
   const bondProfile = bondProfiles.find((profile) => profile.instrumentId === instrument.id) ?? null;
-  const tabs = tabsForType(type, instrument, marketView, bondProfile);
+  const fundamentalsDetail = type === "stock" && instrument.symbol ? await container.fundamentalsRepository.getDetailBySymbol(instrument.symbol) : null;
+  const tabs = tabsForType(type, instrument, marketView, bondProfile, fundamentalsDetail);
 
   return (
     <div className="space-y-6">
