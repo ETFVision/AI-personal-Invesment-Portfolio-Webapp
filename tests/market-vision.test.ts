@@ -22,6 +22,7 @@ import type { MacroIndicatorRepository } from "../src/application/ports/reposito
 import type { AiMarketVisionInput, AiMarketVisionOutput, AiMarketVisionProvider } from "../src/application/ports/providers/AiMarketVisionProvider";
 import type { WeeklyNewsReconciliation } from "../src/domain/news/types";
 import type { MacroDashboard, MacroThemeSignal } from "../src/domain/macro/types";
+import type { PortfolioDashboard } from "../src/domain/portfolio/types";
 
 class FakeMarketVisionRepository implements MarketVisionRepository {
   reports: MarketVisionReport[] = [];
@@ -227,6 +228,53 @@ function weeklyReconciliation(): WeeklyNewsReconciliation {
   };
 }
 
+function equityOnlyDashboard(): PortfolioDashboard {
+  return {
+    portfolio: { id: "portfolio-1", userId: "user-1", name: "Default", baseCurrency: "USD", isDefault: true },
+    cashBalances: [],
+    holdings: [{
+      id: "holding-1",
+      portfolioId: "portfolio-1",
+      assetId: "asset-1",
+      assetType: "stock",
+      ticker: "AAPL",
+      assetName: "Apple",
+      accountName: null,
+      brokerName: null,
+      quantity: 1,
+      averageCost: 100,
+      costCurrency: "USD",
+      firstPurchaseDate: "2026-06-01",
+      notes: null,
+      sector: "Technology",
+      country: "US",
+      region: "US"
+    }],
+    holdingValuations: [],
+    totalCash: 0,
+    totalHoldingsCost: 100,
+    totalHoldingsMarketValue: 120,
+    totalValueEstimate: 120,
+    investedAmount: 120,
+    unrealizedGainLoss: 20,
+    unrealizedGainLossPercent: 0.2,
+    realizedGainLoss: 0,
+    allocationByType: [{ label: "Stock", value: 120, percent: 1 }],
+    allocationBySector: [{ label: "Technology", value: 120, percent: 1 }],
+    allocationByGeography: [{ label: "US", value: 120, percent: 1 }],
+    currencyExposure: [{ label: "USD", currency: "USD", value: 120, percent: 1 }],
+    topWinners: [],
+    topLosers: [],
+    performance: [],
+    productPerformance: [],
+    cashPerformance: [],
+    benchmarkComparisons: [],
+    cashPercent: 0,
+    investedPercent: 1,
+    latestPriceDate: "2026-06-07"
+  };
+}
+
 test("creates, edits, publishes, archives, and retrieves Market Vision reports", async () => {
   const repository = new FakeMarketVisionRepository();
   const service = new MarketVisionService(repository);
@@ -364,6 +412,34 @@ test("AI Market Vision generation skips duplicate weekly report unless forced", 
   assert.equal(second.id, first.id);
   assert.equal(repository.logs[0]?.status, "skipped");
   assert.equal(ai.calls.length, 1);
+});
+
+test("AI Market Vision generation tightens unsupported exposure and curve language", async () => {
+  const repository = new FakeMarketVisionRepository();
+  const ai = new FakeAiMarketVisionProvider({
+    globalMarketSummary: "The 2-year yield fell while the 30-year rose, and the curve flattened modestly.",
+    ratesOutlook: "The front end fell and the long end rose, so the curve flattened.",
+    cryptoOutlook: "The portfolio's crypto exposure appears most relevant as a high-beta sleeve.",
+    portfolioImplications: {
+      ...emptyPortfolioImplications,
+      cryptoImplication: "The portfolio's crypto sleeve can respond strongly to liquidity."
+    }
+  });
+  const service = new MarketVisionGenerationService(
+    repository,
+    new FakeNewsRepository(weeklyReconciliation()) as unknown as NewsRepository,
+    new FakeMacroRepository() as unknown as MacroIndicatorRepository,
+    ai,
+    { getPortfolioDashboard: async () => equityOnlyDashboard() }
+  );
+
+  const report = await service.generateWeeklyReport({ portfolioId: "portfolio-1" });
+
+  assert.match(report.globalMarketSummary, /yield-curve signals were mixed/i);
+  assert.doesNotMatch(report.globalMarketSummary, /flatten/i);
+  assert.match(report.cryptoView, /crypto market context/i);
+  assert.doesNotMatch(report.cryptoView, /portfolio's crypto exposure/i);
+  assert.match(String(report.portfolioImplications.cryptoImplication), /crypto market context/i);
 });
 
 test("AI Market Vision generation requires weekly reconciliation", async () => {

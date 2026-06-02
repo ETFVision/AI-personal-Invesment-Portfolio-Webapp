@@ -27,6 +27,10 @@ function toScore(value: unknown) {
   return Math.max(0, Math.min(100, Math.round(numeric)));
 }
 
+function roundedPercent(value: number) {
+  return Math.round(value * 1000) / 10;
+}
+
 function toPortfolioImplications(value: unknown) {
   const row = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
   return {
@@ -70,6 +74,54 @@ function assertNoRecommendations(output: AiMarketVisionOutput) {
   }
 }
 
+function replacePortfolioExposureClaims(text: string, exposureName: string) {
+  const pattern = new RegExp(`\\bthe portfolio(?:'|\\u2019|\\u00e2\\u20ac\\u2122)s\\s+${exposureName}\\s+(?:exposure|sleeve)\\b`, "gi");
+  return text.replace(pattern, `the ${exposureName} market context`);
+}
+
+function sanitizeYieldCurveLanguage(text: string) {
+  const lower = text.toLowerCase();
+  const hasShortYieldFalling = /(?:2-year|two-year|front end|front-end).{0,80}(?:fell|falling|declined|lower|easing)/i.test(text);
+  const hasLongYieldRising = /(?:30-year|thirty-year|long end|long-end).{0,80}(?:rose|rising|increased|higher|firming)/i.test(text);
+  if (hasShortYieldFalling && hasLongYieldRising && lower.includes("flatten")) {
+    return text.replace(/\b(?:the\s+)?curve\s+(?:is\s+|was\s+|has\s+been\s+)?flatten(?:ed|ing)?(?:\s+modestly)?\b/gi, "yield-curve signals were mixed");
+  }
+  return text;
+}
+
+function removeUnsupportedExposureClaims(output: AiMarketVisionOutput, exposureFlags?: PortfolioExposureFlags | null) {
+  const patchMacroText = (text: string) => sanitizeYieldCurveLanguage(text);
+  if (!exposureFlags) {
+    return {
+      ...output,
+      globalMarketSummary: patchMacroText(output.globalMarketSummary),
+      bondOutlook: patchMacroText(output.bondOutlook),
+      ratesOutlook: patchMacroText(output.ratesOutlook)
+    };
+  }
+  const patchText = (text: string) => {
+    let next = patchMacroText(text);
+    if (!exposureFlags.hasCrypto) next = replacePortfolioExposureClaims(next, "crypto");
+    if (!exposureFlags.hasGold) next = replacePortfolioExposureClaims(next, "gold");
+    if (!exposureFlags.hasBonds) next = replacePortfolioExposureClaims(next, "bond");
+    return next;
+  };
+  return {
+    ...output,
+    globalMarketSummary: patchText(output.globalMarketSummary),
+    goldOutlook: patchText(output.goldOutlook),
+    cryptoOutlook: patchText(output.cryptoOutlook),
+    bondOutlook: patchText(output.bondOutlook),
+    ratesOutlook: patchText(output.ratesOutlook),
+    portfolioImplications: {
+      ...output.portfolioImplications,
+      bondAllocationImplication: patchText(output.portfolioImplications.bondAllocationImplication),
+      goldImplication: patchText(output.portfolioImplications.goldImplication),
+      cryptoImplication: patchText(output.portfolioImplications.cryptoImplication)
+    }
+  };
+}
+
 export function validateMarketVisionGenerationOutput(input: unknown): AiMarketVisionOutput {
   const row = typeof input === "object" && input !== null ? input as Record<string, unknown> : {};
   const output: AiMarketVisionOutput = {
@@ -101,17 +153,48 @@ export function validateMarketVisionGenerationOutput(input: unknown): AiMarketVi
 }
 
 function topAllocations(items: Array<{ label: string; percent: number }> = []) {
-  return items.slice(0, 6).map((item) => ({ label: item.label, percent: Math.round(item.percent * 1000) / 10 }));
+  return items.slice(0, 6).map((item) => ({ label: item.label, percent: roundedPercent(item.percent) }));
+}
+
+type PortfolioExposureFlags = {
+  hasPortfolioContext: boolean;
+  hasBonds: boolean;
+  hasGold: boolean;
+  hasCrypto: boolean;
+  hasCash: boolean;
+  hasEquities: boolean;
+};
+
+function labelHasAny(label: string | null | undefined, needles: string[]) {
+  const normalized = (label ?? "").toLowerCase();
+  return needles.some((needle) => normalized.includes(needle));
+}
+
+function portfolioExposureFlags(dashboard: PortfolioDashboard | null): PortfolioExposureFlags | null {
+  if (!dashboard) return null;
+  const holdings = dashboard.holdings;
+  const allocations = dashboard.allocationByType;
+  const hasType = (types: string[], labels: string[]) => holdings.some((holding) => types.includes(holding.assetType)) ||
+    allocations.some((item) => item.value > 0 && labelHasAny(item.label, labels));
+  return {
+    hasPortfolioContext: true,
+    hasBonds: hasType(["bond_etf"], ["bond", "fixed income"]),
+    hasGold: hasType(["gold_etf"], ["gold", "commodit"]),
+    hasCrypto: hasType(["crypto"], ["crypto", "bitcoin", "ethereum"]),
+    hasCash: dashboard.totalCash > 0,
+    hasEquities: hasType(["stock", "etf"], ["stock", "equity", "etf"])
+  };
 }
 
 function portfolioSnapshot(dashboard: PortfolioDashboard | null) {
   if (!dashboard) return null;
   return {
     totalValue: dashboard.totalValueEstimate,
-    cashPercent: Math.round(dashboard.cashPercent * 1000) / 10,
-    investedPercent: Math.round(dashboard.investedPercent * 1000) / 10,
+    cashPercent: roundedPercent(dashboard.cashPercent),
+    investedPercent: roundedPercent(dashboard.investedPercent),
     unrealizedGainLoss: dashboard.unrealizedGainLoss,
     baseCurrency: dashboard.portfolio.baseCurrency,
+    exposureFlags: portfolioExposureFlags(dashboard),
     assetAllocation: topAllocations(dashboard.allocationByType),
     sectorAllocation: topAllocations(dashboard.allocationBySector),
     geographyAllocation: topAllocations(dashboard.allocationByGeography),
@@ -209,16 +292,17 @@ export class MarketVisionGenerationService {
         }))
       },
       portfolio: portfolioSnapshot(dashboard),
+      portfolioExposureFlags: portfolioExposureFlags(dashboard),
       bondAnalytics,
       riskAnalytics
     };
 
     try {
-      const aiOutput = await this.aiProvider.generateWeeklyBriefing({
+      const aiOutput = removeUnsupportedExposureClaims(await this.aiProvider.generateWeeklyBriefing({
         periodStart,
         periodEnd,
         context: sourceSnapshot
-      });
+      }), portfolioExposureFlags(dashboard));
       const completedAt = new Date();
       const duration = completedAt.getTime() - startedAt.getTime();
       const report = await this.marketVisionRepository.upsertReport({
