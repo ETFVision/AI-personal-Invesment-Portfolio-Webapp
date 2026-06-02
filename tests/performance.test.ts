@@ -199,6 +199,38 @@ test("holding period returns fall back to price history when snapshot baseline i
   assertClose(daily?.percentChange, 695.49 / 690 - 1);
 });
 
+test("holding period returns before first purchase share the holding inception baseline", () => {
+  const service = new PerformanceService();
+  const metrics = service.calculateProductPerformance({
+    valuation: holdingValuation({
+      holding: {
+        ...holdingValuation({}).holding,
+        firstPurchaseDate: "2026-05-29"
+      },
+      unitPrice: 110,
+      value: 1100
+    }),
+    snapshots: [],
+    transactions: [],
+    priceHistory: [
+      dailyPrice({ priceDate: "2026-05-28", closePrice: 90 }),
+      dailyPrice({ priceDate: "2026-05-29", closePrice: 100 }),
+      dailyPrice({ priceDate: "2026-06-01", closePrice: 105 }),
+      dailyPrice({ priceDate: "2026-06-02", closePrice: 110 })
+    ]
+  });
+
+  const weekly = metrics.find((metric) => metric.label === "Weekly");
+  const monthly = metrics.find((metric) => metric.label === "Monthly");
+  const oneYear = metrics.find((metric) => metric.label === "1Y");
+  const ytd = metrics.find((metric) => metric.label === "YTD");
+
+  for (const metric of [weekly, monthly, oneYear, ytd]) {
+    assert.equal(metric?.baselineDate, "2026-05-29");
+    assertClose(metric?.percentChange, 0.1);
+  }
+});
+
 test("holding period returns keep normal baseline calculations", () => {
   const service = new PerformanceService();
   const metrics = service.calculateProductPerformance({

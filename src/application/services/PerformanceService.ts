@@ -28,6 +28,11 @@ function findBaselineSnapshot<T extends { snapshotDate: string }>(snapshots: T[]
   return onOrBefore ?? sorted.find((snapshot) => snapshot.snapshotDate >= targetDate);
 }
 
+function maxIsoDate(left: string, right: string | null) {
+  if (!right) return left;
+  return left > right ? left : right;
+}
+
 function transactionAmount(transaction: Transaction) {
   const gross = transaction.quantity && transaction.price ? transaction.quantity * transaction.price : 0;
   if (gross !== 0) return gross;
@@ -84,10 +89,22 @@ function isImplausibleProductPeriodReturn(percentChange: number, denominator: nu
   return noOffsettingTrades && denominatorIsTiny && Math.abs(percentChange) > 10;
 }
 
-function findBaselinePrice(prices: DailyPrice[], targetDate: string) {
-  const sorted = [...prices].sort((a, b) => a.priceDate.localeCompare(b.priceDate));
+function findBaselinePrice(prices: DailyPrice[], targetDate: string, minimumDate: string | null) {
+  const sorted = [...prices]
+    .filter((price) => !minimumDate || price.priceDate >= minimumDate)
+    .sort((a, b) => a.priceDate.localeCompare(b.priceDate));
   const onOrBefore = sorted.filter((price) => price.priceDate <= targetDate).at(-1);
   return onOrBefore ?? sorted.find((price) => price.priceDate >= targetDate);
+}
+
+function holdingInceptionDate(valuation: HoldingValuation, transactions: Transaction[]) {
+  const dates = [
+    valuation.holding.firstPurchaseDate,
+    ...transactions
+      .filter((transaction) => transaction.transactionType === "buy")
+      .map((transaction) => transaction.transactionDate)
+  ].filter((date): date is string => Boolean(date));
+  return dates.length === 0 ? null : dates.sort()[0];
 }
 
 function buildHoldingPriceMetric(
@@ -95,10 +112,12 @@ function buildHoldingPriceMetric(
   valuation: HoldingValuation,
   priceHistory: DailyPrice[],
   targetDate: string,
+  minimumDate: string | null,
   baselineDate: string | null
 ): PerformanceMetric {
   const currentPrice = valuation.unitPrice;
-  const baseline = findBaselinePrice(priceHistory, targetDate);
+  const effectiveTargetDate = maxIsoDate(targetDate, minimumDate);
+  const baseline = findBaselinePrice(priceHistory, effectiveTargetDate, minimumDate);
   if (!baseline || currentPrice == null || baseline.closePrice === 0) {
     return { label, valueChange: null, percentChange: null, baselineDate };
   }
@@ -137,14 +156,17 @@ export class PerformanceService {
     transactions: Transaction[];
     priceHistory?: DailyPrice[];
   }): PerformanceMetric[] {
-    const holdingSnapshots = input.snapshots.filter((snapshot) => snapshot.holdingId === input.valuation.holding.id);
+    const inceptionDate = holdingInceptionDate(input.valuation, input.transactions);
+    const holdingSnapshots = input.snapshots.filter((snapshot) => {
+      return snapshot.holdingId === input.valuation.holding.id && (!inceptionDate || snapshot.snapshotDate >= inceptionDate);
+    });
     const priceHistory = input.priceHistory ?? [];
     return [
-      this.buildHoldingFlowAdjustedMetric("Daily", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(1)),
-      this.buildHoldingFlowAdjustedMetric("Weekly", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(7)),
-      this.buildHoldingFlowAdjustedMetric("Monthly", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(30)),
-      this.buildHoldingFlowAdjustedMetric("1Y", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(365)),
-      this.buildHoldingFlowAdjustedMetric("YTD", input.valuation, holdingSnapshots, input.transactions, priceHistory, startOfYearIsoDate()),
+      this.buildHoldingFlowAdjustedMetric("Daily", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(1), inceptionDate),
+      this.buildHoldingFlowAdjustedMetric("Weekly", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(7), inceptionDate),
+      this.buildHoldingFlowAdjustedMetric("Monthly", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(30), inceptionDate),
+      this.buildHoldingFlowAdjustedMetric("1Y", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(365), inceptionDate),
+      this.buildHoldingFlowAdjustedMetric("YTD", input.valuation, holdingSnapshots, input.transactions, priceHistory, startOfYearIsoDate(), inceptionDate),
       this.buildAssetSinceInceptionMetric(input.valuation, input.transactions)
     ];
   }
@@ -276,10 +298,12 @@ export class PerformanceService {
     snapshots: HoldingSnapshot[],
     transactions: Transaction[],
     priceHistory: DailyPrice[],
-    targetDate: string
+    targetDate: string,
+    inceptionDate: string | null
   ): PerformanceMetric {
-    const baseline = findBaselineSnapshot(snapshots, targetDate);
-    if (!baseline) return buildHoldingPriceMetric(label, valuation, priceHistory, targetDate, null);
+    const effectiveTargetDate = maxIsoDate(targetDate, inceptionDate);
+    const baseline = findBaselineSnapshot(snapshots, effectiveTargetDate);
+    if (!baseline) return buildHoldingPriceMetric(label, valuation, priceHistory, targetDate, inceptionDate, null);
 
     const currentDate = todayIsoDate();
     const periodTransactions = transactions.filter(
@@ -304,7 +328,7 @@ export class PerformanceService {
       percentChange != null &&
       isImplausibleProductPeriodReturn(percentChange, denominator, valuation.value, buys, sells)
     ) {
-      return buildHoldingPriceMetric(label, valuation, priceHistory, targetDate, baseline.snapshotDate);
+      return buildHoldingPriceMetric(label, valuation, priceHistory, targetDate, inceptionDate, baseline.snapshotDate);
     }
     return {
       label,
