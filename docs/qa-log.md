@@ -1009,3 +1009,75 @@ Validation run:
 Production-readiness assessment:
 - Ready for the next phase as a News Intelligence foundation.
 - Recommended next step: add FRED macro indicators before GDELT, because FRED will improve rates/inflation/growth context with cleaner structured data and lower classification ambiguity.
+
+## 2026-06-02 - FRED Macro Data Stream Layer Implementation Checkpoint
+
+Scope:
+- Built the structured FRED macro data stream foundation.
+- Explicitly excluded GDELT, AI Market Vision generation, recommendations, scoring, telemetry, and Portfolio Assistant.
+
+Implemented:
+- Added FRED macro provider behind a provider-agnostic `MacroDataProvider` port.
+- Added macro repository port and Supabase implementation for indicators, observations, trends, regime snapshots, dashboard reads, and ingestion logs.
+- Added deterministic `MacroTrendService` for latest value, prior value, 1M/3M/6M/1Y changes, direction, acceleration, persistence, severity, and confidence.
+- Added deterministic macro regime snapshot logic for rates, inflation, growth, employment, yield curve, liquidity, dollar, and commodities.
+- Added controlled ingestion/backfill service that avoids full-history refetch unless requested or an indicator has no observations yet.
+- Added protected cron-compatible route:
+  - `/api/jobs/fred-macro-ingestion`
+- Added manual server actions for Macro dashboard refresh and backfill.
+- Added `/macro` dashboard page with indicator table, trend windows, regime cards, mini history charts, ingestion logs, refresh button, and backfill button.
+- Added light read-only macro context cards to Market Vision, Bond Intelligence, and Risk Analytics without changing calculations or generating recommendations.
+
+Database migration:
+- Added `supabase/migrations/024_fred_macro_data_stream.sql`.
+- Extended `macro_indicators` with `frequency`, `description`, and `is_active`.
+- Added portable PostgreSQL tables:
+  - `macro_observations`
+  - `macro_trends`
+  - `macro_regime_snapshots`
+  - `macro_ingestion_logs`
+- Added indexes for active/source/category indicators, observation dates, indicator/date lookups, regime snapshot dates, and ingestion logs.
+- Added unique constraints to prevent duplicate observations and duplicate trend/regime rows.
+
+Seeded FRED indicators:
+- Rates: `FEDFUNDS`, `DGS2`, `DGS10`, `DGS30`
+- Yield curve: `T10Y2Y`, `T10Y3M`
+- Inflation: `CPIAUCSL`, `CPILFESL`, `PCEPI`, `PCEPILFE`
+- Employment: `UNRATE`, `PAYEMS`
+- Growth: `GDP`, `INDPRO`, `RSAFS`
+- Liquidity / financial conditions: `WALCL`, `NFCI`
+- Currency / dollar proxy: `DTWEXBGS`
+- Commodities / oil: `DCOILWTICO`
+
+Architecture assessment:
+- UI components do not call FRED or Supabase directly.
+- FRED API key is server-side only through `process.env.FRED_API_KEY`.
+- Macro ingestion is isolated in application services and a reusable job class.
+- Cron route uses the existing `CRON_SECRET` protection model.
+- Schema remains PostgreSQL portable apart from isolated Supabase RLS policies.
+- Market Vision, Bonds, Risk, and News compatibility is preserved through read-only macro context.
+
+Testing added:
+- FRED value parsing, including missing dot values.
+- Trend calculation and insufficient-data behavior.
+- Daily-window change calculation.
+- Macro regime classification for restrictive rates, inverted yield curve, and weakening employment.
+- Ingestion success, repeated refresh updates, and partial provider failure logging.
+- Cron secret validation.
+
+Validation run:
+- `npm.cmd run test` - 72 tests passed
+- `npm.cmd run typecheck`
+- `npm.cmd run lint`
+- `npm.cmd run build`
+
+Known limitations:
+- FRED refresh requires `FRED_API_KEY` in local and Vercel environment variables.
+- First run should use Backfill history so trends/regimes have enough observations.
+- Regime logic is intentionally deterministic and simple; it is context, not advice.
+- Inflation uses index-level changes as a foundation. Future work can add explicit YoY inflation-rate transforms.
+- UI is admin-style and may be simplified once scheduled jobs are configured.
+
+Production-readiness assessment:
+- Ready as a structured macro data foundation once migration 024 is applied and `FRED_API_KEY` is configured.
+- Recommended next step: run migration 024 in Supabase, add `FRED_API_KEY` in Vercel/local env, use Macro backfill once, then QA the Macro dashboard before adding GDELT.

@@ -202,6 +202,7 @@ export default async function RiskPage() {
 
   const dashboard = await container.portfolioService.getDashboard(portfolio.id);
   const bondReport = await container.bondService.getPortfolioBondAnalytics(dashboard);
+  const macroDashboard = await container.macroDashboardService.getDashboard();
   const cachedRiskReport = await container.riskAnalyticsRepository.getLatestRiskReport(portfolio.id);
   const cachedReport = cachedRiskReport?.report as Partial<RiskAnalyticsReport> | null | undefined;
   const canUseCachedReport = cachedReport?.taxonomyVersion === RISK_TAXONOMY_VERSION;
@@ -346,6 +347,26 @@ export default async function RiskPage() {
           </CardContent>
         </Card>
       </section>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Macro risk context</CardTitle>
+          <CardDescription>FRED regimes provide context for rate, inflation, recession/yield-curve, and liquidity sensitivity. Portfolio risk math is unchanged.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ["Rate sensitivity", macroDashboard.latestRegime?.ratesRegime],
+            ["Inflation sensitivity", macroDashboard.latestRegime?.inflationRegime],
+            ["Yield curve / recession", macroDashboard.latestRegime?.yieldCurveRegime],
+            ["Liquidity", macroDashboard.latestRegime?.liquidityRegime]
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-md border p-3">
+              <p className="text-xs uppercase text-muted-foreground">{label}</p>
+              <p className="mt-1 text-sm font-medium capitalize">{(value ?? "insufficient_data").replaceAll("_", " ")}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       {report.warnings.length > 0 ? (
         <Card>

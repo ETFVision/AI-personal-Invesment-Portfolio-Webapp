@@ -86,6 +86,28 @@ function MacroIndicatorCards({ indicators }: { indicators: MacroIndicatorView[] 
   );
 }
 
+function MacroRegimeCards({ regime }: { regime: { ratesRegime: string; inflationRegime: string; growthRegime: string; yieldCurveRegime: string } | null }) {
+  if (!regime) {
+    return <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">FRED macro regimes will appear after the Macro dashboard is refreshed.</p>;
+  }
+  const rows = [
+    ["Rates", regime.ratesRegime],
+    ["Inflation", regime.inflationRegime],
+    ["Growth", regime.growthRegime],
+    ["Yield curve", regime.yieldCurveRegime]
+  ];
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {rows.map(([label, value]) => (
+        <div key={label} className="rounded-md border p-3">
+          <p className="text-xs uppercase text-muted-foreground">{label}</p>
+          <p className="mt-1 text-sm font-medium capitalize">{value.replaceAll("_", " ")}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SectionCard({ title, description, value }: { title: string; description: string; value: string }) {
   return (
     <Card>
@@ -261,6 +283,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
   await container.authProvider.requireUser();
   const dashboard = await container.marketVisionService.getDashboard(params?.reportId);
   const latestWeeklyNews = await container.newsRepository.getLatestWeeklyReconciliation();
+  const macroDashboard = await container.macroDashboardService.getDashboard();
   const indicatorViews = container.macroIndicatorService.buildIndicatorViews(dashboard.macroIndicators as MacroIndicator[]);
   const report = dashboard.selectedReport;
 
@@ -364,9 +387,10 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
           <Card>
             <CardHeader>
               <CardTitle>Macro indicators</CardTitle>
-              <CardDescription>Manual/FRED-ready macro slots for the future weekly workflow.</CardDescription>
+              <CardDescription>FRED-ready macro slots and current deterministic regime context.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <MacroRegimeCards regime={macroDashboard.latestRegime} />
               <MacroIndicatorCards indicators={indicatorViews} />
             </CardContent>
           </Card>

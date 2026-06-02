@@ -1,6 +1,7 @@
 import { RefreshPortfolioPricesJob } from "@/application/jobs/RefreshPortfolioPricesJob";
 import { RefreshBenchmarkDataJob } from "@/application/jobs/RefreshBenchmarkDataJob";
 import { DailyNewsIngestionJob } from "@/application/jobs/DailyNewsIngestionJob";
+import { FredMacroIngestionJob } from "@/application/jobs/FredMacroIngestionJob";
 import { WeeklyNewsReconciliationJob } from "@/application/jobs/WeeklyNewsReconciliationJob";
 import { BenchmarkComparisonService } from "@/application/services/BenchmarkComparisonService";
 import { BenchmarkService } from "@/application/services/BenchmarkService";
@@ -17,6 +18,9 @@ import { NewsDeduplicationService } from "@/application/services/news/NewsDedupl
 import { NewsIngestionService } from "@/application/services/news/NewsIngestionService";
 import { NewsInstrumentLinkingService } from "@/application/services/news/NewsInstrumentLinkingService";
 import { NewsProviderService } from "@/application/services/news/NewsProviderService";
+import { MacroDashboardService } from "@/application/services/macro/MacroDashboardService";
+import { MacroIndicatorIngestionService } from "@/application/services/macro/MacroIndicatorIngestionService";
+import { MacroTrendService } from "@/application/services/macro/MacroTrendService";
 import { ThemeIntelligenceService } from "@/application/services/news/ThemeIntelligenceService";
 import { WeeklyNewsReconciliationService } from "@/application/services/news/WeeklyNewsReconciliationService";
 import { MarketVisionService } from "@/application/services/marketVision/MarketVisionService";
@@ -34,10 +38,12 @@ import { FmpAssetMetadataProvider } from "@/infrastructure/providers/metadata/Fm
 import { FmpMarketDataProvider } from "@/infrastructure/providers/marketData/FmpMarketDataProvider";
 import { OpenAiNewsProvider } from "@/infrastructure/providers/ai/OpenAiNewsProvider";
 import { FmpNewsProvider } from "@/infrastructure/providers/news/FmpNewsProvider";
+import { FredMacroDataProvider } from "@/infrastructure/providers/macro/FredMacroDataProvider";
 import { SupabaseAnalyticsRepository } from "@/infrastructure/repositories/supabase/SupabaseAnalyticsRepository";
 import { SupabaseBenchmarkRepository } from "@/infrastructure/repositories/supabase/SupabaseBenchmarkRepository";
 import { SupabaseMarketDataRepository } from "@/infrastructure/repositories/supabase/SupabaseMarketDataRepository";
 import { SupabaseMarketVisionRepository } from "@/infrastructure/repositories/supabase/SupabaseMarketVisionRepository";
+import { SupabaseMacroIndicatorRepository } from "@/infrastructure/repositories/supabase/SupabaseMacroIndicatorRepository";
 import { SupabaseNewsRepository } from "@/infrastructure/repositories/supabase/SupabaseNewsRepository";
 import { SupabasePortfolioRepository } from "@/infrastructure/repositories/supabase/SupabasePortfolioRepository";
 import { SupabaseRiskAnalyticsRepository } from "@/infrastructure/repositories/supabase/SupabaseRiskAnalyticsRepository";
@@ -52,10 +58,12 @@ export function createContainer() {
   const riskAnalyticsRepository = new SupabaseRiskAnalyticsRepository();
   const universeRepository = new SupabaseUniverseRepository();
   const marketVisionRepository = new SupabaseMarketVisionRepository();
+  const macroIndicatorRepository = new SupabaseMacroIndicatorRepository();
   const newsRepository = new SupabaseNewsRepository();
   const marketDataProvider = new FmpMarketDataProvider();
   const assetMetadataProvider = new FmpAssetMetadataProvider();
   const newsProvider = new FmpNewsProvider();
+  const macroDataProvider = new FredMacroDataProvider();
   const newsAiProvider = new OpenAiNewsProvider();
   const marketDataService = new MarketDataService(marketDataRepository, marketDataProvider);
   const benchmarkService = new BenchmarkService(benchmarkRepository, marketDataProvider);
@@ -69,6 +77,11 @@ export function createContainer() {
   const metadataRefreshService = new MetadataRefreshService(universeRepository, assetMetadataProvider);
   const marketThemeService = new MarketThemeService();
   const macroIndicatorService = new MacroIndicatorService();
+  const macroTrendService = new MacroTrendService();
+  const macroIndicatorIngestionService = new MacroIndicatorIngestionService(macroIndicatorRepository, macroDataProvider, macroTrendService, {
+    backfillYears: env.FRED_BACKFILL_YEARS
+  });
+  const macroDashboardService = new MacroDashboardService(macroIndicatorRepository);
   const marketVisionService = new MarketVisionService(marketVisionRepository, marketThemeService);
   const newsDeduplicationService = new NewsDeduplicationService();
   const newsInstrumentLinkingService = new NewsInstrumentLinkingService();
@@ -125,6 +138,11 @@ export function createContainer() {
     metadataRefreshService,
     marketVisionService,
     macroIndicatorService,
+    macroIndicatorRepository,
+    macroDataProvider,
+    macroTrendService,
+    macroIndicatorIngestionService,
+    macroDashboardService,
     marketThemeService,
     newsRepository,
     newsProvider,
@@ -157,7 +175,8 @@ export function createContainer() {
       refreshPortfolioPrices: new RefreshPortfolioPricesJob(marketDataService),
       refreshBenchmarkData: new RefreshBenchmarkDataJob(benchmarkService),
       dailyNewsIngestion: new DailyNewsIngestionJob(newsIngestionService, newsClassificationService),
-      weeklyNewsReconciliation: new WeeklyNewsReconciliationJob(weeklyNewsReconciliationService, newsClassificationService)
+      weeklyNewsReconciliation: new WeeklyNewsReconciliationJob(weeklyNewsReconciliationService, newsClassificationService),
+      fredMacroIngestion: new FredMacroIngestionJob(macroIndicatorIngestionService)
     }
   };
 }

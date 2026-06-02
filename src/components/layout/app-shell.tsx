@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { BarChart3, Banknote, Bookmark, Globe2, Home, Landmark, Layers3, LogOut, Newspaper, PlusCircle, Settings, ShieldCheck, Table2 } from "lucide-react";
+import { Activity, BarChart3, Banknote, Bookmark, Globe2, Home, Landmark, Layers3, LogOut, Newspaper, PlusCircle, Settings, ShieldCheck, Table2 } from "lucide-react";
 import { signOutAction } from "@/server/actions/authActions";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
   { href: "/portfolio", label: "Dashboard", icon: Home },
   { href: "/market-vision", label: "Market Vision", icon: Globe2 },
+  { href: "/macro", label: "Macro", icon: Activity },
   { href: "/news", label: "News", icon: Newspaper },
   { href: "/cash", label: "Cash", icon: Banknote },
   { href: "/holdings", label: "Holdings", icon: Table2 },

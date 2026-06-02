@@ -239,6 +239,7 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
 
   const dashboard = await container.portfolioService.getDashboard(portfolio.id);
   const report = await container.bondService.getPortfolioBondAnalytics(dashboard);
+  const macroDashboard = await container.macroDashboardService.getDashboard();
 
   if (report.bondHoldings.length === 0) {
     return (
@@ -283,6 +284,26 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
         <SummaryCard title="Credit-risk exposure" value={formatPercent(report.creditRiskExposure)} description="Corporate and high-yield bond ETF exposure." />
         <SummaryCard title="Inflation-linked" value={formatPercent(report.inflationLinkedExposure)} description="TIPS or inflation-linked bond ETF exposure." />
       </section>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Bond-relevant macro context</CardTitle>
+          <CardDescription>FRED regime inputs for rate, inflation, and yield-curve context. No bond recommendations are generated.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ["Rates", macroDashboard.latestRegime?.ratesRegime],
+            ["Inflation", macroDashboard.latestRegime?.inflationRegime],
+            ["Yield curve", macroDashboard.latestRegime?.yieldCurveRegime],
+            ["Liquidity", macroDashboard.latestRegime?.liquidityRegime]
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-md border p-3">
+              <p className="text-xs uppercase text-muted-foreground">{label}</p>
+              <p className="mt-1 text-sm font-medium capitalize">{(value ?? "insufficient_data").replaceAll("_", " ")}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       {report.warnings.length > 0 ? (
         <Card>
