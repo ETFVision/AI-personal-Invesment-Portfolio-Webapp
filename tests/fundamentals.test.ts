@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FundamentalScoringService } from "../src/application/services/fundamentals/FundamentalScoringService";
-import { FundamentalsRefreshService } from "../src/application/services/fundamentals/FundamentalsRefreshService";
+import { FundamentalsRefreshService, fundamentalsRefreshInternals } from "../src/application/services/fundamentals/FundamentalsRefreshService";
 import type { FundamentalsProvider, FundamentalsProviderResult } from "../src/application/ports/providers/FundamentalsProvider";
 import type { FundamentalsRepository } from "../src/application/ports/repositories/FundamentalsRepository";
 import type {
@@ -258,6 +258,156 @@ test("fundamental scoring produces deterministic scores and confidence", () => {
   assert.ok((score.overallFundamentalScore ?? 0) > 50);
   assert.ok(score.scoreConfidence > 50);
   assert.match(score.explanation, /Deterministic fundamentals score/);
+});
+
+test("fundamentals refresh derives missing ratios from financial statements", () => {
+  const ratios = fundamentalsRefreshInternals.deriveMissingRatios({
+    instrumentId: "inst-msft",
+    symbol: "MSFT",
+    profile: {
+      instrumentId: "inst-msft",
+      symbol: "MSFT",
+      companyName: "Microsoft Corporation",
+      sector: "Technology",
+      industry: "Software",
+      country: "US",
+      exchange: "NASDAQ",
+      currency: "USD",
+      marketCap: 3_000,
+      beta: null,
+      description: null,
+      website: null,
+      ceo: null,
+      ipoDate: null,
+      employees: null,
+      lastRefreshedAt: "2026-06-01T00:00:00Z",
+      provider: "test",
+      providerMetadata: {}
+    },
+    statements: [
+      {
+        instrumentId: "inst-msft",
+        symbol: "MSFT",
+        statementType: "income_statement",
+        period: "annual",
+        fiscalYear: 2025,
+        fiscalQuarter: 0,
+        reportDate: "2025-12-31",
+        filingDate: null,
+        revenue: 300,
+        grossProfit: 210,
+        operatingIncome: 120,
+        ebitda: null,
+        netIncome: 100,
+        eps: 10,
+        dilutedEps: 10,
+        totalAssets: null,
+        totalLiabilities: null,
+        shareholdersEquity: null,
+        cashAndEquivalents: null,
+        totalDebt: null,
+        operatingCashFlow: null,
+        capitalExpenditure: null,
+        freeCashFlow: null,
+        sharesOutstanding: null,
+        provider: "test",
+        providerMetadata: {}
+      },
+      {
+        instrumentId: "inst-msft",
+        symbol: "MSFT",
+        statementType: "income_statement",
+        period: "annual",
+        fiscalYear: 2024,
+        fiscalQuarter: 0,
+        reportDate: "2024-12-31",
+        filingDate: null,
+        revenue: 240,
+        grossProfit: 160,
+        operatingIncome: 90,
+        ebitda: null,
+        netIncome: 80,
+        eps: 8,
+        dilutedEps: 8,
+        totalAssets: null,
+        totalLiabilities: null,
+        shareholdersEquity: null,
+        cashAndEquivalents: null,
+        totalDebt: null,
+        operatingCashFlow: null,
+        capitalExpenditure: null,
+        freeCashFlow: null,
+        sharesOutstanding: null,
+        provider: "test",
+        providerMetadata: {}
+      },
+      {
+        instrumentId: "inst-msft",
+        symbol: "MSFT",
+        statementType: "balance_sheet",
+        period: "annual",
+        fiscalYear: 2025,
+        fiscalQuarter: 0,
+        reportDate: "2025-12-31",
+        filingDate: null,
+        revenue: null,
+        grossProfit: null,
+        operatingIncome: null,
+        ebitda: null,
+        netIncome: null,
+        eps: null,
+        dilutedEps: null,
+        totalAssets: 1_000,
+        totalLiabilities: 400,
+        shareholdersEquity: 600,
+        cashAndEquivalents: 120,
+        totalDebt: 150,
+        operatingCashFlow: null,
+        capitalExpenditure: null,
+        freeCashFlow: null,
+        sharesOutstanding: null,
+        provider: "test",
+        providerMetadata: {}
+      }
+    ],
+    ratios: [{
+      instrumentId: "inst-msft",
+      symbol: "MSFT",
+      period: "annual",
+      fiscalYear: 2025,
+      fiscalQuarter: 0,
+      reportDate: "2025-12-31",
+      peRatio: null,
+      forwardPe: null,
+      priceToSales: null,
+      priceToBook: null,
+      evToEbitda: null,
+      evToSales: null,
+      grossMargin: null,
+      operatingMargin: null,
+      netMargin: null,
+      roe: null,
+      roic: null,
+      roa: null,
+      debtToEquity: null,
+      netDebtToEbitda: null,
+      currentRatio: null,
+      quickRatio: null,
+      freeCashFlowYield: null,
+      revenueGrowth: null,
+      epsGrowth: null,
+      netIncomeGrowth: null,
+      freeCashFlowGrowth: null,
+      provider: "test",
+      providerMetadata: {}
+    }]
+  });
+
+  assert.equal(ratios[0]?.peRatio, 30);
+  assert.equal(ratios[0]?.revenueGrowth, 0.25);
+  assert.equal(ratios[0]?.epsGrowth, 0.25);
+  assert.equal(ratios[0]?.roe, 100 / 600);
+  assert.equal(ratios[0]?.debtToEquity, 150 / 600);
 });
 
 test("fundamentals refresh excludes non-stocks and logs partial success", async () => {

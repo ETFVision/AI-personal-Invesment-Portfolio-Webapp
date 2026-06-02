@@ -22,6 +22,140 @@ function daysBetween(dateIso: string | null, now = new Date()) {
   return Math.floor((now.getTime() - date.getTime()) / 86_400_000);
 }
 
+function latestStatement(statements: FinancialStatement[], statementType: FinancialStatement["statementType"]) {
+  return statements
+    .filter((statement) => statement.statementType === statementType)
+    .sort((a, b) => (b.reportDate ?? "").localeCompare(a.reportDate ?? ""))[0] ?? null;
+}
+
+function previousStatement(statements: FinancialStatement[], statementType: FinancialStatement["statementType"], latest: FinancialStatement | null) {
+  return statements
+    .filter((statement) => statement.statementType === statementType && statement.reportDate !== latest?.reportDate)
+    .sort((a, b) => (b.reportDate ?? "").localeCompare(a.reportDate ?? ""))[0] ?? null;
+}
+
+function safeRatio(numerator: number | null | undefined, denominator: number | null | undefined) {
+  if (numerator == null || denominator == null || denominator === 0) return null;
+  const value = numerator / denominator;
+  return Number.isFinite(value) ? value : null;
+}
+
+function safeGrowth(latest: number | null | undefined, previous: number | null | undefined) {
+  if (latest == null || previous == null || previous === 0) return null;
+  const value = (latest - previous) / Math.abs(previous);
+  return Number.isFinite(value) ? value : null;
+}
+
+function mergeRatio(current: number | null | undefined, derived: number | null) {
+  return current == null ? derived : current;
+}
+
+function createEmptyDerivedRatio(input: {
+  instrumentId: string;
+  symbol: string;
+  income: FinancialStatement | null;
+  balanceSheet: FinancialStatement | null;
+}): FinancialRatio {
+  const reportDate = input.income?.reportDate ?? input.balanceSheet?.reportDate ?? new Date().toISOString().slice(0, 10);
+  return {
+    instrumentId: input.instrumentId,
+    symbol: input.symbol,
+    period: input.income?.period ?? input.balanceSheet?.period ?? "annual",
+    fiscalYear: input.income?.fiscalYear ?? input.balanceSheet?.fiscalYear ?? Number(reportDate.slice(0, 4)),
+    fiscalQuarter: input.income?.fiscalQuarter ?? input.balanceSheet?.fiscalQuarter ?? 0,
+    reportDate,
+    peRatio: null,
+    forwardPe: null,
+    priceToSales: null,
+    priceToBook: null,
+    evToEbitda: null,
+    evToSales: null,
+    grossMargin: null,
+    operatingMargin: null,
+    netMargin: null,
+    roe: null,
+    roic: null,
+    roa: null,
+    debtToEquity: null,
+    netDebtToEbitda: null,
+    currentRatio: null,
+    quickRatio: null,
+    freeCashFlowYield: null,
+    revenueGrowth: null,
+    epsGrowth: null,
+    netIncomeGrowth: null,
+    freeCashFlowGrowth: null,
+    provider: "derived",
+    providerMetadata: { source: "derived_from_financial_statements" }
+  };
+}
+
+function deriveMissingRatios(input: {
+  instrumentId: string;
+  symbol: string;
+  profile: CompanyProfile | null;
+  statements: FinancialStatement[];
+  ratios: FinancialRatio[];
+}) {
+  const income = latestStatement(input.statements, "income_statement");
+  const previousIncome = previousStatement(input.statements, "income_statement", income);
+  const balanceSheet = latestStatement(input.statements, "balance_sheet");
+  const cashFlow = latestStatement(input.statements, "cash_flow");
+  const previousCashFlow = previousStatement(input.statements, "cash_flow", cashFlow);
+
+  if (!income && !balanceSheet && !cashFlow) return input.ratios;
+
+  const sorted = [...input.ratios].sort((a, b) => b.reportDate.localeCompare(a.reportDate));
+  const latestRatio = sorted[0] ?? createEmptyDerivedRatio({ instrumentId: input.instrumentId, symbol: input.symbol, income, balanceSheet });
+
+  const derivedPe =
+    safeRatio(input.profile?.marketCap, income?.netIncome) ??
+    safeRatio(input.profile?.marketCap, previousIncome?.netIncome);
+  const derivedPriceToSales = safeRatio(input.profile?.marketCap, income?.revenue);
+  const derivedPriceToBook = safeRatio(input.profile?.marketCap, balanceSheet?.shareholdersEquity);
+  const derivedGrossMargin = safeRatio(income?.grossProfit, income?.revenue);
+  const derivedOperatingMargin = safeRatio(income?.operatingIncome, income?.revenue);
+  const derivedNetMargin = safeRatio(income?.netIncome, income?.revenue);
+  const derivedRoe = safeRatio(income?.netIncome, balanceSheet?.shareholdersEquity);
+  const derivedRoa = safeRatio(income?.netIncome, balanceSheet?.totalAssets);
+  const derivedDebtToEquity = safeRatio(balanceSheet?.totalDebt, balanceSheet?.shareholdersEquity);
+  const derivedCurrentRatio = safeRatio(
+    Number(input.profile?.providerMetadata?.currentAssets ?? balanceSheet?.providerMetadata?.totalCurrentAssets),
+    Number(input.profile?.providerMetadata?.currentLiabilities ?? balanceSheet?.providerMetadata?.totalCurrentLiabilities)
+  );
+  const derivedFreeCashFlowYield = safeRatio(cashFlow?.freeCashFlow, input.profile?.marketCap);
+
+  const enhanced: FinancialRatio = {
+    ...latestRatio,
+    provider: latestRatio.provider === "derived" ? "derived" : latestRatio.provider,
+    providerMetadata: {
+      ...latestRatio.providerMetadata,
+      derivedFallbacks: {
+        source: "financial_statements",
+        derivedAt: new Date().toISOString()
+      }
+    },
+    peRatio: mergeRatio(latestRatio.peRatio, derivedPe),
+    priceToSales: mergeRatio(latestRatio.priceToSales, derivedPriceToSales),
+    priceToBook: mergeRatio(latestRatio.priceToBook, derivedPriceToBook),
+    grossMargin: mergeRatio(latestRatio.grossMargin, derivedGrossMargin),
+    operatingMargin: mergeRatio(latestRatio.operatingMargin, derivedOperatingMargin),
+    netMargin: mergeRatio(latestRatio.netMargin, derivedNetMargin),
+    roe: mergeRatio(latestRatio.roe, derivedRoe),
+    roa: mergeRatio(latestRatio.roa, derivedRoa),
+    debtToEquity: mergeRatio(latestRatio.debtToEquity, derivedDebtToEquity),
+    currentRatio: mergeRatio(latestRatio.currentRatio, derivedCurrentRatio),
+    freeCashFlowYield: mergeRatio(latestRatio.freeCashFlowYield, derivedFreeCashFlowYield),
+    revenueGrowth: mergeRatio(latestRatio.revenueGrowth, safeGrowth(income?.revenue, previousIncome?.revenue)),
+    epsGrowth: mergeRatio(latestRatio.epsGrowth, safeGrowth(income?.dilutedEps ?? income?.eps, previousIncome?.dilutedEps ?? previousIncome?.eps)),
+    netIncomeGrowth: mergeRatio(latestRatio.netIncomeGrowth, safeGrowth(income?.netIncome, previousIncome?.netIncome)),
+    freeCashFlowGrowth: mergeRatio(latestRatio.freeCashFlowGrowth, safeGrowth(cashFlow?.freeCashFlow, previousCashFlow?.freeCashFlow))
+  };
+
+  const rest = sorted.filter((ratio) => ratio !== latestRatio);
+  return [enhanced, ...rest];
+}
+
 export class FundamentalsRefreshService {
   constructor(
     private readonly repository: FundamentalsRepository,
@@ -98,10 +232,17 @@ export class FundamentalsRefreshService {
           ...statement,
           instrumentId: instrument.id
         }));
-        const ratios: FinancialRatio[] = result.ratios.map((ratio) => ({
+        const providerRatios: FinancialRatio[] = result.ratios.map((ratio) => ({
           ...ratio,
           instrumentId: instrument.id
         }));
+        const ratios = deriveMissingRatios({
+          instrumentId: instrument.id,
+          symbol,
+          profile,
+          statements,
+          ratios: providerRatios
+        });
 
         if (profile) {
           await this.repository.upsertCompanyProfiles([profile]);
@@ -166,5 +307,6 @@ export class FundamentalsRefreshService {
 }
 
 export const fundamentalsRefreshInternals = {
-  daysBetween
+  daysBetween,
+  deriveMissingRatios
 };
