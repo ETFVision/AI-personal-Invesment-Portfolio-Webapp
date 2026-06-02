@@ -20,6 +20,10 @@ const envSchema = z.object({
   MAX_NEWS_ARTICLES_PER_DAY: z.coerce.number().int().positive().default(80),
   MAX_NEWS_ARTICLES_PER_WEEK: z.coerce.number().int().positive().default(250),
   MAX_NEWS_ARTICLES_PER_INSTRUMENT: z.coerce.number().int().positive().default(3),
+  GDELT_MAX_ARTICLES_PER_QUERY: z.coerce.number().int().positive().default(8),
+  GDELT_MAX_ARTICLES_PER_DAY: z.coerce.number().int().positive().default(80),
+  GDELT_RECENT_WINDOW_HOURS: z.coerce.number().int().positive().default(24),
+  ENABLE_GDELT_INGESTION: envBoolean.default(false),
   ENABLE_AI_NEWS_CLASSIFICATION: envBoolean.default(false),
   ENABLE_WEEKLY_NEWS_RECONCILIATION: envBoolean.default(false)
 });
@@ -39,6 +43,10 @@ export const env = envSchema.parse({
   MAX_NEWS_ARTICLES_PER_DAY: process.env.MAX_NEWS_ARTICLES_PER_DAY,
   MAX_NEWS_ARTICLES_PER_WEEK: process.env.MAX_NEWS_ARTICLES_PER_WEEK,
   MAX_NEWS_ARTICLES_PER_INSTRUMENT: process.env.MAX_NEWS_ARTICLES_PER_INSTRUMENT,
+  GDELT_MAX_ARTICLES_PER_QUERY: process.env.GDELT_MAX_ARTICLES_PER_QUERY,
+  GDELT_MAX_ARTICLES_PER_DAY: process.env.GDELT_MAX_ARTICLES_PER_DAY,
+  GDELT_RECENT_WINDOW_HOURS: process.env.GDELT_RECENT_WINDOW_HOURS,
+  ENABLE_GDELT_INGESTION: process.env.ENABLE_GDELT_INGESTION,
   ENABLE_AI_NEWS_CLASSIFICATION: process.env.ENABLE_AI_NEWS_CLASSIFICATION,
   ENABLE_WEEKLY_NEWS_RECONCILIATION: process.env.ENABLE_WEEKLY_NEWS_RECONCILIATION
 });

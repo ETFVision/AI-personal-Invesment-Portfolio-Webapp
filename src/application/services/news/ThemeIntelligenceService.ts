@@ -19,7 +19,8 @@ export const themeHierarchy: Record<NewsCanonicalTheme, NewsThemeCategory[]> = {
   Quality: ["Investment"],
   Dividend: ["Investment"],
   Defensive: ["Investment"],
-  Credit: ["Macro"]
+  Credit: ["Macro"],
+  "Trade / Supply Chain": ["Macro"]
 };
 
 type ClassifiedNews = Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>;

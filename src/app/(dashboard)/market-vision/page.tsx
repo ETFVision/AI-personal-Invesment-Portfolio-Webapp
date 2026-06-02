@@ -286,6 +286,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
   await container.authProvider.requireUser();
   const dashboard = await container.marketVisionService.getDashboard(params?.reportId);
   const latestWeeklyNews = await container.newsRepository.getLatestWeeklyReconciliation();
+  const latestGdeltNews = await container.newsRepository.listNewsWithClassifications({ sourceProvider: "gdelt", includeDuplicates: false, limit: 8 });
   const macroDashboard = await container.macroDashboardService.getDashboard();
   const macroContext = container.macroContextService.buildContext(macroDashboard);
   const report = dashboard.selectedReport;
@@ -383,6 +384,32 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
                     <SubmitButton variant="outline" pendingLabel="Creating draft...">Create draft from news</SubmitButton>
                   </form>
                 </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>GDELT macro / world-news input</CardTitle>
+              <CardDescription>Global macro, geopolitical, currency, energy, trade, and credit stories prepared for manual Market Vision drafting.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {latestGdeltNews.length === 0 ? (
+                <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No GDELT macro/world-news articles have been ingested yet.</p>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {latestGdeltNews.slice(0, 6).map((item) => (
+                    <div key={item.id} className="rounded-md border p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-medium">{item.title}</p>
+                        <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs">{item.classification?.primaryTheme ?? "Unmapped"}</span>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {item.sourceName ?? "GDELT"} - {item.country ?? "Global"} - {item.publishedAt?.slice(0, 10) ?? "No date"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>

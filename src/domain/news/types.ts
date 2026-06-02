@@ -13,6 +13,7 @@ export type NewsCanonicalTheme =
   | "Energy"
   | "AI"
   | "Credit"
+  | "Trade / Supply Chain"
   | "Consumer"
   | "Healthcare"
   | "Financials"
@@ -148,6 +149,50 @@ export type NormalizedNewsArticle = {
   language: string | null;
   country: string | null;
   providerMetadata: Record<string, unknown>;
+};
+
+export type GdeltQueryGroup = {
+  id: string;
+  queryKey: string;
+  queryName: string;
+  queryText: string;
+  canonicalTheme: NewsCanonicalTheme;
+  category: string;
+  isActive: boolean;
+  maxArticlesPerRun: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GdeltIngestionLog = {
+  id: string;
+  jobName: string;
+  queryGroupId: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  status: NewsIngestionStatus;
+  articlesFetched: number;
+  articlesInserted: number;
+  duplicatesDetected: number;
+  errorMessage: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type GdeltArticleMetadata = {
+  id: string;
+  newsItemId: string;
+  domain: string | null;
+  sourceCountry: string | null;
+  sourceLanguage: string | null;
+  tone: number | null;
+  gdeltThemes: string[];
+  locations: unknown[];
+  persons: string[];
+  organizations: string[];
+  providerMetadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type NewsDashboard = {

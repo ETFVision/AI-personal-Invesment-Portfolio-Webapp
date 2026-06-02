@@ -26,6 +26,7 @@ const fundStructureTerms = ["etf", "etfs", "mutual fund", "mutual funds", "expen
 const creditRiskTerms = ["credit spread", "credit spreads", "corporate credit", "high yield", "investment grade", "default", "defaults", "loan", "loans", "debt market", "bond market", "treasury yield", "bond yield"];
 const hardwareTechnologyTerms = ["dell", "apple", "hardware", "pc market", "computer", "laptop", "device"];
 const macroManufacturingTerms = ["ism manufacturing", "manufacturing pmi", "pmi"];
+const tradeSupplyChainTerms = ["tariff", "tariffs", "trade war", "export control", "export controls", "supply chain", "semiconductor restrictions"];
 
 function textIncludesAny(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term));
@@ -136,6 +137,7 @@ export class WeeklyNewsReconciliationService {
     if (!isEquityLike && (macros.some((entry) => entry.includes("rate")) || textIncludesAny(title, ["fed", "interest rate", "rate cut", "rate hike", "treasury yield"]))) return "rates";
     if (macros.some((entry) => entry.includes("inflation")) || textIncludesAny(title, ["inflation", "cpi", "pce"])) return "inflation";
     if (macros.some((entry) => entry.includes("currency") || entry.includes("usd")) || textIncludesAny(title, ["usd", "dollar", "currency", "fx"])) return "currency";
+    if (!isEquityLike && (macros.some((entry) => entry.includes("trade_supply_chain")) || textIncludesAny(title, tradeSupplyChainTerms))) return "macro";
     if (!isEquityLike && (macros.some((entry) => entry.includes("geopolitical")) || textIncludesAny(title, ["war", "geopolitical", "sanction", "tariff", "conflict"]))) return "geopolitical";
     if (
       classes.some((entry) => entry.includes("equity") || entry.includes("stock")) ||

@@ -20,6 +20,19 @@ export async function runDailyNewsIngestionAction() {
   redirect(target);
 }
 
+export async function runGdeltNewsIngestionAction() {
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  let target = "/news?error=GDELT%20ingestion%20failed.";
+  try {
+    const result = await container.jobs.gdeltNewsIngestion.run({ force: true });
+    target = `/news?message=${encodeURIComponent(`GDELT fetched ${result.articlesFetched} articles and saved ${result.articlesInserted}.`)}`;
+  } catch (error) {
+    target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "GDELT ingestion failed.")}`;
+  }
+  redirect(target);
+}
+
 export async function runWeeklyNewsReconciliationAction() {
   const container = createContainer();
   await container.authProvider.requireUser();

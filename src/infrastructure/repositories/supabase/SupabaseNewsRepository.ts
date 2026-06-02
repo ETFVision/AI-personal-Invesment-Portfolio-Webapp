@@ -195,9 +195,21 @@ export class SupabaseNewsRepository implements NewsRepository {
   }
 
   async findCanonicalArticle(input: { sourceProvider: string; sourceId: string | null; url: string | null; canonicalHash: string; contentHash: string }) {
-    let query = this.db.from("news_items").select("*").eq("source_provider", input.sourceProvider).eq("is_duplicate", false).limit(1);
-    if (input.sourceId) query = query.eq("source_id", input.sourceId);
-    else if (input.url) query = query.eq("url", input.url);
+    if (input.sourceId) {
+      const { data, error } = await this.db
+        .from("news_items")
+        .select("*")
+        .eq("source_provider", input.sourceProvider)
+        .eq("source_id", input.sourceId)
+        .eq("is_duplicate", false)
+        .limit(1)
+        .maybeSingle();
+      if (isMissingNewsTable(error)) return null;
+      if (error) throw new Error(error.message);
+      if (data) return mapNewsItem(data);
+    }
+    let query = this.db.from("news_items").select("*").eq("is_duplicate", false).limit(1);
+    if (input.url) query = query.eq("url", input.url);
     else query = query.or(`canonical_hash.eq.${input.canonicalHash},content_hash.eq.${input.contentHash}`);
     const { data, error } = await query.maybeSingle();
     if (isMissingNewsTable(error)) return null;

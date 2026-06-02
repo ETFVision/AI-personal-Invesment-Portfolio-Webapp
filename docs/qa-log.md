@@ -1190,3 +1190,94 @@ Production-readiness assessment:
 Recommendation:
 - Ready for GDELT integration.
 - GDELT should be next because FRED now covers structured macro data, while FMP news remains equity-heavy and sparse for macro/geopolitical/rates/currency narratives.
+
+## 2026-06-02 - GDELT Global Macro News Layer Implementation Checkpoint
+
+Scope:
+- Built the GDELT Integration Layer as a provider-agnostic global macro/world-news stream for News Intelligence and Market Vision.
+- Explicitly excluded AI Market Vision generation, recommendations, scoring, telemetry, unrestricted chatbot behavior, and portfolio assistant logic.
+
+What was built:
+- Added GDELT query groups for macro/rates, inflation, growth/recession, currency/USD, geopolitical risk, trade/supply chain, energy/commodities, and global credit stress.
+- Added GDELT database support:
+  - `gdelt_query_groups`
+  - `gdelt_ingestion_logs`
+  - `gdelt_article_metadata`
+- Added GDELT provider abstraction and implementation:
+  - `GdeltNewsProvider`
+  - `GdeltNormalizationService`
+  - `GdeltRepository`
+  - `SupabaseGdeltRepository`
+- Added global news ingestion service:
+  - Pulls active GDELT query groups.
+  - Normalizes GDELT DOC 2.0 articles.
+  - Filters obvious local/noise articles.
+  - Deduplicates against existing canonical news, including cross-provider URL/hash matches.
+  - Stores normalized articles in existing `news_items`.
+  - Stores provider metadata in `gdelt_article_metadata`.
+  - Adds deterministic classifications without buy/sell recommendations.
+  - Logs both per-query and overall ingestion results.
+- Added protected cron/manual route:
+  - `/api/jobs/gdelt-news-ingestion`
+  - Uses shared `CRON_SECRET` protection.
+- Added News UI controls:
+  - Separate `Refresh FMP` and `Refresh GDELT` actions for testing/admin use.
+  - Source filter for all/FMP/GDELT.
+  - Source column and GDELT macro/world-news panel.
+- Added light Market Vision integration:
+  - Shows latest GDELT macro/world-news input as source material only.
+  - Does not generate Market Vision reports automatically.
+
+Architecture assessment:
+- GDELT calls are isolated in the provider layer.
+- UI components do not call GDELT, FMP, OpenAI, or Supabase directly.
+- GDELT is wired through service/repository/container boundaries and remains cloud-portable.
+- No GDELT API key is required.
+- Runtime control is environment-based through `ENABLE_GDELT_INGESTION` and bounded article limits.
+
+Classification/data quality notes:
+- GDELT query groups provide the primary macro theme anchor.
+- Article text can add deterministic secondary themes.
+- Added canonical theme `Trade / Supply Chain`.
+- Broad GDELT news is intentionally not linked to individual instruments unless future reliable symbol extraction is added.
+- GDELT articles can be sparse/noisy depending on query terms; this should be tuned through query groups and source controls rather than recommendations.
+
+Validation performed:
+- `npm.cmd run test` passed: 81 tests.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd run build` passed.
+
+Tests added or updated:
+- GDELT compact date normalization.
+- GDELT provider metadata preservation.
+- GDELT relevance filtering.
+- GDELT deterministic theme mapping.
+- Trade/supply-chain weekly bucket behavior.
+- Trade/supply-chain theme hierarchy behavior.
+- End-to-end fake GDELT ingestion storing news, classification, metadata, and logs.
+
+Critical issues:
+- None remaining after implementation validation.
+
+Medium-priority issues:
+- None remaining after implementation validation.
+
+Low-priority improvements for later:
+- Add a dedicated GDELT query-group admin page for enabling/disabling query groups and tuning query strings.
+- Add query-group-level ingestion log display in the News admin UI.
+- Add manual relevance override for GDELT articles incorrectly filtered or included.
+- Add source/domain allowlists or blocklists if noisy domains appear repeatedly.
+- Add country/region aggregation once enough GDELT articles are stored.
+- Add lightweight entity extraction before any future instrument linking.
+- Add citation selection for Market Vision drafts.
+
+Known setup requirements:
+- Apply `supabase/migrations/025_gdelt_integration.sql` in Supabase before using GDELT ingestion.
+- Set `ENABLE_GDELT_INGESTION=true` in `.env.local` and Vercel environment variables when ready.
+- Keep `CRON_SECRET` configured locally and in Vercel for scheduled/manual job routes.
+
+Production-readiness assessment:
+- Ready as a foundational GDELT macro/world-news ingestion layer.
+- Safe for admin/manual testing after migration 025 and env configuration.
+- Ready to support richer Market Vision source inputs, but not yet a full AI Market Vision generator.

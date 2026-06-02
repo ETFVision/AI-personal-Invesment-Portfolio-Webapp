@@ -7,9 +7,15 @@ import { NewsClassificationService, validateNewsClassificationOutput } from "../
 import { NewsIngestionService } from "../src/application/services/news/NewsIngestionService";
 import { ThemeIntelligenceService } from "../src/application/services/news/ThemeIntelligenceService";
 import { WeeklyNewsReconciliationService } from "../src/application/services/news/WeeklyNewsReconciliationService";
+import { GdeltRelevanceService } from "../src/application/services/news/GdeltRelevanceService";
+import { GdeltThemeMappingService } from "../src/application/services/news/GdeltThemeMappingService";
+import { GlobalNewsIngestionService } from "../src/application/services/news/GlobalNewsIngestionService";
 import { isCronSecretValid } from "../src/application/services/news/cronSecret";
-import type { NewsClassification, NewsIngestionLog, NewsItem, NormalizedNewsArticle, WeeklyNewsReconciliation } from "../src/domain/news/types";
+import { GdeltNormalizationService, gdeltNormalizationInternals } from "../src/infrastructure/providers/news/GdeltNormalizationService";
+import type { GdeltArticleMetadata, GdeltIngestionLog, GdeltQueryGroup, NewsClassification, NewsIngestionLog, NewsItem, NormalizedNewsArticle, WeeklyNewsReconciliation } from "../src/domain/news/types";
+import type { GdeltNewsProvider, GdeltProviderArticle } from "../src/application/ports/providers/GdeltNewsProvider";
 import type { NewsProvider } from "../src/application/ports/providers/NewsProvider";
+import type { GdeltRepository, InsertGdeltIngestionLogInput, UpsertGdeltArticleMetadataInput } from "../src/application/ports/repositories/GdeltRepository";
 import type { NewsRepository, UpsertNewsClassificationInput, UpsertNewsItemInput, UpsertWeeklyNewsReconciliationInput } from "../src/application/ports/repositories/NewsRepository";
 import type { UniverseRepository } from "../src/application/ports/repositories/UniverseRepository";
 import type { Instrument } from "../src/domain/universe/types";
@@ -170,6 +176,56 @@ class FakeNewsProvider implements NewsProvider {
   readonly name = "test_provider";
   constructor(private readonly articles: NormalizedNewsArticle[]) {}
   async fetchNews() {
+    return this.articles;
+  }
+}
+
+function gdeltQueryGroup(overrides: Partial<GdeltQueryGroup> = {}): GdeltQueryGroup {
+  return {
+    id: overrides.id ?? "gdelt-group-1",
+    queryKey: overrides.queryKey ?? "trade_supply_chain",
+    queryName: overrides.queryName ?? "Trade / supply chain",
+    queryText: overrides.queryText ?? "tariffs OR supply chain",
+    canonicalTheme: overrides.canonicalTheme ?? "Trade / Supply Chain",
+    category: overrides.category ?? "trade_supply_chain",
+    isActive: overrides.isActive ?? true,
+    maxArticlesPerRun: overrides.maxArticlesPerRun ?? 8,
+    createdAt: "",
+    updatedAt: ""
+  };
+}
+
+class FakeGdeltRepository implements GdeltRepository {
+  groups: GdeltQueryGroup[] = [gdeltQueryGroup()];
+  logs: GdeltIngestionLog[] = [];
+  metadata: GdeltArticleMetadata[] = [];
+
+  async listActiveQueryGroups() {
+    return this.groups.filter((group) => group.isActive);
+  }
+
+  async upsertArticleMetadata(input: UpsertGdeltArticleMetadataInput[]) {
+    for (const item of input) {
+      const row = { ...item, id: `gdelt-meta-${this.metadata.length + 1}`, createdAt: "", updatedAt: "" };
+      const existingIndex = this.metadata.findIndex((entry) => entry.newsItemId === item.newsItemId);
+      if (existingIndex >= 0) this.metadata[existingIndex] = { ...this.metadata[existingIndex], ...row, id: this.metadata[existingIndex].id };
+      else this.metadata.push(row);
+    }
+  }
+
+  async insertIngestionLog(input: InsertGdeltIngestionLogInput) {
+    this.logs.unshift({ ...input, id: `gdelt-log-${this.logs.length + 1}`, createdAt: "" });
+  }
+
+  async listIngestionLogs(limit = 20) {
+    return this.logs.slice(0, limit);
+  }
+}
+
+class FakeGdeltProvider implements GdeltNewsProvider {
+  readonly name = "gdelt" as const;
+  constructor(private readonly articles: GdeltProviderArticle[]) {}
+  async fetchQueryGroup() {
     return this.articles;
   }
 }
@@ -773,6 +829,152 @@ test("weekly reconciliation keeps explicit financial gold headlines in gold buck
   const service = new WeeklyNewsReconciliationService(repository);
   const grouped = service.groupByBucket(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
   assert.equal(grouped.get("gold")?.length, 1);
+});
+
+test("GDELT normalizer parses compact dates and stores provider metadata", () => {
+  const group = gdeltQueryGroup();
+  const service = new GdeltNormalizationService();
+  const parsed = gdeltNormalizationInternals.parseDate("20260601T123456Z");
+  const article = service.normalize({
+    url: "https://www.example.com/global-trade",
+    title: "Tariffs raise global supply chain risks",
+    seendate: "20260601T123456Z",
+    domain: "www.example.com",
+    language: "English",
+    sourcecountry: "United States",
+    tone: "-2.5",
+    themes: ["ECON_TRADE"],
+    persons: ["Jane Doe"],
+    organizations: ["World Trade Organization"]
+  }, group);
+
+  assert.equal(parsed, "2026-06-01T12:34:56.000Z");
+  assert.equal(article?.sourceProvider, "gdelt");
+  assert.equal(article?.sourceName, "www.example.com");
+  assert.equal(article?.publishedAt, "2026-06-01T12:34:56.000Z");
+  assert.equal(article?.providerMetadata.gdeltQueryGroupKey, "trade_supply_chain");
+  assert.deepEqual(article?.gdeltMetadata.gdeltThemes, ["ECON_TRADE"]);
+  assert.equal(article?.gdeltMetadata.tone, -2.5);
+});
+
+test("GDELT relevance filter drops local noise but keeps macro/world news", () => {
+  const group = gdeltQueryGroup();
+  const normalizer = new GdeltNormalizationService();
+  const service = new GdeltRelevanceService();
+  const macro = normalizer.normalize({
+    url: "https://example.com/fed",
+    title: "Central bank policy shift moves global currency markets",
+    seendate: "20260601T000000Z"
+  }, group);
+  const localNoise = normalizer.normalize({
+    url: "https://example.com/local",
+    title: "Local crime update after sports event traffic accident",
+    seendate: "20260601T000000Z"
+  }, group);
+
+  assert.equal(service.isRelevant(macro as GdeltProviderArticle), true);
+  assert.equal(service.isRelevant(localNoise as GdeltProviderArticle), false);
+});
+
+test("GDELT theme mapping assigns macro trade classifications without recommendations", () => {
+  const service = new GdeltThemeMappingService();
+  const mapping = service.map({
+    title: "New export controls raise semiconductor supply chain risks",
+    summary: null,
+    primaryTheme: "Trade / Supply Chain",
+    category: "trade_supply_chain"
+  });
+  assert.equal(mapping.primaryTheme, "Trade / Supply Chain");
+  assert.deepEqual(mapping.affectedMacroCategories, ["trade_supply_chain"]);
+  assert.ok(mapping.affectedAssetClasses.includes("macro"));
+  assert.equal(mapping.reasoningSummary.includes("buy"), false);
+  assert.equal(mapping.reasoningSummary.includes("sell"), false);
+});
+
+test("weekly reconciliation buckets non-equity trade supply-chain news as macro", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "trade",
+      title: "Export controls raise supply chain risks across Asia",
+      publishedAt: "2026-06-02T00:00:00.000Z",
+      tickers: []
+    })
+  ];
+  repository.classifications = [
+    classification({
+      newsItemId: "trade",
+      affectedAssetClasses: ["macro", "equities"],
+      affectedMacroCategories: ["trade_supply_chain"],
+      primaryTheme: "Trade / Supply Chain",
+      secondaryThemes: [],
+      themeConfidence: 70
+    })
+  ];
+  const service = new WeeklyNewsReconciliationService(repository);
+  const grouped = service.groupByBucket(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
+  assert.equal(grouped.get("macro")?.length, 1);
+  assert.equal(grouped.get("equities")?.length, 0);
+});
+
+test("theme intelligence includes Trade / Supply Chain in macro hierarchy", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "trade",
+      title: "Tariff shock raises supply chain risk",
+      publishedAt: "2026-06-02T00:00:00.000Z",
+      tickers: []
+    })
+  ];
+  repository.classifications = [
+    classification({
+      newsItemId: "trade",
+      primaryTheme: "Trade / Supply Chain",
+      secondaryThemes: [],
+      themeConfidence: 70
+    })
+  ];
+  const service = new ThemeIntelligenceService(repository);
+  const intelligence = await service.getThemeIntelligence("2026-06-01", "2026-06-07");
+  const trade = intelligence.topThemesThisWeek.find((item) => item.theme === "Trade / Supply Chain");
+  assert.deepEqual(trade?.categories, ["Macro"]);
+});
+
+test("GDELT ingestion stores normalized news, classifications, metadata, and logs", async () => {
+  const newsRepository = new UpsertingFakeNewsRepository();
+  const gdeltRepository = new FakeGdeltRepository();
+  const group = gdeltRepository.groups[0] as GdeltQueryGroup;
+  const article = new GdeltNormalizationService().normalize({
+    url: "https://example.com/trade-risk",
+    title: "Export controls raise semiconductor supply chain risks",
+    seendate: "20260601T120000Z",
+    domain: "example.com",
+    language: "English",
+    sourcecountry: "United States",
+    themes: ["ECON_TRADE"]
+  }, group);
+  const service = new GlobalNewsIngestionService(
+    newsRepository,
+    gdeltRepository,
+    new FakeGdeltProvider([article as GdeltProviderArticle]),
+    undefined,
+    undefined,
+    undefined,
+    { enabled: true, maxArticlesPerQuery: 8, maxArticlesPerDay: 10, recentWindowHours: 24, minRefreshMinutes: 30 }
+  );
+
+  const result = await service.ingestGlobalNews({ force: true });
+
+  assert.equal(result.articlesFetched, 1);
+  assert.equal(result.articlesInserted, 1);
+  assert.equal(newsRepository.items[0]?.sourceProvider, "gdelt");
+  assert.deepEqual(newsRepository.items[0]?.tickers, []);
+  assert.equal(newsRepository.classifications[0]?.primaryTheme, "Trade / Supply Chain");
+  assert.deepEqual(newsRepository.classifications[0]?.affectedMacroCategories, ["trade_supply_chain"]);
+  assert.equal(gdeltRepository.metadata.length, 1);
+  assert.equal(gdeltRepository.logs.some((log) => log.jobName === "gdelt-query-group-ingestion"), true);
+  assert.equal(newsRepository.logs.some((log) => log.jobName === "gdelt-news-ingestion"), true);
 });
 
 test("cron protection rejects missing or invalid secret", () => {

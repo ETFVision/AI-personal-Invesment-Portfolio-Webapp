@@ -15,6 +15,7 @@ export const canonicalNewsThemes: NewsCanonicalTheme[] = [
   "Energy",
   "AI",
   "Credit",
+  "Trade / Supply Chain",
   "Consumer",
   "Healthcare",
   "Financials",
@@ -168,6 +169,7 @@ export class NewsClassificationService {
     const isInflation = includesAny(text, ["inflation", "cpi", "pce", "prices"]);
     const isCurrency = includesAny(text, ["dollar", "usd", "currency", "fx"]);
     const isGeopolitical = !isCompanyOrEquity && includesAny(text, ["war", "geopolitical", "sanction", "tariff", "conflict"]);
+    const isTrade = includesAny(text, ["tariff", "tariffs", "trade war", "export control", "export controls", "supply chain", "semiconductor restrictions"]);
     const isEquityMarket = isCompanyOrEquity;
     const isMacroManufacturingIndicator = includesAny(text, macroManufacturingTerms) && !isCompanyOrEquity;
     const isIndustrialTheme = includesAny(text, industrialCompanyTerms) || includesAny(text, ["manufacturing"]) && isCompanyOrEquity && !isMacroManufacturingIndicator;
@@ -179,6 +181,7 @@ export class NewsClassificationService {
       isCurrency ? "Currency" : null,
       isGeopolitical ? "Geopolitical" : null,
       includesAny(text, ["oil", "energy", "crude", "natural gas", "xom", "cvx"]) ? "Energy" : null,
+      isTrade ? "Trade / Supply Chain" : null,
       /\b(ai|artificial intelligence|nvidia|nvda)\b/.test(text) ? "AI" : null,
       isBond || includesAny(text, creditTerms) ? "Credit" : null,
       includesAny(text, ["consumer", "retail", "shopping", "costco", "nike", "disney", "netflix"]) ? "Consumer" : null,
@@ -197,13 +200,14 @@ export class NewsClassificationService {
       isBond ? "bonds" : null,
       isGold ? "gold/commodities" : null,
       !isCrypto && !isBond && !isGold && isEquityMarket ? "equities" : null,
-      !isEquityMarket && (isRates || isInflation || isCurrency || isGeopolitical) ? "macro" : null
+      !isEquityMarket && (isRates || isInflation || isCurrency || isGeopolitical || isTrade) ? "macro" : null
     ].filter((entry): entry is string => Boolean(entry));
     const affectedMacroCategories = [
       isRates ? "rates" : null,
       isInflation ? "inflation" : null,
       isCurrency ? "currency" : null,
-      isGeopolitical ? "geopolitical" : null
+      isGeopolitical ? "geopolitical" : null,
+      isTrade ? "trade_supply_chain" : null
     ].filter((entry): entry is string => Boolean(entry));
     const affectedThemes = [
       /\b(ai|artificial intelligence|nvidia|nvda)\b/.test(text) ? "AI / Automation" : null,

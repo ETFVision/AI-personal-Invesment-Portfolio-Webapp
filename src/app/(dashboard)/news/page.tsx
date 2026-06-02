@@ -5,6 +5,7 @@ import {
   reclassifyLatestDeterministicNewsAction,
   reclassifyPendingNewsAction,
   runDailyNewsIngestionAction,
+  runGdeltNewsIngestionAction,
   runWeeklyNewsReconciliationAction
 } from "@/server/actions/newsActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +18,7 @@ type NewsPageProps = {
     q?: string;
     classification?: string;
     sentiment?: string;
+    source?: string;
     message?: string;
     error?: string;
   }>;
@@ -77,12 +79,18 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
     query: params?.q || undefined,
     classification: params?.classification || undefined,
     sentiment: params?.sentiment || undefined,
+    sourceProvider: params?.source || undefined,
     includeDuplicates: true,
     limit: 60
   });
 
   const classifiedCount = dashboard.latestNews.filter((item) => item.classification).length;
   const duplicateCount = dashboard.latestNews.filter((item) => item.isDuplicate).length;
+  const gdeltNews = dashboard.latestNews.filter((item) => item.sourceProvider === "gdelt");
+  const macroWorldNews = gdeltNews.filter((item) => {
+    const theme = item.classification?.primaryTheme;
+    return theme === "Geopolitical" || theme === "Rates" || theme === "Inflation" || theme === "Energy" || theme === "Currency" || theme === "Trade / Supply Chain" || theme === "Credit";
+  });
 
   return (
     <div className="space-y-6">
@@ -93,7 +101,10 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
         </div>
         <div className="flex flex-wrap gap-2">
           <form action={runDailyNewsIngestionAction}>
-            <SubmitButton pendingLabel="Fetching news...">Refresh news</SubmitButton>
+            <SubmitButton pendingLabel="Fetching FMP...">Refresh FMP</SubmitButton>
+          </form>
+          <form action={runGdeltNewsIngestionAction}>
+            <SubmitButton variant="outline" pendingLabel="Fetching GDELT...">Refresh GDELT</SubmitButton>
           </form>
           <form action={reclassifyPendingNewsAction}>
             <SubmitButton variant="outline" pendingLabel="Classifying...">Classify pending</SubmitButton>
@@ -143,12 +154,50 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
           <CardDescription>Use this admin page to inspect ingestion quality before Market Vision generation is automated.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-3 md:grid-cols-4">
+          <form className="grid gap-3 md:grid-cols-5">
             <Input name="q" placeholder="Search title" defaultValue={params?.q ?? ""} />
             <Input name="classification" placeholder="Classification" defaultValue={params?.classification ?? ""} />
             <Input name="sentiment" placeholder="Sentiment" defaultValue={params?.sentiment ?? ""} />
+            <select name="source" defaultValue={params?.source ?? ""} className="h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="">All sources</option>
+              <option value="financial_modeling_prep">FMP</option>
+              <option value="gdelt">GDELT</option>
+            </select>
             <Button type="submit" variant="outline">Apply</Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Macro / World News</CardTitle>
+          <CardDescription>GDELT-backed macro, geopolitical, energy, currency, trade, and credit stories for Market Vision input.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {macroWorldNews.length === 0 ? (
+            <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+              No GDELT macro/world-news articles are visible yet. Enable `ENABLE_GDELT_INGESTION`, apply migration 025, then run Refresh GDELT.
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {macroWorldNews.slice(0, 8).map((item) => (
+                <div key={item.id} className="rounded-md border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">{item.title}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {item.sourceName ?? "GDELT"} - {item.country ?? "Global"} - {formatDate(item.publishedAt)}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs">{item.classification?.primaryTheme ?? "Unmapped"}</span>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {item.classification?.affectedMacroCategories.join(", ") || "No macro category"} - Severity {item.classification?.severityScore ?? 0}/100
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -166,6 +215,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                 <tr>
                   <th className="py-2 pr-3">Article</th>
                   <th className="py-2 pr-3">Published</th>
+                  <th className="py-2 pr-3">Source</th>
                   <th className="py-2 pr-3">Linked</th>
                   <th className="py-2 pr-3">Theme</th>
                   <th className="py-2 pr-3">Classification</th>
@@ -181,6 +231,10 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                       <div className="text-xs text-muted-foreground">{item.sourceName ?? item.sourceProvider} {item.url ? "- linked source" : ""}</div>
                     </td>
                     <td className="py-3 pr-3">{formatDate(item.publishedAt)}</td>
+                    <td className="py-3 pr-3">
+                      <div>{item.sourceProvider === "gdelt" ? "GDELT" : "FMP"}</div>
+                      <div className="text-xs text-muted-foreground">{item.country ?? item.language ?? "-"}</div>
+                    </td>
                     <td className="py-3 pr-3">{item.tickers.length ? item.tickers.join(", ") : "Unlinked"}</td>
                     <td className="py-3 pr-3">
                       <div>{item.classification?.primaryTheme ?? "Unmapped"}</div>
