@@ -1839,3 +1839,67 @@ Known limitations:
 Production-readiness assessment:
 - Ready for controlled AI Market Vision draft generation after migration 031 is applied and `OPENAI_API_KEY` plus `MARKET_VISION_MODEL` are configured.
 - Recommended operational sequence: refresh news/FRED/GDELT, run weekly reconciliation, then generate AI Market Vision draft.
+
+## 2026-06-02 - AI Market Vision Generation QA Checkpoint
+
+Scope:
+- Reviewed the completed AI Market Vision generation layer for report generation, input quality, macro reasoning, bond reasoning, theme integration, geopolitical treatment, portfolio context, cost/performance, UI, architecture, and testing.
+- Explicitly did not build recommendations, scoring, telemetry, or Portfolio Assistant behavior.
+
+Scores:
+- Market Vision score: 86/100.
+- Macro reasoning score: 84/100.
+- Bond reasoning score: 82/100.
+- Theme integration score: 84/100.
+- Geopolitical reasoning score: 80/100.
+- Portfolio implication score: 78/100.
+
+Findings:
+- Report generation workflow works for manual draft creation, AI draft creation, draft persistence, report selection, latest report retrieval, publishing, archiving, and generation logs.
+- Duplicate generated weekly reports are prevented unless manual generation uses `force`.
+- Prompt version, model version, token usage, estimated cost, source snapshot, and generation duration are stored.
+- Weekly Reconciliation, Theme Intelligence metadata, FRED macro dashboard/regime data, macro theme signals, portfolio analytics, bond analytics, risk analytics, and benchmark comparison context are wired through services.
+- UI does not call OpenAI, FMP, FRED, GDELT, or Supabase directly for business logic; calls remain in server actions/services/repositories.
+- Generated output remains draft-only, which is appropriate for the current stage.
+
+Critical issues:
+- None found.
+
+Medium-priority issues fixed automatically:
+- Aligned Market Vision fallback model defaults with the intended `gpt-5.4-mini` model so logs/default behavior match the configured Market Vision layer.
+- Added generated-text normalization for smart punctuation and common mojibake sequences before generated reports are persisted.
+- Added provider-failure logging test coverage so failed OpenAI requests are recorded in `market_vision_generation_logs`.
+
+Low-priority improvements for later:
+- Add a compact dependency/provenance panel showing which input sets were present, missing, or stale for each generated report.
+- Add report-level repetition metrics or section-compression hints before final publication.
+- Add stricter source-citation/provenance display for top claims in each generated section.
+- Add portfolio-theme attribution, e.g. which holdings/sectors/currencies/risk exposures were affected by each Market Vision theme.
+- Add optional scheduled portfolio-aware generation once a safe owner/default portfolio selection strategy is designed for cron jobs.
+- Add a UI badge for stale weekly reconciliation, stale FRED data, or missing portfolio context before generation.
+
+Repetition report:
+- AI/technology, inflation, rates, and growth recur across many sections by design.
+- Current repetition is acceptable for a CIO-style draft, but future compression should make each section contribute a more distinct lens:
+  - Executive Summary: top regime synthesis.
+  - Global Summary: cross-asset facts.
+  - Outlook sections: asset-specific implications.
+  - Portfolio implications: portfolio-context-only relevance.
+
+Cost assessment:
+- Token usage and generation duration are stored.
+- Cost estimate is stored only when `MARKET_VISION_INPUT_COST_PER_1M` and `MARKET_VISION_OUTPUT_COST_PER_1M` are configured.
+- Expected usage is affordable for one weekly report; cost remains low because generation uses one structured weekly reconciliation plus compact portfolio/macro context rather than raw article dumps.
+- Keep generated reports draft-only until costs and output quality are stable.
+
+Production-readiness assessment:
+- Ready for controlled Market Vision draft generation with human review.
+- Not ready for automated publication or direct recommendation-engine use.
+- Recommendation: NOT READY FOR RECOMMENDATION ENGINE.
+- Next readiness step: add Market Vision dependency/provenance and portfolio-theme attribution before using this layer as recommendation input.
+
+Validation performed:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed: 111 tests.
+- `npm.cmd run lint` passed.
+- `npm.cmd run build` passed.

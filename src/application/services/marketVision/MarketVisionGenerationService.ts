@@ -14,7 +14,7 @@ type OptionalPortfolioServices = {
 };
 
 function toString(value: unknown, fallback = "") {
-  return typeof value === "string" ? value.trim() : fallback;
+  return typeof value === "string" ? normalizeGeneratedText(value).trim() : fallback;
 }
 
 function toStringArray(value: unknown) {
@@ -29,6 +29,16 @@ function toScore(value: unknown) {
 
 function roundedPercent(value: number) {
   return Math.round(value * 1000) / 10;
+}
+
+export function normalizeGeneratedText(value: string) {
+  return value
+    .replace(/\u00e2\u20ac\u2122|\u00e2\u20ac\u2126|\u2018|\u2019/g, "'")
+    .replace(/\u00e2\u20ac\u0153|\u00e2\u20ac\ufffd|\u00e2\u20ac\u009c|\u00e2\u20ac\u009d|\u201c|\u201d/g, "\"")
+    .replace(/\u00e2\u20ac"|\u00e2\u20ac\u201d|\u00e2\u20ac\u201c|\u00e2\u20ac\u0093|\u00e2\u20ac\u0094|\u2013|\u2014/g, "-")
+    .replace(/\u00e2\u20ac\u00a6|\u2026/g, "...")
+    .replace(/\u00c2\u00b7|\u00b7/g, "-")
+    .replace(/\u00a0/g, " ");
 }
 
 function toPortfolioImplications(value: unknown) {
@@ -288,7 +298,7 @@ export class MarketVisionGenerationService {
     private readonly macroRepository: MacroIndicatorRepository,
     private readonly aiProvider: AiMarketVisionProvider,
     private readonly portfolioServices: OptionalPortfolioServices = {},
-    private readonly config = { model: "gpt-5-mini" }
+    private readonly config = { model: "gpt-5.4-mini" }
   ) {}
 
   async generateWeeklyReport(input: { portfolioId?: string | null; force?: boolean; status?: "draft" | "published" } = {}) {

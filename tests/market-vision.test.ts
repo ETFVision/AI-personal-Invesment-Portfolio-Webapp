@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MarketVisionService, emptyPortfolioImplications } from "../src/application/services/marketVision/MarketVisionService";
-import { MarketVisionGenerationService, validateMarketVisionGenerationOutput } from "../src/application/services/marketVision/MarketVisionGenerationService";
+import { MarketVisionGenerationService, normalizeGeneratedText, validateMarketVisionGenerationOutput } from "../src/application/services/marketVision/MarketVisionGenerationService";
 import { MacroIndicatorService } from "../src/application/services/marketVision/MacroIndicatorService";
 import { MarketThemeService } from "../src/application/services/marketVision/MarketThemeService";
 import type {
@@ -201,6 +201,12 @@ class FakeAiMarketVisionProvider implements AiMarketVisionProvider {
   }
 }
 
+class FailingAiMarketVisionProvider implements AiMarketVisionProvider {
+  async generateWeeklyBriefing(): Promise<AiMarketVisionOutput> {
+    throw new Error("OpenAI Market Vision request failed: invalid model.");
+  }
+}
+
 function weeklyReconciliation(): WeeklyNewsReconciliation {
   return {
     id: "weekly-1",
@@ -396,6 +402,11 @@ test("AI Market Vision generation creates a generated draft with usage metadata"
   assert.equal(ai.calls.length, 1);
 });
 
+test("AI Market Vision validation normalizes smart and mojibake punctuation", () => {
+  const text = normalizeGeneratedText("The week\u00e2\u20ac\u2122s report \u00e2\u20ac\u201d draft \u00c2\u00b7 section");
+  assert.equal(text, "The week's report - draft - section");
+});
+
 test("AI Market Vision generation skips duplicate weekly report unless forced", async () => {
   const repository = new FakeMarketVisionRepository();
   const ai = new FakeAiMarketVisionProvider();
@@ -459,6 +470,20 @@ test("AI Market Vision generation requires weekly reconciliation", async () => {
   );
 
   await assert.rejects(() => service.generateWeeklyReport(), /No weekly news reconciliation/);
+});
+
+test("AI Market Vision generation logs provider failures", async () => {
+  const repository = new FakeMarketVisionRepository();
+  const service = new MarketVisionGenerationService(
+    repository,
+    new FakeNewsRepository(weeklyReconciliation()) as unknown as NewsRepository,
+    new FakeMacroRepository() as unknown as MacroIndicatorRepository,
+    new FailingAiMarketVisionProvider()
+  );
+
+  await assert.rejects(() => service.generateWeeklyReport(), /invalid model/);
+  assert.equal(repository.logs[0]?.status, "failed");
+  assert.match(repository.logs[0]?.errorMessage ?? "", /invalid model/);
 });
 
 test("AI Market Vision validation rejects recommendation language", () => {
