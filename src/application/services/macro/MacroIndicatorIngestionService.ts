@@ -23,6 +23,7 @@ export class MacroIndicatorIngestionService {
     let indicatorsFailed = 0;
     let observationsInserted = 0;
     let observationsUpdated = 0;
+    const failedItems: Array<{ indicatorCode: string; error: string }> = [];
 
     try {
       const indicators = await this.repository.listIndicators({ isActive: true, sourceProvider: this.provider.name });
@@ -51,8 +52,12 @@ export class MacroIndicatorIngestionService {
           const trendInput = this.trendService.calculateTrend(indicator, stored);
           if (trendInput) computedTrends.push(await this.repository.upsertTrend(trendInput));
           indicatorsSuccessful += 1;
-        } catch {
+        } catch (error) {
           indicatorsFailed += 1;
+          failedItems.push({
+            indicatorCode: indicator.indicatorCode,
+            error: error instanceof Error ? error.message : "Unknown FRED indicator ingestion error."
+          });
         }
       }
 
@@ -60,7 +65,11 @@ export class MacroIndicatorIngestionService {
         await this.repository.upsertRegimeSnapshot(this.trendService.classifyRegime(indicators, computedTrends));
       }
 
-      const status = indicatorsFailed > 0 ? "partial_success" as const : "success" as const;
+      const status = indicatorsFailed > 0 && indicatorsSuccessful === 0
+        ? "failed" as const
+        : indicatorsFailed > 0
+          ? "partial_success" as const
+          : "success" as const;
       await this.repository.insertIngestionLog({
         jobName: input.backfill ? "fred-macro-backfill" : "fred-macro-ingestion",
         sourceProvider: this.provider.name,
@@ -72,8 +81,8 @@ export class MacroIndicatorIngestionService {
         indicatorsFailed,
         observationsInserted,
         observationsUpdated,
-        errorMessage: null,
-        metadata: { backfill: Boolean(input.backfill), backfillYears: this.config.backfillYears }
+        errorMessage: status === "failed" ? `All ${indicatorsFailed} FRED indicators failed.` : null,
+        metadata: { backfill: Boolean(input.backfill), backfillYears: this.config.backfillYears, failedItems: failedItems.slice(0, 20) }
       });
       return { status, indicatorsRequested, indicatorsSuccessful, indicatorsFailed, observationsInserted, observationsUpdated };
     } catch (error) {
@@ -89,7 +98,7 @@ export class MacroIndicatorIngestionService {
         observationsInserted,
         observationsUpdated,
         errorMessage: error instanceof Error ? error.message : "Unknown macro ingestion error.",
-        metadata: { backfill: Boolean(input.backfill), backfillYears: this.config.backfillYears }
+        metadata: { backfill: Boolean(input.backfill), backfillYears: this.config.backfillYears, failedItems: failedItems.slice(0, 20) }
       });
       throw error;
     }

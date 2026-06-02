@@ -179,6 +179,18 @@ test("macro ingestion logs partial failure", async () => {
   assert.equal(repo.logs[0]?.status, "partial_success");
 });
 
+test("macro ingestion logs failed when all indicators fail", async () => {
+  const repo = new FakeMacroRepository();
+  repo.indicators = [indicator({ id: "dgs10", indicatorCode: "DGS10" })];
+  const provider = new FakeMacroProvider({}, new Set(["DGS10"]));
+  const service = new MacroIndicatorIngestionService(repo, provider);
+  const result = await service.ingest();
+  assert.equal(result.status, "failed");
+  assert.equal(repo.logs[0]?.status, "failed");
+  assert.match(repo.logs[0]?.errorMessage ?? "", /All 1 FRED indicators failed/);
+  assert.deepEqual((repo.logs[0]?.metadata.failedItems as Array<{ indicatorCode: string }>)[0]?.indicatorCode, "DGS10");
+});
+
 test("macro utility functions classify direction and percent change", () => {
   assert.equal(macroTrendInternals.direction(1), "rising");
   assert.equal(macroTrendInternals.direction(-1), "falling");
