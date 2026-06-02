@@ -185,6 +185,14 @@ function RiskContributorTable({ report }: { report: RiskAnalyticsReport }) {
   );
 }
 
+function ContextList({ items }: { items: string[] }) {
+  return (
+    <div className="grid gap-2 text-sm md:grid-cols-2">
+      {items.map((item) => <p key={item} className="rounded-md border p-3 text-muted-foreground">{item}</p>)}
+    </div>
+  );
+}
+
 export default async function RiskPage() {
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();
@@ -203,6 +211,7 @@ export default async function RiskPage() {
   const dashboard = await container.portfolioService.getDashboard(portfolio.id);
   const bondReport = await container.bondService.getPortfolioBondAnalytics(dashboard);
   const macroDashboard = await container.macroDashboardService.getDashboard();
+  const macroContext = container.macroContextService.buildContext(macroDashboard);
   const cachedRiskReport = await container.riskAnalyticsRepository.getLatestRiskReport(portfolio.id);
   const cachedReport = cachedRiskReport?.report as Partial<RiskAnalyticsReport> | null | undefined;
   const canUseCachedReport = cachedReport?.taxonomyVersion === RISK_TAXONOMY_VERSION;
@@ -353,18 +362,42 @@ export default async function RiskPage() {
           <CardTitle>Macro risk context</CardTitle>
           <CardDescription>FRED regimes provide context for rate, inflation, recession/yield-curve, and liquidity sensitivity. Portfolio risk math is unchanged.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ["Rate sensitivity", macroDashboard.latestRegime?.ratesRegime],
-            ["Inflation sensitivity", macroDashboard.latestRegime?.inflationRegime],
-            ["Yield curve / recession", macroDashboard.latestRegime?.yieldCurveRegime],
-            ["Liquidity", macroDashboard.latestRegime?.liquidityRegime]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-md border p-3">
-              <p className="text-xs uppercase text-muted-foreground">{label}</p>
-              <p className="mt-1 text-sm font-medium capitalize">{(value ?? "insufficient_data").replaceAll("_", " ")}</p>
-            </div>
-          ))}
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {macroContext.regimeCards.filter((card) => ["Rates", "Inflation", "Yield curve", "Liquidity"].includes(card.label)).map((card) => (
+              <div key={card.label} className="rounded-md border p-3">
+                <p className="text-xs uppercase text-muted-foreground">{card.label}</p>
+                <p className="mt-1 text-sm font-medium">{card.value}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{card.description}</p>
+              </div>
+            ))}
+          </div>
+          <ContextList items={macroContext.riskContext} />
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead className="bg-muted/60 text-left">
+                <tr>
+                  <th className="p-3 font-medium">Indicator</th>
+                  <th className="p-3 font-medium">Latest</th>
+                  <th className="p-3 font-medium">1Y change</th>
+                  <th className="p-3 text-right font-medium">Severity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {macroContext.keyIndicators.slice().sort((a, b) => b.severityScore - a.severityScore).slice(0, 6).map((indicator) => (
+                  <tr key={indicator.code} className="border-t">
+                    <td className="p-3">
+                      <p className="font-medium">{indicator.code}</p>
+                      <p className="text-xs text-muted-foreground">{indicator.name}</p>
+                    </td>
+                    <td className="p-3">{indicator.latestValue}</td>
+                    <td className="p-3">{indicator.oneYearChange}</td>
+                    <td className="p-3 text-right">{indicator.severityScore}/100</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
 

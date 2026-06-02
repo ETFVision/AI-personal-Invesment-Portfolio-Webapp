@@ -15,8 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
-import type { MacroIndicator } from "@/domain/marketVision/types";
-import type { MacroIndicatorView } from "@/application/services/marketVision/MacroIndicatorService";
+import type { MacroContextCard, MacroContextIndicator } from "@/application/services/macro/MacroContextService";
 import type { MarketThemeEvent, MarketVisionReport } from "@/domain/marketVision/types";
 
 type MarketVisionPageProps = {
@@ -68,42 +67,46 @@ function ReportSelector({ reports, selectedReport }: { reports: MarketVisionRepo
   );
 }
 
-function MacroIndicatorCards({ indicators }: { indicators: MacroIndicatorView[] }) {
+function MacroIndicatorCards({ indicators }: { indicators: MacroContextIndicator[] }) {
   if (indicators.length === 0) {
-    return <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Macro indicators will appear after migration 018 is applied.</p>;
+    return <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">FRED indicator trends will appear after the Macro dashboard is backfilled.</p>;
   }
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {indicators.map((indicator) => (
-        <div key={indicator.id} className="rounded-md border p-3">
-          <p className="text-xs uppercase text-muted-foreground">{indicator.category.replace("_", " ")}</p>
-          <p className="mt-1 text-sm font-medium">{indicator.indicatorName}</p>
-          <p className="mt-2 text-2xl font-semibold">{indicator.displayValue}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{indicator.displayChange} from previous</p>
+        <div key={indicator.code} className="rounded-md border p-3">
+          <p className="text-xs uppercase text-muted-foreground">{indicator.category}</p>
+          <p className="mt-1 text-sm font-medium">{indicator.code}</p>
+          <p className="text-xs text-muted-foreground">{indicator.name}</p>
+          <p className="mt-2 text-2xl font-semibold">{indicator.latestValue}</p>
+          <p className="mt-1 text-xs text-muted-foreground">1Y: {indicator.oneYearChange} · {indicator.direction} · {indicator.asOfDate}</p>
         </div>
       ))}
     </div>
   );
 }
 
-function MacroRegimeCards({ regime }: { regime: { ratesRegime: string; inflationRegime: string; growthRegime: string; yieldCurveRegime: string } | null }) {
-  if (!regime) {
+function MacroRegimeCards({ cards }: { cards: MacroContextCard[] }) {
+  if (cards.length === 0) {
     return <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">FRED macro regimes will appear after the Macro dashboard is refreshed.</p>;
   }
-  const rows = [
-    ["Rates", regime.ratesRegime],
-    ["Inflation", regime.inflationRegime],
-    ["Growth", regime.growthRegime],
-    ["Yield curve", regime.yieldCurveRegime]
-  ];
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {rows.map(([label, value]) => (
-        <div key={label} className="rounded-md border p-3">
-          <p className="text-xs uppercase text-muted-foreground">{label}</p>
-          <p className="mt-1 text-sm font-medium capitalize">{value.replaceAll("_", " ")}</p>
+      {cards.map((card) => (
+        <div key={card.label} className="rounded-md border p-3">
+          <p className="text-xs uppercase text-muted-foreground">{card.label}</p>
+          <p className="mt-1 text-sm font-medium">{card.value}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{card.description}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+function MacroContextList({ items }: { items: string[] }) {
+  return (
+    <div className="grid gap-2 text-sm md:grid-cols-2">
+      {items.map((item) => <p key={item} className="rounded-md border p-3 text-muted-foreground">{item}</p>)}
     </div>
   );
 }
@@ -284,7 +287,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
   const dashboard = await container.marketVisionService.getDashboard(params?.reportId);
   const latestWeeklyNews = await container.newsRepository.getLatestWeeklyReconciliation();
   const macroDashboard = await container.macroDashboardService.getDashboard();
-  const indicatorViews = container.macroIndicatorService.buildIndicatorViews(dashboard.macroIndicators as MacroIndicator[]);
+  const macroContext = container.macroContextService.buildContext(macroDashboard);
   const report = dashboard.selectedReport;
 
   return (
@@ -386,12 +389,13 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
 
           <Card>
             <CardHeader>
-              <CardTitle>Macro indicators</CardTitle>
-              <CardDescription>FRED-ready macro slots and current deterministic regime context.</CardDescription>
+              <CardTitle>FRED macro context</CardTitle>
+              <CardDescription>Stored macro trends prepared for Market Vision drafting. No investment recommendations are generated.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <MacroRegimeCards regime={macroDashboard.latestRegime} />
-              <MacroIndicatorCards indicators={indicatorViews} />
+              <MacroRegimeCards cards={macroContext.regimeCards} />
+              <MacroContextList items={macroContext.marketVisionContext} />
+              <MacroIndicatorCards indicators={macroContext.keyIndicators} />
             </CardContent>
           </Card>
 

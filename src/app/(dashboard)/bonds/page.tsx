@@ -61,6 +61,14 @@ function SummaryCard({ title, value, description }: { title: string; value: stri
   );
 }
 
+function ContextList({ items }: { items: string[] }) {
+  return (
+    <div className="grid gap-2 text-sm md:grid-cols-2">
+      {items.map((item) => <p key={item} className="rounded-md border p-3 text-muted-foreground">{item}</p>)}
+    </div>
+  );
+}
+
 function BondHoldingsTable({ report }: { report: BondAnalyticsReport }) {
   return (
     <div className="overflow-x-auto rounded-md border">
@@ -240,6 +248,7 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
   const dashboard = await container.portfolioService.getDashboard(portfolio.id);
   const report = await container.bondService.getPortfolioBondAnalytics(dashboard);
   const macroDashboard = await container.macroDashboardService.getDashboard();
+  const macroContext = container.macroContextService.buildContext(macroDashboard);
 
   if (report.bondHoldings.length === 0) {
     return (
@@ -288,20 +297,44 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
       <Card>
         <CardHeader>
           <CardTitle>Bond-relevant macro context</CardTitle>
-          <CardDescription>FRED regime inputs for rate, inflation, and yield-curve context. No bond recommendations are generated.</CardDescription>
+          <CardDescription>FRED regime inputs for rate, inflation, yield-curve, and liquidity context. No bond recommendations are generated.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ["Rates", macroDashboard.latestRegime?.ratesRegime],
-            ["Inflation", macroDashboard.latestRegime?.inflationRegime],
-            ["Yield curve", macroDashboard.latestRegime?.yieldCurveRegime],
-            ["Liquidity", macroDashboard.latestRegime?.liquidityRegime]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-md border p-3">
-              <p className="text-xs uppercase text-muted-foreground">{label}</p>
-              <p className="mt-1 text-sm font-medium capitalize">{(value ?? "insufficient_data").replaceAll("_", " ")}</p>
-            </div>
-          ))}
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {macroContext.regimeCards.filter((card) => ["Rates", "Inflation", "Yield curve", "Liquidity"].includes(card.label)).map((card) => (
+              <div key={card.label} className="rounded-md border p-3">
+                <p className="text-xs uppercase text-muted-foreground">{card.label}</p>
+                <p className="mt-1 text-sm font-medium">{card.value}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{card.description}</p>
+              </div>
+            ))}
+          </div>
+          <ContextList items={macroContext.bondContext} />
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead className="bg-muted/60 text-left">
+                <tr>
+                  <th className="p-3 font-medium">Indicator</th>
+                  <th className="p-3 font-medium">Latest</th>
+                  <th className="p-3 font-medium">1Y change</th>
+                  <th className="p-3 font-medium">Direction</th>
+                </tr>
+              </thead>
+              <tbody>
+                {macroContext.keyIndicators.filter((indicator) => ["FEDFUNDS", "DGS10", "T10Y2Y", "CPIAUCSL", "PCEPILFE", "NFCI"].includes(indicator.code)).map((indicator) => (
+                  <tr key={indicator.code} className="border-t">
+                    <td className="p-3">
+                      <p className="font-medium">{indicator.code}</p>
+                      <p className="text-xs text-muted-foreground">{indicator.name}</p>
+                    </td>
+                    <td className="p-3">{indicator.latestValue}</td>
+                    <td className="p-3">{indicator.oneYearChange}</td>
+                    <td className="p-3">{indicator.direction}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
 

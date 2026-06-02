@@ -19,6 +19,7 @@ import { NewsIngestionService } from "@/application/services/news/NewsIngestionS
 import { NewsInstrumentLinkingService } from "@/application/services/news/NewsInstrumentLinkingService";
 import { NewsProviderService } from "@/application/services/news/NewsProviderService";
 import { MacroDashboardService } from "@/application/services/macro/MacroDashboardService";
+import { MacroContextService } from "@/application/services/macro/MacroContextService";
 import { MacroIndicatorIngestionService } from "@/application/services/macro/MacroIndicatorIngestionService";
 import { MacroTrendService } from "@/application/services/macro/MacroTrendService";
 import { ThemeIntelligenceService } from "@/application/services/news/ThemeIntelligenceService";
@@ -77,6 +78,7 @@ export function createContainer() {
   const metadataRefreshService = new MetadataRefreshService(universeRepository, assetMetadataProvider);
   const marketThemeService = new MarketThemeService();
   const macroIndicatorService = new MacroIndicatorService();
+  const macroContextService = new MacroContextService();
   const macroTrendService = new MacroTrendService();
   const macroIndicatorIngestionService = new MacroIndicatorIngestionService(macroIndicatorRepository, macroDataProvider, macroTrendService, {
     backfillYears: env.FRED_BACKFILL_YEARS
@@ -138,6 +140,7 @@ export function createContainer() {
     metadataRefreshService,
     marketVisionService,
     macroIndicatorService,
+    macroContextService,
     macroIndicatorRepository,
     macroDataProvider,
     macroTrendService,

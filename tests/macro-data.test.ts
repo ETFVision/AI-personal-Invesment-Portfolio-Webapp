@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fredProviderInternals } from "../src/infrastructure/providers/macro/FredMacroDataProvider";
+import { MacroContextService } from "../src/application/services/macro/MacroContextService";
 import { MacroTrendService, macroTrendInternals } from "../src/application/services/macro/MacroTrendService";
 import { MacroIndicatorIngestionService } from "../src/application/services/macro/MacroIndicatorIngestionService";
 import { isCronSecretValid } from "../src/application/services/news/cronSecret";
@@ -33,6 +34,29 @@ function observation(indicatorId: string, observationDate: string, value: number
     value,
     sourceProvider: "fred",
     providerMetadata: {},
+    createdAt: "",
+    updatedAt: ""
+  };
+}
+
+function trend(overrides: Partial<MacroTrend> = {}): MacroTrend {
+  return {
+    id: overrides.id ?? "trend-1",
+    indicatorId: overrides.indicatorId ?? "ind-1",
+    asOfDate: overrides.asOfDate ?? "2026-06-01",
+    latestValue: overrides.latestValue ?? 4.5,
+    previousValue: overrides.previousValue ?? 4.4,
+    changeValue: overrides.changeValue ?? 0.1,
+    changePercent: overrides.changePercent ?? 0.02,
+    oneMonthChange: overrides.oneMonthChange ?? 0.2,
+    threeMonthChange: overrides.threeMonthChange ?? 0.3,
+    sixMonthChange: overrides.sixMonthChange ?? 0.4,
+    oneYearChange: overrides.oneYearChange ?? 0.5,
+    direction: overrides.direction ?? "rising",
+    acceleration: overrides.acceleration ?? "accelerating",
+    persistenceScore: overrides.persistenceScore ?? 80,
+    severityScore: overrides.severityScore ?? 45,
+    confidenceScore: overrides.confidenceScore ?? 100,
     createdAt: "",
     updatedAt: ""
   };
@@ -196,6 +220,45 @@ test("macro utility functions classify direction and percent change", () => {
   assert.equal(macroTrendInternals.direction(-1), "falling");
   assert.equal(macroTrendInternals.direction(null), "insufficient_data");
   assert.ok(Math.abs((macroTrendInternals.percentChange(110, 100) ?? 0) - 0.1) < 0.000001);
+});
+
+test("macro context service creates reusable Market Vision, bond, and risk context", () => {
+  const service = new MacroContextService();
+  const indicators = [
+    indicator({ id: "fed", indicatorCode: "FEDFUNDS", category: "interest_rates" }),
+    indicator({ id: "curve", indicatorCode: "T10Y2Y", category: "yields" }),
+    indicator({ id: "cpi", indicatorCode: "CPIAUCSL", category: "inflation", unit: "index" }),
+    indicator({ id: "nfci", indicatorCode: "NFCI", category: "liquidity", unit: "index" })
+  ];
+  const context = service.buildContext({
+    indicators: indicators.map((item) => ({
+      ...item,
+      latestObservation: observation(item.id, "2026-06-01", 4.5),
+      latestTrend: trend({ indicatorId: item.id, latestValue: item.indicatorCode === "T10Y2Y" ? -0.2 : 4.5 }),
+      observations: [observation(item.id, "2026-06-01", 4.5)]
+    })),
+    latestRegime: {
+      id: "regime",
+      snapshotDate: "2026-06-01",
+      ratesRegime: "restrictive",
+      inflationRegime: "high_and_sticky",
+      growthRegime: "mixed",
+      employmentRegime: "stable",
+      yieldCurveRegime: "inverted",
+      liquidityRegime: "tightening",
+      dollarRegime: "strengthening",
+      commoditiesRegime: "stable",
+      overallMacroSummary: "Rates: restrictive",
+      createdAt: "",
+      updatedAt: ""
+    },
+    ingestionLogs: []
+  });
+  assert.equal(context.regimeCards.find((card) => card.label === "Rates")?.value, "Restrictive");
+  assert.ok(context.marketVisionContext.some((item) => item.includes("Rates backdrop")));
+  assert.ok(context.bondContext.some((item) => item.includes("Duration sensitivity")));
+  assert.ok(context.riskContext.some((item) => item.toLowerCase().includes("portfolio volatility calculations")));
+  assert.equal(context.keyIndicators.find((item) => item.code === "FEDFUNDS")?.latestValue, "4.5%");
 });
 
 test("FRED cron protection uses the shared CRON_SECRET validator", () => {
