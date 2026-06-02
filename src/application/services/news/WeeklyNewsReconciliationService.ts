@@ -25,6 +25,7 @@ const financialGoldTerms = ["gold price", "spot gold", "bullion", "precious meta
 const fundStructureTerms = ["etf", "etfs", "mutual fund", "mutual funds", "expense ratio", "fund fees", "cheaper than mutual funds"];
 const creditRiskTerms = ["credit spread", "credit spreads", "corporate credit", "high yield", "investment grade", "default", "defaults", "loan", "loans", "debt market", "bond market", "treasury yield", "bond yield"];
 const hardwareTechnologyTerms = ["dell", "apple", "hardware", "pc market", "computer", "laptop", "device"];
+const macroManufacturingTerms = ["ism manufacturing", "manufacturing pmi", "pmi"];
 
 function textIncludesAny(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term));
@@ -183,6 +184,7 @@ export class WeeklyNewsReconciliationService {
     if (item.classification.primaryTheme) themes.add(item.classification.primaryTheme);
     const isFundStructureWithoutCredit = textIncludesAny(text, fundStructureTerms) && !textIncludesAny(text, creditRiskTerms);
     if (isFundStructureWithoutCredit) themes.delete("Credit");
+    if (textIncludesAny(text, macroManufacturingTerms)) themes.delete("Industrials");
     if (textIncludesAny(text, hardwareTechnologyTerms)) {
       themes.delete("Consumer");
       themes.add("Technology");

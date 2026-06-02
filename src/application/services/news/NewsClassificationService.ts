@@ -30,6 +30,8 @@ const goldSymbols = new Set(["GLD", "IAU"]);
 const companyOrEquityTerms = ["stock", "stocks", "equity", "equities", "s&p 500", "nasdaq", "dow", "spy", "qqq", "earnings", "shares", "forecast", "forecasts"];
 const creditTerms = ["credit spread", "credit spreads", "corporate credit", "high yield", "investment grade", "default", "defaults", "loan", "loans", "debt load", "debt market", "bond market"];
 const technologyTerms = ["technology", "software", "cloud", "semiconductor", "chip", "chips", "intel", "amd", "broadcom", "dell", "apple", "pc market", "hardware"];
+const industrialCompanyTerms = ["industrial", "industrials", "infrastructure", "factory", "pentagon", "defense", "aerospace", "boeing", "caterpillar", "ge aerospace"];
+const macroManufacturingTerms = ["ism manufacturing", "manufacturing pmi", "pmi"];
 
 function includesAny(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term));
@@ -167,6 +169,8 @@ export class NewsClassificationService {
     const isCurrency = includesAny(text, ["dollar", "usd", "currency", "fx"]);
     const isGeopolitical = !isCompanyOrEquity && includesAny(text, ["war", "geopolitical", "sanction", "tariff", "conflict"]);
     const isEquityMarket = isCompanyOrEquity;
+    const isMacroManufacturingIndicator = includesAny(text, macroManufacturingTerms) && !isCompanyOrEquity;
+    const isIndustrialTheme = includesAny(text, industrialCompanyTerms) || includesAny(text, ["manufacturing"]) && isCompanyOrEquity && !isMacroManufacturingIndicator;
     const themeSignals: NewsCanonicalTheme[] = [
       isRates ? "Rates" : null,
       isInflation ? "Inflation" : null,
@@ -181,7 +185,7 @@ export class NewsClassificationService {
       includesAny(text, ["healthcare", "health care", "pharma", "biotech", "drug", "fda", "lilly", "unitedhealth"]) ? "Healthcare" : null,
       includesAny(text, ["bank", "banks", "financial", "financials", "jpmorgan", "goldman", "fintech"]) ? "Financials" : null,
       includesAny(text, technologyTerms) ? "Technology" : null,
-      includesAny(text, ["industrial", "industrials", "infrastructure", "manufacturing", "factory", "pentagon", "defense", "aerospace"]) ? "Industrials" : null,
+      isIndustrialTheme ? "Industrials" : null,
       includesAny(text, ["quality", "strong balance sheet", "cash flow", "profitability", "moat"]) ? "Quality" : null,
       includesAny(text, ["dividend", "yield income", "payout"]) ? "Dividend" : null,
       includesAny(text, ["defensive", "staples", "utilities", "recession proof", "safe haven"]) ? "Defensive" : null

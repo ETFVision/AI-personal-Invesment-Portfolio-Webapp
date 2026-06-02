@@ -284,6 +284,47 @@ test("deterministic classifier maps hardware product articles to Technology", ()
   assert.equal(output.primaryTheme, "Technology");
 });
 
+test("deterministic classifier does not map macro PMI gold headlines to Industrials", () => {
+  const service = new NewsClassificationService(new FakeNewsRepository());
+  const output = service.deterministicFallback(newsItem({
+    title: "Spot gold trades near $4,460/oz after ISM Manufacturing PMI rises to 54",
+    summary: "",
+    contentSnippet: "",
+    tickers: []
+  }));
+  assert.equal(output.primaryTheme, "Inflation");
+  assert.equal(output.secondaryThemes.includes("Industrials"), false);
+  assert.deepEqual(output.affectedAssetClasses, ["gold/commodities"]);
+});
+
+test("theme intelligence removes stale Industrials from macro manufacturing indicator headlines", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "spot-gold-pmi",
+      title: "Spot gold trades near $4,460/oz after ISM Manufacturing PMI rises to 54",
+      summary: "",
+      contentSnippet: "",
+      publishedAt: "2026-06-02T00:00:00.000Z",
+      tickers: []
+    })
+  ];
+  repository.classifications = [
+    classification({
+      newsItemId: "spot-gold-pmi",
+      classificationModel: "deterministic_fallback",
+      affectedAssetClasses: ["gold/commodities"],
+      primaryTheme: "Inflation",
+      secondaryThemes: ["Industrials"],
+      themeConfidence: 65
+    })
+  ];
+  const service = new ThemeIntelligenceService(repository);
+  const intelligence = await service.getThemeIntelligence("2026-06-01", "2026-06-07");
+  assert.equal(intelligence.topThemesThisWeek.some((item) => item.theme === "Industrials"), false);
+  assert.equal(intelligence.topThemesThisWeek.find((item) => item.theme === "Inflation")?.count, 1);
+});
+
 test("deterministic classifier avoids false positives for gold rush and stock forecasts", () => {
   const service = new NewsClassificationService(new FakeNewsRepository());
   const goldRush = service.deterministicFallback(newsItem({
