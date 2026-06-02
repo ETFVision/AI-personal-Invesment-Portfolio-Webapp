@@ -4,11 +4,14 @@ import { NewsDeduplicationService } from "../src/application/services/news/NewsD
 import { WeeklyNewsReconciliationJob } from "../src/application/jobs/WeeklyNewsReconciliationJob";
 import { NewsInstrumentLinkingService } from "../src/application/services/news/NewsInstrumentLinkingService";
 import { NewsClassificationService, validateNewsClassificationOutput } from "../src/application/services/news/NewsClassificationService";
+import { NewsIngestionService } from "../src/application/services/news/NewsIngestionService";
 import { ThemeIntelligenceService } from "../src/application/services/news/ThemeIntelligenceService";
 import { WeeklyNewsReconciliationService } from "../src/application/services/news/WeeklyNewsReconciliationService";
 import { isCronSecretValid } from "../src/application/services/news/cronSecret";
-import type { NewsClassification, NewsIngestionLog, NewsItem, WeeklyNewsReconciliation } from "../src/domain/news/types";
+import type { NewsClassification, NewsIngestionLog, NewsItem, NormalizedNewsArticle, WeeklyNewsReconciliation } from "../src/domain/news/types";
+import type { NewsProvider } from "../src/application/ports/providers/NewsProvider";
 import type { NewsRepository, UpsertNewsClassificationInput, UpsertNewsItemInput, UpsertWeeklyNewsReconciliationInput } from "../src/application/ports/repositories/NewsRepository";
+import type { UniverseRepository } from "../src/application/ports/repositories/UniverseRepository";
 import type { Instrument } from "../src/domain/universe/types";
 
 function newsItem(overrides: Partial<NewsItem> = {}): NewsItem {
@@ -139,8 +142,42 @@ class FakeNewsRepository implements NewsRepository {
   }
   async listWeeklyReconciliations() { return this.weekly; }
   async getLatestWeeklyReconciliation() { return this.weekly[0] ?? null; }
-  async insertIngestionLog() {}
+  async insertIngestionLog(input: Omit<NewsIngestionLog, "id" | "createdAt">) {
+    this.logs.push({ ...input, id: `log-${this.logs.length + 1}`, createdAt: "" });
+  }
   async listIngestionLogs() { return this.logs; }
+}
+
+class UpsertingFakeNewsRepository extends FakeNewsRepository {
+  async upsertNewsItems(input: UpsertNewsItemInput[]) {
+    const rows = input.map((item, index) => ({
+      ...newsItem({ id: item.id ?? `news-${this.items.length + index + 1}` }),
+      ...item,
+      sourceId: item.sourceId ?? null,
+      createdAt: "",
+      updatedAt: ""
+    }));
+    for (const row of rows) {
+      const existingIndex = this.items.findIndex((item) => item.sourceProvider === row.sourceProvider && item.sourceId === row.sourceId);
+      if (existingIndex >= 0) this.items[existingIndex] = { ...this.items[existingIndex], ...row, id: this.items[existingIndex].id };
+      else this.items.push(row);
+    }
+    return rows.map((row) => this.items.find((item) => item.sourceProvider === row.sourceProvider && item.sourceId === row.sourceId) ?? row);
+  }
+}
+
+class FakeNewsProvider implements NewsProvider {
+  readonly name = "test_provider";
+  constructor(private readonly articles: NormalizedNewsArticle[]) {}
+  async fetchNews() {
+    return this.articles;
+  }
+}
+
+function fakeUniverseRepository(instruments: Instrument[]) {
+  return {
+    listInstruments: async () => instruments
+  } as Partial<UniverseRepository> as UniverseRepository;
 }
 
 test("news deduplication uses canonical title and date hash", () => {
@@ -165,6 +202,82 @@ test("news deduplication uses canonical title and date hash", () => {
   });
   const second = service.prepare({ ...first, sourceId: "2", url: "https://example.com/2", title: "Markets rally after Fed decision" });
   assert.equal(first.canonicalHash, second.canonicalHash);
+});
+
+test("daily ingestion updates repeated canonical articles without marking them duplicate", async () => {
+  const repository = new UpsertingFakeNewsRepository();
+  const article: NormalizedNewsArticle = {
+    sourceProvider: "test_provider",
+    sourceId: "article-1",
+    url: "https://example.com/article-1",
+    title: "AAPL earnings update",
+    summary: "Apple reports earnings.",
+    contentSnippet: "Apple reports earnings.",
+    publishedAt: "2026-06-01T00:00:00.000Z",
+    fetchedAt: "2026-06-01T00:00:00.000Z",
+    tickers: ["AAPL"],
+    rawSymbols: ["AAPL"],
+    sourceName: "Example",
+    author: null,
+    imageUrl: null,
+    language: "en",
+    country: null,
+    providerMetadata: {}
+  };
+  const service = new NewsIngestionService(
+    repository,
+    fakeUniverseRepository([{ id: "inst-aapl", symbol: "AAPL", isActive: true, assetClass: "stock" } as Instrument]),
+    new FakeNewsProvider([article]),
+    undefined,
+    undefined,
+    { maxArticlesPerDay: 10, maxArticlesPerInstrument: 3 }
+  );
+
+  const first = await service.ingestDailyNews();
+  const second = await service.ingestDailyNews();
+
+  assert.equal(first.duplicatesDetected, 0);
+  assert.equal(second.duplicatesDetected, 0);
+  assert.equal(repository.items.length, 1);
+  assert.equal(repository.items[0]?.isDuplicate, false);
+  assert.equal(repository.logs[1]?.metadata.articlesUpdated, 1);
+});
+
+test("daily ingestion removes duplicate articles inside the same provider batch", async () => {
+  const repository = new UpsertingFakeNewsRepository();
+  const article: NormalizedNewsArticle = {
+    sourceProvider: "test_provider",
+    sourceId: "article-1",
+    url: "https://example.com/article-1",
+    title: "AAPL earnings update",
+    summary: null,
+    contentSnippet: null,
+    publishedAt: "2026-06-01T00:00:00.000Z",
+    fetchedAt: "2026-06-01T00:00:00.000Z",
+    tickers: ["AAPL"],
+    rawSymbols: ["AAPL"],
+    sourceName: null,
+    author: null,
+    imageUrl: null,
+    language: "en",
+    country: null,
+    providerMetadata: {}
+  };
+  const service = new NewsIngestionService(
+    repository,
+    fakeUniverseRepository([{ id: "inst-aapl", symbol: "AAPL", isActive: true, assetClass: "stock" } as Instrument]),
+    new FakeNewsProvider([article, article]),
+    undefined,
+    undefined,
+    { maxArticlesPerDay: 10, maxArticlesPerInstrument: 3 }
+  );
+
+  const result = await service.ingestDailyNews();
+
+  assert.equal(result.articlesFetched, 2);
+  assert.equal(result.articlesInserted, 1);
+  assert.equal(result.duplicatesDetected, 1);
+  assert.equal(repository.logs[0]?.metadata.inBatchDuplicatesRemoved, 1);
 });
 
 test("instrument linker matches provider symbols to active instruments", () => {
@@ -548,8 +661,22 @@ test("theme intelligence calculates hierarchy, trend, and review queue", async (
   const intelligence = await service.getThemeIntelligence("2026-06-01", "2026-06-07");
   const ai = intelligence.topThemesThisWeek.find((item) => item.theme === "AI");
   assert.equal(ai?.categories?.includes("Investment"), true);
-  assert.equal(ai?.trend, "Rising");
+  assert.equal(ai?.trend, "Low confidence trend");
   assert.ok(intelligence.reviewQueue.some((item) => item.reason.includes("AI/technology")));
+});
+
+test("theme intelligence marks one-week trend as insufficient history", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({ id: "ai-1", title: "AI infrastructure spending rises", publishedAt: "2026-06-01T00:00:00.000Z", tickers: ["NVDA"] })
+  ];
+  repository.classifications = [
+    classification({ newsItemId: "ai-1", primaryTheme: "AI", secondaryThemes: ["Technology"], themeConfidence: 80 })
+  ];
+  const service = new ThemeIntelligenceService(repository);
+  const intelligence = await service.getThemeIntelligence("2026-06-01", "2026-06-07");
+  assert.equal(intelligence.topThemesThisWeek.find((item) => item.theme === "AI")?.trend, "Insufficient history");
+  assert.equal(intelligence.emergingThemes.length, 0);
 });
 
 test("weekly reconciliation does not dump ticker-linked market news into macro", async () => {

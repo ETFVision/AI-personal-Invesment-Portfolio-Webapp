@@ -65,6 +65,7 @@ function formatThemeConfidence(value: number) {
 function trendTone(value?: string) {
   if (value === "Rising") return "text-emerald-600";
   if (value === "Declining") return "text-amber-600";
+  if (value === "Low confidence trend" || value === "Insufficient history") return "text-muted-foreground";
   return "text-muted-foreground";
 }
 

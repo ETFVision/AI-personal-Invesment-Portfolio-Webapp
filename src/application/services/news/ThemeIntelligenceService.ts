@@ -52,7 +52,9 @@ function textIncludesAny(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term));
 }
 
-function trendFrom(current: number, priorAverage: number): NewsThemeTrend {
+function trendFrom(current: number, priorAverage: number, weeksWithData: number): NewsThemeTrend {
+  if (weeksWithData <= 1) return "Insufficient history";
+  if (weeksWithData < 4) return "Low confidence trend";
   if (current >= priorAverage + 2 || current >= priorAverage * 1.4 && current > priorAverage) return "Rising";
   if (current <= Math.max(0, priorAverage - 2) || current <= priorAverage * 0.6 && current < priorAverage) return "Declining";
   return "Stable";
@@ -72,7 +74,7 @@ export class ThemeIntelligenceService {
     const summaries = this.summarizeThemes(current, all, periodStart, periodEnd);
     return {
       topThemesThisWeek: summaries.slice(0, 8),
-      emergingThemes: summaries.filter((item) => item.trend === "Rising").slice(0, 5),
+      emergingThemes: summaries.filter((item) => item.trend === "Rising" && (item.weeksWithData ?? 0) >= 4).slice(0, 5),
       persistentThemes: summaries.filter((item) => (item.rolling4WeekFrequency ?? 0) >= 2 && item.averagePersistence >= 45).slice(0, 5),
       structuralThemes: summaries.filter((item) => item.structuralCount > 0 || item.averagePersistence >= 65).slice(0, 5),
       reviewQueue: this.reviewQueue(current).slice(0, 12)
@@ -86,6 +88,7 @@ export class ThemeIntelligenceService {
         if (currentItems.length === 0) return [];
         const weeklyCounts = this.weeklyCountsForTheme(allWindow, theme, periodStart, periodEnd);
         const priorAverage = average(weeklyCounts.slice(0, 3));
+        const weeksWithData = weeklyCounts.filter((count) => count > 0).length;
         return [{
           theme,
           categories: themeHierarchy[theme],
@@ -94,7 +97,8 @@ export class ThemeIntelligenceService {
           averageSeverity: average(currentItems.map((item) => item.classification.severityScore)),
           averagePersistence: average(currentItems.map((item) => item.classification.persistenceScore)),
           rolling4WeekFrequency: weeklyCounts.reduce((sum, count) => sum + count, 0),
-          trend: trendFrom(currentItems.length, priorAverage),
+          weeksWithData,
+          trend: trendFrom(currentItems.length, priorAverage, weeksWithData),
           structuralCount: currentItems.filter((item) => item.classification.classification === "structural_long_term_shift").length,
           topHeadlines: this.topHeadlines(currentItems)
         }];

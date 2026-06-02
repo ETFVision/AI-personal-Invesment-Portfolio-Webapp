@@ -891,3 +891,121 @@ Production-readiness assessment:
 - Ready as a News Intelligence foundation after migrations 019, 020, and 021 are applied in Supabase and Vercel has redeployed the latest commit.
 - Suitable for collecting, normalizing, deduplicating, linking, classifying, and reconciling news for Market Vision input.
 - Not yet a final CIO-quality narrative layer until AI classification/reconciliation, source citations, manual review tooling, and quality filters are added.
+
+## 2026-06-02 - News Intelligence + Theme Intelligence Pre-FRED/GDELT QA
+
+Scope:
+- Reviewed the current News Intelligence Layer before adding FRED or GDELT.
+- Covered ingestion, persistence, deduplication, normalization, instrument linking, deterministic classification, theme hierarchy, theme analytics, review queue, weekly reconciliation, cost controls, database integrity, UI/UX, Market Vision readiness, architecture, and edge cases.
+- Explicitly excluded FRED, GDELT, AI Market Vision generation, recommendations, scoring, telemetry, and Portfolio Assistant work.
+
+Summary of findings:
+- The layer is structurally ready for the next data-stream phase after the hardening fixes below.
+- FMP ingestion, news persistence, deduplication, classification, theme intelligence, and weekly reconciliation all remain provider/service/repository based.
+- The existing design is cloud-portable and does not call Supabase, FMP, or OpenAI from UI components.
+- FMP remains equity-heavy, so sparse macro/rates/currency/geopolitical output is expected until FRED/GDELT are added.
+
+Critical issues:
+- None remaining after this QA pass.
+
+Medium-priority issues fixed:
+- Repeated ingestion of the same canonical article could be interpreted as a duplicate because the canonical lookup found the existing row. The ingestion service now treats same-source canonical matches as updates, not duplicates.
+- Ingestion logs did not expose enough QA metrics. The log metadata now records `articlesNormalized`, `articlesUpdated`, `inBatchDuplicatesRemoved`, `failedItems`, and `articlesSaved`.
+- Theme trends could show `Rising` with only one week of data. Theme Intelligence now reports `Insufficient history` for one-week signals and `Low confidence trend` until four weeks of history exist.
+- Emerging themes now require enough history before a theme is promoted as genuinely rising.
+
+Ingestion accuracy assessment:
+- FMP fetching is isolated in `FmpNewsProvider`.
+- Daily ingestion pulls active universe instruments and includes general market news.
+- API keys remain server-side only.
+- Job routes are protected by `CRON_SECRET`.
+- UI actions call server actions/jobs, not providers directly.
+- Partial failures are logged, and malformed per-article processing increments `failedItems` without crashing the full batch.
+
+Deduplication assessment:
+- Canonical and content hashes are deterministic.
+- Same-batch duplicate source keys are removed before DB upsert, preventing `ON CONFLICT DO UPDATE command cannot affect row a second time`.
+- Repeated ingestion updates same-source canonical rows instead of marking them duplicate.
+- Existing duplicate rows are preserved rather than deleted.
+- Duplicates remain excluded from weekly reconciliation.
+
+Classification assessment:
+- Deterministic fallback supports equities, bonds, gold/commodities, crypto, macro, rates, inflation, currency, and geopolitical buckets.
+- Asset-class classification remains separate from canonical theme classification.
+- Known false positives have guardrails:
+  - AI/technology articles are not classified as Credit without credit language.
+  - ETF/mutual fund fee articles are not treated as bond/credit news without credit-risk language.
+  - Gold/PMI macro headlines are not classified as Industrials solely because of manufacturing PMI wording.
+- AI classification remains optional and disabled by default.
+
+Theme Intelligence assessment:
+- Theme hierarchy exists for Macro, Sector, and Investment categories.
+- Average severity, persistence, and confidence are calculated from classified items.
+- Trend output now reflects confidence in the available history instead of overclaiming with sparse data.
+- Review queue flags low-confidence/suspicious mappings, though manual review editing remains a future improvement.
+
+Weekly reconciliation assessment:
+- Weekly reconciliation uses deterministic reclassification for the active period before summarizing.
+- Duplicates are excluded.
+- Coverage metadata tracks classified count, included count, excluded-by-limit count, bucket counts, and theme summaries.
+- No buy/sell recommendations are generated.
+- Draft output is usable by the Market Vision skeleton.
+
+Cost-control assessment:
+- Daily article count, weekly article count, and per-instrument article count are env-configurable.
+- Duplicate articles and already-classified articles are skipped for classification.
+- AI classification/reconciliation flags default to disabled.
+- Model names, token usage fields, and cost estimate fields are present for later AI-enabled operation.
+
+Database integrity assessment:
+- `news_items` has generated UUIDs and a concrete unique constraint on `(source_provider, source_id)`.
+- `news_classifications` has generated UUIDs and a unique index on `(news_item_id, classification_model)`.
+- Follow-up migrations harden source ID generation and repair duplicate keys.
+- Indexes exist for published date, canonical/content hashes, duplicate flag, ticker JSONB, related instruments JSONB, classification label, severity, primary theme, and secondary themes.
+- Schema remains portable PostgreSQL apart from isolated Supabase RLS policies.
+
+Architecture assessment:
+- `NewsProvider`, `NewsRepository`, `NewsAiProvider`, application services, and jobs keep concerns separated.
+- News UI uses server actions and dashboard services.
+- Provider abstraction can accept FRED/GDELT/Finnhub/NewsAPI later.
+- Business logic is centralized in services, not duplicated in UI components.
+
+UX assessment:
+- News dashboard shows latest news, filters, duplicate state, classification state, theme summaries, review queue, weekly reconciliation, and ingestion logs.
+- Current UI is acceptable for an admin/testing dashboard.
+- Button density is high for the final product, but acceptable before automation is introduced.
+- Remaining minor cosmetic issue: encoded separator artifacts may still appear in a couple of metadata strings and should be cleaned up when the final admin UI is simplified.
+
+Market Vision readiness assessment:
+- Weekly reconciliation already separates Asset Views and Theme Views.
+- News summaries are stored in a format that Market Vision can consume.
+- FMP-only coverage is not enough for full macro/geopolitical CIO briefing quality.
+- Ready for FRED integration next, with GDELT or another broad news stream after FRED.
+
+Low-priority improvements:
+- Add manual classification editing and approved override storage.
+- Add a configurable rules table for theme mapping instead of code-only keyword rules.
+- Add source quality scoring and source allow/deny lists.
+- Add fuzzy duplicate matching for near-identical titles from different sources.
+- Add provider health metrics for latency, 429s, and empty responses.
+- Add more filter controls for theme, instrument, duplicate status, and source.
+- Simplify the News page buttons once scheduled jobs are configured.
+- Add citation/source extraction for Market Vision drafts.
+- Expand canonical news themes later with `Momentum`, `Earnings`, `Policy / Trade`, `Valuation`, and `Liquidity`.
+
+Tests added or updated:
+- Repeated daily ingestion updates same-source canonical articles without marking them duplicate.
+- Same-batch duplicate articles are removed before DB upsert.
+- One-week theme signals show `Insufficient history`.
+- Sparse multi-week theme signals show `Low confidence trend`.
+- Existing News Intelligence tests continue to cover deduplication, linking, classification validation, stale classification correction, weekly reconciliation, theme summaries, and cron secret validation.
+
+Validation run:
+- `npm.cmd run lint`
+- `npm.cmd run test` - 64 tests passed
+- `npm.cmd run typecheck`
+- `npm.cmd run build`
+
+Production-readiness assessment:
+- Ready for the next phase as a News Intelligence foundation.
+- Recommended next step: add FRED macro indicators before GDELT, because FRED will improve rates/inflation/growth context with cleaner structured data and lower classification ambiguity.

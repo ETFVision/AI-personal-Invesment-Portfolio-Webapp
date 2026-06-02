@@ -28,6 +28,10 @@ export class NewsIngestionService {
     let articlesFetched = 0;
     let articlesInserted = 0;
     let duplicatesDetected = 0;
+    let articlesNormalized = 0;
+    let articlesUpdated = 0;
+    let inBatchDuplicatesRemoved = 0;
+    let failedItems = 0;
     let instrumentsRequested = 0;
 
     try {
@@ -46,59 +50,85 @@ export class NewsIngestionService {
       const rows = [];
       const batchKeys = new Set<string>();
       for (const article of fetched) {
-        const prepared = this.deduplicationService.prepare(article);
-        const key = sourceKey(prepared);
-        if (batchKeys.has(key)) {
-          duplicatesDetected += 1;
-          continue;
+        try {
+          const prepared = this.deduplicationService.prepare(article);
+          articlesNormalized += 1;
+          const key = sourceKey(prepared);
+          if (batchKeys.has(key)) {
+            duplicatesDetected += 1;
+            inBatchDuplicatesRemoved += 1;
+            continue;
+          }
+          batchKeys.add(key);
+          const canonical = await this.newsRepository.findCanonicalArticle(prepared);
+          const canonicalKey = canonical ? sourceKey({
+            sourceProvider: canonical.sourceProvider,
+            sourceId: canonical.sourceId,
+            url: canonical.url,
+            title: canonical.title,
+            publishedAt: canonical.publishedAt,
+            contentHash: canonical.contentHash
+          }) : null;
+          const isSameCanonicalArticle = Boolean(canonical && canonicalKey === key);
+          const deduped = isSameCanonicalArticle
+            ? { ...prepared, isDuplicate: false, duplicateOfId: null }
+            : this.deduplicationService.markAgainstCanonical(article, canonical);
+          const linked = this.linkingService.link(article, newsTracked);
+          if (isSameCanonicalArticle) articlesUpdated += 1;
+          if (deduped.isDuplicate) duplicatesDetected += 1;
+          rows.push({
+            sourceProvider: deduped.sourceProvider,
+            sourceId: deduped.sourceId,
+            url: deduped.url,
+            title: deduped.title,
+            summary: deduped.summary,
+            contentSnippet: deduped.contentSnippet,
+            publishedAt: deduped.publishedAt,
+            fetchedAt: deduped.fetchedAt,
+            tickers: linked.linkedSymbols.length > 0 ? linked.linkedSymbols : deduped.tickers,
+            relatedInstrumentIds: linked.relatedInstrumentIds,
+            rawSymbols: deduped.rawSymbols,
+            sourceName: deduped.sourceName,
+            author: deduped.author,
+            imageUrl: deduped.imageUrl,
+            language: deduped.language,
+            country: deduped.country,
+            providerMetadata: { ...deduped.providerMetadata, linkConfidence: linked.linkConfidence },
+            contentHash: deduped.contentHash,
+            canonicalHash: deduped.canonicalHash,
+            isDuplicate: deduped.isDuplicate,
+            duplicateOfId: deduped.duplicateOfId
+          });
+        } catch {
+          failedItems += 1;
         }
-        batchKeys.add(key);
-        const canonical = await this.newsRepository.findCanonicalArticle(prepared);
-        const deduped = this.deduplicationService.markAgainstCanonical(article, canonical);
-        const linked = this.linkingService.link(article, newsTracked);
-        if (deduped.isDuplicate) duplicatesDetected += 1;
-        rows.push({
-          sourceProvider: deduped.sourceProvider,
-          sourceId: deduped.sourceId,
-          url: deduped.url,
-          title: deduped.title,
-          summary: deduped.summary,
-          contentSnippet: deduped.contentSnippet,
-          publishedAt: deduped.publishedAt,
-          fetchedAt: deduped.fetchedAt,
-          tickers: linked.linkedSymbols.length > 0 ? linked.linkedSymbols : deduped.tickers,
-          relatedInstrumentIds: linked.relatedInstrumentIds,
-          rawSymbols: deduped.rawSymbols,
-          sourceName: deduped.sourceName,
-          author: deduped.author,
-          imageUrl: deduped.imageUrl,
-          language: deduped.language,
-          country: deduped.country,
-          providerMetadata: { ...deduped.providerMetadata, linkConfidence: linked.linkConfidence },
-          contentHash: deduped.contentHash,
-          canonicalHash: deduped.canonicalHash,
-          isDuplicate: deduped.isDuplicate,
-          duplicateOfId: deduped.duplicateOfId
-        });
       }
 
       const inserted = await this.newsRepository.upsertNewsItems(rows);
       articlesInserted = inserted.length;
+      const status = duplicatesDetected > 0 || failedItems > 0 ? "partial_success" as const : "success" as const;
       await this.newsRepository.insertIngestionLog({
         jobName: "daily-news-ingestion",
         sourceProvider: this.provider.name,
         startedAt,
         completedAt: new Date().toISOString(),
-        status: duplicatesDetected > 0 ? "partial_success" : "success",
+        status,
         instrumentsRequested,
         articlesFetched,
         articlesInserted,
         duplicatesDetected,
         errorMessage: null,
-        metadata: { symbols: symbols.slice(0, 100) }
+        metadata: {
+          symbols: symbols.slice(0, 100),
+          articlesNormalized,
+          articlesUpdated,
+          inBatchDuplicatesRemoved,
+          failedItems,
+          articlesSaved: articlesInserted
+        }
       });
 
-      return { status: "success" as const, instrumentsRequested, articlesFetched, articlesInserted, duplicatesDetected };
+      return { status, instrumentsRequested, articlesFetched, articlesInserted, duplicatesDetected };
     } catch (error) {
       await this.newsRepository.insertIngestionLog({
         jobName: "daily-news-ingestion",
@@ -111,7 +141,7 @@ export class NewsIngestionService {
         articlesInserted,
         duplicatesDetected,
         errorMessage: error instanceof Error ? error.message : "Unknown news ingestion error.",
-        metadata: {}
+        metadata: { articlesNormalized, articlesUpdated, inBatchDuplicatesRemoved, failedItems }
       });
       throw error;
     }

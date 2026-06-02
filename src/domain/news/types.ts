@@ -22,7 +22,7 @@ export type NewsCanonicalTheme =
   | "Dividend"
   | "Defensive";
 export type NewsThemeCategory = "Macro" | "Sector" | "Investment";
-export type NewsThemeTrend = "Rising" | "Stable" | "Declining";
+export type NewsThemeTrend = "Rising" | "Stable" | "Declining" | "Low confidence trend" | "Insufficient history";
 
 export type NewsItem = {
   id: string;
@@ -167,6 +167,7 @@ export type NewsThemeSummary = {
   averageSeverity: number;
   averagePersistence: number;
   rolling4WeekFrequency?: number;
+  weeksWithData?: number;
   trend?: NewsThemeTrend;
   structuralCount: number;
   topHeadlines: string[];
