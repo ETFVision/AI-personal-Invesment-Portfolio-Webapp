@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   Banknote,
   Bookmark,
-  BriefcaseBusiness,
   Database,
   Globe2,
   HeartPulse,
@@ -48,7 +47,6 @@ const navGroups = [
       { href: "/news", label: "News & Themes", icon: Newspaper },
       { href: "/risk", label: "Risk", icon: ShieldCheck },
       { href: "/bonds", label: "Fixed Income", icon: Landmark },
-      { href: "/portfolio#benchmarks", label: "Benchmarks", icon: BriefcaseBusiness },
       { href: "/recommendations", label: "Recommendations", icon: Sparkles }
     ]
   },
