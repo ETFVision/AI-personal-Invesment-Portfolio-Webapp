@@ -1,7 +1,5 @@
 import Link from "next/link";
 import {
-  Activity,
-  BarChart3,
   Banknote,
   Bookmark,
   BriefcaseBusiness,
@@ -16,8 +14,8 @@ import {
   PlusCircle,
   Search,
   ServerCog,
-  Settings,
   ShieldCheck,
+  Sparkles,
   Table2
 } from "lucide-react";
 import { signOutAction } from "@/server/actions/authActions";
@@ -33,7 +31,7 @@ const navGroups = [
     items: [
       { href: "/holdings", label: "Holdings", icon: Table2 },
       { href: "/transactions", label: "Transactions", icon: PlusCircle },
-      { href: "/cash", label: "Cash Balances", icon: Banknote }
+      { href: "/cash", label: "Cash", icon: Banknote }
     ]
   },
   {
@@ -44,30 +42,23 @@ const navGroups = [
     ]
   },
   {
-    label: "Analytics",
+    label: "Research",
     items: [
-      { href: "/portfolio#performance", label: "Portfolio Analytics", icon: BarChart3 },
-      { href: "/risk", label: "Risk Analytics", icon: ShieldCheck },
-      { href: "/bonds", label: "Bond Intelligence", icon: Landmark },
-      { href: "/portfolio#benchmarks", label: "Benchmarks", icon: BriefcaseBusiness }
-    ]
-  },
-  {
-    label: "Intelligence",
-    items: [
-      { href: "/news", label: "News Intelligence", icon: Newspaper },
-      { href: "/market-vision", label: "Market Vision", icon: Globe2 }
+      { href: "/market-vision", label: "Market Vision", icon: Globe2 },
+      { href: "/news", label: "News & Themes", icon: Newspaper },
+      { href: "/risk", label: "Risk", icon: ShieldCheck },
+      { href: "/bonds", label: "Fixed Income", icon: Landmark },
+      { href: "/portfolio#benchmarks", label: "Benchmarks", icon: BriefcaseBusiness },
+      { href: "/recommendations", label: "Recommendations", icon: Sparkles }
     ]
   },
   {
     label: "Admin",
     items: [
-      { href: "/setup", label: "Settings", icon: Settings },
       { href: "/setup/taxonomy", label: "Taxonomy", icon: Search },
-      { href: "/macro", label: "Data Sources", icon: Activity },
+      { href: "/admin/data-sources", label: "Data Sources", icon: Database },
       { href: "/admin/jobs", label: "Jobs", icon: ServerCog },
-      { href: "/admin/system-health", label: "System Health", icon: HeartPulse },
-      { href: "/admin/data-sources", label: "Provider Config", icon: Database }
+      { href: "/admin/system-health", label: "System Health", icon: HeartPulse }
     ]
   }
 ];

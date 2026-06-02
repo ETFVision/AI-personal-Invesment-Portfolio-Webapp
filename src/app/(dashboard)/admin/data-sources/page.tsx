@@ -9,12 +9,12 @@ export default async function DataSourcesPage() {
     <div className="space-y-6">
       <div>
         <p className="text-sm text-muted-foreground">Admin</p>
-        <h1 className="text-2xl font-semibold">Provider Config</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Provider configuration and data-source health will live here later.</p>
+        <h1 className="text-2xl font-semibold">Data Sources</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Provider configuration, macro data and data-source health will live here.</p>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Data source placeholder</CardTitle>
+          <CardTitle>Provider configuration</CardTitle>
           <CardDescription>FMP, FRED, GDELT and OpenAI keys remain server-side environment variables.</CardDescription>
         </CardHeader>
         <CardContent>
