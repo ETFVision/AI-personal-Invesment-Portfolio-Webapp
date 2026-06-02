@@ -417,7 +417,7 @@ test("AI Market Vision generation skips duplicate weekly report unless forced", 
 test("AI Market Vision generation tightens unsupported exposure and curve language", async () => {
   const repository = new FakeMarketVisionRepository();
   const ai = new FakeAiMarketVisionProvider({
-    executiveSummary: "For the portfolio context provided, the current mix appears centered on broad equity exposure with meaningful bond, crypto, gold, and cash components.",
+    executiveSummary: "For a portfolio with equities, bonds, gold, crypto, and cash allowed as exposures, the current mix appears centered on broad equity exposure with meaningful bond, crypto, gold, and cash components.",
     globalMarketSummary: "The 2-year yield fell while the 30-year rose, and the curve flattened modestly.",
     bondOutlook: "The bond sleeve's intermediate-duration mix sits in a mixed environment.",
     ratesOutlook: "The front end fell and the long end rose, so the curve flattened.",
@@ -438,6 +438,8 @@ test("AI Market Vision generation tightens unsupported exposure and curve langua
   const report = await service.generateWeeklyReport({ portfolioId: "portfolio-1" });
 
   assert.match(report.executiveSummary, /relevant cross-asset market context/i);
+  assert.match(report.executiveSummary, /portfolio context provided/i);
+  assert.doesNotMatch(report.executiveSummary, /allowed as exposures/i);
   assert.doesNotMatch(report.executiveSummary, /meaningful bond, crypto, gold, and cash components/i);
   assert.match(report.globalMarketSummary, /yield-curve signals were mixed/i);
   assert.doesNotMatch(report.globalMarketSummary, /flatten/i);

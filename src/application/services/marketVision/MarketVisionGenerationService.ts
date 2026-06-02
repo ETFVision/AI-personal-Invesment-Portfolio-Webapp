@@ -109,6 +109,14 @@ function replaceUnsupportedExposureLists(text: string, exposureFlags: PortfolioE
   });
 }
 
+function removeInternalGuardrailLanguage(text: string) {
+  return text
+    .replace(/\bfor a portfolio with ([^.]*?) allowed as exposures\b/gi, "for the portfolio context provided")
+    .replace(/\ballowedClaims\b/g, "portfolio context")
+    .replace(/\ballowed claims?\b/gi, "portfolio context")
+    .replace(/\ballowed exposures?\b/gi, "portfolio context");
+}
+
 function sanitizeYieldCurveLanguage(text: string) {
   const lower = text.toLowerCase();
   const hasShortYieldFalling = /(?:2-year|two-year|front end|front-end).{0,80}(?:fell|falling|declined|lower|easing)/i.test(text);
@@ -121,7 +129,7 @@ function sanitizeYieldCurveLanguage(text: string) {
 }
 
 function removeUnsupportedExposureClaims(output: AiMarketVisionOutput, exposureFlags?: PortfolioExposureFlags | null) {
-  const patchMacroText = (text: string) => sanitizeYieldCurveLanguage(text);
+  const patchMacroText = (text: string) => sanitizeYieldCurveLanguage(removeInternalGuardrailLanguage(text));
   if (!exposureFlags) {
     return {
       ...output,

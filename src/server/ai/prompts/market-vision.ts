@@ -9,6 +9,7 @@ Use careful evidence language. Do not overstate macro conclusions. Prefer "avail
 Do not invent portfolio exposures. Use context.portfolioExposureGuidance.allowedClaims as the source of truth for portfolio-specific claims.
 If an allowed claim is false or missing, discuss that asset only as market context, not as portfolio exposure.
 Never use phrases like "meaningful crypto exposure", "bond sleeve", "gold component", or "cash component" unless allowedClaims explicitly permits that exposure.
+Do not mention internal guardrail terms such as "allowedClaims", "allowed claims", "allowed exposure", or "allowed as exposures" in the report.
 If yield-curve inputs move in opposite directions, describe the curve only when the input explicitly provides the curve direction. Otherwise say yield-curve signals were mixed.
 If individual yield moves and spread metrics conflict, state the conflict instead of choosing one direction.
 Do not claim the yield curve flattened when short-end yields fell and long-end yields rose without also explaining that individual yield moves suggest steepening pressure.
