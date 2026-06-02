@@ -1081,3 +1081,112 @@ Known limitations:
 Production-readiness assessment:
 - Ready as a structured macro data foundation once migration 024 is applied and `FRED_API_KEY` is configured.
 - Recommended next step: run migration 024 in Supabase, add `FRED_API_KEY` in Vercel/local env, use Macro backfill once, then QA the Macro dashboard before adding GDELT.
+
+## 2026-06-02 - FRED Macro Data Stream Comprehensive QA
+
+Scope:
+- Reviewed the completed FRED Data Stream Layer after successful live backfill and dashboard integration.
+- Covered provider behavior, seeded indicator universe, database integrity, ingestion/backfill behavior, trend analysis, macro regime classification, UI, and integration with Market Vision, Bond Intelligence, and Risk Analytics.
+- Explicitly excluded GDELT, AI Market Vision generation, recommendations, scoring, telemetry, and Portfolio Assistant work.
+
+Live data verified:
+- `macro_indicators`: 26 total rows, including 19 active FRED indicators.
+- `macro_observations`: 10,193 rows.
+- `macro_trends`: 19 rows.
+- `macro_regime_snapshots`: 1 row.
+- `macro_ingestion_logs`: 4 rows.
+- Latest refresh log: `fred-macro-ingestion`, `success`, 19/19 indicators successful, 0 failed, 95 observations updated.
+- Duplicate observation check: 0 duplicate `(indicator_id, observation_date)` rows found.
+- Orphan check: 0 orphan observations and 0 orphan trends found.
+
+Provider assessment:
+- FRED is isolated behind `MacroDataProvider` and `FredMacroDataProvider`.
+- `FRED_API_KEY` is server-side only.
+- UI components do not call FRED directly.
+- Provider requests use timeout protection, bounded retry, and safe parsing of FRED dot/missing values.
+- Failed indicators are logged in `macro_ingestion_logs.metadata.failedItems`.
+
+Indicator universe assessment:
+- The expected FRED indicator universe is seeded and active:
+  - `FEDFUNDS`, `DGS2`, `DGS10`, `DGS30`
+  - `T10Y2Y`, `T10Y3M`
+  - `CPIAUCSL`, `CPILFESL`, `PCEPI`, `PCEPILFE`
+  - `UNRATE`, `PAYEMS`
+  - `GDP`, `INDPRO`, `RSAFS`
+  - `WALCL`, `NFCI`
+  - `DTWEXBGS`
+  - `DCOILWTICO`
+- Categories, units, frequency, and active flags are present and usable for trend logic.
+
+Database assessment:
+- Primary keys, foreign keys, unique constraints, and indexes are defined in migration 024.
+- `macro_observations` prevents duplicate observations through `(indicator_id, observation_date)`.
+- `macro_trends` prevents duplicate trend rows through `(indicator_id, as_of_date)`.
+- `macro_regime_snapshots` is unique by `snapshot_date`.
+- Schema remains portable PostgreSQL apart from isolated Supabase RLS policies.
+
+Ingestion/backfill assessment:
+- Initial 5-year backfill succeeded with 19 indicators and 10,193 new observations.
+- Subsequent refresh succeeded and updated recent observations instead of refetching full history.
+- Duplicate observations are prevented.
+- Partial and full provider failures are logged without breaking the entire job.
+- Cron route is protected by `CRON_SECRET`.
+
+Trend analysis assessment:
+- Trend service calculates latest value, previous value, 1M/3M/6M/1Y changes, direction, acceleration, persistence, severity, and confidence.
+- Daily, monthly, and quarterly indicators use stored frequency to choose more appropriate windows where implemented.
+- Empty and insufficient data cases are handled safely.
+
+Macro regime assessment:
+- Regime classification is deterministic, explainable, and reproducible.
+- Medium-priority correctness fix completed during QA:
+  - Inflation regime now estimates YoY percent change for CPI index data instead of treating raw CPI index-point movement as an inflation rate.
+  - Rate regime now supports richer labels: `rising_rate_pressure`, `falling_rate_support`, `restrictive`, and `neutral`.
+- Existing live regime snapshot was generated before this fix; the next FRED refresh will regenerate the snapshot with the hardened classification logic.
+
+Integration assessment:
+- Market Vision shows FRED-backed regime cards, macro context bullets, and key macro indicators.
+- Bond Intelligence shows rate, inflation, yield-curve, liquidity, and bond-relevant macro indicators without recommendation logic.
+- Risk Analytics shows macro risk context and highest-severity macro indicators without changing portfolio calculations.
+- No AI generation, scoring, or buy/sell recommendations are introduced.
+
+Critical issues:
+- None remaining after this QA pass.
+
+Medium-priority issues fixed:
+- Corrected inflation regime logic to use approximate YoY percent change for CPI-style index series.
+- Expanded rate-regime logic to distinguish rising pressure and falling support instead of only level-based restrictive/easing labels.
+- Added tests for rate direction and CPI YoY percentage handling.
+
+Low-priority improvements:
+- Add a lightweight ingestion lock to prevent overlapping manual/cron FRED runs.
+- Add explicit UI helper text: run Backfill once, then use Refresh FRED for ongoing updates.
+- Add query-level batching optimization for dashboard observation reads if the indicator universe grows materially.
+- Add explicit YoY-transformed derived series for CPI/Core CPI/PCE/Core PCE instead of computing the estimate only inside regime logic.
+- Add more macro-regime detail for growth and employment, including contracting/deteriorating labels when data supports it.
+- Add a scheduled Vercel Cron/Cloud Scheduler configuration once refresh cadence is finalized.
+
+Tests added or updated:
+- FRED parser missing-value handling.
+- Macro trend windows and insufficient-data handling.
+- Macro regime classification for inverted curve and rising rate pressure.
+- Macro regime classification using Fed funds direction and CPI YoY percentage.
+- Ingestion success/repeated refresh behavior.
+- Partial failure and all-indicator-failure logging.
+- Macro context service for Market Vision, Bond Intelligence, and Risk Analytics.
+- CRON_SECRET validation.
+
+Validation run:
+- `npm.cmd run test` - 75 tests passed.
+- `npm.cmd run typecheck`
+- `npm.cmd run lint`
+- `npm.cmd run build`
+
+Production-readiness assessment:
+- Ready as a structured FRED macro data foundation.
+- Ready to support Market Vision, Bond Intelligence, and Risk Analytics as contextual inputs.
+- Not yet a final macro intelligence layer until GDELT/broader news, richer source citations, and human review tooling are added.
+
+Recommendation:
+- Ready for GDELT integration.
+- GDELT should be next because FRED now covers structured macro data, while FMP news remains equity-heavy and sparse for macro/geopolitical/rates/currency narratives.

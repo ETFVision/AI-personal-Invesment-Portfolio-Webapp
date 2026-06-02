@@ -86,9 +86,16 @@ export class MacroTrendService {
     }));
     const value = (code: string) => trendByCode.get(code)?.latestValue ?? null;
     const directionOf = (code: string) => trendByCode.get(code)?.direction ?? "insufficient_data";
+    const oneYearPercentOf = (code: string) => {
+      const trend = trendByCode.get(code);
+      if (trend?.latestValue == null || trend.oneYearChange == null) return null;
+      const prior = trend.latestValue - trend.oneYearChange;
+      return percentChange(trend.latestValue, prior);
+    };
     const date = trends.map((trend) => trend.asOfDate).sort().at(-1) ?? new Date().toISOString().slice(0, 10);
     const fedFunds = value("FEDFUNDS");
-    const cpiYoY = trendByCode.get("CPIAUCSL")?.oneYearChange ?? null;
+    const cpiYoYPercent = oneYearPercentOf("CPIAUCSL");
+    const cpiDirection = directionOf("CPIAUCSL");
     const unemploymentDirection = directionOf("UNRATE");
     const curve10y2y = value("T10Y2Y");
     const dollarDirection = directionOf("DTWEXBGS");
@@ -96,8 +103,24 @@ export class MacroTrendService {
     const gdpDirection = directionOf("GDP");
     const nfciDirection = directionOf("NFCI");
 
-    const ratesRegime = fedFunds == null ? "insufficient_data" : fedFunds >= 4 ? "restrictive" : directionOf("FEDFUNDS") === "falling" ? "easing" : "neutral";
-    const inflationRegime = cpiYoY == null ? "insufficient_data" : cpiYoY > 4 ? "high_and_sticky" : cpiYoY < 0 ? "moderating" : "benign";
+    const ratesRegime = fedFunds == null
+      ? "insufficient_data"
+      : directionOf("FEDFUNDS") === "rising"
+        ? "rising_rate_pressure"
+        : directionOf("FEDFUNDS") === "falling"
+          ? "falling_rate_support"
+          : fedFunds >= 4
+            ? "restrictive"
+            : "neutral";
+    const inflationRegime = cpiYoYPercent == null
+      ? "insufficient_data"
+      : cpiYoYPercent > 0.04
+        ? "high_and_sticky"
+        : cpiYoYPercent > 0.025 && cpiDirection === "rising"
+          ? "reaccelerating"
+          : cpiYoYPercent < 0.025 && cpiDirection === "falling"
+            ? "moderating"
+            : "benign";
     const employmentRegime = unemploymentDirection === "rising" ? "weakening" : unemploymentDirection === "falling" ? "strong" : unemploymentDirection === "stable" ? "stable" : "insufficient_data";
     const yieldCurveRegime = curve10y2y == null ? "insufficient_data" : curve10y2y < 0 ? "inverted" : directionOf("T10Y2Y") === "rising" ? "steepening" : "normal";
     const growthRegime = gdpDirection === "falling" ? "slowing" : gdpDirection === "rising" ? "expanding" : gdpDirection === "stable" ? "mixed" : "insufficient_data";

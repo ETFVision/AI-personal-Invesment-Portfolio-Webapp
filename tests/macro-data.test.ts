@@ -154,7 +154,7 @@ test("macro trend reports insufficient data with one observation", () => {
   assert.equal(trend?.acceleration, "insufficient_data");
 });
 
-test("macro regime classifies inverted yield curve and restrictive rates", () => {
+test("macro regime classifies inverted yield curve and rising rate pressure", () => {
   const service = new MacroTrendService();
   const indicators = [
     indicator({ id: "fed", indicatorCode: "FEDFUNDS", category: "interest_rates" }),
@@ -167,9 +167,43 @@ test("macro regime classifies inverted yield curve and restrictive rates", () =>
     { ...service.calculateTrend(indicators[2], [observation("unrate", "2026-05-01", 4.1), observation("unrate", "2026-06-01", 4.2)])!, id: "t3", createdAt: "", updatedAt: "" }
   ];
   const regime = service.classifyRegime(indicators, trends);
-  assert.equal(regime.ratesRegime, "restrictive");
+  assert.equal(regime.ratesRegime, "rising_rate_pressure");
   assert.equal(regime.yieldCurveRegime, "inverted");
   assert.equal(regime.employmentRegime, "weakening");
+});
+
+test("macro regime uses rate direction and CPI year-over-year percentage", () => {
+  const service = new MacroTrendService();
+  const indicators = [
+    indicator({ id: "fed", indicatorCode: "FEDFUNDS", category: "interest_rates" }),
+    indicator({ id: "cpi", indicatorCode: "CPIAUCSL", category: "inflation", unit: "index", frequency: "monthly" })
+  ];
+  const trends: MacroTrend[] = [
+    {
+      ...service.calculateTrend(indicators[0], [
+        observation("fed", "2025-06-01", 5.25),
+        observation("fed", "2026-05-01", 5.0),
+        observation("fed", "2026-06-01", 4.75)
+      ])!,
+      id: "fed-trend",
+      createdAt: "",
+      updatedAt: ""
+    },
+    {
+      ...service.calculateTrend(indicators[1], [
+        observation("cpi", "2025-05-01", 300),
+        observation("cpi", "2025-06-01", 300),
+        observation("cpi", "2026-05-01", 305),
+        observation("cpi", "2026-06-01", 306)
+      ])!,
+      id: "cpi-trend",
+      createdAt: "",
+      updatedAt: ""
+    }
+  ];
+  const regime = service.classifyRegime(indicators, trends);
+  assert.equal(regime.ratesRegime, "falling_rate_support");
+  assert.equal(regime.inflationRegime, "benign");
 });
 
 test("macro ingestion inserts observations and updates repeated refreshes", async () => {
