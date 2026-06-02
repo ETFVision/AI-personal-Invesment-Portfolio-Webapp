@@ -28,6 +28,8 @@ const cryptoSymbols = new Set(["BTC", "BTCUSD", "ETH", "ETHUSD", "SOL", "SOLUSD"
 const bondSymbols = new Set(["BND", "AGG", "SHY", "IEF", "TLT", "TIP", "LQD", "HYG", "SGOV", "BIL", "BNDX"]);
 const goldSymbols = new Set(["GLD", "IAU"]);
 const companyOrEquityTerms = ["stock", "stocks", "equity", "equities", "s&p 500", "nasdaq", "dow", "spy", "qqq", "earnings", "shares", "forecast", "forecasts"];
+const creditTerms = ["credit spread", "credit spreads", "corporate credit", "high yield", "investment grade", "default", "defaults", "loan", "loans", "debt load", "debt market", "bond market"];
+const technologyTerms = ["technology", "software", "cloud", "semiconductor", "chip", "chips", "intel", "amd", "broadcom", "dell", "apple", "pc market", "hardware"];
 
 function includesAny(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term));
@@ -157,11 +159,11 @@ export class NewsClassificationService {
       isGeopolitical ? "Geopolitical" : null,
       includesAny(text, ["oil", "energy", "crude", "natural gas", "xom", "cvx"]) ? "Energy" : null,
       /\b(ai|artificial intelligence|nvidia|nvda)\b/.test(text) ? "AI" : null,
-      isBond || includesAny(text, ["credit", "debt", "spread", "high yield", "investment grade"]) ? "Credit" : null,
+      isBond || includesAny(text, creditTerms) ? "Credit" : null,
       includesAny(text, ["consumer", "retail", "shopping", "costco", "nike", "disney", "netflix"]) ? "Consumer" : null,
       includesAny(text, ["healthcare", "health care", "pharma", "biotech", "drug", "fda", "lilly", "unitedhealth"]) ? "Healthcare" : null,
       includesAny(text, ["bank", "banks", "financial", "financials", "jpmorgan", "goldman", "fintech"]) ? "Financials" : null,
-      includesAny(text, ["technology", "software", "cloud", "semiconductor", "chip", "chips", "intel", "amd", "broadcom"]) ? "Technology" : null,
+      includesAny(text, technologyTerms) ? "Technology" : null,
       includesAny(text, ["industrial", "industrials", "infrastructure", "manufacturing", "factory", "pentagon", "defense", "aerospace"]) ? "Industrials" : null,
       includesAny(text, ["quality", "strong balance sheet", "cash flow", "profitability", "moat"]) ? "Quality" : null,
       includesAny(text, ["dividend", "yield income", "payout"]) ? "Dividend" : null,

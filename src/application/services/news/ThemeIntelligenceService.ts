@@ -116,7 +116,8 @@ export class ThemeIntelligenceService {
   private reviewReason(text: string, item: ClassifiedNews[number]) {
     const theme = item.classification.primaryTheme;
     if (!theme) return "Missing primary theme.";
-    if (theme === "Credit" && /\b(ai|artificial intelligence|nvidia|semiconductor|chip|software|cloud)\b/.test(text)) return "AI/technology article classified as Credit.";
+    if (theme === "Credit" && /\b(ai|agentic ai|artificial intelligence|nvidia|semiconductor|chip|software|cloud|technology)\b/.test(text)) return "AI/technology article classified as Credit.";
+    if (theme === "Credit" && /\b(etf|etfs|mutual fund|mutual funds|expense ratio|fund fees)\b/.test(text) && !/\b(credit spread|corporate credit|high yield|investment grade|default|loan|debt market|bond market)\b/.test(text)) return "Fund structure article classified as Credit without credit-risk language.";
     if (theme === "Inflation" && /\b(consumer|retail|shopping|nike|costco|disney|netflix)\b/.test(text) && !/\b(inflation|cpi|prices|price pressure)\b/.test(text)) return "Consumer article classified as Inflation without inflation language.";
     if (theme === "Rates" && item.tickers.length > 0 && !/\b(fed|rate|yield|treasury)\b/.test(text)) return "Ticker-linked article classified as Rates without rates language.";
     return null;

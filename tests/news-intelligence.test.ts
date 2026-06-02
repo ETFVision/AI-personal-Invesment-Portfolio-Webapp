@@ -242,6 +242,33 @@ test("deterministic classifier assigns canonical macro themes", () => {
   assert.ok(output.themeConfidence > 0);
 });
 
+test("deterministic classifier avoids loose Credit theme mappings", () => {
+  const service = new NewsClassificationService(new FakeNewsRepository());
+  const aiOutput = service.deterministicFallback(newsItem({
+    title: "What Exactly Is Agentic AI, and Why Are Some Stocks Blowing Up Because of It?",
+    tickers: []
+  }));
+  assert.equal(aiOutput.primaryTheme, "AI");
+  assert.equal(aiOutput.secondaryThemes.includes("Credit"), false);
+
+  const fundOutput = service.deterministicFallback(newsItem({
+    title: "ETFs Aren't Always Cheaper Than Mutual Funds. Here's What to Compare Instead.",
+    tickers: []
+  }));
+  assert.notEqual(fundOutput.primaryTheme, "Credit");
+});
+
+test("deterministic classifier maps hardware product articles to Technology", () => {
+  const service = new NewsClassificationService(new FakeNewsRepository());
+  const output = service.deterministicFallback(newsItem({
+    title: "Dell Just Unveiled a New Weapon Against Apple",
+    summary: "",
+    contentSnippet: "",
+    tickers: ["DELL", "AAPL"]
+  }));
+  assert.equal(output.primaryTheme, "Technology");
+});
+
 test("deterministic classifier avoids false positives for gold rush and stock forecasts", () => {
   const service = new NewsClassificationService(new FakeNewsRepository());
   const goldRush = service.deterministicFallback(newsItem({
