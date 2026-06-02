@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { createContainer } from "@/server/container";
 import { refreshFundamentalsAction } from "@/server/actions/fundamentalsActions";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { formatPercent } from "@/lib/utils";
 
 function score(value: number | null | undefined) {
@@ -35,7 +35,7 @@ export default async function FundamentalsPage({ searchParams }: { searchParams:
         <form action={refreshFundamentalsAction} className="flex gap-2">
           <input type="hidden" name="returnTo" value="/fundamentals" />
           <input type="hidden" name="force" value="true" />
-          <Button type="submit">Refresh fundamentals</Button>
+          <SubmitButton pendingLabel="Refreshing fundamentals...">Refresh fundamentals</SubmitButton>
         </form>
       </div>
 
