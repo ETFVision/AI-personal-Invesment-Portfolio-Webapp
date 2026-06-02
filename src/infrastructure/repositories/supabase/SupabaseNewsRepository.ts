@@ -98,6 +98,18 @@ function mapClassification(row: any): NewsClassification {
   };
 }
 
+function preferredClassification(rows: any[] | null | undefined) {
+  const classifications = Array.isArray(rows) ? rows : [];
+  return classifications
+    .slice()
+    .sort((a, b) => {
+      const aIsDeterministic = a.classification_model === "deterministic_fallback";
+      const bIsDeterministic = b.classification_model === "deterministic_fallback";
+      if (aIsDeterministic !== bIsDeterministic) return aIsDeterministic ? -1 : 1;
+      return String(b.updated_at ?? b.created_at ?? "").localeCompare(String(a.updated_at ?? a.created_at ?? ""));
+    })[0] ?? null;
+}
+
 function mapWeekly(row: any): WeeklyNewsReconciliation {
   return {
     id: row.id,
@@ -283,10 +295,11 @@ export class SupabaseNewsRepository implements NewsRepository {
   }
 
   async getClassification(newsItemId: string) {
-    const { data, error } = await this.db.from("news_classifications").select("*").eq("news_item_id", newsItemId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const { data, error } = await this.db.from("news_classifications").select("*").eq("news_item_id", newsItemId);
     if (isMissingNewsTable(error)) return null;
     if (error) throw new Error(error.message);
-    return data ? mapClassification(data) : null;
+    const classification = preferredClassification(data as any[] | null | undefined);
+    return classification ? mapClassification(classification) : null;
   }
 
   async upsertClassifications(input: UpsertNewsClassificationInput[]) {
@@ -329,7 +342,7 @@ export class SupabaseNewsRepository implements NewsRepository {
     if (error) throw new Error(error.message);
     return (data ?? [])
       .map((row: any) => {
-        const classification = row.news_classifications?.[0];
+        const classification = preferredClassification(row.news_classifications);
         return classification ? { ...mapNewsItem(row), classification: mapClassification(classification) } : null;
       })
       .filter((row): row is NewsItem & { classification: NewsClassification } => Boolean(row));
