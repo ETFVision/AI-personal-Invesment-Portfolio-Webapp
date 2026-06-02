@@ -12,6 +12,7 @@ import { GdeltThemeMappingService } from "../src/application/services/news/Gdelt
 import { GlobalNewsIngestionService } from "../src/application/services/news/GlobalNewsIngestionService";
 import { isCronSecretValid } from "../src/application/services/news/cronSecret";
 import { GdeltNormalizationService, gdeltNormalizationInternals } from "../src/infrastructure/providers/news/GdeltNormalizationService";
+import { gdeltProviderInternals } from "../src/infrastructure/providers/news/GdeltNewsProvider";
 import type { GdeltArticleMetadata, GdeltIngestionLog, GdeltQueryGroup, NewsClassification, NewsIngestionLog, NewsItem, NormalizedNewsArticle, WeeklyNewsReconciliation } from "../src/domain/news/types";
 import type { GdeltNewsProvider, GdeltProviderArticle } from "../src/application/ports/providers/GdeltNewsProvider";
 import type { NewsProvider } from "../src/application/ports/providers/NewsProvider";
@@ -855,6 +856,19 @@ test("GDELT normalizer parses compact dates and stores provider metadata", () =>
   assert.equal(article?.providerMetadata.gdeltQueryGroupKey, "trade_supply_chain");
   assert.deepEqual(article?.gdeltMetadata.gdeltThemes, ["ECON_TRADE"]);
   assert.equal(article?.gdeltMetadata.tone, -2.5);
+});
+
+test("GDELT provider wraps OR query groups and formats day-based timespans", () => {
+  assert.equal(
+    gdeltProviderInternals.normalizeQuery('"Federal Reserve" OR "interest rates"'),
+    '("Federal Reserve" OR "interest rates")'
+  );
+  assert.equal(
+    gdeltProviderInternals.normalizeQuery('("Federal Reserve" OR "interest rates")'),
+    '("Federal Reserve" OR "interest rates")'
+  );
+  assert.equal(gdeltProviderInternals.formatTimespan(72), "3d");
+  assert.equal(gdeltProviderInternals.formatTimespan(25), "25h");
 });
 
 test("GDELT relevance filter drops local noise but keeps macro/world news", () => {

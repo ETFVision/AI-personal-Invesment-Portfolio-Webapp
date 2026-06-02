@@ -73,14 +73,14 @@ create policy "users can read gdelt article metadata" on gdelt_article_metadata 
 
 insert into gdelt_query_groups (query_key, query_name, query_text, canonical_theme, category, is_active, max_articles_per_run)
 values
-  ('macro_rates_policy', 'Macro / rates policy', '"Federal Reserve" OR "interest rates" OR "Treasury yields" OR "central bank policy" OR "rate cuts" OR "rate hikes"', 'Rates', 'macro_rates', true, 8),
-  ('inflation_prices', 'Inflation and prices', 'inflation OR CPI OR "PCE inflation" OR "food prices" OR "energy prices"', 'Inflation', 'inflation', true, 8),
-  ('growth_recession', 'Growth / recession risk', '"recession risk" OR "GDP growth" OR "economic slowdown" OR unemployment OR "jobs report"', 'Growth', 'growth', true, 8),
-  ('currency_usd', 'Currency / USD', '"US dollar" OR "dollar index" OR "currency volatility" OR "FX markets"', 'Currency', 'currency', true, 8),
-  ('geopolitical_risk', 'Geopolitical risk', 'sanctions OR war OR conflict OR "military escalation" OR "election risk" OR "political instability"', 'Geopolitical', 'geopolitical', true, 10),
-  ('trade_supply_chain', 'Trade / supply chain', 'tariffs OR "export controls" OR "supply chain disruption" OR "trade war" OR "semiconductor restrictions"', 'Trade / Supply Chain', 'trade_supply_chain', true, 8),
-  ('energy_commodities', 'Energy / commodities', '"oil prices" OR OPEC OR "crude oil supply" OR "natural gas" OR "commodity shock"', 'Energy', 'energy_commodities', true, 8),
-  ('global_credit_stress', 'Global risk / credit stress', '"banking stress" OR "sovereign debt" OR "fiscal crisis" OR "debt ceiling" OR "credit stress"', 'Credit', 'global_credit', true, 8)
+  ('macro_rates_policy', 'Macro / rates policy', '("Federal Reserve" OR "interest rates" OR "Treasury yields" OR "central bank policy" OR "rate cuts" OR "rate hikes")', 'Rates', 'macro_rates', true, 8),
+  ('inflation_prices', 'Inflation and prices', '(inflation OR CPI OR "PCE inflation" OR "food prices" OR "energy prices")', 'Inflation', 'inflation', true, 8),
+  ('growth_recession', 'Growth / recession risk', '("recession risk" OR "GDP growth" OR "economic slowdown" OR unemployment OR "jobs report")', 'Growth', 'growth', true, 8),
+  ('currency_usd', 'Currency / USD', '("US dollar" OR "dollar index" OR "currency volatility" OR "FX markets")', 'Currency', 'currency', true, 8),
+  ('geopolitical_risk', 'Geopolitical risk', '(sanctions OR war OR conflict OR "military escalation" OR "election risk" OR "political instability")', 'Geopolitical', 'geopolitical', true, 10),
+  ('trade_supply_chain', 'Trade / supply chain', '(tariffs OR "export controls" OR "supply chain disruption" OR "trade war" OR "semiconductor restrictions")', 'Trade / Supply Chain', 'trade_supply_chain', true, 8),
+  ('energy_commodities', 'Energy / commodities', '("oil prices" OR OPEC OR "crude oil supply" OR "natural gas" OR "commodity shock")', 'Energy', 'energy_commodities', true, 8),
+  ('global_credit_stress', 'Global risk / credit stress', '("banking stress" OR "sovereign debt" OR "fiscal crisis" OR "debt ceiling" OR "credit stress")', 'Credit', 'global_credit', true, 8)
 on conflict (query_key) do update
 set
   query_name = excluded.query_name,

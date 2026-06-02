@@ -15,7 +15,7 @@ async function fetchJsonWithRetry(url: URL) {
   let lastError: Error | null = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
-      const response = await fetch(url, { next: { revalidate: 0 }, signal: AbortSignal.timeout(15_000) });
+      const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
       if (response.status === 429 || response.status >= 500) {
         lastError = new Error(`GDELT request failed with status ${response.status}.`);
         if (attempt < 2) {
@@ -33,6 +33,18 @@ async function fetchJsonWithRetry(url: URL) {
   throw lastError ?? new Error("GDELT request failed.");
 }
 
+function normalizeQuery(query: string) {
+  const trimmed = query.trim();
+  if (/\sOR\s/.test(trimmed) && !trimmed.startsWith("(")) return `(${trimmed})`;
+  return trimmed;
+}
+
+function formatTimespan(hours: number) {
+  const bounded = Math.max(1, hours);
+  if (bounded % 24 === 0) return `${bounded / 24}d`;
+  return `${bounded}h`;
+}
+
 export class GdeltNewsProvider implements GdeltNewsProviderPort {
   readonly name = "gdelt" as const;
 
@@ -40,12 +52,12 @@ export class GdeltNewsProvider implements GdeltNewsProviderPort {
 
   async fetchQueryGroup(input: GdeltProviderRequest): Promise<GdeltProviderArticle[]> {
     const url = new URL(GDELT_DOC_URL);
-    url.searchParams.set("query", input.queryGroup.queryText);
-    url.searchParams.set("mode", "ArtList");
+    url.searchParams.set("query", normalizeQuery(input.queryGroup.queryText));
+    url.searchParams.set("mode", "artlist");
     url.searchParams.set("format", "json");
     url.searchParams.set("sort", "HybridRel");
     url.searchParams.set("maxrecords", String(Math.max(1, Math.min(250, input.maxArticles))));
-    url.searchParams.set("timespan", `${Math.max(1, input.recentWindowHours)}h`);
+    url.searchParams.set("timespan", formatTimespan(input.recentWindowHours));
     const payload = await fetchJsonWithRetry(url);
     const rows = Array.isArray(payload.articles) ? payload.articles : [];
     return rows
@@ -53,3 +65,5 @@ export class GdeltNewsProvider implements GdeltNewsProviderPort {
       .filter((row): row is GdeltProviderArticle => Boolean(row));
   }
 }
+
+export const gdeltProviderInternals = { normalizeQuery, formatTimespan };
