@@ -69,6 +69,14 @@ export class PortfolioService {
     const latestPrices = this.marketDataRepository
       ? await this.marketDataRepository.getLatestPricesForAssets(holdings.map((holding) => holding.assetId))
       : new Map();
+    const priceHistorySince = (() => {
+      const date = new Date();
+      date.setUTCFullYear(date.getUTCFullYear() - 5);
+      return date.toISOString().slice(0, 10);
+    })();
+    const dailyPrices = this.marketDataRepository
+      ? await this.marketDataRepository.listDailyPricesForAssets(holdings.map((holding) => holding.assetId), priceHistorySince)
+      : [];
     const holdingValuations = holdings.map((holding) => {
       const price = latestPrices.get(holding.assetId);
       const unitPrice = price?.closePrice ?? holding.averageCost ?? null;
@@ -90,7 +98,8 @@ export class PortfolioService {
       transactions,
       snapshots,
       holdingSnapshots,
-      cashSnapshots
+      cashSnapshots,
+      dailyPrices
     });
     if (!analytics) throw new Error("Analytics service is not configured.");
     const benchmarkComparisons = this.benchmarkComparisonService?.calculateComparisons({

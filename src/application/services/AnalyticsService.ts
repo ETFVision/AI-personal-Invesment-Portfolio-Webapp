@@ -4,6 +4,7 @@ import {
   CashBalance,
   CashPerformance,
   CashSnapshot,
+  DailyPrice,
   Holding,
   HoldingSnapshot,
   HoldingValuation,
@@ -20,6 +21,7 @@ type DashboardAnalyticsInput = {
   snapshots: PortfolioSnapshot[];
   holdingSnapshots: HoldingSnapshot[];
   cashSnapshots: CashSnapshot[];
+  dailyPrices?: DailyPrice[];
 };
 
 function cashFlowAmount(transaction: Transaction) {
@@ -116,6 +118,13 @@ export class AnalyticsService {
         baselineDate: null
       };
     });
+    const pricesByAssetId = new Map<string, DailyPrice[]>();
+    for (const price of input.dailyPrices ?? []) {
+      const current = pricesByAssetId.get(price.assetId) ?? [];
+      current.push(price);
+      pricesByAssetId.set(price.assetId, current);
+    }
+
     const productPerformance: ProductPerformance[] = input.holdingValuations.map((valuation) => {
       const productTransactions = input.transactions.filter((transaction) => transactionMatchesHolding(transaction, valuation.holding));
       const realized = calculateRealizedGainLoss(productTransactions);
@@ -127,7 +136,8 @@ export class AnalyticsService {
         metrics: this.performanceService.calculateProductPerformance({
           valuation,
           snapshots: input.holdingSnapshots,
-          transactions: productTransactions
+          transactions: productTransactions,
+          priceHistory: pricesByAssetId.get(valuation.holding.assetId) ?? []
         }),
         realizedGainLoss: realized,
         unrealizedGainLoss: unrealized,

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PerformanceService } from "../src/application/services/PerformanceService";
-import type { HoldingSnapshot, HoldingValuation, PortfolioSnapshot, Transaction } from "../src/domain/portfolio/types";
+import type { DailyPrice, HoldingSnapshot, HoldingValuation, PortfolioSnapshot, Transaction } from "../src/domain/portfolio/types";
 
 function assertClose(actual: number | null | undefined, expected: number, tolerance = 1e-10) {
   assert.ok(actual != null);
@@ -86,6 +86,18 @@ function holdingSnapshot(input: Partial<HoldingSnapshot>): HoldingSnapshot {
   };
 }
 
+function dailyPrice(input: Partial<DailyPrice>): DailyPrice {
+  return {
+    id: input.id ?? "price",
+    assetId: input.assetId ?? "asset-voo",
+    provider: input.provider ?? "fmp",
+    symbol: input.symbol ?? "VOO",
+    priceDate: input.priceDate ?? "2026-06-01",
+    closePrice: input.closePrice ?? 690,
+    currency: input.currency ?? "USD"
+  };
+}
+
 test("portfolio since inception uses manual capital base when deposits are incomplete", () => {
   const service = new PerformanceService();
   const metrics = service.calculatePortfolioPerformance({
@@ -167,6 +179,24 @@ test("holding period returns suppress implausibly tiny stale baselines", () => {
   assert.equal(daily?.baselineDate, "2026-06-01");
   assert.equal(daily?.valueChange, null);
   assert.equal(daily?.percentChange, null);
+});
+
+test("holding period returns fall back to price history when snapshot baseline is stale", () => {
+  const service = new PerformanceService();
+  const metrics = service.calculateProductPerformance({
+    valuation: holdingValuation({ unitPrice: 695.49, value: 6954.9 }),
+    snapshots: [holdingSnapshot({ snapshotDate: "2026-06-01", marketValue: 69 })],
+    transactions: [],
+    priceHistory: [
+      dailyPrice({ priceDate: "2026-06-01", closePrice: 690 }),
+      dailyPrice({ priceDate: "2026-06-02", closePrice: 695.49 })
+    ]
+  });
+
+  const daily = metrics.find((metric) => metric.label === "Daily");
+  assert.equal(daily?.baselineDate, "2026-06-01");
+  assertClose(daily?.valueChange, 54.9);
+  assertClose(daily?.percentChange, 695.49 / 690 - 1);
 });
 
 test("holding period returns keep normal baseline calculations", () => {

@@ -1,5 +1,6 @@
 import {
   CashSnapshot,
+  DailyPrice,
   HoldingValuation,
   HoldingSnapshot,
   PerformanceMetric,
@@ -83,6 +84,35 @@ function isImplausibleProductPeriodReturn(percentChange: number, denominator: nu
   return noOffsettingTrades && denominatorIsTiny && Math.abs(percentChange) > 10;
 }
 
+function findBaselinePrice(prices: DailyPrice[], targetDate: string) {
+  const sorted = [...prices].sort((a, b) => a.priceDate.localeCompare(b.priceDate));
+  const onOrBefore = sorted.filter((price) => price.priceDate <= targetDate).at(-1);
+  return onOrBefore ?? sorted.find((price) => price.priceDate >= targetDate);
+}
+
+function buildHoldingPriceMetric(
+  label: PerformanceMetric["label"],
+  valuation: HoldingValuation,
+  priceHistory: DailyPrice[],
+  targetDate: string,
+  baselineDate: string | null
+): PerformanceMetric {
+  const currentPrice = valuation.unitPrice;
+  const baseline = findBaselinePrice(priceHistory, targetDate);
+  if (!baseline || currentPrice == null || baseline.closePrice === 0) {
+    return { label, valueChange: null, percentChange: null, baselineDate };
+  }
+
+  const baselineValue = baseline.closePrice * valuation.holding.quantity;
+  const valueChange = valuation.value - baselineValue;
+  return {
+    label,
+    valueChange,
+    percentChange: currentPrice / baseline.closePrice - 1,
+    baselineDate: baseline.priceDate
+  };
+}
+
 export class PerformanceService {
   calculatePortfolioPerformance(input: {
     currentValue: number;
@@ -105,14 +135,16 @@ export class PerformanceService {
     valuation: HoldingValuation;
     snapshots: HoldingSnapshot[];
     transactions: Transaction[];
+    priceHistory?: DailyPrice[];
   }): PerformanceMetric[] {
     const holdingSnapshots = input.snapshots.filter((snapshot) => snapshot.holdingId === input.valuation.holding.id);
+    const priceHistory = input.priceHistory ?? [];
     return [
-      this.buildHoldingFlowAdjustedMetric("Daily", input.valuation.value, holdingSnapshots, input.transactions, isoDateDaysAgo(1)),
-      this.buildHoldingFlowAdjustedMetric("Weekly", input.valuation.value, holdingSnapshots, input.transactions, isoDateDaysAgo(7)),
-      this.buildHoldingFlowAdjustedMetric("Monthly", input.valuation.value, holdingSnapshots, input.transactions, isoDateDaysAgo(30)),
-      this.buildHoldingFlowAdjustedMetric("1Y", input.valuation.value, holdingSnapshots, input.transactions, isoDateDaysAgo(365)),
-      this.buildHoldingFlowAdjustedMetric("YTD", input.valuation.value, holdingSnapshots, input.transactions, startOfYearIsoDate()),
+      this.buildHoldingFlowAdjustedMetric("Daily", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(1)),
+      this.buildHoldingFlowAdjustedMetric("Weekly", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(7)),
+      this.buildHoldingFlowAdjustedMetric("Monthly", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(30)),
+      this.buildHoldingFlowAdjustedMetric("1Y", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(365)),
+      this.buildHoldingFlowAdjustedMetric("YTD", input.valuation, holdingSnapshots, input.transactions, priceHistory, startOfYearIsoDate()),
       this.buildAssetSinceInceptionMetric(input.valuation, input.transactions)
     ];
   }
@@ -240,13 +272,14 @@ export class PerformanceService {
 
   private buildHoldingFlowAdjustedMetric(
     label: PerformanceMetric["label"],
-    currentValue: number,
+    valuation: HoldingValuation,
     snapshots: HoldingSnapshot[],
     transactions: Transaction[],
+    priceHistory: DailyPrice[],
     targetDate: string
   ): PerformanceMetric {
     const baseline = findBaselineSnapshot(snapshots, targetDate);
-    if (!baseline) return { label, valueChange: null, percentChange: null, baselineDate: null };
+    if (!baseline) return buildHoldingPriceMetric(label, valuation, priceHistory, targetDate, null);
 
     const currentDate = todayIsoDate();
     const periodTransactions = transactions.filter(
@@ -264,19 +297,14 @@ export class PerformanceService {
     const fees = periodTransactions
       .filter((transaction) => transaction.transactionType === "fee")
       .reduce((sum, transaction) => sum + transaction.fees + transactionAmount(transaction), 0);
-    const valueChange = currentValue - baseline.marketValue - buys + sells + income - fees;
+    const valueChange = valuation.value - baseline.marketValue - buys + sells + income - fees;
     const denominator = baseline.marketValue + buys;
     const percentChange = denominator === 0 ? null : valueChange / denominator;
     if (
       percentChange != null &&
-      isImplausibleProductPeriodReturn(percentChange, denominator, currentValue, buys, sells)
+      isImplausibleProductPeriodReturn(percentChange, denominator, valuation.value, buys, sells)
     ) {
-      return {
-        label,
-        valueChange: null,
-        percentChange: null,
-        baselineDate: baseline.snapshotDate
-      };
+      return buildHoldingPriceMetric(label, valuation, priceHistory, targetDate, baseline.snapshotDate);
     }
     return {
       label,
