@@ -20,10 +20,18 @@ export const themeHierarchy: Record<NewsCanonicalTheme, NewsThemeCategory[]> = {
   Healthcare: ["Sector"],
   Consumer: ["Sector"],
   Industrials: ["Sector"],
+  "Real Estate": ["Sector"],
+  Utilities: ["Sector"],
+  Materials: ["Sector"],
   AI: ["Investment"],
   Quality: ["Investment"],
+  Value: ["Investment"],
   Dividend: ["Investment"],
   Defensive: ["Investment"],
+  "High Beta": ["Investment"],
+  "Long Duration": ["Macro", "Investment"],
+  "Inflation Hedge": ["Macro", "Investment"],
+  "Recession Hedge": ["Macro", "Investment"],
   Credit: ["Macro"],
   "Trade / Supply Chain": ["Macro"]
 };
@@ -47,6 +55,24 @@ function parseDate(value: string) {
 function average(values: number[]) {
   if (values.length === 0) return 0;
   return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+function impactScore(input: {
+  count: number;
+  macroSignalCount: number;
+  averageConfidence: number;
+  averageSeverity: number;
+  averagePersistence: number;
+  structuralCount: number;
+}) {
+  return Math.round(
+    input.count * 4 +
+    input.macroSignalCount * 5 +
+    input.averageSeverity * 0.35 +
+    input.averagePersistence * 0.35 +
+    input.averageConfidence * 0.2 +
+    input.structuralCount * 8
+  );
 }
 
 const fundStructureTerms = ["etf", "etfs", "mutual fund", "mutual funds", "expense ratio", "fund fees", "cheaper than mutual funds"];
@@ -115,6 +141,10 @@ export class ThemeIntelligenceService {
         const signalConfidence = currentSignals.map((signal) => signal.confidenceScore);
         const newsCount = currentItems.length;
         const macroSignalCount = currentSignals.length;
+        const averageConfidence = average([...currentItems.map((item) => item.classification.themeConfidence), ...signalConfidence]);
+        const averageSeverity = average([...currentItems.map((item) => item.classification.severityScore), ...signalSeverity]);
+        const averagePersistence = average([...currentItems.map((item) => item.classification.persistenceScore), ...signalPersistence]);
+        const structuralCount = currentItems.filter((item) => item.classification.classification === "structural_long_term_shift").length;
         return [{
           theme,
           categories: themeHierarchy[theme],
@@ -125,18 +155,26 @@ export class ThemeIntelligenceService {
             newsCount > 0 ? "News" : null,
             macroSignalCount > 0 ? "FRED" : null
           ].filter((source): source is string => Boolean(source)),
-          averageConfidence: average([...currentItems.map((item) => item.classification.themeConfidence), ...signalConfidence]),
-          averageSeverity: average([...currentItems.map((item) => item.classification.severityScore), ...signalSeverity]),
-          averagePersistence: average([...currentItems.map((item) => item.classification.persistenceScore), ...signalPersistence]),
+          impactScore: impactScore({
+            count: newsCount + macroSignalCount,
+            macroSignalCount,
+            averageConfidence,
+            averageSeverity,
+            averagePersistence,
+            structuralCount
+          }),
+          averageConfidence,
+          averageSeverity,
+          averagePersistence,
           rolling4WeekFrequency: weeklyCounts.reduce((sum, count) => sum + count, 0),
           weeksWithData,
           trend: trendFrom(newsCount + macroSignalCount, priorAverage, weeksWithData),
-          structuralCount: currentItems.filter((item) => item.classification.classification === "structural_long_term_shift").length,
+          structuralCount,
           topHeadlines: this.topHeadlines(currentItems),
           topMacroSignals: currentSignals.slice(0, 3).map((signal) => signal.explanation)
         }];
       })
-      .sort((a, b) => b.count - a.count || b.averagePersistence - a.averagePersistence || b.averageSeverity - a.averageSeverity);
+      .sort((a, b) => (b.impactScore ?? 0) - (a.impactScore ?? 0) || b.count - a.count || b.averagePersistence - a.averagePersistence || b.averageSeverity - a.averageSeverity);
   }
 
   reviewQueue(items: ClassifiedNews): NewsThemeReviewItem[] {

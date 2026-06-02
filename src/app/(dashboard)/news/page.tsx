@@ -348,10 +348,11 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                       </div>
                       <span className="text-sm text-muted-foreground">{theme.count} signals</span>
                     </div>
-                    <div className="mt-2 grid grid-cols-4 gap-2 text-xs text-muted-foreground">
+                    <div className="mt-2 grid grid-cols-5 gap-2 text-xs text-muted-foreground">
                       <span>Conf {formatThemeConfidence(theme.averageConfidence)}</span>
                       <span>Sev {theme.averageSeverity}/100</span>
                       <span>Persist {theme.averagePersistence}/100</span>
+                      <span>Impact {theme.impactScore ?? 0}</span>
                       <span className={trendTone(theme.trend)}>{theme.trend ?? "Stable"}</span>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">
@@ -401,7 +402,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                     {dashboard.themeIntelligence.reviewQueue.slice(0, 5).map((item) => (
                       <div key={item.newsItemId} className="rounded-md bg-muted/40 p-2 text-sm">
                         <div className="font-medium">{item.title}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">{item.primaryTheme ?? "Unmapped"} · {formatThemeConfidence(item.themeConfidence)} · {item.reason}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{item.primaryTheme ?? "Unmapped"} - {formatThemeConfidence(item.themeConfidence)} - {item.reason}</div>
                       </div>
                     ))}
                   </div>
@@ -474,7 +475,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                           <div key={theme.theme} className="rounded-md border p-3 text-sm">
                             <div className="flex items-center justify-between gap-3">
                               <span className="font-medium">{theme.theme}</span>
-                              <span className="text-xs text-muted-foreground">{theme.count} items · {theme.trend ?? "Stable"}</span>
+                              <span className="text-xs text-muted-foreground">News {theme.newsItemCount ?? theme.count} - FRED {theme.macroSignalCount ?? 0} - Impact {theme.impactScore ?? 0}</span>
                             </div>
                             <p className="mt-2 text-xs leading-5 text-muted-foreground">{theme.topHeadlines.slice(0, 2).join("; ") || "No headline sample."}</p>
                           </div>

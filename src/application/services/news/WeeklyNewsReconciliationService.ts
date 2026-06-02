@@ -36,6 +36,24 @@ function textIncludesAny(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term));
 }
 
+function impactScore(input: {
+  count: number;
+  macroSignalCount: number;
+  averageConfidence: number;
+  averageSeverity: number;
+  averagePersistence: number;
+  structuralCount: number;
+}) {
+  return Math.round(
+    input.count * 4 +
+    input.macroSignalCount * 5 +
+    input.averageSeverity * 0.35 +
+    input.averagePersistence * 0.35 +
+    input.averageConfidence * 0.2 +
+    input.structuralCount * 8
+  );
+}
+
 export class WeeklyNewsReconciliationService {
   constructor(
     private readonly repository: NewsRepository,
@@ -183,6 +201,10 @@ export class WeeklyNewsReconciliationService {
         const signalSeverityTotal = themeSignals.reduce((sum, signal) => sum + signal.severityScore, 0);
         const signalPersistenceTotal = themeSignals.reduce((sum, signal) => sum + signal.persistenceScore, 0);
         const denominator = Math.max(1, themeItems.length + themeSignals.length);
+        const averageConfidence = Math.round((confidenceTotal + signalConfidenceTotal) / denominator);
+        const averageSeverity = Math.round((severityTotal + signalSeverityTotal) / denominator);
+        const averagePersistence = Math.round((persistenceTotal + signalPersistenceTotal) / denominator);
+        const structuralCount = themeItems.filter((item) => item.classification.classification === "structural_long_term_shift").length;
         return {
           theme,
           count: themeItems.length + themeSignals.length,
@@ -192,16 +214,24 @@ export class WeeklyNewsReconciliationService {
             themeItems.length > 0 ? "News" : null,
             themeSignals.length > 0 ? "FRED" : null
           ].filter((source): source is string => Boolean(source)),
-          averageConfidence: Math.round((confidenceTotal + signalConfidenceTotal) / denominator),
-          averageSeverity: Math.round((severityTotal + signalSeverityTotal) / denominator),
-          averagePersistence: Math.round((persistenceTotal + signalPersistenceTotal) / denominator),
-          structuralCount: themeItems.filter((item) => item.classification.classification === "structural_long_term_shift").length,
+          impactScore: impactScore({
+            count: themeItems.length + themeSignals.length,
+            macroSignalCount: themeSignals.length,
+            averageConfidence,
+            averageSeverity,
+            averagePersistence,
+            structuralCount
+          }),
+          averageConfidence,
+          averageSeverity,
+          averagePersistence,
+          structuralCount,
           topHeadlines: this.topThemeHeadlines(themeItems),
           topMacroSignals: themeSignals.slice(0, 3).map((signal) => signal.explanation)
         };
       })
       .filter((summary): summary is NonNullable<typeof summary> => Boolean(summary))
-      .sort((a, b) => b.count - a.count || b.averagePersistence - a.averagePersistence || b.averageSeverity - a.averageSeverity);
+      .sort((a, b) => (b.impactScore ?? 0) - (a.impactScore ?? 0) || b.count - a.count || b.averagePersistence - a.averagePersistence || b.averageSeverity - a.averageSeverity);
   }
 
   private effectiveThemes(item: Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>[number]) {

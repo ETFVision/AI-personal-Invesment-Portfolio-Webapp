@@ -23,9 +23,17 @@ export const canonicalNewsThemes: NewsCanonicalTheme[] = [
   "Financials",
   "Technology",
   "Industrials",
+  "Real Estate",
+  "Utilities",
+  "Materials",
   "Quality",
+  "Value",
   "Dividend",
-  "Defensive"
+  "Defensive",
+  "High Beta",
+  "Long Duration",
+  "Inflation Hedge",
+  "Recession Hedge"
 ];
 export function validateNewsClassificationOutput(input: unknown) {
   const row = typeof input === "object" && input !== null ? input as Record<string, unknown> : {};

@@ -35,10 +35,11 @@ const tickerThemeMap = new Map<string, NewsCanonicalTheme>([
   ["JNJ", "Healthcare"], ["ISRG", "Healthcare"], ["ABBV", "Healthcare"], ["MRK", "Healthcare"], ["XOM", "Energy"],
   ["CVX", "Energy"], ["NEE", "Energy"], ["CAT", "Industrials"], ["GE", "Industrials"], ["BA", "Industrials"],
   ["XLK", "Technology"], ["VGT", "Technology"], ["SMH", "AI"], ["SOXX", "Technology"], ["XLF", "Financials"],
-  ["XLE", "Energy"], ["XLV", "Healthcare"], ["VHT", "Healthcare"], ["XLP", "Consumer"], ["XLU", "Defensive"],
-  ["VNQ", "Defensive"], ["SCHD", "Dividend"], ["VIG", "Dividend"], ["SPY", "Growth"], ["VOO", "Growth"],
+  ["XLE", "Energy"], ["XLV", "Healthcare"], ["VHT", "Healthcare"], ["XLP", "Consumer"], ["XLU", "Utilities"],
+  ["VNQ", "Real Estate"], ["SCHD", "Dividend"], ["VIG", "Dividend"], ["SPY", "Growth"], ["VOO", "Growth"],
   ["IVV", "Growth"], ["VTI", "Growth"], ["QQQ", "Growth"], ["VT", "Growth"], ["ACWI", "Growth"],
-  ["VXUS", "Growth"], ["VEA", "Growth"], ["VWO", "Growth"], ["IEMG", "Growth"]
+  ["VXUS", "Growth"], ["VEA", "Growth"], ["VWO", "Growth"], ["IEMG", "Growth"],
+  ["GLD", "Inflation Hedge"], ["IAU", "Inflation Hedge"], ["TLT", "Long Duration"], ["TIP", "Inflation Hedge"]
 ]);
 
 const themeKeywords: Array<{ theme: NewsCanonicalTheme; terms: string[]; macro?: string; structural?: boolean }> = [
@@ -58,9 +59,17 @@ const themeKeywords: Array<{ theme: NewsCanonicalTheme; terms: string[]; macro?:
   { theme: "Healthcare", terms: ["healthcare", "health care", "pharma", "biotech", "drug", "fda", "lilly", "unitedhealth"] },
   { theme: "Financials", terms: ["bank", "banks", "financial", "financials", "jpmorgan", "goldman", "fintech"] },
   { theme: "Industrials", terms: ["industrial", "industrials", "infrastructure", "factory", "pentagon", "defense", "aerospace", "boeing", "caterpillar", "ge aerospace"] },
+  { theme: "Real Estate", terms: ["real estate", "reit", "reits", "property", "housing", "mortgage"] },
+  { theme: "Utilities", terms: ["utility", "utilities", "power grid", "electric utility", "regulated utility"] },
+  { theme: "Materials", terms: ["materials", "mining", "metals", "copper", "lithium", "steel"] },
   { theme: "Quality", terms: ["quality", "strong balance sheet", "cash flow", "profitability", "moat"] },
+  { theme: "Value", terms: ["value", "undervalued", "cheap valuation", "valuation discount", "low multiple"] },
   { theme: "Dividend", terms: ["dividend", "yield income", "payout"] },
-  { theme: "Defensive", terms: ["defensive", "staples", "utilities", "recession proof", "safe haven"] }
+  { theme: "Defensive", terms: ["defensive", "staples", "recession proof", "safe haven"] },
+  { theme: "High Beta", terms: ["high beta", "speculative", "profitless", "volatile", "meme stock", "risk-on"] },
+  { theme: "Long Duration", macro: "rates", terms: ["long duration", "duration risk", "duration-sensitive", "long treasury", "long bond"] },
+  { theme: "Inflation Hedge", macro: "inflation", terms: ["inflation hedge", "tips", "gold", "bullion", "commodities", "precious metals"] },
+  { theme: "Recession Hedge", macro: "growth", terms: ["recession hedge", "flight to safety", "treasury rally", "safe haven treasuries"] }
 ];
 
 function escapeRegExp(value: string) {
@@ -103,15 +112,16 @@ export class NewsThemeClassificationService {
       structuralSignals.push(Boolean(signal.structural));
     }
 
+    const hasGoldFalsePositiveText = includesAny(text, ["gold rush", "golden", "goldman"]);
+    const hasFinancialGoldText = includesAny(text, ["gold price", "spot gold", "bullion", "precious metal", "precious metals", "gold etf", "gold futures"]);
     const isCrypto = symbols.some((symbol) => cryptoSymbols.has(symbol)) || includesAny(text, ["bitcoin", "ethereum", "solana", "crypto"]);
     const isBond = symbols.some((symbol) => bondSymbols.has(symbol)) || includesAny(text, ["treasury", "bond", "yield curve", "credit spread"]);
     const isGold = symbols.some((symbol) => goldSymbols.has(symbol)) ||
-      /\bgold\b/.test(text) && !includesAny(text, ["gold rush", "golden", "goldman"]) ||
+      /\bgold\b/.test(text) && !hasGoldFalsePositiveText ||
       includesAny(text, ["gold price", "bullion", "precious metal", "precious metals", "commodity", "commodities"]);
     const hasTicker = symbols.length > 0;
     const isBroadMarket = includesAny(text, ["s&p 500", "nasdaq", "dow", "stock market", "wall street", "market opens"]);
     const isEquity = hasTicker || isBroadMarket || includesAny(text, ["stock", "stocks", "equity", "equities", "earnings", "shares", "forecast", "forecasts"]);
-    const isMacro = macroCategories.length > 0 || Boolean(input.providerPrimaryTheme && ["Rates", "Inflation", "Growth", "Employment", "Yield Curve", "Currency", "Geopolitical", "Energy", "Credit", "Trade / Supply Chain"].includes(input.providerPrimaryTheme));
 
     const orderedThemes = unique([
       ...keywordThemes,
@@ -127,10 +137,20 @@ export class NewsThemeClassificationService {
       const industrialIndex = orderedThemes.indexOf("Industrials");
       if (industrialIndex >= 0) orderedThemes.splice(industrialIndex, 1);
     }
+    if (hasGoldFalsePositiveText && !hasFinancialGoldText && !symbols.some((symbol) => goldSymbols.has(symbol))) {
+      for (const theme of ["Inflation", "Inflation Hedge"] as NewsCanonicalTheme[]) {
+        const themeIndex = orderedThemes.indexOf(theme);
+        if (themeIndex >= 0) orderedThemes.splice(themeIndex, 1);
+      }
+      for (let index = macroCategories.length - 1; index >= 0; index--) {
+        if (macroCategories[index] === "inflation") macroCategories.splice(index, 1);
+      }
+    }
 
     const fallbackTheme: NewsCanonicalTheme | null = isCrypto ? "Technology" : isGold ? "Inflation" : isBond ? "Credit" : isBroadMarket ? "Growth" : null;
     const primaryTheme = orderedThemes[0] ?? fallbackTheme;
     const secondaryThemes = orderedThemes.filter((theme) => theme !== primaryTheme).slice(0, 5);
+    const isMacro = macroCategories.length > 0 || Boolean(input.providerPrimaryTheme && ["Rates", "Inflation", "Growth", "Employment", "Yield Curve", "Currency", "Geopolitical", "Energy", "Credit", "Trade / Supply Chain", "Long Duration", "Inflation Hedge", "Recession Hedge"].includes(input.providerPrimaryTheme));
     const affectedAssetClasses = unique([
       isCrypto ? "crypto" : null,
       isBond ? "bonds" : null,
@@ -145,6 +165,9 @@ export class NewsThemeClassificationService {
       primaryTheme === "Technology" || secondaryThemes.includes("Technology") ? "Cloud / Software" : null,
       primaryTheme === "Rates" || isBond ? "Interest Rate Sensitive" : null,
       primaryTheme === "Inflation" || isGold ? "Inflation Hedge" : null,
+      primaryTheme === "Long Duration" ? "Long Duration" : null,
+      primaryTheme === "Inflation Hedge" ? "Inflation Hedge" : null,
+      primaryTheme === "Recession Hedge" ? "Recession Hedge" : null,
       isCrypto ? "Crypto / Digital Assets" : null
     ].filter((item): item is string => Boolean(item));
 

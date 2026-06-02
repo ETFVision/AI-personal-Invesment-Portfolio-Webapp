@@ -31,9 +31,17 @@ const assetClassByTheme: Record<NewsCanonicalTheme, string[]> = {
   Financials: ["equities"],
   Technology: ["equities"],
   Industrials: ["equities"],
+  "Real Estate": ["equities"],
+  Utilities: ["equities"],
+  Materials: ["equities"],
   Quality: ["equities"],
+  Value: ["equities"],
   Dividend: ["equities"],
-  Defensive: ["equities"]
+  Defensive: ["equities"],
+  "High Beta": ["equities"],
+  "Long Duration": ["bonds", "macro"],
+  "Inflation Hedge": ["gold/commodities", "macro"],
+  "Recession Hedge": ["bonds", "macro"]
 };
 
 const macroCategoryByTheme: Partial<Record<NewsCanonicalTheme, string[]>> = {
@@ -46,7 +54,10 @@ const macroCategoryByTheme: Partial<Record<NewsCanonicalTheme, string[]>> = {
   Geopolitical: ["geopolitical"],
   Energy: ["energy"],
   Credit: ["credit"],
-  "Trade / Supply Chain": ["trade_supply_chain"]
+  "Trade / Supply Chain": ["trade_supply_chain"],
+  "Long Duration": ["rates"],
+  "Inflation Hedge": ["inflation"],
+  "Recession Hedge": ["growth"]
 };
 
 function includesAny(text: string, terms: string[]) {

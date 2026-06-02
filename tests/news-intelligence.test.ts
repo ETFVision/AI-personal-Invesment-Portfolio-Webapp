@@ -605,6 +605,46 @@ test("deterministic classifier uses ticker themes for sector-specific articles",
   assert.equal(healthcare.primaryTheme, "Healthcare");
 });
 
+test("deterministic classifier supports expanded canonical theme taxonomy", () => {
+  const service = new NewsClassificationService(new FakeNewsRepository());
+  const realEstate = service.deterministicFallback(newsItem({
+    title: "Real estate REITs rally as property demand improves",
+    summary: "",
+    contentSnippet: "",
+    tickers: ["VNQ"]
+  }));
+  assert.equal(realEstate.primaryTheme, "Real Estate");
+
+  const longDuration = service.deterministicFallback(newsItem({
+    title: "Long duration Treasury ETFs face renewed duration risk",
+    summary: "",
+    contentSnippet: "",
+    tickers: ["TLT"]
+  }));
+  assert.equal(longDuration.primaryTheme, "Long Duration");
+  assert.ok(longDuration.affectedMacroCategories.includes("rates"));
+
+  const inflationHedge = service.deterministicFallback(newsItem({
+    title: "Gold and TIPS regain attention as inflation hedge demand rises",
+    summary: "",
+    contentSnippet: "",
+    tickers: ["GLD", "TIP"]
+  }));
+  assert.ok([inflationHedge.primaryTheme, ...inflationHedge.secondaryThemes].includes("Inflation Hedge"));
+});
+
+test("classification validator accepts expanded canonical themes", () => {
+  const output = validateNewsClassificationOutput({
+    sentiment: "neutral",
+    classification: "medium_term_theme",
+    primaryTheme: "Utilities",
+    secondaryThemes: ["Materials", "Value", "High Beta", "Recession Hedge"],
+    themeConfidence: 72
+  });
+  assert.equal(output.primaryTheme, "Utilities");
+  assert.deepEqual(output.secondaryThemes, ["Materials", "Value", "High Beta", "Recession Hedge"]);
+});
+
 test("deterministic classifier does not map macro PMI gold headlines to Industrials", () => {
   const service = new NewsClassificationService(new FakeNewsRepository());
   const output = service.deterministicFallback(newsItem({
@@ -833,7 +873,7 @@ test("weekly reconciliation groups classified news and creates draft summary", a
   assert.match(weekly.equitiesSummary ?? "", /equities/);
   assert.match(weekly.ratesSummary ?? "", /rates/);
   assert.equal((weekly.coverageMetadata.bucketCounts as Record<string, number>).equities, 1);
-  assert.equal((weekly.coverageMetadata.themeSummaries as Array<{ theme: string; count: number }>)[0]?.theme, "AI");
+  assert.equal((weekly.coverageMetadata.themeSummaries as Array<{ theme: string; count: number }>).some((item) => item.theme === "AI"), true);
   assert.equal(weekly.coverageMetadata.classifiedInPeriod, 2);
 });
 
@@ -919,6 +959,26 @@ test("weekly reconciliation includes FRED macro signals with zero news items", a
   assert.equal(repository.items.length, 0);
   assert.equal(summaries?.find((item) => item.theme === "Rates")?.newsItemCount, 0);
   assert.equal(summaries?.find((item) => item.theme === "Rates")?.macroSignalCount, 1);
+});
+
+test("weekly theme summaries rank by impact instead of raw count alone", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({ id: "tech-1", title: "Technology stock update", tickers: ["AAPL"] }),
+    newsItem({ id: "tech-2", title: "Software stock update", tickers: ["MSFT"] }),
+    newsItem({ id: "tech-3", title: "Cloud stock update", tickers: ["ORCL"] })
+  ];
+  repository.classifications = [
+    classification({ newsItemId: "tech-1", primaryTheme: "Technology", severityScore: 5, persistenceScore: 5, themeConfidence: 40 }),
+    classification({ newsItemId: "tech-2", primaryTheme: "Technology", severityScore: 5, persistenceScore: 5, themeConfidence: 40 }),
+    classification({ newsItemId: "tech-3", primaryTheme: "Technology", severityScore: 5, persistenceScore: 5, themeConfidence: 40 })
+  ];
+  const service = new WeeklyNewsReconciliationService(repository);
+  const summaries = service.summarizeThemes(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"), [
+    macroSignal({ theme: "Rates", severityScore: 90, persistenceScore: 90, confidenceScore: 90 })
+  ]);
+  assert.equal(summaries[0]?.theme, "Rates");
+  assert.ok((summaries[0]?.impactScore ?? 0) > (summaries.find((item) => item.theme === "Technology")?.impactScore ?? 0));
 });
 
 test("theme intelligence calculates hierarchy, trend, and review queue", async () => {

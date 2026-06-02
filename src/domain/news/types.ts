@@ -20,9 +20,17 @@ export type NewsCanonicalTheme =
   | "Financials"
   | "Technology"
   | "Industrials"
+  | "Real Estate"
+  | "Utilities"
+  | "Materials"
   | "Quality"
+  | "Value"
   | "Dividend"
-  | "Defensive";
+  | "Defensive"
+  | "High Beta"
+  | "Long Duration"
+  | "Inflation Hedge"
+  | "Recession Hedge";
 export type NewsThemeCategory = "Macro" | "Sector" | "Investment";
 export type NewsThemeTrend = "Rising" | "Stable" | "Declining" | "Low confidence trend" | "Insufficient history";
 export type SourceQualityTier = "tier_1" | "tier_2" | "tier_3";
@@ -226,6 +234,7 @@ export type NewsThemeSummary = {
   newsItemCount?: number;
   macroSignalCount?: number;
   sources?: string[];
+  impactScore?: number;
   averageConfidence: number;
   averageSeverity: number;
   averagePersistence: number;

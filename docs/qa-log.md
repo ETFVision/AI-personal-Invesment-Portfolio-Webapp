@@ -1720,3 +1720,65 @@ Validation performed:
 
 Production-readiness assessment:
 - FRED theme cards should now populate after migration 030 is applied and FRED refresh/backfill has generated any macro theme signals.
+
+## 2026-06-02 - News Intelligence Full QA Before AI Market Vision
+
+Scope:
+- Reviewed the completed News Intelligence pipeline after FMP news, GDELT macro/world news, source quality scoring, FRED macro signals, Theme Intelligence, and Weekly Reconciliation.
+- Explicitly did not build AI Market Vision generation, recommendations, scoring, telemetry, or Portfolio Assistant.
+
+Scores:
+- News Intelligence: 88/100.
+- Theme Intelligence: 88/100.
+- FRED integration: 91/100.
+- GDELT integration: 83/100.
+- Market Vision readiness: 88/100.
+
+Critical issues:
+- None found.
+
+Medium-priority issues fixed:
+- Theme taxonomy was missing several requested canonical themes: Real Estate, Utilities, Materials, Value, High Beta, Long Duration, Inflation Hedge, and Recession Hedge.
+- Theme ranking relied too much on raw article count. Added an `impactScore` using count, FRED signal count, severity, persistence, confidence, and structural count.
+- GDELT theme mapping and AI prompt placeholders were updated to use the expanded controlled taxonomy.
+- UI now shows impact score and separates News vs FRED signal counts in weekly theme cards.
+- Tightened gold-rush false-positive handling so idiomatic headlines do not create macro/gold signals.
+
+Classification anomaly report:
+- Existing test coverage confirms AI/technology articles are no longer corrected into Credit or Currency during deterministic reconciliation.
+- Healthcare ticker-linked articles are corrected away from stale Financials mappings.
+- Technology hardware articles are corrected away from stale Consumer mappings where appropriate.
+- Gold/yields headlines stay in Gold / Commodities rather than Bonds.
+- Gold-rush idioms no longer map to gold, inflation, or macro.
+- Remaining expected review-queue behavior: low-confidence or unmapped GDELT items remain stored and flagged rather than silently forced into a theme.
+
+Architecture assessment:
+- UI uses service/repository actions for News Intelligence and does not call FMP, GDELT, FRED, or OpenAI directly.
+- Provider-specific logic remains behind provider and ingestion services.
+- FRED macro signals remain separate from `news_items`.
+- GDELT queue/backoff logic remains cloud-portable for Vercel Cron or GitHub Actions.
+- Source quality scores are stored and used by weekly eligibility filtering.
+
+Data integrity assessment:
+- Duplicate articles are preserved but marked with `is_duplicate`/`duplicate_of_id`.
+- Classification upserts are covered by tests and no longer send explicit null IDs.
+- Repeated ingestion, duplicate batches, failed provider responses, empty GDELT queue runs, and GDELT backoff are covered by tests.
+- FRED latest-as-of lookup prevents stale weekly windows from hiding valid macro signals.
+
+Low-priority improvements for later:
+- Add a manual classification review workflow for low-confidence/unmapped rows.
+- Add a provider/source allowlist or per-query source preference for GDELT to reduce low-quality world-news noise.
+- Add cross-provider fuzzy duplicate detection beyond URL/source/title hashes.
+- Add a dashboard view for FRED macro theme signal provenance and regime contribution.
+- Add historical reconciliation comparison once more than four weekly runs exist.
+- Add richer GDELT diagnostics for which query terms caused fallback success vs 429 failures.
+
+Validation performed:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd test` passed: 104 tests.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- Ready for AI Market Vision as a structured input foundation, with human review still recommended for low-confidence theme rows.
+- Recommendation: proceed to AI Market Vision generation only after the latest weekly reconciliation is regenerated with the current taxonomy and impact scoring.
