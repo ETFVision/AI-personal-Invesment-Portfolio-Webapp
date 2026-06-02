@@ -273,7 +273,7 @@ test("fundamentals refresh derives missing ratios from financial statements", ()
       country: "US",
       exchange: "NASDAQ",
       currency: "USD",
-      marketCap: 3_000,
+      marketCap: null,
       beta: null,
       description: null,
       website: null,
@@ -282,7 +282,7 @@ test("fundamentals refresh derives missing ratios from financial statements", ()
       employees: null,
       lastRefreshedAt: "2026-06-01T00:00:00Z",
       provider: "test",
-      providerMetadata: {}
+      providerMetadata: { price: 30 }
     },
     statements: [
       {
@@ -309,7 +309,7 @@ test("fundamentals refresh derives missing ratios from financial statements", ()
         operatingCashFlow: null,
         capitalExpenditure: null,
         freeCashFlow: null,
-        sharesOutstanding: null,
+        sharesOutstanding: 100,
         provider: "test",
         providerMetadata: {}
       },

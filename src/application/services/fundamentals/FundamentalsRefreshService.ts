@@ -40,6 +40,11 @@ function safeRatio(numerator: number | null | undefined, denominator: number | n
   return Number.isFinite(value) ? value : null;
 }
 
+function numberFromMetadata(value: unknown) {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function safeGrowth(latest: number | null | undefined, previous: number | null | undefined) {
   if (latest == null || previous == null || previous === 0) return null;
   const value = (latest - previous) / Math.abs(previous);
@@ -102,6 +107,12 @@ function deriveMissingRatios(input: {
   const balanceSheet = latestStatement(input.statements, "balance_sheet");
   const cashFlow = latestStatement(input.statements, "cash_flow");
   const previousCashFlow = previousStatement(input.statements, "cash_flow", cashFlow);
+  const latestSharesOutstanding = income?.sharesOutstanding ?? balanceSheet?.sharesOutstanding ?? cashFlow?.sharesOutstanding ?? null;
+  const providerProfilePrice = numberFromMetadata(input.profile?.providerMetadata?.price);
+  const derivedMarketCap = input.profile?.marketCap ?? safeRatio(
+    latestSharesOutstanding != null && providerProfilePrice != null ? latestSharesOutstanding * providerProfilePrice : null,
+    1
+  );
 
   if (!income && !balanceSheet && !cashFlow) return input.ratios;
 
@@ -109,10 +120,10 @@ function deriveMissingRatios(input: {
   const latestRatio = sorted[0] ?? createEmptyDerivedRatio({ instrumentId: input.instrumentId, symbol: input.symbol, income, balanceSheet });
 
   const derivedPe =
-    safeRatio(input.profile?.marketCap, income?.netIncome) ??
-    safeRatio(input.profile?.marketCap, previousIncome?.netIncome);
-  const derivedPriceToSales = safeRatio(input.profile?.marketCap, income?.revenue);
-  const derivedPriceToBook = safeRatio(input.profile?.marketCap, balanceSheet?.shareholdersEquity);
+    safeRatio(derivedMarketCap, income?.netIncome) ??
+    safeRatio(derivedMarketCap, previousIncome?.netIncome);
+  const derivedPriceToSales = safeRatio(derivedMarketCap, income?.revenue);
+  const derivedPriceToBook = safeRatio(derivedMarketCap, balanceSheet?.shareholdersEquity);
   const derivedGrossMargin = safeRatio(income?.grossProfit, income?.revenue);
   const derivedOperatingMargin = safeRatio(income?.operatingIncome, income?.revenue);
   const derivedNetMargin = safeRatio(income?.netIncome, income?.revenue);
@@ -123,7 +134,7 @@ function deriveMissingRatios(input: {
     Number(input.profile?.providerMetadata?.currentAssets ?? balanceSheet?.providerMetadata?.totalCurrentAssets),
     Number(input.profile?.providerMetadata?.currentLiabilities ?? balanceSheet?.providerMetadata?.totalCurrentLiabilities)
   );
-  const derivedFreeCashFlowYield = safeRatio(cashFlow?.freeCashFlow, input.profile?.marketCap);
+  const derivedFreeCashFlowYield = safeRatio(cashFlow?.freeCashFlow, derivedMarketCap);
 
   const enhanced: FinancialRatio = {
     ...latestRatio,
@@ -132,7 +143,8 @@ function deriveMissingRatios(input: {
       ...latestRatio.providerMetadata,
       derivedFallbacks: {
         source: "financial_statements",
-        derivedAt: new Date().toISOString()
+        derivedAt: new Date().toISOString(),
+        marketCapInput: input.profile?.marketCap == null && derivedMarketCap != null ? "shares_outstanding_x_profile_price" : "profile_market_cap"
       }
     },
     peRatio: mergeRatio(latestRatio.peRatio, derivedPe),

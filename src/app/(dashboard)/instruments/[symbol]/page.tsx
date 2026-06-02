@@ -46,6 +46,7 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
   const latestIncome = detail.statements.find((statement) => statement.statementType === "income_statement");
   const latestCashFlow = detail.statements.find((statement) => statement.statementType === "cash_flow");
   const latestBalance = detail.statements.find((statement) => statement.statementType === "balance_sheet");
+  const sharesOutstanding = latestIncome?.sharesOutstanding ?? latestBalance?.sharesOutstanding ?? latestCashFlow?.sharesOutstanding ?? null;
   const currency = detail.profile?.currency ?? detail.instrument.currency ?? "USD";
 
   return (
@@ -77,6 +78,7 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
             <SummaryMetric label="Sector" value={detail.profile?.sector ?? detail.instrument.canonicalSector ?? "-"} />
             <SummaryMetric label="Industry" value={detail.profile?.industry ?? detail.instrument.industry ?? "-"} />
             <SummaryMetric label="Market cap" value={detail.profile?.marketCap == null ? "-" : formatCurrencyWithCode(detail.profile.marketCap, currency)} />
+            <SummaryMetric label="Shares outstanding" value={sharesOutstanding == null ? "-" : formatNumber(sharesOutstanding)} />
             <SummaryMetric label="Beta" value={ratio(detail.profile?.beta)} />
             <SummaryMetric label="Country" value={detail.profile?.country ?? "-"} />
             <SummaryMetric label="Last refreshed" value={detail.profile?.lastRefreshedAt?.slice(0, 10) ?? "-"} />
@@ -108,6 +110,8 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
         <CardContent className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <SummaryMetric label="Revenue" value={latestIncome?.revenue == null ? "-" : formatCurrencyWithCode(latestIncome.revenue, currency)} />
           <SummaryMetric label="Net income" value={latestIncome?.netIncome == null ? "-" : formatCurrencyWithCode(latestIncome.netIncome, currency)} />
+          <SummaryMetric label="Diluted EPS" value={latestIncome?.dilutedEps == null ? "-" : formatNumber(latestIncome.dilutedEps)} />
+          <SummaryMetric label="Shares outstanding" value={sharesOutstanding == null ? "-" : formatNumber(sharesOutstanding)} />
           <SummaryMetric label="Free cash flow" value={latestCashFlow?.freeCashFlow == null ? "-" : formatCurrencyWithCode(latestCashFlow.freeCashFlow, currency)} />
           <SummaryMetric label="Operating cash flow" value={latestCashFlow?.operatingCashFlow == null ? "-" : formatCurrencyWithCode(latestCashFlow.operatingCashFlow, currency)} />
           <SummaryMetric label="Cash" value={latestBalance?.cashAndEquivalents == null ? "-" : formatCurrencyWithCode(latestBalance.cashAndEquivalents, currency)} />
