@@ -46,7 +46,7 @@ export async function refreshUniverseMetadataAction() {
 
 export async function refreshInstrumentPricesAction() {
   await createContainer().authProvider.requireUser();
-  const result = await createContainer().instrumentMarketService.refreshInstrumentPrices({ lookbackDays: 30, maxSymbols: 12 });
+  const result = await createContainer().instrumentMarketService.refreshInstrumentPrices({ lookbackDays: 30, maxSymbols: 40 });
   const params = new URLSearchParams({
     priceMessage: result.message
   });

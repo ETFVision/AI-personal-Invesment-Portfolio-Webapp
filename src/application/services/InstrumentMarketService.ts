@@ -233,6 +233,46 @@ export class InstrumentMarketService {
     const missingSymbols: string[] = [];
     const errors: string[] = [];
 
+    if (!includeBackfill) {
+      try {
+        const latestQuotes = await this.provider.getLatestPrices(symbols);
+        const returnedSymbols = new Set(latestQuotes.map((quote) => quote.symbol.toUpperCase()));
+        for (const quote of latestQuotes) {
+          const instrument = instrumentBySymbol.get(quote.symbol.toUpperCase());
+          if (!instrument) continue;
+          rows.push({
+            instrumentId: instrument.id,
+            provider: this.provider.name,
+            symbol: quote.symbol.toUpperCase(),
+            priceDate: quote.asOfDate,
+            closePrice: quote.price,
+            currency: quote.currency ?? instrument.currency ?? "USD",
+            rawPayload: quote.raw
+          });
+        }
+        missingSymbols.push(...symbols.filter((symbol) => !returnedSymbols.has(symbol)));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Instrument latest price refresh failed.";
+        errors.push(message);
+      }
+
+      if (rows.length > 0) {
+        await this.repository.upsertInstrumentPrices(rows);
+        await this.repository.refreshInstrumentMarketMetrics(Array.from(new Set(rows.map((row) => row.instrumentId))));
+      }
+
+      return {
+        requestedSymbols: symbols,
+        updatedCount: rows.length,
+        missingSymbols,
+        errors,
+        message:
+          errors.length === 0
+            ? `Stored ${rows.length} latest instrument price row${rows.length === 1 ? "" : "s"} for ${symbols.length} instrument${symbols.length === 1 ? "" : "s"}. Run again to continue the next batch if needed.`
+            : `Stored ${rows.length} latest instrument price row${rows.length === 1 ? "" : "s"} with ${errors.length} issue${errors.length === 1 ? "" : "s"}. Run again to continue the next batch if needed.`
+      };
+    }
+
     const results = await Promise.all(
       symbols.map(async (symbol) => {
         try {
