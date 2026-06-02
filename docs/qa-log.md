@@ -1499,3 +1499,51 @@ Production-readiness assessment:
 - Better as a deterministic, provider-neutral classification foundation.
 - Ready for another live reclassification/reconciliation pass in the app.
 - Ready to support future Market Vision theme sections with cleaner source data.
+
+## 2026-06-02 - GDELT Relevance And Noise Filtering Hardening
+
+Scope:
+- Tightened GDELT article relevance before classification and weekly reconciliation.
+- Focused on reducing noisy macro/theme counts from non-English, local, and loose query-match articles.
+- Did not add recommendations, scoring, telemetry, or AI Market Vision generation.
+
+Problem observed:
+- Live reconciliation showed too many GDELT articles entering macro and theme summaries.
+- Examples included non-English/local articles and loosely related corporate AI headlines counted under macro/currency/industrials.
+
+What changed:
+- Added readable-English checks for GDELT articles.
+- Dropped explicit non-English GDELT articles.
+- Added category-specific relevance terms for:
+  - Rates.
+  - Inflation.
+  - Growth.
+  - Currency.
+  - Geopolitical.
+  - Trade / Supply Chain.
+  - Energy / Commodities.
+  - Global Credit.
+- Added financial/macro context requirement.
+- Preserved legitimate macro/world news while filtering loose query matches.
+- Added regression tests for non-English articles and loose corporate headlines.
+
+Validation performed:
+- `npm.cmd run test` passed: 91 tests.
+- `npm.cmd run typecheck` passed.
+
+Critical issues:
+- None.
+
+Medium-priority issues:
+- None.
+
+Low-priority improvements for later:
+- Add a manual review/approve queue for filtered GDELT candidates.
+- Add domain/source allowlist and blocklist controls.
+- Add per-query minimum relevance score instead of binary filtering.
+- Store filtered article diagnostics if deeper tuning is needed.
+
+Production-readiness assessment:
+- GDELT macro input quality is meaningfully better.
+- Ready for another live GDELT batch refresh followed by reclassification and weekly reconciliation.
+- Current filters are intentionally conservative to protect Market Vision inputs from noisy macro summaries.

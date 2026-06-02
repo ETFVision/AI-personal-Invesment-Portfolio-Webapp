@@ -966,7 +966,7 @@ test("GDELT provider extracts bounded fallback terms from OR query groups", () =
 });
 
 test("GDELT relevance filter drops local noise but keeps macro/world news", () => {
-  const group = gdeltQueryGroup();
+  const group = gdeltQueryGroup({ category: "currency", canonicalTheme: "Currency" });
   const normalizer = new GdeltNormalizationService();
   const service = new GdeltRelevanceService();
   const macro = normalizer.normalize({
@@ -982,6 +982,37 @@ test("GDELT relevance filter drops local noise but keeps macro/world news", () =
 
   assert.equal(service.isRelevant(macro as GdeltProviderArticle), true);
   assert.equal(service.isRelevant(localNoise as GdeltProviderArticle), false);
+});
+
+test("GDELT relevance filter drops non-English and loose query matches", () => {
+  const normalizer = new GdeltNormalizationService();
+  const service = new GdeltRelevanceService();
+  const geopolitical = gdeltQueryGroup({ category: "geopolitical", canonicalTheme: "Geopolitical" });
+  const currency = gdeltQueryGroup({ category: "currency", canonicalTheme: "Currency" });
+  const rates = gdeltQueryGroup({ category: "macro_rates", canonicalTheme: "Rates" });
+
+  const nonEnglish = normalizer.normalize({
+    url: "https://example.com/turkish",
+    title: "O yapılarda elektrik, su ve doğalgaz tamamen kesiliyor",
+    seendate: "20260601T000000Z",
+    language: "Turkish"
+  }, geopolitical);
+  const looseCorporate = normalizer.normalize({
+    url: "https://example.com/alphabet",
+    title: "Alphabet plans to raise $80 billion to pay for AI buildout",
+    seendate: "20260601T000000Z",
+    language: "English"
+  }, currency);
+  const unrelatedRates = normalizer.normalize({
+    url: "https://example.com/asus",
+    title: "ASUS Brings Enterprise to Edge AI to Life at Computex 2026",
+    seendate: "20260601T000000Z",
+    language: "English"
+  }, rates);
+
+  assert.equal(service.isRelevant(nonEnglish as GdeltProviderArticle), false);
+  assert.equal(service.isRelevant(looseCorporate as GdeltProviderArticle), false);
+  assert.equal(service.isRelevant(unrelatedRates as GdeltProviderArticle), false);
 });
 
 test("GDELT theme mapping assigns macro trade classifications without recommendations", () => {
@@ -1102,7 +1133,7 @@ test("GDELT ingestion processes only the next due query group batch", async () =
   const newsRepository = new UpsertingFakeNewsRepository();
   const gdeltRepository = new FakeGdeltRepository();
   gdeltRepository.groups = [
-    gdeltQueryGroup({ id: "success", queryKey: "macro_rates_policy", canonicalTheme: "Rates", nextRunAt: "2026-05-31T00:00:00.000Z" }),
+    gdeltQueryGroup({ id: "success", queryKey: "macro_rates_policy", canonicalTheme: "Rates", category: "macro_rates", nextRunAt: "2026-05-31T00:00:00.000Z" }),
     gdeltQueryGroup({ id: "queued", queryKey: "energy_commodities", canonicalTheme: "Energy", nextRunAt: "2026-06-01T00:00:00.000Z" })
   ];
   const article = new GdeltNormalizationService().normalize({
