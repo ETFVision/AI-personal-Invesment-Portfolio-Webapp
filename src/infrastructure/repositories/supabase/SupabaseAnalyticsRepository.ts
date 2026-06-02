@@ -5,8 +5,10 @@ import {
 import {
   AssetSnapshot,
   CashSnapshot,
+  HoldingMarketMetric,
   HoldingSnapshot,
   HoldingValuation,
+  PortfolioCurrentMetric,
   PortfolioSnapshot
 } from "@/domain/portfolio/types";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
@@ -64,11 +66,59 @@ function mapCashSnapshot(row: any): CashSnapshot {
   };
 }
 
+function mapHoldingMarketMetric(row: any): HoldingMarketMetric {
+  return {
+    holdingId: row.holding_id,
+    instrumentId: row.instrument_id,
+    latestPrice: row.latest_price == null ? null : Number(row.latest_price),
+    latestPriceDate: row.latest_price_date,
+    marketValue: Number(row.market_value),
+    dailyReturn: row.daily_return == null ? null : Number(row.daily_return),
+    weeklyReturn: row.weekly_return == null ? null : Number(row.weekly_return),
+    monthlyReturn: row.monthly_return == null ? null : Number(row.monthly_return),
+    ytdReturn: row.ytd_return == null ? null : Number(row.ytd_return),
+    oneYearReturn: row.one_year_return == null ? null : Number(row.one_year_return),
+    threeYearReturn: row.three_year_return == null ? null : Number(row.three_year_return),
+    fiveYearReturn: row.five_year_return == null ? null : Number(row.five_year_return),
+    sinceInceptionReturn: row.since_inception_return == null ? null : Number(row.since_inception_return),
+    fiftyTwoWeekLow: row.fifty_two_week_low == null ? null : Number(row.fifty_two_week_low),
+    fiftyTwoWeekHigh: row.fifty_two_week_high == null ? null : Number(row.fifty_two_week_high),
+    updatedAt: row.updated_at
+  };
+}
+
+function mapPortfolioCurrentMetric(row: any): PortfolioCurrentMetric {
+  return {
+    portfolioId: row.portfolio_id,
+    totalCash: Number(row.total_cash),
+    totalHoldingsMarketValue: Number(row.total_holdings_market_value),
+    totalValueEstimate: Number(row.total_value_estimate),
+    investedAmount: Number(row.invested_amount),
+    unrealizedGainLoss: Number(row.unrealized_gain_loss),
+    unrealizedGainLossPercent: Number(row.unrealized_gain_loss_percent),
+    latestPriceDate: row.latest_price_date,
+    updatedAt: row.updated_at
+  };
+}
+
 function isMissingSnapshotTable(error: { code?: string; message?: string } | null) {
   return Boolean(
     error &&
       (error.code === "42P01" ||
         (error.message?.toLowerCase().includes("snapshot") && error.message?.toLowerCase().includes("does not exist")))
+  );
+}
+
+function isMissingDerivedMetrics(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  const message = error.message?.toLowerCase() ?? "";
+  return (
+    error.code === "42P01" ||
+    error.code === "42883" ||
+    message.includes("holding_market_metrics") ||
+    message.includes("portfolio_current_metrics") ||
+    message.includes("refresh_holding_portfolio_metrics") ||
+    message.includes("could not find the function")
   );
 }
 
@@ -121,6 +171,35 @@ export class SupabaseAnalyticsRepository implements AnalyticsRepository {
     if (isMissingSnapshotTable(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapCashSnapshot);
+  }
+
+  async refreshHoldingPortfolioMetrics(portfolioId: string) {
+    const { error } = await this.db.rpc("refresh_holding_portfolio_metrics", {
+      target_portfolio_id: portfolioId
+    });
+    if (isMissingDerivedMetrics(error)) return;
+    if (error) throw new Error(error.message);
+  }
+
+  async listHoldingMarketMetrics(portfolioId: string) {
+    const { data, error } = await this.db
+      .from("holding_market_metrics")
+      .select("*")
+      .eq("portfolio_id", portfolioId);
+    if (isMissingDerivedMetrics(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapHoldingMarketMetric);
+  }
+
+  async getPortfolioCurrentMetric(portfolioId: string) {
+    const { data, error } = await this.db
+      .from("portfolio_current_metrics")
+      .select("*")
+      .eq("portfolio_id", portfolioId)
+      .maybeSingle();
+    if (isMissingDerivedMetrics(error)) return null;
+    if (error) throw new Error(error.message);
+    return data ? mapPortfolioCurrentMetric(data) : null;
   }
 
   async upsertPortfolioSnapshot(input: UpsertPortfolioSnapshotInput) {

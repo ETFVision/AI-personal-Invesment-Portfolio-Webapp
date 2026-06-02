@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { AllocationService } from "../src/application/services/AllocationService";
 import { AnalyticsService } from "../src/application/services/AnalyticsService";
 import { PerformanceService } from "../src/application/services/PerformanceService";
-import type { CashBalance, Holding, HoldingValuation, PortfolioSnapshot } from "../src/domain/portfolio/types";
+import type { CashBalance, Holding, HoldingMarketMetric, HoldingValuation, PortfolioSnapshot } from "../src/domain/portfolio/types";
 
 function holding(): Holding {
   return {
@@ -78,4 +78,54 @@ test("dashboard long-term performance ignores tiny stale snapshots when manual c
   assert.equal(oneYear?.percentChange, 200 / 1100);
   assert.equal(ytd?.percentChange, 200 / 1100);
   assert.equal(sinceInception?.percentChange, 200 / 1100);
+});
+
+test("dashboard product performance prefers derived holding market metrics", () => {
+  const service = new AnalyticsService(new AllocationService(), new PerformanceService());
+  const position = holding();
+  const derivedMetric: HoldingMarketMetric = {
+    holdingId: position.id,
+    instrumentId: "instrument",
+    latestPrice: 120,
+    latestPriceDate: "2026-06-01",
+    marketValue: 1200,
+    dailyReturn: 0.01,
+    weeklyReturn: 0.05,
+    monthlyReturn: 0.05,
+    ytdReturn: 0.05,
+    oneYearReturn: 0.05,
+    threeYearReturn: null,
+    fiveYearReturn: null,
+    sinceInceptionReturn: 0.2,
+    fiftyTwoWeekLow: 90,
+    fiftyTwoWeekHigh: 120,
+    updatedAt: "2026-06-01T00:00:00Z"
+  };
+
+  const dashboard = service.calculateDashboardAnalytics({
+    cashBalances: [],
+    holdings: [position],
+    holdingValuations: [{
+      holding: position,
+      unitPrice: 120,
+      value: 1200,
+      valueCurrency: "USD",
+      priceDate: "2026-06-01",
+      priceProvider: "derived_instrument_metrics",
+      valuationSource: "market_price"
+    } satisfies HoldingValuation],
+    transactions: [],
+    snapshots: [],
+    holdingSnapshots: [],
+    cashSnapshots: [],
+    dailyPrices: [],
+    holdingMarketMetrics: [derivedMetric]
+  });
+
+  const product = dashboard.productPerformance[0];
+  assert.equal(product.metrics.find((metric) => metric.label === "Weekly")?.percentChange, 0.05);
+  assert.equal(product.metrics.find((metric) => metric.label === "Monthly")?.percentChange, 0.05);
+  assert.equal(product.metrics.find((metric) => metric.label === "1Y")?.percentChange, 0.05);
+  assert.equal(product.metrics.find((metric) => metric.label === "YTD")?.percentChange, 0.05);
+  assert.equal(product.metrics.find((metric) => metric.label === "Since inception")?.percentChange, 0.2);
 });

@@ -66,6 +66,15 @@ export class PortfolioService {
       this.benchmarkRepository?.listBenchmarkSnapshots() ?? []
     ]);
 
+    if (this.analyticsRepository) {
+      await this.analyticsRepository.refreshHoldingPortfolioMetrics(portfolioId);
+    }
+    const [holdingMarketMetrics, portfolioCurrentMetric] = await Promise.all([
+      this.analyticsRepository?.listHoldingMarketMetrics(portfolioId) ?? [],
+      this.analyticsRepository?.getPortfolioCurrentMetric(portfolioId) ?? null
+    ]);
+    const holdingMetricById = new Map(holdingMarketMetrics.map((metric) => [metric.holdingId, metric]));
+
     const latestPrices = this.marketDataRepository
       ? await this.marketDataRepository.getLatestPricesForAssets(holdings.map((holding) => holding.assetId))
       : new Map();
@@ -79,16 +88,17 @@ export class PortfolioService {
       : [];
     const holdingValuations = holdings.map((holding) => {
       const price = latestPrices.get(holding.assetId);
-      const unitPrice = price?.closePrice ?? holding.averageCost ?? null;
-      const value = Number(holding.quantity) * Number(unitPrice ?? 0);
+      const derivedMetric = holdingMetricById.get(holding.id);
+      const unitPrice = derivedMetric?.latestPrice ?? price?.closePrice ?? holding.averageCost ?? null;
+      const value = derivedMetric?.marketValue ?? Number(holding.quantity) * Number(unitPrice ?? 0);
       return {
         holding,
         unitPrice,
         value,
         valueCurrency: price?.currency ?? holding.costCurrency,
-        priceDate: price?.priceDate ?? null,
-        priceProvider: price?.provider ?? null,
-        valuationSource: price ? "market_price" as const : "cost_basis" as const
+        priceDate: derivedMetric?.latestPriceDate ?? price?.priceDate ?? null,
+        priceProvider: derivedMetric ? "derived_instrument_metrics" : price?.provider ?? null,
+        valuationSource: derivedMetric?.latestPrice != null || price ? "market_price" as const : "cost_basis" as const
       };
     });
     const analytics = this.analyticsService?.calculateDashboardAnalytics({
@@ -99,7 +109,9 @@ export class PortfolioService {
       snapshots,
       holdingSnapshots,
       cashSnapshots,
-      dailyPrices
+      dailyPrices,
+      holdingMarketMetrics,
+      portfolioCurrentMetric
     });
     if (!analytics) throw new Error("Analytics service is not configured.");
     const benchmarkComparisons = this.benchmarkComparisonService?.calculateComparisons({
@@ -125,7 +137,7 @@ export class PortfolioService {
       holdingValuations,
       ...analytics,
       benchmarkComparisons,
-      latestPriceDate: Array.from(latestPrices.values())[0]?.priceDate ?? null
+      latestPriceDate: portfolioCurrentMetric?.latestPriceDate ?? holdingMarketMetrics[0]?.latestPriceDate ?? Array.from(latestPrices.values())[0]?.priceDate ?? null
     };
   }
 

@@ -5,6 +5,8 @@ import {
   CashSnapshot,
   HoldingSnapshot,
   HoldingValuation,
+  HoldingMarketMetric,
+  PortfolioCurrentMetric,
   PortfolioSnapshot
 } from "@/domain/portfolio/types";
 
@@ -28,6 +30,9 @@ export interface AnalyticsRepository {
   listAssetSnapshots(portfolioId: string, limit?: number): Promise<AssetSnapshot[]>;
   listHoldingSnapshots(portfolioId: string, limit?: number): Promise<HoldingSnapshot[]>;
   listCashSnapshots(portfolioId: string, limit?: number): Promise<CashSnapshot[]>;
+  refreshHoldingPortfolioMetrics(portfolioId: string): Promise<void>;
+  listHoldingMarketMetrics(portfolioId: string): Promise<HoldingMarketMetric[]>;
+  getPortfolioCurrentMetric(portfolioId: string): Promise<PortfolioCurrentMetric | null>;
   upsertPortfolioSnapshot(input: UpsertPortfolioSnapshotInput): Promise<void>;
   upsertAssetSnapshots(input: {
     portfolioId: string;

@@ -221,6 +221,37 @@ export type CashPerformance = {
   netWithdrawals: number;
 };
 
+export type HoldingMarketMetric = {
+  holdingId: string;
+  instrumentId: string | null;
+  latestPrice: number | null;
+  latestPriceDate: string | null;
+  marketValue: number;
+  dailyReturn: number | null;
+  weeklyReturn: number | null;
+  monthlyReturn: number | null;
+  ytdReturn: number | null;
+  oneYearReturn: number | null;
+  threeYearReturn: number | null;
+  fiveYearReturn: number | null;
+  sinceInceptionReturn: number | null;
+  fiftyTwoWeekLow: number | null;
+  fiftyTwoWeekHigh: number | null;
+  updatedAt: string | null;
+};
+
+export type PortfolioCurrentMetric = {
+  portfolioId: string;
+  totalCash: number;
+  totalHoldingsMarketValue: number;
+  totalValueEstimate: number;
+  investedAmount: number;
+  unrealizedGainLoss: number;
+  unrealizedGainLossPercent: number;
+  latestPriceDate: string | null;
+  updatedAt: string | null;
+};
+
 export type Transaction = {
   id: string;
   portfolioId: string;

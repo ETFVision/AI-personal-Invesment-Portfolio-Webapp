@@ -6,9 +6,12 @@ import {
   CashSnapshot,
   DailyPrice,
   Holding,
+  HoldingMarketMetric,
   HoldingSnapshot,
   HoldingValuation,
+  PerformanceMetric,
   ProductPerformance,
+  PortfolioCurrentMetric,
   PortfolioSnapshot,
   Transaction
 } from "@/domain/portfolio/types";
@@ -22,6 +25,8 @@ type DashboardAnalyticsInput = {
   holdingSnapshots: HoldingSnapshot[];
   cashSnapshots: CashSnapshot[];
   dailyPrices?: DailyPrice[];
+  holdingMarketMetrics?: HoldingMarketMetric[];
+  portfolioCurrentMetric?: PortfolioCurrentMetric | null;
 };
 
 function cashFlowAmount(transaction: Transaction) {
@@ -81,6 +86,34 @@ function transactionMatchesHolding(transaction: Transaction, holding: Holding) {
   return true;
 }
 
+function periodValueChange(currentValue: number, percentChange: number | null) {
+  if (percentChange == null || !Number.isFinite(percentChange) || percentChange <= -1) return null;
+  const baselineValue = currentValue / (1 + percentChange);
+  return currentValue - baselineValue;
+}
+
+function derivedProductMetrics(valuation: HoldingValuation, metric: HoldingMarketMetric): PerformanceMetric[] {
+  const build = (
+    label: PerformanceMetric["label"],
+    percentChange: number | null,
+    baselineDate: string | null = null
+  ): PerformanceMetric => ({
+    label,
+    percentChange,
+    valueChange: periodValueChange(valuation.value, percentChange),
+    baselineDate
+  });
+
+  return [
+    build("Daily", metric.dailyReturn),
+    build("Weekly", metric.weeklyReturn),
+    build("Monthly", metric.monthlyReturn),
+    build("1Y", metric.oneYearReturn),
+    build("YTD", metric.ytdReturn),
+    build("Since inception", metric.sinceInceptionReturn, valuation.holding.firstPurchaseDate)
+  ];
+}
+
 export class AnalyticsService {
   constructor(
     private readonly allocationService: AllocationService,
@@ -88,16 +121,26 @@ export class AnalyticsService {
   ) {}
 
   calculateDashboardAnalytics(input: DashboardAnalyticsInput) {
-    const totalCash = input.cashBalances.reduce((sum, item) => sum + Number(item.amount), 0);
-    const totalHoldingsCost = input.holdings.reduce(
+    const derivedPortfolioMetric = input.portfolioCurrentMetric;
+    let totalCash = input.cashBalances.reduce((sum, item) => sum + Number(item.amount), 0);
+    let totalHoldingsCost = input.holdings.reduce(
       (sum, item) => sum + Number(item.quantity) * Number(item.averageCost ?? 0),
       0
     );
-    const totalHoldingsMarketValue = input.holdingValuations.reduce((sum, item) => sum + item.value, 0);
-    const totalValueEstimate = totalCash + totalHoldingsMarketValue;
-    const investedAmount = totalHoldingsCost;
-    const unrealizedGainLoss = totalHoldingsMarketValue - investedAmount;
-    const unrealizedGainLossPercent = investedAmount === 0 ? 0 : unrealizedGainLoss / investedAmount;
+    let totalHoldingsMarketValue = input.holdingValuations.reduce((sum, item) => sum + item.value, 0);
+    let totalValueEstimate = totalCash + totalHoldingsMarketValue;
+    let investedAmount = totalHoldingsCost;
+    let unrealizedGainLoss = totalHoldingsMarketValue - investedAmount;
+    let unrealizedGainLossPercent = investedAmount === 0 ? 0 : unrealizedGainLoss / investedAmount;
+    if (derivedPortfolioMetric) {
+      totalCash = derivedPortfolioMetric.totalCash;
+      totalHoldingsCost = derivedPortfolioMetric.investedAmount;
+      totalHoldingsMarketValue = derivedPortfolioMetric.totalHoldingsMarketValue;
+      totalValueEstimate = derivedPortfolioMetric.totalValueEstimate;
+      investedAmount = derivedPortfolioMetric.investedAmount;
+      unrealizedGainLoss = derivedPortfolioMetric.unrealizedGainLoss;
+      unrealizedGainLossPercent = derivedPortfolioMetric.unrealizedGainLossPercent;
+    }
     const realizedGainLoss = calculateRealizedGainLoss(input.transactions);
     const manualCapitalBase = investedAmount + totalCash;
     const manualPortfolioValueChange = totalValueEstimate - manualCapitalBase;
@@ -124,21 +167,25 @@ export class AnalyticsService {
       current.push(price);
       pricesByAssetId.set(price.assetId, current);
     }
+    const holdingMetricById = new Map((input.holdingMarketMetrics ?? []).map((metric) => [metric.holdingId, metric]));
 
     const productPerformance: ProductPerformance[] = input.holdingValuations.map((valuation) => {
       const productTransactions = input.transactions.filter((transaction) => transactionMatchesHolding(transaction, valuation.holding));
       const realized = calculateRealizedGainLoss(productTransactions);
       const costBasis = valuation.holding.quantity * (valuation.holding.averageCost ?? 0);
       const unrealized = valuation.value - costBasis;
+      const derivedMetric = holdingMetricById.get(valuation.holding.id);
       return {
         holdingId: valuation.holding.id,
         assetId: valuation.holding.assetId,
-        metrics: this.performanceService.calculateProductPerformance({
-          valuation,
-          snapshots: input.holdingSnapshots,
-          transactions: productTransactions,
-          priceHistory: pricesByAssetId.get(valuation.holding.assetId) ?? []
-        }),
+        metrics: derivedMetric
+          ? derivedProductMetrics(valuation, derivedMetric)
+          : this.performanceService.calculateProductPerformance({
+              valuation,
+              snapshots: input.holdingSnapshots,
+              transactions: productTransactions,
+              priceHistory: pricesByAssetId.get(valuation.holding.assetId) ?? []
+            }),
         realizedGainLoss: realized,
         unrealizedGainLoss: unrealized,
         totalGainLoss: realized + unrealized
