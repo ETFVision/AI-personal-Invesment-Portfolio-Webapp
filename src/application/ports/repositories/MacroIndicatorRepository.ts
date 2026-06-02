@@ -25,6 +25,7 @@ export interface MacroIndicatorRepository {
   getLatestRegimeSnapshot(): Promise<MacroRegimeSnapshot | null>;
   upsertMacroThemeSignals(input: UpsertMacroThemeSignalInput[]): Promise<void>;
   listMacroThemeSignalsForPeriod(periodStart: string, periodEnd: string): Promise<MacroThemeSignal[]>;
+  listLatestMacroThemeSignals(asOfDate: string): Promise<MacroThemeSignal[]>;
   insertIngestionLog(input: InsertMacroIngestionLogInput): Promise<void>;
   listIngestionLogs(limit?: number): Promise<MacroIngestionLog[]>;
   getDashboard(): Promise<MacroDashboard>;

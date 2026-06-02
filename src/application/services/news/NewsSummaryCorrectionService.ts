@@ -9,7 +9,7 @@ const healthcareSymbols = new Set(["LLY", "UNH", "JNJ", "ISRG", "ABBV", "MRK", "
 const financialSymbols = new Set(["JPM", "GS", "V", "MA", "PYPL", "XLF"]);
 const technologySymbols = new Set(["AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMD", "TSM", "ASML", "AVGO", "ANET", "PANW", "CRWD", "ORCL", "IBM", "XLK", "VGT", "SMH", "SOXX"]);
 
-const goldTerms = ["gold price", "spot gold", "gold prices", "bullion", "precious metal", "precious metals", "silver", "kitco", "heraeus"];
+const goldTerms = ["gold price", "spot gold", "gold prices", "gold gains", "gold falls", "gold rises", "gold trades", "bullion", "precious metal", "precious metals", "silver", "kitco", "heraeus"];
 const goldFalsePositiveTerms = ["gold rush", "golden", "goldman"];
 const oilEnergyTerms = ["oil", "crude", "opec", "natural gas", "lng"];
 const currencyTerms = ["peso", "dollar", "us dollar", "usd", "dxy", "currency", "fx", "yen", "euro"];

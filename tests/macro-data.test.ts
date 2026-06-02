@@ -119,6 +119,14 @@ class FakeMacroRepository implements MacroIndicatorRepository {
   async listMacroThemeSignalsForPeriod(periodStart: string, periodEnd: string) {
     return this.signals.filter((signal) => signal.signalDate >= periodStart && signal.signalDate <= periodEnd);
   }
+  async listLatestMacroThemeSignals(asOfDate: string) {
+    const latest = new Map<string, MacroThemeSignal>();
+    for (const signal of this.signals.filter((signal) => signal.signalDate <= asOfDate).sort((a, b) => b.signalDate.localeCompare(a.signalDate))) {
+      const key = `${signal.sourceProvider}|${signal.sourceIndicatorCode}|${signal.theme}`;
+      if (!latest.has(key)) latest.set(key, signal);
+    }
+    return Array.from(latest.values());
+  }
   async insertIngestionLog(input: InsertMacroIngestionLogInput) {
     this.logs.push({ ...input, id: `log-${this.logs.length + 1}`, createdAt: "" });
   }

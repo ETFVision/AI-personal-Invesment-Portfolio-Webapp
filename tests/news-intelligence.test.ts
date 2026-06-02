@@ -268,6 +268,14 @@ class FakeMacroSignalRepository implements Partial<MacroIndicatorRepository> {
   async listMacroThemeSignalsForPeriod(periodStart: string, periodEnd: string) {
     return this.signals.filter((signal) => signal.signalDate >= periodStart && signal.signalDate <= periodEnd);
   }
+  async listLatestMacroThemeSignals(asOfDate: string) {
+    const latest = new Map<string, MacroThemeSignal>();
+    for (const signal of this.signals.filter((signal) => signal.signalDate <= asOfDate).sort((a, b) => b.signalDate.localeCompare(a.signalDate))) {
+      const key = `${signal.sourceProvider}|${signal.sourceIndicatorCode}|${signal.theme}`;
+      if (!latest.has(key)) latest.set(key, signal);
+    }
+    return Array.from(latest.values());
+  }
 }
 
 function macroSignal(overrides: Partial<MacroThemeSignal> = {}): MacroThemeSignal {
@@ -895,8 +903,8 @@ test("weekly reconciliation summarizes canonical themes", async () => {
 test("weekly reconciliation includes FRED macro signals with zero news items", async () => {
   const repository = new FakeNewsRepository();
   const macroRepository = new FakeMacroSignalRepository([
-    macroSignal({ id: "rates", theme: "Rates", sourceIndicatorCode: "FEDFUNDS", explanation: "FEDFUNDS is restrictive." }),
-    macroSignal({ id: "inflation", theme: "Inflation", sourceIndicatorCode: "CPIAUCSL", explanation: "CPI is moderating." })
+    macroSignal({ id: "rates", signalDate: "2026-05-01", theme: "Rates", sourceIndicatorCode: "FEDFUNDS", explanation: "FEDFUNDS is restrictive." }),
+    macroSignal({ id: "inflation", signalDate: "2026-05-01", theme: "Inflation", sourceIndicatorCode: "CPIAUCSL", explanation: "CPI is moderating." })
   ]);
   const service = new WeeklyNewsReconciliationService(
     repository,
@@ -938,7 +946,7 @@ test("theme intelligence calculates hierarchy, trend, and review queue", async (
 test("theme intelligence includes FRED macro signals separately from news counts", async () => {
   const repository = new FakeNewsRepository();
   const macroRepository = new FakeMacroSignalRepository([
-    macroSignal({ id: "curve", theme: "Yield Curve", sourceIndicatorCode: "T10Y2Y", explanation: "T10Y2Y remains inverted." })
+    macroSignal({ id: "curve", signalDate: "2026-05-30", theme: "Yield Curve", sourceIndicatorCode: "T10Y2Y", explanation: "T10Y2Y remains inverted." })
   ]);
   const service = new ThemeIntelligenceService(repository, macroRepository as unknown as MacroIndicatorRepository);
   const intelligence = await service.getThemeIntelligence("2026-06-01", "2026-06-07");
@@ -1084,6 +1092,32 @@ test("weekly reconciliation keeps explicit financial gold headlines in gold buck
   const service = new WeeklyNewsReconciliationService(repository);
   const grouped = service.groupByBucket(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
   assert.equal(grouped.get("gold")?.length, 1);
+});
+
+test("weekly reconciliation keeps gold yield headlines out of bonds", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "gold-yields",
+      title: "Gold gains on easing Treasury yields amid Mideast uncertainty",
+      tickers: []
+    })
+  ];
+  repository.classifications = [
+    classification({
+      newsItemId: "gold-yields",
+      classificationModel: "deterministic_fallback",
+      affectedAssetClasses: ["bonds"],
+      affectedMacroCategories: ["rates"],
+      primaryTheme: "Rates",
+      secondaryThemes: [],
+      themeConfidence: 65
+    })
+  ];
+  const service = new WeeklyNewsReconciliationService(repository);
+  const grouped = service.groupByBucket(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
+  assert.equal(grouped.get("gold")?.length, 1);
+  assert.equal(grouped.get("bonds")?.length, 0);
 });
 
 test("weekly reconciliation corrects stale bucket errors before summaries", async () => {

@@ -54,7 +54,7 @@ export class WeeklyNewsReconciliationService {
     const classified = await this.repository.listClassifiedNewsForPeriod(periodStart, periodEnd);
     const eligible = this.eligibilityService.filter(classified);
     const limited = eligible.slice(0, this.config.maxArticlesPerWeek);
-    const macroSignals = this.macroRepository ? await this.macroRepository.listMacroThemeSignalsForPeriod(periodStart, periodEnd) : [];
+    const macroSignals = this.macroRepository ? await this.macroRepository.listLatestMacroThemeSignals(periodEnd) : [];
     const grouped = this.groupByBucket(limited);
     const bucketCounts = Object.fromEntries(buckets.map((bucket) => [bucket, grouped.get(bucket)?.length ?? 0]));
     const themeSummaries = this.summarizeThemes(limited, macroSignals);

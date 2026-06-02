@@ -289,6 +289,23 @@ export class SupabaseMacroIndicatorRepository implements MacroIndicatorRepositor
     return (data ?? []).map(mapMacroThemeSignal);
   }
 
+  async listLatestMacroThemeSignals(asOfDate: string) {
+    const { data, error } = await this.db
+      .from("macro_theme_signals")
+      .select("*")
+      .lte("signal_date", asOfDate)
+      .order("signal_date", { ascending: false })
+      .limit(500);
+    if (missing(error)) return [];
+    if (error) throw new Error(error.message);
+    const latestBySignal = new Map<string, MacroThemeSignal>();
+    for (const signal of (data ?? []).map(mapMacroThemeSignal)) {
+      const key = `${signal.sourceProvider}|${signal.sourceIndicatorCode}|${signal.theme}`;
+      if (!latestBySignal.has(key)) latestBySignal.set(key, signal);
+    }
+    return Array.from(latestBySignal.values());
+  }
+
   async insertIngestionLog(input: InsertMacroIngestionLogInput) {
     const { error } = await this.db.from("macro_ingestion_logs").insert({
       job_name: input.jobName,

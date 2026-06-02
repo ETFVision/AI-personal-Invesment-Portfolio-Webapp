@@ -78,13 +78,13 @@ export class ThemeIntelligenceService {
     const start = parseDate(periodStart);
     const priorStart = isoDate(shiftDays(start, -21));
     const all = this.eligibilityService.filter(await this.repository.listClassifiedNewsForPeriod(priorStart, periodEnd));
-    const macroSignals = this.macroRepository ? await this.macroRepository.listMacroThemeSignalsForPeriod(priorStart, periodEnd) : [];
+    const historicalMacroSignals = this.macroRepository ? await this.macroRepository.listMacroThemeSignalsForPeriod(priorStart, periodEnd) : [];
+    const currentMacroSignals = this.macroRepository ? await this.macroRepository.listLatestMacroThemeSignals(periodEnd) : [];
     const current = all.filter((item) => {
       const published = item.publishedAt ? new Date(item.publishedAt) : null;
       return published && published >= start && published <= new Date(`${periodEnd}T23:59:59.999Z`);
     });
-    const currentMacroSignals = macroSignals.filter((signal) => signal.signalDate >= periodStart && signal.signalDate <= periodEnd);
-    const summaries = this.summarizeThemes(current, all, periodStart, periodEnd, currentMacroSignals, macroSignals);
+    const summaries = this.summarizeThemes(current, all, periodStart, periodEnd, currentMacroSignals, [...historicalMacroSignals, ...currentMacroSignals]);
     return {
       topThemesThisWeek: summaries.slice(0, 8),
       emergingThemes: summaries.filter((item) => item.trend === "Rising" && (item.weeksWithData ?? 0) >= 4).slice(0, 5),

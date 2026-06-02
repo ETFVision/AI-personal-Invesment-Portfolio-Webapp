@@ -1695,3 +1695,28 @@ Low-priority improvements for later:
 Production-readiness assessment:
 - Ready as a pre-AI Market Vision input hardening layer.
 - After applying migration 030, run FRED refresh/backfill once to populate macro theme signals, then run weekly reconciliation.
+
+## 2026-06-02 - FRED Signal As-Of Lookup Follow-Up
+
+Scope:
+- Fixed FRED macro-theme signal visibility in Theme Intelligence and Weekly Reconciliation.
+- Tightened a gold/yields bucket correction.
+
+Problem observed:
+- FRED signals showed as zero in the June 1-7 weekly Theme Intelligence view even after macro refresh because many FRED indicators have monthly, quarterly, or prior-trading-day `signal_date` values outside the exact news week.
+- A gold headline mentioning Treasury yields appeared in the Bonds bucket.
+
+What changed:
+- Added latest-as-of macro signal lookup to `MacroIndicatorRepository`.
+- Theme Intelligence now uses latest FRED macro theme signals available as of the weekly period end date.
+- Weekly Reconciliation now includes latest FRED macro theme signals as of period end.
+- Gold headlines such as “Gold gains...” are corrected into the Gold / Commodities bucket even when yields are mentioned.
+
+Validation performed:
+- `npm.cmd run test` passed: 101 tests.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- FRED theme cards should now populate after migration 030 is applied and FRED refresh/backfill has generated any macro theme signals.
