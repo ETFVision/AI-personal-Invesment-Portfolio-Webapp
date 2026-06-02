@@ -1,6 +1,7 @@
 import type { NewsCanonicalTheme, NewsThemeCategory, NewsThemeIntelligence, NewsThemeReviewItem, NewsThemeSummary, NewsThemeTrend } from "@/domain/news/types";
 import type { NewsRepository } from "@/application/ports/repositories/NewsRepository";
 import { canonicalNewsThemes } from "./NewsClassificationService";
+import { NewsSummaryCorrectionService } from "./NewsSummaryCorrectionService";
 import { NewsSummaryEligibilityService } from "./NewsSummaryEligibilityService";
 
 export const themeHierarchy: Record<NewsCanonicalTheme, NewsThemeCategory[]> = {
@@ -65,7 +66,8 @@ function trendFrom(current: number, priorAverage: number, weeksWithData: number)
 export class ThemeIntelligenceService {
   constructor(
     private readonly repository: NewsRepository,
-    private readonly eligibilityService = new NewsSummaryEligibilityService()
+    private readonly eligibilityService = new NewsSummaryEligibilityService(),
+    private readonly correctionService = new NewsSummaryCorrectionService()
   ) {}
 
   async getThemeIntelligence(periodStart: string, periodEnd: string): Promise<NewsThemeIntelligence> {
@@ -162,7 +164,7 @@ export class ThemeIntelligenceService {
       themes.delete("Consumer");
       themes.add("Technology");
     }
-    return Array.from(themes);
+    return this.correctionService.correctedThemes(item, Array.from(themes));
   }
 
   private weeklyCountsForTheme(items: ClassifiedNews, theme: NewsCanonicalTheme, periodStart: string, periodEnd: string) {

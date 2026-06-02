@@ -1589,3 +1589,54 @@ Low-priority improvements for later:
 Production-readiness assessment:
 - Existing noisy GDELT rows should no longer dominate Market Vision source summaries after rerunning weekly reconciliation.
 - Safer foundation for future Market Vision generation.
+
+## 2026-06-02 - News Summary Bucket And Theme Correction
+
+Scope:
+- Added summary-time correction for stale or obviously wrong news buckets and themes.
+- Applied to Weekly Reconciliation and Theme Intelligence rollups.
+- Preserved raw article rows and raw classification rows for auditability.
+- Did not add recommendations, scoring, telemetry, or AI Market Vision generation.
+
+Problem observed:
+- Some already-classified articles were technically relevant but landed in weak summary buckets.
+- Examples included AI stock articles counted as currency, gold/oil headlines counted as bonds, healthcare stocks counted as financials, and AI infrastructure headlines counted as industrials.
+
+What changed:
+- Added `NewsSummaryCorrectionService`.
+- Corrects summary buckets before rollup for:
+  - AI/technology stock articles -> equities.
+  - Gold and precious-metals articles -> gold / commodities.
+  - Bond-symbol and credit-risk articles -> bonds only when bond context is credible.
+  - Currency/FX articles -> currency only when the headline is not mainly equity-specific.
+  - Oil/energy articles -> macro/energy context without forcing them into bonds.
+- Corrects theme sets before Theme Intelligence and Weekly Reconciliation:
+  - Healthcare tickers and healthcare language map to Healthcare rather than Financials.
+  - AI infrastructure/buildout/data-center articles map to AI and Technology rather than Industrials or Consumer.
+  - Fund-structure articles without credit-risk language are not treated as Credit.
+  - Gold-rush false positives are not treated as Gold or Inflation.
+
+Validation performed:
+- `npm.cmd run test` passed: 95 tests.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd run build` passed.
+
+Tests added or updated:
+- Weekly reconciliation corrects stale bucket errors before summaries.
+- Theme Intelligence corrects stale theme errors before rollups.
+
+Critical issues:
+- None.
+
+Medium-priority issues:
+- None.
+
+Low-priority improvements for later:
+- Store correction reason codes in weekly reconciliation metadata for admin diagnostics.
+- Add a visible manual override queue for summary bucket/theme corrections.
+- Add provider/source-specific confidence weighting once more data streams are stable.
+
+Production-readiness assessment:
+- Weekly summaries should now be materially cleaner after rerunning reclassification and weekly reconciliation.
+- This remains deterministic summary hygiene, not recommendation logic.

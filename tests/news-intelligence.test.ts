@@ -754,7 +754,10 @@ test("theme intelligence corrects stale Credit and Consumer theme rows at summar
 
 test("weekly reconciliation groups classified news and creates draft summary", async () => {
   const repository = new FakeNewsRepository();
-  repository.items = [newsItem({ id: "eq" }), newsItem({ id: "rate", title: "Fed rate outlook changes", tickers: [] })];
+  repository.items = [
+    newsItem({ id: "eq", summary: "", contentSnippet: "" }),
+    newsItem({ id: "rate", title: "Fed rate outlook changes", summary: "", contentSnippet: "", tickers: [] })
+  ];
   repository.classifications = [
     classification({ newsItemId: "eq", affectedAssetClasses: ["equities"], sentiment: "positive" }),
     classification({ newsItemId: "rate", affectedAssetClasses: ["macro"], affectedMacroCategories: ["rates"], sentiment: "negative" })
@@ -818,8 +821,8 @@ test("weekly reconciliation excludes noisy stored GDELT rows without deleting th
 test("weekly reconciliation summarizes canonical themes", async () => {
   const repository = new FakeNewsRepository();
   repository.items = [
-    newsItem({ id: "ai", title: "AI infrastructure spending rises", tickers: ["NVDA"] }),
-    newsItem({ id: "rates", title: "Fed rate cut odds rise", tickers: [] })
+    newsItem({ id: "ai", title: "AI infrastructure spending rises", summary: "", contentSnippet: "", tickers: ["NVDA"] }),
+    newsItem({ id: "rates", title: "Fed rate cut odds rise", summary: "", contentSnippet: "", tickers: [] })
   ];
   repository.classifications = [
     classification({ newsItemId: "ai", primaryTheme: "AI", secondaryThemes: ["Technology"], themeConfidence: 80 }),
@@ -990,6 +993,80 @@ test("weekly reconciliation keeps explicit financial gold headlines in gold buck
   const service = new WeeklyNewsReconciliationService(repository);
   const grouped = service.groupByBucket(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
   assert.equal(grouped.get("gold")?.length, 1);
+});
+
+test("weekly reconciliation corrects stale bucket errors before summaries", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "gold-oil",
+      title: "Gold falls as oil jumps on U.S.-Iran deadlock - Kitco PM Report",
+      tickers: [],
+      sourceProvider: "financial_modeling_prep"
+    }),
+    newsItem({
+      id: "ai-stock",
+      title: "3 Trillion-Dollar AI Stocks to Buy Now, According to Wall Street",
+      tickers: [],
+      sourceProvider: "financial_modeling_prep"
+    })
+  ];
+  repository.classifications = [
+    classification({
+      newsItemId: "gold-oil",
+      affectedAssetClasses: ["bonds"],
+      affectedMacroCategories: [],
+      primaryTheme: "Credit",
+      secondaryThemes: [],
+      themeConfidence: 65
+    }),
+    classification({
+      newsItemId: "ai-stock",
+      affectedAssetClasses: ["macro"],
+      affectedMacroCategories: ["currency"],
+      primaryTheme: "Currency",
+      secondaryThemes: [],
+      themeConfidence: 65
+    })
+  ];
+  const service = new WeeklyNewsReconciliationService(repository);
+  const grouped = service.groupByBucket(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
+  assert.equal(grouped.get("gold")?.length, 1);
+  assert.equal(grouped.get("bonds")?.length, 0);
+  assert.equal(grouped.get("equities")?.length, 1);
+  assert.equal(grouped.get("currency")?.length, 0);
+});
+
+test("theme summaries correct stale theme errors before rollups", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "healthcare",
+      title: "AbbVie vs. Pfizer: Which Healthcare Stock Is a Better Buy in 2026?",
+      summary: "",
+      contentSnippet: "",
+      tickers: ["ABBV"],
+      sourceProvider: "financial_modeling_prep"
+    }),
+    newsItem({
+      id: "ai-buildout",
+      title: "Alphabet plans to raise $80 billion to pay for AI buildout",
+      summary: "",
+      contentSnippet: "",
+      tickers: ["GOOGL"],
+      sourceProvider: "financial_modeling_prep"
+    })
+  ];
+  repository.classifications = [
+    classification({ newsItemId: "healthcare", primaryTheme: "Financials", secondaryThemes: [], themeConfidence: 65 }),
+    classification({ newsItemId: "ai-buildout", primaryTheme: "Industrials", secondaryThemes: [], themeConfidence: 65 })
+  ];
+  const service = new WeeklyNewsReconciliationService(repository);
+  const summaries = service.summarizeThemes(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
+  assert.equal(summaries.find((item) => item.theme === "Healthcare")?.count, 1);
+  assert.equal(summaries.find((item) => item.theme === "Financials"), undefined);
+  assert.equal(summaries.find((item) => item.theme === "AI")?.count, 1);
+  assert.equal(summaries.find((item) => item.theme === "Technology")?.count, 1);
 });
 
 test("GDELT normalizer parses compact dates and stores provider metadata", () => {

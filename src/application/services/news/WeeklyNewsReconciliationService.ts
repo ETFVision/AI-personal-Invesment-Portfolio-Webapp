@@ -1,6 +1,7 @@
 import type { NewsAiProvider } from "@/application/ports/providers/NewsAiProvider";
 import type { NewsRepository } from "@/application/ports/repositories/NewsRepository";
 import { canonicalNewsThemes } from "./NewsClassificationService";
+import { NewsSummaryCorrectionService } from "./NewsSummaryCorrectionService";
 import { NewsSummaryEligibilityService } from "./NewsSummaryEligibilityService";
 import { endOfUtcWeek, startOfUtcWeek } from "./newsText";
 
@@ -42,7 +43,8 @@ export class WeeklyNewsReconciliationService {
       enableWeeklyReconciliation: false,
       reconciliationModel: "gpt-5.4-mini"
     },
-    private readonly eligibilityService = new NewsSummaryEligibilityService()
+    private readonly eligibilityService = new NewsSummaryEligibilityService(),
+    private readonly correctionService = new NewsSummaryCorrectionService()
   ) {}
 
   async reconcileWeek(periodStart = startOfUtcWeek(), periodEnd = endOfUtcWeek()) {
@@ -130,26 +132,28 @@ export class WeeklyNewsReconciliationService {
     const hasGoldFalsePositiveText = textIncludesAny(title, goldFalsePositiveTerms) && !textIncludesAny(title, financialGoldTerms);
     const hasGoldClass = classes.some((entry) => entry.includes("gold") || entry.includes("commodity"));
     const isFundStructureWithoutCredit = textIncludesAny(title, fundStructureTerms) && !textIncludesAny(title, creditRiskTerms);
-    if (isFundStructureWithoutCredit) return isEquityLike ? "equities" : "macro";
-    if (classes.some((entry) => entry.includes("bond")) || symbols.some((symbol) => bondSymbols.has(symbol))) return "bonds";
-    if (hasGoldFalsePositiveText) return isEquityLike ? "equities" : "macro";
-    if (
+    let bucket: Bucket = "macro";
+    if (isFundStructureWithoutCredit) bucket = isEquityLike ? "equities" : "macro";
+    else if (classes.some((entry) => entry.includes("bond")) || symbols.some((symbol) => bondSymbols.has(symbol))) bucket = "bonds";
+    else if (hasGoldFalsePositiveText) bucket = isEquityLike ? "equities" : "macro";
+    else if (
       hasGoldSymbol ||
       (!hasGoldFalsePositiveText && (hasGoldClass || /\bgold\b/.test(title)))
-    ) return "gold";
-    if (classes.some((entry) => entry.includes("crypto")) || symbols.some((symbol) => cryptoSymbols.has(symbol))) return "crypto";
-    if (!isEquityLike && (macros.some((entry) => entry.includes("rate")) || textIncludesAny(title, ["fed", "interest rate", "rate cut", "rate hike", "treasury yield"]))) return "rates";
-    if (macros.some((entry) => entry.includes("inflation")) || textIncludesAny(title, ["inflation", "cpi", "pce"])) return "inflation";
-    if (macros.some((entry) => entry.includes("currency") || entry.includes("usd")) || textIncludesAny(title, ["usd", "dollar", "currency", "fx"])) return "currency";
-    if (!isEquityLike && (macros.some((entry) => entry.includes("trade_supply_chain")) || textIncludesAny(title, tradeSupplyChainTerms))) return "macro";
-    if (!isEquityLike && (macros.some((entry) => entry.includes("geopolitical")) || textIncludesAny(title, ["war", "geopolitical", "sanction", "tariff", "conflict"]))) return "geopolitical";
-    if (
+    ) bucket = "gold";
+    else if (classes.some((entry) => entry.includes("crypto")) || symbols.some((symbol) => cryptoSymbols.has(symbol))) bucket = "crypto";
+    else if (!isEquityLike && (macros.some((entry) => entry.includes("rate")) || textIncludesAny(title, ["fed", "interest rate", "rate cut", "rate hike", "treasury yield"]))) bucket = "rates";
+    else if (macros.some((entry) => entry.includes("inflation")) || textIncludesAny(title, ["inflation", "cpi", "pce"])) bucket = "inflation";
+    else if (macros.some((entry) => entry.includes("currency") || entry.includes("usd")) || textIncludesAny(title, ["usd", "dollar", "currency", "fx"])) bucket = "currency";
+    else if (!isEquityLike && (macros.some((entry) => entry.includes("trade_supply_chain")) || textIncludesAny(title, tradeSupplyChainTerms))) bucket = "macro";
+    else if (!isEquityLike && (macros.some((entry) => entry.includes("geopolitical")) || textIncludesAny(title, ["war", "geopolitical", "sanction", "tariff", "conflict"]))) bucket = "geopolitical";
+    else if (
       classes.some((entry) => entry.includes("equity") || entry.includes("stock")) ||
       isEquityLike
     ) {
-      return "equities";
+      bucket = "equities";
     }
-    return "macro";
+    const corrected = this.correctionService.correctedBucket(item, bucket);
+    return buckets.includes(corrected as Bucket) ? corrected as Bucket : bucket;
   }
 
   private deterministicSummary(bucket: Bucket, items: Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>) {
@@ -195,7 +199,7 @@ export class WeeklyNewsReconciliationService {
       themes.delete("Consumer");
       themes.add("Technology");
     }
-    return Array.from(themes);
+    return this.correctionService.correctedThemes(item, Array.from(themes));
   }
 
   private topThemeHeadlines(items: Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>) {
