@@ -5,8 +5,7 @@ import { assertCronAuthorized } from "@/server/jobs/cronAuth";
 export async function POST(request: NextRequest) {
   const unauthorized = assertCronAuthorized(request);
   if (unauthorized) return unauthorized;
-  const force = request.nextUrl.searchParams.get("force") === "true";
-  const result = await createContainer().jobs.gdeltNewsIngestion.run({ force });
+  const result = await createContainer().jobs.gdeltNewsIngestion.run();
   return NextResponse.json(result);
 }
 

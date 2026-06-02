@@ -118,7 +118,11 @@ export function createContainer() {
       maxArticlesPerDay: env.GDELT_MAX_ARTICLES_PER_DAY,
       recentWindowHours: env.GDELT_RECENT_WINDOW_HOURS,
       queryDelayMs: env.GDELT_QUERY_DELAY_MS,
-      minRefreshMinutes: 30
+      minRefreshMinutes: 30,
+      maxQueryGroupsPerRun: env.GDELT_MAX_QUERY_GROUPS_PER_RUN,
+      querySuccessCooldownMinutes: env.GDELT_QUERY_SUCCESS_COOLDOWN_MINUTES,
+      queryFailureBackoffMinutes: env.GDELT_QUERY_FAILURE_BACKOFF_MINUTES,
+      queryRateLimitBackoffMinutes: env.GDELT_QUERY_RATE_LIMIT_BACKOFF_MINUTES
     }
   );
   const newsClassificationService = new NewsClassificationService(newsRepository, newsAiProvider, {

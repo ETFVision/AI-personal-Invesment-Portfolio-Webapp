@@ -12,6 +12,10 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function minutesFromNow(minutes: number, now = new Date()) {
+  return new Date(now.getTime() + minutes * 60 * 1000).toISOString();
+}
+
 function sourceKey(input: { sourceProvider: string; sourceId: string | null; url: string | null; title: string; publishedAt: string | null; contentHash: string }) {
   const sourceId = input.sourceId?.trim() || input.url?.trim() || hashText(`${input.title}|${input.publishedAt ?? ""}|${input.contentHash}`);
   return `${input.sourceProvider}|${sourceId}`;
@@ -31,12 +35,16 @@ export class GlobalNewsIngestionService {
       maxArticlesPerDay: 80,
       recentWindowHours: 24,
       queryDelayMs: 1200,
-      minRefreshMinutes: 30
+      minRefreshMinutes: 30,
+      maxQueryGroupsPerRun: 1,
+      querySuccessCooldownMinutes: 240,
+      queryFailureBackoffMinutes: 30,
+      queryRateLimitBackoffMinutes: 60
     },
     private readonly sourceQualityService = new SourceQualityService()
   ) {}
 
-  async ingestGlobalNews(input: { force?: boolean } = {}) {
+  async ingestGlobalNews(_input: { force?: boolean } = {}) {
     const startedAt = new Date().toISOString();
     let queryGroupsRequested = 0;
     let articlesFetched = 0;
@@ -60,14 +68,16 @@ export class GlobalNewsIngestionService {
         errorMessage: null,
         metadata: { skipped: true, reason: "ENABLE_GDELT_INGESTION is false." }
       });
-      return { status: "success" as const, queryGroupsRequested: 0, articlesFetched: 0, articlesInserted: 0, duplicatesDetected: 0, articlesFiltered: 0, failedQueryGroups: 0, rateLimitHit: false, skipped: true };
+      return { status: "success" as const, queryGroupsRequested: 0, articlesFetched: 0, articlesInserted: 0, duplicatesDetected: 0, articlesFiltered: 0, failedQueryGroups: 0, rateLimitHit: false, skipped: true, skippedReason: "disabled" };
     }
 
     try {
-      const logs = await this.gdeltRepository.listIngestionLogs(1);
-      const latestCompleted = logs[0]?.completedAt ? new Date(logs[0].completedAt).getTime() : 0;
-      const minRefreshMs = this.config.minRefreshMinutes * 60 * 1000;
-      if (!input.force && latestCompleted && Date.now() - latestCompleted < minRefreshMs) {
+      const groups = await this.gdeltRepository.listDueQueryGroups({
+        now: startedAt,
+        limit: this.config.maxQueryGroupsPerRun
+      });
+      queryGroupsRequested = groups.length;
+      if (groups.length === 0) {
         await this.newsRepository.insertIngestionLog({
           jobName: "gdelt-news-ingestion",
           sourceProvider: this.provider.name,
@@ -79,13 +89,10 @@ export class GlobalNewsIngestionService {
           articlesInserted: 0,
           duplicatesDetected: 0,
           errorMessage: null,
-          metadata: { skipped: true, reason: "Recent GDELT ingestion already completed.", latestCompletedAt: logs[0]?.completedAt }
+          metadata: { skipped: true, reason: "No GDELT query groups are due yet." }
         });
-        return { status: "success" as const, queryGroupsRequested: 0, articlesFetched: 0, articlesInserted: 0, duplicatesDetected: 0, articlesFiltered: 0, failedQueryGroups: 0, rateLimitHit: false, skipped: true };
+        return { status: "success" as const, queryGroupsRequested: 0, articlesFetched: 0, articlesInserted: 0, duplicatesDetected: 0, articlesFiltered: 0, failedQueryGroups: 0, rateLimitHit: false, skipped: true, skippedReason: "not_due" };
       }
-
-      const groups = await this.gdeltRepository.listActiveQueryGroups();
-      queryGroupsRequested = groups.length;
       const rows = [];
       const metadataByKey = new Map<string, GdeltProviderArticle["gdeltMetadata"]>();
       const classificationByKey = new Map<string, Omit<NewsClassification, "id" | "newsItemId" | "createdAt" | "updatedAt">>();
@@ -206,10 +213,21 @@ export class GlobalNewsIngestionService {
             errorMessage: null,
             metadata: { queryKey: group.queryKey, canonicalTheme: group.canonicalTheme, category: group.category }
           });
+          await this.gdeltRepository.updateQueryGroupSchedule({
+            id: group.id,
+            lastAttemptedAt: groupStartedAt,
+            lastSuccessAt: new Date().toISOString(),
+            nextRunAt: minutesFromNow(this.config.querySuccessCooldownMinutes),
+            failureCount: 0,
+            lastError: null
+          });
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Unknown GDELT query group error.";
           failedQueryGroups += 1;
           rateLimitHit = errorMessage.includes("status 429");
+          const failureCount = group.failureCount + 1;
+          const failureBackoffMinutes = this.config.queryFailureBackoffMinutes * Math.min(failureCount, 6);
+          const nextRunAt = minutesFromNow(rateLimitHit ? Math.max(this.config.queryRateLimitBackoffMinutes, failureBackoffMinutes) : failureBackoffMinutes);
           await this.gdeltRepository.insertIngestionLog({
             jobName: "gdelt-query-group-ingestion",
             queryGroupId: group.id,
@@ -221,6 +239,14 @@ export class GlobalNewsIngestionService {
             duplicatesDetected: groupDuplicates,
             errorMessage,
             metadata: { queryKey: group.queryKey, canonicalTheme: group.canonicalTheme, category: group.category, rateLimitHit }
+          });
+          await this.gdeltRepository.updateQueryGroupSchedule({
+            id: group.id,
+            lastAttemptedAt: groupStartedAt,
+            lastSuccessAt: group.lastSuccessAt,
+            nextRunAt,
+            failureCount,
+            lastError: errorMessage
           });
           if (rateLimitHit) break;
         }
@@ -270,10 +296,18 @@ export class GlobalNewsIngestionService {
           : failedQueryGroups === queryGroupsRequested && queryGroupsRequested > 0
             ? "All GDELT query groups failed."
             : null,
-        metadata: { queryGroupsRequested, failedQueryGroups, articlesFiltered, recentWindowHours: this.config.recentWindowHours, rateLimitHit }
+        metadata: {
+          queryGroupsRequested,
+          failedQueryGroups,
+          articlesFiltered,
+          recentWindowHours: this.config.recentWindowHours,
+          rateLimitHit,
+          maxQueryGroupsPerRun: this.config.maxQueryGroupsPerRun,
+          queueMode: true
+        }
       });
 
-      return { status, queryGroupsRequested, articlesFetched, articlesInserted, duplicatesDetected, articlesFiltered, failedQueryGroups, rateLimitHit, skipped: false };
+      return { status, queryGroupsRequested, articlesFetched, articlesInserted, duplicatesDetected, articlesFiltered, failedQueryGroups, rateLimitHit, skipped: false, skippedReason: null };
     } catch (error) {
       await this.newsRepository.insertIngestionLog({
         jobName: "gdelt-news-ingestion",

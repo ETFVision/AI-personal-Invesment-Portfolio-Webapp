@@ -196,6 +196,11 @@ function gdeltQueryGroup(overrides: Partial<GdeltQueryGroup> = {}): GdeltQueryGr
     category: overrides.category ?? "trade_supply_chain",
     isActive: overrides.isActive ?? true,
     maxArticlesPerRun: overrides.maxArticlesPerRun ?? 8,
+    lastAttemptedAt: overrides.lastAttemptedAt ?? null,
+    lastSuccessAt: overrides.lastSuccessAt ?? null,
+    nextRunAt: overrides.nextRunAt ?? null,
+    failureCount: overrides.failureCount ?? 0,
+    lastError: overrides.lastError ?? null,
     createdAt: "",
     updatedAt: ""
   };
@@ -208,6 +213,34 @@ class FakeGdeltRepository implements GdeltRepository {
 
   async listActiveQueryGroups() {
     return this.groups.filter((group) => group.isActive);
+  }
+
+  async listDueQueryGroups(input: { now: string; limit: number }) {
+    const now = new Date(input.now).getTime();
+    return this.groups
+      .filter((group) => group.isActive && (!group.nextRunAt || new Date(group.nextRunAt).getTime() <= now))
+      .sort((a, b) => (a.nextRunAt ?? "").localeCompare(b.nextRunAt ?? "") || (a.lastAttemptedAt ?? "").localeCompare(b.lastAttemptedAt ?? "") || a.queryKey.localeCompare(b.queryKey))
+      .slice(0, input.limit);
+  }
+
+  async updateQueryGroupSchedule(input: {
+    id: string;
+    lastAttemptedAt: string;
+    lastSuccessAt?: string | null;
+    nextRunAt: string;
+    failureCount: number;
+    lastError: string | null;
+  }) {
+    this.groups = this.groups.map((group) => group.id === input.id
+      ? {
+          ...group,
+          lastAttemptedAt: input.lastAttemptedAt,
+          lastSuccessAt: input.lastSuccessAt ?? null,
+          nextRunAt: input.nextRunAt,
+          failureCount: input.failureCount,
+          lastError: input.lastError
+        }
+      : group);
   }
 
   async upsertArticleMetadata(input: UpsertGdeltArticleMetadataInput[]) {
@@ -1005,10 +1038,21 @@ test("GDELT ingestion stores normalized news, classifications, metadata, and log
     undefined,
     undefined,
     undefined,
-    { enabled: true, maxArticlesPerQuery: 8, maxArticlesPerDay: 10, recentWindowHours: 24, queryDelayMs: 0, minRefreshMinutes: 30 }
+    {
+      enabled: true,
+      maxArticlesPerQuery: 8,
+      maxArticlesPerDay: 10,
+      recentWindowHours: 24,
+      queryDelayMs: 0,
+      minRefreshMinutes: 30,
+      maxQueryGroupsPerRun: 1,
+      querySuccessCooldownMinutes: 240,
+      queryFailureBackoffMinutes: 30,
+      queryRateLimitBackoffMinutes: 60
+    }
   );
 
-  const result = await service.ingestGlobalNews({ force: true });
+  const result = await service.ingestGlobalNews();
 
   assert.equal(result.articlesFetched, 1);
   assert.equal(result.articlesInserted, 1);
@@ -1017,48 +1061,103 @@ test("GDELT ingestion stores normalized news, classifications, metadata, and log
   assert.equal(newsRepository.classifications[0]?.primaryTheme, "Trade / Supply Chain");
   assert.deepEqual(newsRepository.classifications[0]?.affectedMacroCategories, ["trade_supply_chain"]);
   assert.equal(gdeltRepository.metadata.length, 1);
+  assert.equal(gdeltRepository.groups[0]?.failureCount, 0);
+  assert.notEqual(gdeltRepository.groups[0]?.nextRunAt, null);
   assert.equal(gdeltRepository.logs.some((log) => log.jobName === "gdelt-query-group-ingestion"), true);
   assert.equal(newsRepository.logs.some((log) => log.jobName === "gdelt-news-ingestion"), true);
 });
 
-test("GDELT ingestion records failed query groups without breaking successful groups", async () => {
+test("GDELT ingestion processes only the next due query group batch", async () => {
   const newsRepository = new UpsertingFakeNewsRepository();
   const gdeltRepository = new FakeGdeltRepository();
   gdeltRepository.groups = [
-    gdeltQueryGroup({ id: "success", queryKey: "macro_rates_policy", canonicalTheme: "Rates" }),
-    gdeltQueryGroup({ id: "failed", queryKey: "energy_commodities", canonicalTheme: "Energy" }),
-    gdeltQueryGroup({ id: "skipped", queryKey: "currency_usd", canonicalTheme: "Currency" })
+    gdeltQueryGroup({ id: "success", queryKey: "macro_rates_policy", canonicalTheme: "Rates", nextRunAt: "2026-05-31T00:00:00.000Z" }),
+    gdeltQueryGroup({ id: "queued", queryKey: "energy_commodities", canonicalTheme: "Energy", nextRunAt: "2026-06-01T00:00:00.000Z" })
   ];
   const article = new GdeltNormalizationService().normalize({
     url: "https://example.com/rates",
     title: "Federal Reserve policy keeps interest rates in focus",
     seendate: "20260601T120000Z"
   }, gdeltRepository.groups[0] as GdeltQueryGroup);
-  class MixedGdeltProvider implements GdeltNewsProvider {
+  class BatchGdeltProvider implements GdeltNewsProvider {
     readonly name = "gdelt" as const;
+    calls: string[] = [];
     async fetchQueryGroup(input: { queryGroup: GdeltQueryGroup }) {
-      if (input.queryGroup.id === "failed") throw new Error("GDELT request failed with status 429.");
+      this.calls.push(input.queryGroup.id);
       return [article as GdeltProviderArticle];
+    }
+  }
+  const provider = new BatchGdeltProvider();
+  const service = new GlobalNewsIngestionService(
+    newsRepository,
+    gdeltRepository,
+    provider,
+    undefined,
+    undefined,
+    undefined,
+    {
+      enabled: true,
+      maxArticlesPerQuery: 8,
+      maxArticlesPerDay: 10,
+      recentWindowHours: 24,
+      queryDelayMs: 0,
+      minRefreshMinutes: 30,
+      maxQueryGroupsPerRun: 1,
+      querySuccessCooldownMinutes: 240,
+      queryFailureBackoffMinutes: 30,
+      queryRateLimitBackoffMinutes: 60
+    }
+  );
+
+  const result = await service.ingestGlobalNews();
+
+  assert.equal(result.queryGroupsRequested, 1);
+  assert.deepEqual(provider.calls, ["success"]);
+  assert.equal(result.articlesInserted, 1);
+  assert.equal(gdeltRepository.logs.find((log) => log.queryGroupId === "success")?.status, "success");
+  assert.equal(gdeltRepository.logs.find((log) => log.queryGroupId === "queued"), undefined);
+});
+
+test("GDELT ingestion backs off failed due groups", async () => {
+  const newsRepository = new UpsertingFakeNewsRepository();
+  const gdeltRepository = new FakeGdeltRepository();
+  gdeltRepository.groups = [
+    gdeltQueryGroup({ id: "failed", queryKey: "energy_commodities", canonicalTheme: "Energy", failureCount: 1 })
+  ];
+  class FailingGdeltProvider implements GdeltNewsProvider {
+    readonly name = "gdelt" as const;
+    async fetchQueryGroup(): Promise<GdeltProviderArticle[]> {
+      throw new Error("GDELT request failed with status 429.");
     }
   }
   const service = new GlobalNewsIngestionService(
     newsRepository,
     gdeltRepository,
-    new MixedGdeltProvider(),
+    new FailingGdeltProvider(),
     undefined,
     undefined,
     undefined,
-    { enabled: true, maxArticlesPerQuery: 8, maxArticlesPerDay: 10, recentWindowHours: 24, queryDelayMs: 0, minRefreshMinutes: 30 }
+    {
+      enabled: true,
+      maxArticlesPerQuery: 8,
+      maxArticlesPerDay: 10,
+      recentWindowHours: 24,
+      queryDelayMs: 0,
+      minRefreshMinutes: 30,
+      maxQueryGroupsPerRun: 1,
+      querySuccessCooldownMinutes: 240,
+      queryFailureBackoffMinutes: 30,
+      queryRateLimitBackoffMinutes: 60
+    }
   );
 
-  const result = await service.ingestGlobalNews({ force: true });
+  const result = await service.ingestGlobalNews();
 
   assert.equal(result.failedQueryGroups, 1);
   assert.equal(result.rateLimitHit, true);
-  assert.equal(result.articlesInserted, 1);
-  assert.equal(gdeltRepository.logs.find((log) => log.queryGroupId === "failed")?.status, "failed");
-  assert.equal(gdeltRepository.logs.find((log) => log.queryGroupId === "success")?.status, "success");
-  assert.equal(gdeltRepository.logs.find((log) => log.queryGroupId === "skipped"), undefined);
+  assert.equal(gdeltRepository.groups[0]?.failureCount, 2);
+  assert.match(gdeltRepository.groups[0]?.lastError ?? "", /429/);
+  assert.notEqual(gdeltRepository.groups[0]?.nextRunAt, null);
   assert.match(newsRepository.logs[0]?.errorMessage ?? "", /rate limit/i);
 });
 

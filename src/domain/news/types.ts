@@ -163,6 +163,11 @@ export type GdeltQueryGroup = {
   category: string;
   isActive: boolean;
   maxArticlesPerRun: number;
+  lastAttemptedAt: string | null;
+  lastSuccessAt: string | null;
+  nextRunAt: string | null;
+  failureCount: number;
+  lastError: string | null;
   createdAt: string;
   updatedAt: string;
 };

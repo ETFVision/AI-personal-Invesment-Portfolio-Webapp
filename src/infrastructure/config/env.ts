@@ -24,6 +24,10 @@ const envSchema = z.object({
   GDELT_MAX_ARTICLES_PER_DAY: z.coerce.number().int().positive().default(80),
   GDELT_RECENT_WINDOW_HOURS: z.coerce.number().int().positive().default(72),
   GDELT_QUERY_DELAY_MS: z.coerce.number().int().nonnegative().default(1200),
+  GDELT_MAX_QUERY_GROUPS_PER_RUN: z.coerce.number().int().positive().default(1),
+  GDELT_QUERY_SUCCESS_COOLDOWN_MINUTES: z.coerce.number().int().positive().default(240),
+  GDELT_QUERY_FAILURE_BACKOFF_MINUTES: z.coerce.number().int().positive().default(30),
+  GDELT_QUERY_RATE_LIMIT_BACKOFF_MINUTES: z.coerce.number().int().positive().default(60),
   ENABLE_GDELT_INGESTION: envBoolean.default(false),
   ENABLE_AI_NEWS_CLASSIFICATION: envBoolean.default(false),
   ENABLE_WEEKLY_NEWS_RECONCILIATION: envBoolean.default(false)
@@ -48,6 +52,10 @@ export const env = envSchema.parse({
   GDELT_MAX_ARTICLES_PER_DAY: process.env.GDELT_MAX_ARTICLES_PER_DAY,
   GDELT_RECENT_WINDOW_HOURS: process.env.GDELT_RECENT_WINDOW_HOURS,
   GDELT_QUERY_DELAY_MS: process.env.GDELT_QUERY_DELAY_MS,
+  GDELT_MAX_QUERY_GROUPS_PER_RUN: process.env.GDELT_MAX_QUERY_GROUPS_PER_RUN,
+  GDELT_QUERY_SUCCESS_COOLDOWN_MINUTES: process.env.GDELT_QUERY_SUCCESS_COOLDOWN_MINUTES,
+  GDELT_QUERY_FAILURE_BACKOFF_MINUTES: process.env.GDELT_QUERY_FAILURE_BACKOFF_MINUTES,
+  GDELT_QUERY_RATE_LIMIT_BACKOFF_MINUTES: process.env.GDELT_QUERY_RATE_LIMIT_BACKOFF_MINUTES,
   ENABLE_GDELT_INGESTION: process.env.ENABLE_GDELT_INGESTION,
   ENABLE_AI_NEWS_CLASSIFICATION: process.env.ENABLE_AI_NEWS_CLASSIFICATION,
   ENABLE_WEEKLY_NEWS_RECONCILIATION: process.env.ENABLE_WEEKLY_NEWS_RECONCILIATION

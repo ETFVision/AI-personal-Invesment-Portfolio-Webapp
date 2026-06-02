@@ -1393,3 +1393,62 @@ Setup requirement:
 Production-readiness assessment:
 - Ready as a deterministic source quality foundation.
 - Safe to use for future weekly reconciliation confidence, Market Vision citation selection, and recommendation-confidence inputs.
+
+## 2026-06-02 - GDELT Queue-Based Refresh Pacing
+
+Scope:
+- Converted GDELT refresh from full-universe manual refresh to queue-based batch refresh.
+- Focused only on GDELT reliability and rate-limit protection.
+- Did not add recommendations, scoring, telemetry, or AI Market Vision generation.
+
+What changed:
+- Added migration `029_gdelt_query_queue.sql`.
+- Added queue state to `gdelt_query_groups`:
+  - `last_attempted_at`.
+  - `last_success_at`.
+  - `next_run_at`.
+  - `failure_count`.
+  - `last_error`.
+- Added repository methods to list due query groups and update schedule/backoff state.
+- Updated GDELT ingestion to process only the next due batch, defaulting to one query group per run.
+- Successful query groups are scheduled forward using a configurable cooldown.
+- Failed query groups are backed off deterministically, with longer cooldowns for rate-limit errors.
+- Updated the News page button to `Refresh next GDELT batch`.
+- Added queue status columns for next run and failure count.
+- Updated the protected GDELT job route so scheduled callers process the queue instead of bypassing pacing.
+
+Validation performed:
+- `npm.cmd run test` passed: 88 tests.
+- `npm.cmd run typecheck` passed.
+
+Tests added or updated:
+- GDELT ingestion stores normalized news and updates queue state.
+- GDELT ingestion processes only the next due query group batch.
+- GDELT ingestion backs off failed due groups.
+- News dashboard exposes query-group status with queue state.
+
+Critical issues:
+- None.
+
+Medium-priority issues:
+- None.
+
+Low-priority improvements for later:
+- Add a GitHub Actions or Vercel Cron schedule to call `/api/jobs/gdelt-news-ingestion` every 15-30 minutes.
+- Add a one-click admin control to pause/resume individual GDELT query groups.
+- Add a dedicated queue summary card showing next due group.
+- Add provider-level circuit breaker if GDELT returns repeated 429s across many runs.
+- Add source/domain allowlists and blocklists for GDELT quality control.
+
+Setup requirement:
+- Apply `supabase/migrations/029_gdelt_query_queue.sql` after Vercel redeploys.
+- Optional env tuning:
+  - `GDELT_MAX_QUERY_GROUPS_PER_RUN`.
+  - `GDELT_QUERY_SUCCESS_COOLDOWN_MINUTES`.
+  - `GDELT_QUERY_FAILURE_BACKOFF_MINUTES`.
+  - `GDELT_QUERY_RATE_LIMIT_BACKOFF_MINUTES`.
+
+Production-readiness assessment:
+- Safer for manual testing and ready for scheduled GitHub Actions or Vercel Cron triggering.
+- GDELT should no longer attempt all query groups in one refresh.
+- Rate-limit behavior is now visible and recoverable through query-group backoff state.

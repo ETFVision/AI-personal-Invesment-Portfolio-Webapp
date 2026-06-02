@@ -1,6 +1,7 @@
 import type {
   GdeltRepository,
   InsertGdeltIngestionLogInput,
+  UpdateGdeltQueryGroupScheduleInput,
   UpsertGdeltArticleMetadataInput
 } from "@/application/ports/repositories/GdeltRepository";
 import type { GdeltIngestionLog, GdeltQueryGroup, NewsCanonicalTheme } from "@/domain/news/types";
@@ -28,6 +29,11 @@ function mapQueryGroup(row: any): GdeltQueryGroup {
     category: row.category,
     isActive: Boolean(row.is_active),
     maxArticlesPerRun: Number(row.max_articles_per_run ?? 8),
+    lastAttemptedAt: row.last_attempted_at,
+    lastSuccessAt: row.last_success_at,
+    nextRunAt: row.next_run_at,
+    failureCount: Number(row.failure_count ?? 0),
+    lastError: row.last_error,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -63,6 +69,36 @@ export class SupabaseGdeltRepository implements GdeltRepository {
     if (missing(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapQueryGroup);
+  }
+
+  async listDueQueryGroups(input: { now: string; limit: number }) {
+    const { data, error } = await this.db
+      .from("gdelt_query_groups")
+      .select("*")
+      .eq("is_active", true)
+      .or(`next_run_at.is.null,next_run_at.lte.${input.now}`)
+      .order("next_run_at", { ascending: true, nullsFirst: true })
+      .order("last_attempted_at", { ascending: true, nullsFirst: true })
+      .order("query_key")
+      .limit(input.limit);
+    if (missing(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapQueryGroup);
+  }
+
+  async updateQueryGroupSchedule(input: UpdateGdeltQueryGroupScheduleInput) {
+    const { error } = await this.db
+      .from("gdelt_query_groups")
+      .update({
+        last_attempted_at: input.lastAttemptedAt,
+        last_success_at: input.lastSuccessAt,
+        next_run_at: input.nextRunAt,
+        failure_count: input.failureCount,
+        last_error: input.lastError
+      })
+      .eq("id", input.id);
+    if (missing(error)) return;
+    if (error) throw new Error(error.message);
   }
 
   async upsertArticleMetadata(input: UpsertGdeltArticleMetadataInput[]) {

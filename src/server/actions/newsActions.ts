@@ -25,10 +25,12 @@ export async function runGdeltNewsIngestionAction() {
   await container.authProvider.requireUser();
   let target = "/news?error=GDELT%20ingestion%20failed.";
   try {
-    const result = await container.jobs.gdeltNewsIngestion.run({ force: true });
+    const result = await container.jobs.gdeltNewsIngestion.run();
     const suffix = result.skipped
-      ? "GDELT ingestion is disabled. Set ENABLE_GDELT_INGESTION=true and redeploy/restart."
-      : `GDELT fetched ${result.articlesFetched}, saved ${result.articlesInserted}, filtered ${result.articlesFiltered}, duplicates ${result.duplicatesDetected}, failed query groups ${result.failedQueryGroups}${result.rateLimitHit ? ". Rate limit hit; wait a few minutes before refreshing again." : "."}`;
+      ? result.skippedReason === "not_due"
+        ? "No GDELT query group is due yet. The next scheduled batch will run later."
+        : "GDELT ingestion is disabled. Set ENABLE_GDELT_INGESTION=true and redeploy/restart."
+      : `GDELT queued batch fetched ${result.articlesFetched}, saved ${result.articlesInserted}, filtered ${result.articlesFiltered}, duplicates ${result.duplicatesDetected}, failed query groups ${result.failedQueryGroups}${result.rateLimitHit ? ". Rate limit hit; this group was backed off automatically." : "."}`;
     target = `/news?source=gdelt&message=${encodeURIComponent(suffix)}`;
   } catch (error) {
     target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "GDELT ingestion failed.")}`;

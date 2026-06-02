@@ -116,7 +116,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
             <SubmitButton pendingLabel="Fetching FMP...">Refresh FMP</SubmitButton>
           </form>
           <form action={runGdeltNewsIngestionAction}>
-            <SubmitButton variant="outline" pendingLabel="Fetching GDELT...">Refresh GDELT</SubmitButton>
+            <SubmitButton variant="outline" pendingLabel="Fetching next GDELT batch...">Refresh next GDELT batch</SubmitButton>
           </form>
           <form action={reclassifyPendingNewsAction}>
             <SubmitButton variant="outline" pendingLabel="Classifying...">Classify pending</SubmitButton>
@@ -224,7 +224,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
               No active GDELT query groups found. Apply migrations 025 and 026, then refresh GDELT.
             </div>
           ) : (
-            <table className="w-full min-w-[820px] text-sm">
+            <table className="w-full min-w-[960px] text-sm">
               <thead className="text-left text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="py-2 pr-3">Query group</th>
@@ -234,6 +234,8 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                   <th className="py-2 pr-3">Saved</th>
                   <th className="py-2 pr-3">Duplicates</th>
                   <th className="py-2 pr-3">Last run</th>
+                  <th className="py-2 pr-3">Next run</th>
+                  <th className="py-2 pr-3">Failures</th>
                   <th className="py-2 pr-3">Last error</th>
                 </tr>
               </thead>
@@ -250,7 +252,9 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                     <td className="py-3 pr-3">{latestLog?.articlesInserted ?? 0}</td>
                     <td className="py-3 pr-3">{latestLog?.duplicatesDetected ?? 0}</td>
                     <td className="py-3 pr-3 text-xs text-muted-foreground">{formatDateTime(latestLog?.completedAt ?? latestLog?.startedAt)}</td>
-                    <td className="max-w-sm py-3 pr-3 text-xs text-muted-foreground">{latestLog?.errorMessage ?? "-"}</td>
+                    <td className="py-3 pr-3 text-xs text-muted-foreground">{formatDateTime(queryGroup.nextRunAt)}</td>
+                    <td className="py-3 pr-3">{queryGroup.failureCount}</td>
+                    <td className="max-w-sm py-3 pr-3 text-xs text-muted-foreground">{latestLog?.errorMessage ?? queryGroup.lastError ?? "-"}</td>
                   </tr>
                 ))}
               </tbody>
