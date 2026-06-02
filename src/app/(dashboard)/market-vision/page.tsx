@@ -4,6 +4,7 @@ import {
   archiveMarketVisionReportAction,
   createMarketVisionDraftFromLatestNewsAction,
   createMarketVisionDraftAction,
+  generateAiMarketVisionDraftAction,
   publishMarketVisionReportAction,
   saveMarketVisionDraftAction
 } from "@/server/actions/marketVisionActions";
@@ -31,6 +32,8 @@ const reportSections: Array<{ key: keyof MarketVisionReport; title: string; desc
   { key: "cryptoView", title: "Crypto Market View", description: "Bitcoin/crypto trend, liquidity sensitivity, and risk appetite." },
   { key: "ratesView", title: "Interest Rates", description: "Central-bank stance and yield curve implications." },
   { key: "inflationView", title: "Inflation", description: "Inflation trend, expectations, and market sensitivity." },
+  { key: "growthView", title: "Growth Outlook", description: "Growth, earnings, recession, and activity backdrop." },
+  { key: "employmentView", title: "Employment Outlook", description: "Labor market, wage, and employment signals." },
   { key: "currencyView", title: "Currency / USD View", description: "USD trend and non-USD exposure context." },
   { key: "geopoliticalRiskView", title: "Geopolitical Risks", description: "Geopolitical risks and persistence assessment." }
 ];
@@ -188,7 +191,7 @@ function ReportEditor({ report }: { report: MarketVisionReport }) {
     <Card>
       <CardHeader>
         <CardTitle>Edit draft report</CardTitle>
-        <CardDescription>Manual sections now; FMP, FRED, and OpenAI generation come later.</CardDescription>
+        <CardDescription>Manual edits remain available for draft reports, including generated drafts.</CardDescription>
       </CardHeader>
       <CardContent>
         <form action={saveMarketVisionDraftAction} className="grid gap-4">
@@ -298,13 +301,16 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
           <p className="text-sm text-muted-foreground">Market Vision</p>
           <h1 className="text-2xl font-semibold">Weekly CIO-style briefing</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manual report structure today. FMP, FRED, and OpenAI summarisation are prepared as future integrations.
+            CIO-style synthesis from News Intelligence, FRED macro signals, portfolio analytics, risk, bonds, and benchmarks.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <ReportSelector reports={dashboard.reports} selectedReport={report} />
           <form action={createMarketVisionDraftAction}>
             <SubmitButton>Create draft</SubmitButton>
+          </form>
+          <form action={generateAiMarketVisionDraftAction}>
+            <SubmitButton variant="secondary" pendingLabel="Generating...">Generate AI draft</SubmitButton>
           </form>
         </div>
       </div>
@@ -320,8 +326,8 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
       {!report ? (
         <EmptyState
           title="No Market Vision report yet"
-          description="Create a draft report to start testing the weekly briefing structure before AI generation is added."
-          action={<form action={createMarketVisionDraftAction}><Button type="submit">Create draft</Button></form>}
+          description="Create a manual draft or generate an AI draft from the latest weekly reconciliation."
+          action={<div className="flex gap-2"><form action={createMarketVisionDraftAction}><Button type="submit">Create draft</Button></form><form action={generateAiMarketVisionDraftAction}><Button type="submit" variant="secondary">Generate AI draft</Button></form></div>}
         />
       ) : (
         <>
@@ -351,12 +357,39 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Theme events</CardTitle>
-                <CardDescription>Classified manually/deterministically</CardDescription>
+                <CardTitle className="text-sm">Confidence</CardTitle>
+                <CardDescription>Generated report score</CardDescription>
               </CardHeader>
-              <CardContent className="text-2xl font-semibold">{dashboard.themeEvents.length}</CardContent>
+              <CardContent className="text-2xl font-semibold">{report.confidenceScore == null ? "-" : `${report.confidenceScore}%`}</CardContent>
             </Card>
           </section>
+
+          {report.sourceType === "generated" ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Generation metadata</CardTitle>
+                <CardDescription>Model, prompt and usage tracking for auditability.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 text-sm md:grid-cols-4">
+                <div className="rounded-md border p-3">
+                  <p className="text-xs uppercase text-muted-foreground">Model</p>
+                  <p className="mt-1 font-medium">{report.modelUsed ?? "-"}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs uppercase text-muted-foreground">Prompt</p>
+                  <p className="mt-1 font-medium">{report.promptVersion ?? "-"}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs uppercase text-muted-foreground">Cost</p>
+                  <p className="mt-1 font-medium">{report.costEstimate == null ? "Not configured" : `$${report.costEstimate.toFixed(6)}`}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs uppercase text-muted-foreground">Duration</p>
+                  <p className="mt-1 font-medium">{report.generationDurationMs == null ? "-" : `${report.generationDurationMs}ms`}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
 
           <div className="flex flex-col justify-between gap-3 rounded-md border p-4 sm:flex-row sm:items-center">
             <div>
@@ -371,7 +404,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
           <Card>
             <CardHeader>
               <CardTitle>Latest weekly news reconciliation</CardTitle>
-              <CardDescription>News Intelligence input prepared for manual Market Vision drafting.</CardDescription>
+              <CardDescription>News Intelligence input prepared for Market Vision generation.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               {!latestWeeklyNews ? (
@@ -380,9 +413,14 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
                 <>
                   <p className="font-medium">{latestWeeklyNews.periodStart} to {latestWeeklyNews.periodEnd} · {latestWeeklyNews.status}</p>
                   <p className="text-muted-foreground">{latestWeeklyNews.macroSummary ?? latestWeeklyNews.equitiesSummary ?? "No summary available."}</p>
-                  <form action={createMarketVisionDraftFromLatestNewsAction}>
-                    <SubmitButton variant="outline" pendingLabel="Creating draft...">Create draft from news</SubmitButton>
-                  </form>
+                  <div className="flex flex-wrap gap-2">
+                    <form action={createMarketVisionDraftFromLatestNewsAction}>
+                      <SubmitButton variant="outline" pendingLabel="Creating draft...">Create draft from news</SubmitButton>
+                    </form>
+                    <form action={generateAiMarketVisionDraftAction}>
+                      <SubmitButton variant="secondary" pendingLabel="Generating...">Generate AI draft</SubmitButton>
+                    </form>
+                  </div>
                 </>
               )}
             </CardContent>
@@ -445,7 +483,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
           <Card>
             <CardHeader>
               <CardTitle>Market theme classification</CardTitle>
-              <CardDescription>Future AI will populate candidates; deterministic classification remains separate.</CardDescription>
+              <CardDescription>Theme events remain deterministic/manual and separate from AI narrative generation.</CardDescription>
             </CardHeader>
             <CardContent>
               <ThemeTable events={dashboard.themeEvents} />
@@ -455,7 +493,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
           <Card>
             <CardHeader>
               <CardTitle>Portfolio implications</CardTitle>
-              <CardDescription>Manual fields reserved for future portfolio, risk, bond, and watchlist integration.</CardDescription>
+              <CardDescription>Generated implications explain context only; they do not recommend trades or allocation changes.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2">
               {implicationFields.map(([key, label]) => (
@@ -475,13 +513,21 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
 
       <Card>
         <CardHeader>
-          <CardTitle>Future AI integration placeholders</CardTitle>
-          <CardDescription>Prepared but intentionally inactive in this phase.</CardDescription>
+          <CardTitle>Generation logs</CardTitle>
+          <CardDescription>Weekly job and manual generation outcomes.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 text-sm md:grid-cols-3">
-          <div className="rounded-md border p-3">AI provider port: `AiMarketVisionProvider`</div>
-          <div className="rounded-md border p-3">Prompt template placeholder: `MARKET_VISION_PROMPT_TEMPLATE`</div>
-          <div className="rounded-md border p-3">Weekly job placeholder: `GenerateMarketVisionReportJob`</div>
+        <CardContent className="space-y-2 text-sm">
+          {dashboard.generationLogs.length === 0 ? (
+            <p className="text-muted-foreground">No AI Market Vision generation has run yet.</p>
+          ) : dashboard.generationLogs.map((log) => (
+            <div key={log.id} className="rounded-md border p-3">
+              <div className="font-medium">{log.periodStart ?? "-"} to {log.periodEnd ?? "-"} - {log.status}</div>
+              <div className="text-muted-foreground">
+                {log.modelUsed ?? "No model"} - {log.promptVersion ?? "No prompt"} - {log.costEstimate == null ? "Cost not configured" : `$${log.costEstimate.toFixed(6)}`}
+              </div>
+              {log.errorMessage ? <div className="mt-1 text-destructive">{log.errorMessage}</div> : null}
+            </div>
+          ))}
         </CardContent>
       </Card>
     </div>

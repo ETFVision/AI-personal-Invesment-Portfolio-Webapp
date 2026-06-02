@@ -1,13 +1,36 @@
-// TODO: Future Market Vision phase.
-// This port will allow OpenAI-powered summarisation/classification without coupling UI or services to a provider.
+import type { PortfolioImplications } from "@/domain/marketVision/types";
+
+export type AiMarketVisionInput = {
+  periodStart: string;
+  periodEnd: string;
+  context: Record<string, unknown>;
+};
+
+export type AiMarketVisionOutput = {
+  title: string;
+  executiveSummary: string;
+  globalMarketSummary: string;
+  topEmergingThemes: string[];
+  persistentThemes: string[];
+  structuralThemes: string[];
+  equityOutlook: string;
+  bondOutlook: string;
+  goldOutlook: string;
+  cryptoOutlook: string;
+  ratesOutlook: string;
+  inflationOutlook: string;
+  growthOutlook: string;
+  employmentOutlook: string;
+  currencyOutlook: string;
+  geopoliticalOutlook: string;
+  keyRisks: string[];
+  keyOpportunities: string[];
+  portfolioImplications: PortfolioImplications;
+  confidenceScore: number;
+  tokenUsage?: Record<string, unknown>;
+  costEstimate?: number | null;
+};
+
 export interface AiMarketVisionProvider {
-  generateWeeklyBriefing(input: {
-    reportPeriodStart: string;
-    reportPeriodEnd: string;
-    sourceNotes: string[];
-  }): Promise<{
-    title: string;
-    executiveSummary: string;
-    sectionDrafts: Record<string, string>;
-  }>;
+  generateWeeklyBriefing(input: AiMarketVisionInput): Promise<AiMarketVisionOutput>;
 }

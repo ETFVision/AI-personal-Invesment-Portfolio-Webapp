@@ -29,10 +29,11 @@ export class MarketVisionService {
   ) {}
 
   async getDashboard(selectedReportId?: string | null): Promise<MarketVisionDashboard> {
-    const [reports, latestPublishedReport, macroIndicators] = await Promise.all([
+    const [reports, latestPublishedReport, macroIndicators, generationLogs] = await Promise.all([
       this.repository.listReports(20),
       this.repository.getLatestPublishedReport(),
-      this.repository.listMacroIndicators()
+      this.repository.listMacroIndicators(),
+      this.repository.listGenerationLogs(10)
     ]);
 
     const selectedReport =
@@ -46,7 +47,8 @@ export class MarketVisionService {
       selectedReport,
       reports,
       macroIndicators,
-      themeEvents
+      themeEvents,
+      generationLogs
     };
   }
 
@@ -65,6 +67,8 @@ export class MarketVisionService {
       cryptoView: input?.cryptoView ?? "",
       ratesView: input?.ratesView ?? "",
       inflationView: input?.inflationView ?? "",
+      growthView: input?.growthView ?? "",
+      employmentView: input?.employmentView ?? "",
       currencyView: input?.currencyView ?? "",
       geopoliticalRiskView: input?.geopoliticalRiskView ?? "",
       opportunities: input?.opportunities ?? [],

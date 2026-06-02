@@ -58,6 +58,18 @@ export async function createMarketVisionDraftFromLatestNewsAction() {
   redirect(`/market-vision?reportId=${report.id}&message=Draft%20created%20from%20latest%20news%20reconciliation.`);
 }
 
+export async function generateAiMarketVisionDraftAction() {
+  const authUser = await createContainer().authProvider.requireUser();
+  const container = createContainer();
+  const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
+  const report = await container.marketVisionGenerationService.generateWeeklyReport({
+    portfolioId: portfolio?.id ?? null,
+    force: true,
+    status: "draft"
+  });
+  redirect(`/market-vision?reportId=${report.id}&message=AI%20Market%20Vision%20draft%20generated.`);
+}
+
 export async function saveMarketVisionDraftAction(formData: FormData) {
   await createContainer().authProvider.requireUser();
   const reportId = formString(formData, "reportId");
@@ -75,6 +87,8 @@ export async function saveMarketVisionDraftAction(formData: FormData) {
     cryptoView: formString(formData, "cryptoView"),
     ratesView: formString(formData, "ratesView"),
     inflationView: formString(formData, "inflationView"),
+    growthView: formString(formData, "growthView"),
+    employmentView: formString(formData, "employmentView"),
     currencyView: formString(formData, "currencyView"),
     geopoliticalRiskView: formString(formData, "geopoliticalRiskView"),
     opportunities: lines(formData, "opportunities"),

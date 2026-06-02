@@ -1,15 +1,17 @@
 import type { BackgroundJob } from "@/application/ports/jobs/BackgroundJob";
+import { MarketVisionGenerationService } from "@/application/services/marketVision/MarketVisionGenerationService";
 
-// TODO: Future Market Vision phase.
-// This job is a placeholder for weekly generation via Vercel Cron or Google Cloud Scheduler.
 export class GenerateMarketVisionReportJob implements BackgroundJob {
   readonly name = "generate-market-vision-report";
 
+  constructor(private readonly service: MarketVisionGenerationService) {}
+
   async run() {
+    const report = await this.service.generateWeeklyReport({ status: "draft" });
     return {
-      ok: false,
-      message: "Market Vision AI generation is not implemented yet.",
-      metadata: { status: "placeholder" }
+      ok: true,
+      message: "Market Vision report generated.",
+      metadata: { reportId: report.id, periodStart: report.reportPeriodStart, periodEnd: report.reportPeriodEnd }
     };
   }
 }

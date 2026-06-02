@@ -1782,3 +1782,60 @@ Validation performed:
 Production-readiness assessment:
 - Ready for AI Market Vision as a structured input foundation, with human review still recommended for low-confidence theme rows.
 - Recommendation: proceed to AI Market Vision generation only after the latest weekly reconciliation is regenerated with the current taxonomy and impact scoring.
+
+## 2026-06-02 - AI Market Vision Generation Implementation Checkpoint
+
+Scope:
+- Built AI Market Vision generation as a weekly CIO-style briefing layer.
+- Used News Intelligence, Weekly Reconciliation, Theme Intelligence metadata, FRED macro regimes/signals, and optional portfolio/risk/bond context when a portfolio is available.
+- Explicitly did not build buy/sell recommendations, scoring, telemetry, rebalancing instructions, or Portfolio Assistant behavior.
+
+What changed:
+- Added migration `031_ai_market_vision_generation.sql`.
+- Extended `market_vision_reports` with generated-report metadata:
+  - `growth_view`
+  - `employment_view`
+  - `confidence_score`
+  - `model_used`
+  - `prompt_version`
+  - `token_usage`
+  - `cost_estimate`
+  - `source_snapshot`
+  - `generation_duration_ms`
+- Added `market_vision_generation_logs` for success, failure, and duplicate-skip tracking.
+- Added `MARKET_VISION_MODEL`, `MARKET_VISION_INPUT_COST_PER_1M`, and `MARKET_VISION_OUTPUT_COST_PER_1M` environment config.
+- Added strict Market Vision prompt template `market-vision-v1`.
+- Added `MarketVisionGenerationService`.
+- Added `OpenAiMarketVisionProvider`.
+- Replaced the old placeholder job with a real `GenerateMarketVisionReportJob`.
+- Added cron route `/api/jobs/weekly-market-vision`, protected by `CRON_SECRET`.
+- Added manual `Generate AI draft` action on the Market Vision page.
+- Updated Market Vision UI to display generated-report metadata and generation logs.
+
+Guardrails:
+- AI output must be structured JSON.
+- Output validation rejects recommendation language such as buy, sell, trim, add, overweight, underweight, allocation increase/decrease, and rotation instructions.
+- Generated reports are saved as drafts by default.
+- Duplicate weekly generation is skipped unless forced manually.
+- Cost is estimated only when pricing env vars are configured; token usage is stored regardless.
+
+Validation performed:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd test` passed: 108 tests.
+- `npm.cmd run build` passed.
+
+Tests added:
+- AI Market Vision generation creates a generated draft with usage metadata.
+- Duplicate weekly generated report is skipped unless forced.
+- Missing weekly reconciliation is handled safely.
+- Recommendation language is rejected during validation.
+
+Known limitations:
+- Cron generation does not attach a user portfolio unless a portfolio ID is supplied by a user-triggered flow; it still generates from weekly news/FRED context.
+- Cost estimates require manually configured pricing environment variables.
+- No automatic Market Vision publishing is enabled; generated output remains draft for review.
+
+Production-readiness assessment:
+- Ready for controlled AI Market Vision draft generation after migration 031 is applied and `OPENAI_API_KEY` plus `MARKET_VISION_MODEL` are configured.
+- Recommended operational sequence: refresh news/FRED/GDELT, run weekly reconciliation, then generate AI Market Vision draft.

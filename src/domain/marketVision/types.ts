@@ -32,6 +32,8 @@ export type MarketVisionReport = {
   cryptoView: string;
   ratesView: string;
   inflationView: string;
+  growthView: string;
+  employmentView: string;
   currencyView: string;
   geopoliticalRiskView: string;
   opportunities: string[];
@@ -40,8 +42,34 @@ export type MarketVisionReport = {
   classificationSummary: ClassificationSummary;
   sourceType: MarketVisionSourceType;
   status: MarketVisionStatus;
+  confidenceScore: number | null;
+  modelUsed: string | null;
+  promptVersion: string | null;
+  tokenUsage: Record<string, unknown>;
+  costEstimate: number | null;
+  sourceSnapshot: Record<string, unknown>;
+  generationDurationMs: number | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type MarketVisionGenerationStatus = "success" | "failed" | "skipped";
+
+export type MarketVisionGenerationLog = {
+  id: string;
+  reportId: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  status: MarketVisionGenerationStatus;
+  modelUsed: string | null;
+  promptVersion: string | null;
+  tokenUsage: Record<string, unknown>;
+  costEstimate: number | null;
+  errorMessage: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
 };
 
 export type MacroIndicatorCategory =
@@ -94,4 +122,5 @@ export type MarketVisionDashboard = {
   reports: MarketVisionReport[];
   macroIndicators: MacroIndicator[];
   themeEvents: MarketThemeEvent[];
+  generationLogs: MarketVisionGenerationLog[];
 };

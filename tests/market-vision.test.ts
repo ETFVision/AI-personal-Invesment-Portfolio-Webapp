@@ -1,13 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MarketVisionService, emptyPortfolioImplications } from "../src/application/services/marketVision/MarketVisionService";
+import { MarketVisionGenerationService, validateMarketVisionGenerationOutput } from "../src/application/services/marketVision/MarketVisionGenerationService";
 import { MacroIndicatorService } from "../src/application/services/marketVision/MacroIndicatorService";
 import { MarketThemeService } from "../src/application/services/marketVision/MarketThemeService";
 import type {
   MacroIndicator,
   MarketThemeEvent,
   MarketVisionReport,
-  MarketVisionStatus
+  MarketVisionStatus,
+  MarketVisionGenerationLog
 } from "../src/domain/marketVision/types";
 import type {
   MarketVisionRepository,
@@ -15,11 +17,17 @@ import type {
   UpsertMarketThemeEventInput,
   UpsertMarketVisionReportInput
 } from "../src/application/ports/repositories/MarketVisionRepository";
+import type { NewsRepository } from "../src/application/ports/repositories/NewsRepository";
+import type { MacroIndicatorRepository } from "../src/application/ports/repositories/MacroIndicatorRepository";
+import type { AiMarketVisionInput, AiMarketVisionOutput, AiMarketVisionProvider } from "../src/application/ports/providers/AiMarketVisionProvider";
+import type { WeeklyNewsReconciliation } from "../src/domain/news/types";
+import type { MacroDashboard, MacroThemeSignal } from "../src/domain/macro/types";
 
 class FakeMarketVisionRepository implements MarketVisionRepository {
   reports: MarketVisionReport[] = [];
   indicators: MacroIndicator[] = [];
   events: MarketThemeEvent[] = [];
+  logs: MarketVisionGenerationLog[] = [];
 
   async listReports(limit = 20) {
     return this.reports.slice(0, limit);
@@ -51,6 +59,8 @@ class FakeMarketVisionRepository implements MarketVisionRepository {
       cryptoView: input.cryptoView,
       ratesView: input.ratesView,
       inflationView: input.inflationView,
+      growthView: input.growthView ?? existing?.growthView ?? "",
+      employmentView: input.employmentView ?? existing?.employmentView ?? "",
       currencyView: input.currencyView,
       geopoliticalRiskView: input.geopoliticalRiskView,
       opportunities: input.opportunities,
@@ -61,6 +71,13 @@ class FakeMarketVisionRepository implements MarketVisionRepository {
         { shortTermNoise: 0, mediumTermThemes: 0, structuralLongTermShifts: 0 },
       sourceType: input.sourceType,
       status: input.status,
+      confidenceScore: input.confidenceScore ?? existing?.confidenceScore ?? null,
+      modelUsed: input.modelUsed ?? existing?.modelUsed ?? null,
+      promptVersion: input.promptVersion ?? existing?.promptVersion ?? null,
+      tokenUsage: input.tokenUsage ?? existing?.tokenUsage ?? {},
+      costEstimate: input.costEstimate ?? existing?.costEstimate ?? null,
+      sourceSnapshot: input.sourceSnapshot ?? existing?.sourceSnapshot ?? {},
+      generationDurationMs: input.generationDurationMs ?? existing?.generationDurationMs ?? null,
       createdAt: now,
       updatedAt: now
     };
@@ -71,6 +88,14 @@ class FakeMarketVisionRepository implements MarketVisionRepository {
 
   async updateReportStatus(reportId: string, status: MarketVisionStatus) {
     this.reports = this.reports.map((report) => report.id === reportId ? { ...report, status } : report);
+  }
+
+  async findGeneratedReportForPeriod(periodStart: string, periodEnd: string) {
+    return this.reports.find((report) =>
+      report.sourceType === "generated" &&
+      report.reportPeriodStart === periodStart &&
+      report.reportPeriodEnd === periodEnd
+    ) ?? null;
   }
 
   async listMacroIndicators() {
@@ -98,6 +123,108 @@ class FakeMarketVisionRepository implements MarketVisionRepository {
       updatedAt: "2026-06-01T00:00:00.000Z"
     }));
   }
+
+  async insertGenerationLog(input: any) {
+    this.logs.unshift({
+      id: `log-${this.logs.length + 1}`,
+      reportId: input.reportId ?? null,
+      periodStart: input.periodStart ?? null,
+      periodEnd: input.periodEnd ?? null,
+      startedAt: input.startedAt,
+      completedAt: input.completedAt ?? null,
+      status: input.status,
+      modelUsed: input.modelUsed ?? null,
+      promptVersion: input.promptVersion ?? null,
+      tokenUsage: input.tokenUsage ?? {},
+      costEstimate: input.costEstimate ?? null,
+      errorMessage: input.errorMessage ?? null,
+      metadata: input.metadata ?? {},
+      createdAt: "2026-06-01T00:00:00.000Z"
+    });
+  }
+
+  async listGenerationLogs(limit = 20) {
+    return this.logs.slice(0, limit);
+  }
+}
+
+class FakeNewsRepository implements Partial<NewsRepository> {
+  constructor(private readonly weekly: WeeklyNewsReconciliation | null) {}
+  async getLatestWeeklyReconciliation() {
+    return this.weekly;
+  }
+}
+
+class FakeMacroRepository implements Partial<MacroIndicatorRepository> {
+  async getDashboard(): Promise<MacroDashboard> {
+    return { indicators: [], latestRegime: null, ingestionLogs: [] };
+  }
+  async listLatestMacroThemeSignals(): Promise<MacroThemeSignal[]> {
+    return [];
+  }
+}
+
+class FakeAiMarketVisionProvider implements AiMarketVisionProvider {
+  calls: AiMarketVisionInput[] = [];
+  constructor(private readonly output?: Partial<AiMarketVisionOutput>) {}
+  async generateWeeklyBriefing(input: AiMarketVisionInput): Promise<AiMarketVisionOutput> {
+    this.calls.push(input);
+    return {
+      title: "AI Market Vision",
+      executiveSummary: "Markets were mixed as macro signals remained balanced.",
+      globalMarketSummary: "Global markets reflected a mix of AI leadership and macro uncertainty.",
+      topEmergingThemes: ["AI"],
+      persistentThemes: ["Technology"],
+      structuralThemes: ["AI"],
+      equityOutlook: "Equity leadership remains concentrated around technology themes.",
+      bondOutlook: "Bond context is shaped by rate sensitivity and duration.",
+      goldOutlook: "Gold remains linked to inflation and geopolitical context.",
+      cryptoOutlook: "Crypto remains liquidity-sensitive.",
+      ratesOutlook: "Rates remain a central macro driver.",
+      inflationOutlook: "Inflation signals are monitored for persistence.",
+      growthOutlook: "Growth signals are mixed.",
+      employmentOutlook: "Employment remains an important macro input.",
+      currencyOutlook: "USD context matters for non-USD exposure.",
+      geopoliticalOutlook: "Geopolitical risk remains a source of uncertainty.",
+      keyRisks: ["Concentration risk could amplify volatility."],
+      keyOpportunities: ["Structural AI themes remain visible."],
+      portfolioImplications: {
+        ...emptyPortfolioImplications,
+        riskImplication: "Concentration and volatility context should be monitored."
+      },
+      confidenceScore: 78,
+      tokenUsage: { input_tokens: 1000, output_tokens: 500 },
+      costEstimate: 0.001,
+      ...this.output
+    };
+  }
+}
+
+function weeklyReconciliation(): WeeklyNewsReconciliation {
+  return {
+    id: "weekly-1",
+    periodStart: "2026-06-01",
+    periodEnd: "2026-06-07",
+    status: "draft",
+    equitiesSummary: "Equities were led by technology.",
+    bondsSummary: "Bonds were shaped by rates.",
+    goldSummary: "Gold reacted to macro uncertainty.",
+    cryptoSummary: "Crypto was quiet.",
+    macroSummary: "Macro signals were mixed.",
+    ratesSummary: "Rates remained restrictive.",
+    inflationSummary: "Inflation moderated.",
+    currencySummary: "USD was stable.",
+    geopoliticalSummary: "Geopolitical risks persisted.",
+    keyRisks: ["Concentration"],
+    keyOpportunities: ["AI"],
+    portfolioImplications: {},
+    coverageMetadata: { themeSummaries: [{ theme: "AI", impactScore: 120 }] },
+    modelUsed: "deterministic_fallback",
+    tokenUsage: {},
+    costEstimate: null,
+    createdAt: "",
+    updatedAt: ""
+  };
 }
 
 test("creates, edits, publishes, archives, and retrieves Market Vision reports", async () => {
@@ -197,4 +324,64 @@ test("saving a draft preserves existing classification summary when not supplied
     mediumTermThemes: 2,
     structuralLongTermShifts: 3
   });
+});
+
+test("AI Market Vision generation creates a generated draft with usage metadata", async () => {
+  const repository = new FakeMarketVisionRepository();
+  const ai = new FakeAiMarketVisionProvider();
+  const service = new MarketVisionGenerationService(
+    repository,
+    new FakeNewsRepository(weeklyReconciliation()) as unknown as NewsRepository,
+    new FakeMacroRepository() as unknown as MacroIndicatorRepository,
+    ai
+  );
+
+  const report = await service.generateWeeklyReport();
+
+  assert.equal(report.sourceType, "generated");
+  assert.equal(report.status, "draft");
+  assert.equal(report.title, "AI Market Vision");
+  assert.equal(report.growthView, "Growth signals are mixed.");
+  assert.equal(report.confidenceScore, 78);
+  assert.equal(report.costEstimate, 0.001);
+  assert.equal(repository.logs[0]?.status, "success");
+  assert.equal(ai.calls.length, 1);
+});
+
+test("AI Market Vision generation skips duplicate weekly report unless forced", async () => {
+  const repository = new FakeMarketVisionRepository();
+  const ai = new FakeAiMarketVisionProvider();
+  const service = new MarketVisionGenerationService(
+    repository,
+    new FakeNewsRepository(weeklyReconciliation()) as unknown as NewsRepository,
+    new FakeMacroRepository() as unknown as MacroIndicatorRepository,
+    ai
+  );
+
+  const first = await service.generateWeeklyReport();
+  const second = await service.generateWeeklyReport();
+
+  assert.equal(second.id, first.id);
+  assert.equal(repository.logs[0]?.status, "skipped");
+  assert.equal(ai.calls.length, 1);
+});
+
+test("AI Market Vision generation requires weekly reconciliation", async () => {
+  const service = new MarketVisionGenerationService(
+    new FakeMarketVisionRepository(),
+    new FakeNewsRepository(null) as unknown as NewsRepository,
+    new FakeMacroRepository() as unknown as MacroIndicatorRepository,
+    new FakeAiMarketVisionProvider()
+  );
+
+  await assert.rejects(() => service.generateWeeklyReport(), /No weekly news reconciliation/);
+});
+
+test("AI Market Vision validation rejects recommendation language", () => {
+  assert.throws(() => validateMarketVisionGenerationOutput({
+    title: "Bad report",
+    executiveSummary: "Buy NVDA because AI is strong.",
+    portfolioImplications: {},
+    confidenceScore: 80
+  }), /recommendation language/);
 });

@@ -1,11 +1,13 @@
 import type {
   MacroIndicator,
+  MarketVisionGenerationLog,
   MarketThemeEvent,
   MarketVisionReport,
   PortfolioImplications
 } from "@/domain/marketVision/types";
 import type {
   MarketVisionRepository,
+  InsertMarketVisionGenerationLogInput,
   UpsertMacroIndicatorInput,
   UpsertMarketThemeEventInput,
   UpsertMarketVisionReportInput
@@ -20,6 +22,7 @@ function isMissingMarketVisionTable(error: { code?: string; message?: string } |
     error &&
       (error.code === "42P01" ||
         message.includes("market_vision") ||
+        message.includes("market_vision_generation_logs") ||
         message.includes("macro_indicators") ||
         message.includes("market_theme_events"))
   );
@@ -58,6 +61,8 @@ function mapReport(row: any): MarketVisionReport {
     cryptoView: row.crypto_view ?? "",
     ratesView: row.rates_view ?? "",
     inflationView: row.inflation_view ?? "",
+    growthView: row.growth_view ?? "",
+    employmentView: row.employment_view ?? "",
     currencyView: row.currency_view ?? "",
     geopoliticalRiskView: row.geopolitical_risk_view ?? "",
     opportunities: toStringArray(row.opportunities),
@@ -70,8 +75,34 @@ function mapReport(row: any): MarketVisionReport {
     },
     sourceType: row.source_type,
     status: row.status,
+    confidenceScore: row.confidence_score == null ? null : Number(row.confidence_score),
+    modelUsed: row.model_used ?? null,
+    promptVersion: row.prompt_version ?? null,
+    tokenUsage: row.token_usage ?? {},
+    costEstimate: row.cost_estimate == null ? null : Number(row.cost_estimate),
+    sourceSnapshot: row.source_snapshot ?? {},
+    generationDurationMs: row.generation_duration_ms == null ? null : Number(row.generation_duration_ms),
     createdAt: row.created_at,
     updatedAt: row.updated_at
+  };
+}
+
+function mapGenerationLog(row: any): MarketVisionGenerationLog {
+  return {
+    id: row.id,
+    reportId: row.report_id ?? null,
+    periodStart: row.period_start ?? null,
+    periodEnd: row.period_end ?? null,
+    startedAt: row.started_at,
+    completedAt: row.completed_at ?? null,
+    status: row.status,
+    modelUsed: row.model_used ?? null,
+    promptVersion: row.prompt_version ?? null,
+    tokenUsage: row.token_usage ?? {},
+    costEstimate: row.cost_estimate == null ? null : Number(row.cost_estimate),
+    errorMessage: row.error_message ?? null,
+    metadata: row.metadata ?? {},
+    createdAt: row.created_at
   };
 }
 
@@ -128,6 +159,8 @@ function reportPayload(input: UpsertMarketVisionReportInput) {
     crypto_view: input.cryptoView,
     rates_view: input.ratesView,
     inflation_view: input.inflationView,
+    growth_view: input.growthView,
+    employment_view: input.employmentView,
     currency_view: input.currencyView,
     geopolitical_risk_view: input.geopoliticalRiskView,
     opportunities: input.opportunities,
@@ -135,7 +168,14 @@ function reportPayload(input: UpsertMarketVisionReportInput) {
     portfolio_implications: input.portfolioImplications,
     classification_summary: input.classificationSummary,
     source_type: input.sourceType,
-    status: input.status
+    status: input.status,
+    confidence_score: input.confidenceScore,
+    model_used: input.modelUsed,
+    prompt_version: input.promptVersion,
+    token_usage: input.tokenUsage,
+    cost_estimate: input.costEstimate,
+    source_snapshot: input.sourceSnapshot,
+    generation_duration_ms: input.generationDurationMs
   };
   return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
 }
@@ -167,6 +207,21 @@ export class SupabaseMarketVisionRepository implements MarketVisionRepository {
       .select("*")
       .eq("status", "published")
       .order("report_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (isMissingMarketVisionTable(error)) return null;
+    if (error) throw new Error(error.message);
+    return data ? mapReport(data) : null;
+  }
+
+  async findGeneratedReportForPeriod(periodStart: string, periodEnd: string) {
+    const { data, error } = await this.db
+      .from("market_vision_reports")
+      .select("*")
+      .eq("source_type", "generated")
+      .eq("report_period_start", periodStart)
+      .eq("report_period_end", periodEnd)
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (isMissingMarketVisionTable(error)) return null;
@@ -246,5 +301,35 @@ export class SupabaseMarketVisionRepository implements MarketVisionRepository {
       { onConflict: "id" }
     );
     if (error) throw new Error(error.message);
+  }
+
+  async insertGenerationLog(input: InsertMarketVisionGenerationLogInput) {
+    const { error } = await this.db.from("market_vision_generation_logs").insert({
+      report_id: input.reportId ?? null,
+      period_start: input.periodStart ?? null,
+      period_end: input.periodEnd ?? null,
+      started_at: input.startedAt,
+      completed_at: input.completedAt ?? null,
+      status: input.status,
+      model_used: input.modelUsed ?? null,
+      prompt_version: input.promptVersion ?? null,
+      token_usage: input.tokenUsage ?? {},
+      cost_estimate: input.costEstimate ?? null,
+      error_message: input.errorMessage ?? null,
+      metadata: input.metadata ?? {}
+    });
+    if (isMissingMarketVisionTable(error)) return;
+    if (error) throw new Error(error.message);
+  }
+
+  async listGenerationLogs(limit = 20) {
+    const { data, error } = await this.db
+      .from("market_vision_generation_logs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (isMissingMarketVisionTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapGenerationLog);
   }
 }
