@@ -43,6 +43,14 @@ function average(values: number[]) {
   return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 }
 
+const fundStructureTerms = ["etf", "etfs", "mutual fund", "mutual funds", "expense ratio", "fund fees", "cheaper than mutual funds"];
+const creditRiskTerms = ["credit spread", "credit spreads", "corporate credit", "high yield", "investment grade", "default", "defaults", "loan", "loans", "debt market", "bond market", "treasury yield", "bond yield"];
+const hardwareTechnologyTerms = ["dell", "apple", "hardware", "pc market", "computer", "laptop", "device"];
+
+function textIncludesAny(text: string, terms: string[]) {
+  return terms.some((term) => text.includes(term));
+}
+
 function trendFrom(current: number, priorAverage: number): NewsThemeTrend {
   if (current >= priorAverage + 2 || current >= priorAverage * 1.4 && current > priorAverage) return "Rising";
   if (current <= Math.max(0, priorAverage - 2) || current <= priorAverage * 0.6 && current < priorAverage) return "Declining";
@@ -95,9 +103,10 @@ export class ThemeIntelligenceService {
 
   reviewQueue(items: ClassifiedNews): NewsThemeReviewItem[] {
     return items
-      .map((item) => {
+      .map((item): NewsThemeReviewItem | null => {
         const text = `${item.title} ${item.summary ?? ""}`.toLowerCase();
-        const theme = item.classification.primaryTheme;
+        const effectiveThemes = this.effectiveThemes(item);
+        const theme = effectiveThemes[0] ?? null;
         const reason = this.reviewReason(text, item);
         if (!reason && item.classification.themeConfidence >= 45) return null;
         return {
@@ -105,7 +114,7 @@ export class ThemeIntelligenceService {
           title: item.title,
           publishedAt: item.publishedAt,
           primaryTheme: theme,
-          secondaryThemes: item.classification.secondaryThemes,
+          secondaryThemes: effectiveThemes.filter((entry) => entry !== theme),
           themeConfidence: item.classification.themeConfidence,
           reason: reason ?? "Low theme confidence; manual review recommended."
         };
@@ -114,7 +123,10 @@ export class ThemeIntelligenceService {
   }
 
   private reviewReason(text: string, item: ClassifiedNews[number]) {
-    const theme = item.classification.primaryTheme;
+    const effectiveThemes = this.effectiveThemes(item);
+    const theme = effectiveThemes[0] ?? null;
+    const isFundStructureWithoutCredit = textIncludesAny(text, fundStructureTerms) && !textIncludesAny(text, creditRiskTerms);
+    if (!theme && isFundStructureWithoutCredit) return null;
     if (!theme) return "Missing primary theme.";
     if (theme === "Credit" && /\b(ai|agentic ai|artificial intelligence|nvidia|semiconductor|chip|software|cloud|technology)\b/.test(text)) return "AI/technology article classified as Credit.";
     if (theme === "Credit" && /\b(etf|etfs|mutual fund|mutual funds|expense ratio|fund fees)\b/.test(text) && !/\b(credit spread|corporate credit|high yield|investment grade|default|loan|debt market|bond market)\b/.test(text)) return "Fund structure article classified as Credit without credit-risk language.";
@@ -124,10 +136,22 @@ export class ThemeIntelligenceService {
   }
 
   private itemsForTheme(items: ClassifiedNews, theme: NewsCanonicalTheme) {
-    return items.filter((item) =>
-      item.classification.primaryTheme === theme ||
-      item.classification.secondaryThemes.includes(theme)
-    );
+    return items.filter((item) => this.effectiveThemes(item).includes(theme));
+  }
+
+  private effectiveThemes(item: ClassifiedNews[number]): NewsCanonicalTheme[] {
+    const text = `${item.title} ${item.summary ?? ""} ${item.contentSnippet ?? ""}`.toLowerCase();
+    const themes = new Set<NewsCanonicalTheme>();
+    for (const theme of [item.classification.primaryTheme, ...item.classification.secondaryThemes]) {
+      if (theme) themes.add(theme);
+    }
+    const isFundStructureWithoutCredit = textIncludesAny(text, fundStructureTerms) && !textIncludesAny(text, creditRiskTerms);
+    if (isFundStructureWithoutCredit) themes.delete("Credit");
+    if (textIncludesAny(text, hardwareTechnologyTerms)) {
+      themes.delete("Consumer");
+      themes.add("Technology");
+    }
+    return Array.from(themes);
   }
 
   private weeklyCountsForTheme(items: ClassifiedNews, theme: NewsCanonicalTheme, periodStart: string, periodEnd: string) {

@@ -22,6 +22,9 @@ const goldSymbols = new Set(["GLD", "IAU"]);
 const equityTerms = ["stock", "stocks", "equity", "equities", "s&p 500", "nasdaq", "dow", "spy", "qqq", "earnings", "shares", "forecast", "forecasts"];
 const goldFalsePositiveTerms = ["gold rush", "golden", "goldman"];
 const financialGoldTerms = ["gold price", "spot gold", "bullion", "precious metal", "precious metals", "gold etf", "gold futures"];
+const fundStructureTerms = ["etf", "etfs", "mutual fund", "mutual funds", "expense ratio", "fund fees", "cheaper than mutual funds"];
+const creditRiskTerms = ["credit spread", "credit spreads", "corporate credit", "high yield", "investment grade", "default", "defaults", "loan", "loans", "debt market", "bond market", "treasury yield", "bond yield"];
+const hardwareTechnologyTerms = ["dell", "apple", "hardware", "pc market", "computer", "laptop", "device"];
 
 function textIncludesAny(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term));
@@ -120,6 +123,8 @@ export class WeeklyNewsReconciliationService {
     const hasGoldSymbol = symbols.some((symbol) => goldSymbols.has(symbol));
     const hasGoldFalsePositiveText = textIncludesAny(title, goldFalsePositiveTerms) && !textIncludesAny(title, financialGoldTerms);
     const hasGoldClass = classes.some((entry) => entry.includes("gold") || entry.includes("commodity"));
+    const isFundStructureWithoutCredit = textIncludesAny(title, fundStructureTerms) && !textIncludesAny(title, creditRiskTerms);
+    if (isFundStructureWithoutCredit) return isEquityLike ? "equities" : "macro";
     if (classes.some((entry) => entry.includes("bond")) || symbols.some((symbol) => bondSymbols.has(symbol))) return "bonds";
     if (hasGoldFalsePositiveText) return isEquityLike ? "equities" : "macro";
     if (
@@ -153,10 +158,7 @@ export class WeeklyNewsReconciliationService {
   summarizeThemes(items: Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>) {
     return canonicalNewsThemes
       .map((theme) => {
-        const themeItems = items.filter((item) =>
-          item.classification.primaryTheme === theme ||
-          item.classification.secondaryThemes.includes(theme)
-        );
+        const themeItems = items.filter((item) => this.effectiveThemes(item).includes(theme));
         if (themeItems.length === 0) return null;
         const confidenceTotal = themeItems.reduce((sum, item) => sum + item.classification.themeConfidence, 0);
         const severityTotal = themeItems.reduce((sum, item) => sum + item.classification.severityScore, 0);
@@ -173,6 +175,19 @@ export class WeeklyNewsReconciliationService {
       })
       .filter((summary): summary is NonNullable<typeof summary> => Boolean(summary))
       .sort((a, b) => b.count - a.count || b.averagePersistence - a.averagePersistence || b.averageSeverity - a.averageSeverity);
+  }
+
+  private effectiveThemes(item: Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>[number]) {
+    const text = `${item.title} ${item.summary ?? ""} ${item.contentSnippet ?? ""}`.toLowerCase();
+    const themes = new Set(item.classification.secondaryThemes);
+    if (item.classification.primaryTheme) themes.add(item.classification.primaryTheme);
+    const isFundStructureWithoutCredit = textIncludesAny(text, fundStructureTerms) && !textIncludesAny(text, creditRiskTerms);
+    if (isFundStructureWithoutCredit) themes.delete("Credit");
+    if (textIncludesAny(text, hardwareTechnologyTerms)) {
+      themes.delete("Consumer");
+      themes.add("Technology");
+    }
+    return Array.from(themes);
   }
 
   private topThemeHeadlines(items: Awaited<ReturnType<NewsRepository["listClassifiedNewsForPeriod"]>>) {

@@ -395,6 +395,66 @@ test("weekly reconciliation job reclassifies deterministic rows before summarizi
   assert.doesNotMatch(repository.weekly[0]?.bondsSummary ?? "", /ETFs Aren't Always Cheaper/);
 });
 
+test("weekly reconciliation blocks stale fund-structure bond buckets at summary time", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "fund-fees",
+      title: "ETFs Aren't Always Cheaper Than Mutual Funds. Here's What to Compare Instead.",
+      summary: "",
+      contentSnippet: "",
+      publishedAt: "2026-06-02T00:00:00.000Z",
+      tickers: ["BND"]
+    })
+  ];
+  repository.classifications = [
+    classification({
+      newsItemId: "fund-fees",
+      classificationModel: "deterministic_fallback",
+      affectedAssetClasses: ["bonds"],
+      primaryTheme: "Credit",
+      secondaryThemes: [],
+      themeConfidence: 65
+    })
+  ];
+  const service = new WeeklyNewsReconciliationService(repository);
+  const grouped = service.groupByBucket(await repository.listClassifiedNewsForPeriod("2026-06-01", "2026-06-07"));
+  assert.equal(grouped.get("bonds")?.length, 0);
+  assert.equal(grouped.get("equities")?.length, 1);
+});
+
+test("theme intelligence corrects stale Credit and Consumer theme rows at summary time", async () => {
+  const repository = new FakeNewsRepository();
+  repository.items = [
+    newsItem({
+      id: "fund-fees",
+      title: "ETFs Aren't Always Cheaper Than Mutual Funds. Here's What to Compare Instead.",
+      summary: "",
+      contentSnippet: "",
+      publishedAt: "2026-06-02T00:00:00.000Z",
+      tickers: []
+    }),
+    newsItem({
+      id: "dell",
+      title: "Dell Just Unveiled a New Weapon Against Apple",
+      summary: "",
+      contentSnippet: "",
+      publishedAt: "2026-06-03T00:00:00.000Z",
+      tickers: ["DELL", "AAPL"]
+    })
+  ];
+  repository.classifications = [
+    classification({ newsItemId: "fund-fees", classificationModel: "deterministic_fallback", primaryTheme: "Credit", secondaryThemes: [], themeConfidence: 65 }),
+    classification({ newsItemId: "dell", classificationModel: "deterministic_fallback", primaryTheme: "Consumer", secondaryThemes: [], themeConfidence: 65 })
+  ];
+  const service = new ThemeIntelligenceService(repository);
+  const intelligence = await service.getThemeIntelligence("2026-06-01", "2026-06-07");
+  assert.equal(intelligence.topThemesThisWeek.some((item) => item.theme === "Credit"), false);
+  assert.equal(intelligence.topThemesThisWeek.some((item) => item.theme === "Consumer"), false);
+  assert.equal(intelligence.topThemesThisWeek.find((item) => item.theme === "Technology")?.topHeadlines.includes("Dell Just Unveiled a New Weapon Against Apple"), true);
+  assert.equal(intelligence.reviewQueue.some((item) => item.title.includes("ETFs Aren't Always Cheaper")), false);
+});
+
 test("weekly reconciliation groups classified news and creates draft summary", async () => {
   const repository = new FakeNewsRepository();
   repository.items = [newsItem({ id: "eq" }), newsItem({ id: "rate", title: "Fed rate outlook changes", tickers: [] })];
