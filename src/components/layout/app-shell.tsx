@@ -1,45 +1,105 @@
 import Link from "next/link";
-import { Activity, BarChart3, Banknote, Bookmark, Globe2, Home, Landmark, Layers3, LogOut, Newspaper, PlusCircle, Settings, ShieldCheck, Table2 } from "lucide-react";
+import {
+  Activity,
+  BarChart3,
+  Banknote,
+  Bookmark,
+  BriefcaseBusiness,
+  Database,
+  Globe2,
+  HeartPulse,
+  Home,
+  Landmark,
+  Layers3,
+  LogOut,
+  Newspaper,
+  PlusCircle,
+  Search,
+  ServerCog,
+  Settings,
+  ShieldCheck,
+  Table2
+} from "lucide-react";
 import { signOutAction } from "@/server/actions/authActions";
 import { Button } from "@/components/ui/button";
 
-const navItems = [
-  { href: "/portfolio", label: "Dashboard", icon: Home },
-  { href: "/market-vision", label: "Market Vision", icon: Globe2 },
-  { href: "/macro", label: "Macro", icon: Activity },
-  { href: "/news", label: "News", icon: Newspaper },
-  { href: "/cash", label: "Cash", icon: Banknote },
-  { href: "/holdings", label: "Holdings", icon: Table2 },
-  { href: "/transactions", label: "Transactions", icon: PlusCircle },
-  { href: "/portfolio#allocation", label: "Allocation", icon: BarChart3 },
-  { href: "/risk", label: "Risk", icon: ShieldCheck },
-  { href: "/bonds", label: "Bonds", icon: Landmark },
-  { href: "/universe", label: "Universe", icon: Layers3 },
-  { href: "/watchlists", label: "Watchlists", icon: Bookmark },
-  { href: "/setup", label: "Settings", icon: Settings }
+const navGroups = [
+  {
+    label: "Dashboard",
+    items: [{ href: "/portfolio", label: "Dashboard", icon: Home }]
+  },
+  {
+    label: "Portfolio",
+    items: [
+      { href: "/holdings", label: "Holdings", icon: Table2 },
+      { href: "/transactions", label: "Transactions", icon: PlusCircle },
+      { href: "/cash", label: "Cash Balances", icon: Banknote }
+    ]
+  },
+  {
+    label: "Instruments",
+    items: [
+      { href: "/instruments/universe", label: "Universe", icon: Layers3 },
+      { href: "/instruments/watchlist", label: "Watchlist", icon: Bookmark }
+    ]
+  },
+  {
+    label: "Analytics",
+    items: [
+      { href: "/portfolio#performance", label: "Portfolio Analytics", icon: BarChart3 },
+      { href: "/risk", label: "Risk Analytics", icon: ShieldCheck },
+      { href: "/bonds", label: "Bond Intelligence", icon: Landmark },
+      { href: "/portfolio#benchmarks", label: "Benchmarks", icon: BriefcaseBusiness }
+    ]
+  },
+  {
+    label: "Intelligence",
+    items: [
+      { href: "/news", label: "News Intelligence", icon: Newspaper },
+      { href: "/market-vision", label: "Market Vision", icon: Globe2 }
+    ]
+  },
+  {
+    label: "Admin",
+    items: [
+      { href: "/setup", label: "Settings", icon: Settings },
+      { href: "/setup/taxonomy", label: "Taxonomy", icon: Search },
+      { href: "/macro", label: "Data Sources", icon: Activity },
+      { href: "/admin/jobs", label: "Jobs", icon: ServerCog },
+      { href: "/admin/system-health", label: "System Health", icon: HeartPulse },
+      { href: "/admin/data-sources", label: "Provider Config", icon: Database }
+    ]
+  }
 ];
+
+const mobileNavItems = navGroups.flatMap((group) => group.items);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r bg-card p-4 md:block">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r bg-card p-4 md:flex">
         <div className="mb-6">
           <p className="text-sm text-muted-foreground">AI Portfolio</p>
           <h1 className="text-lg font-semibold">Investment cockpit</h1>
         </div>
-        <nav className="space-y-1">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-muted"
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </Link>
+        <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
+          {navGroups.map((group) => (
+            <div key={group.label} className="space-y-1">
+              <p className="px-3 text-xs font-medium uppercase text-muted-foreground">{group.label}</p>
+              {group.items.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="flex items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-muted"
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              ))}
+            </div>
           ))}
         </nav>
-        <form action={signOutAction} className="absolute bottom-4 left-4 right-4">
+        <form action={signOutAction} className="pt-4">
           <Button type="submit" variant="outline" className="w-full">
             <LogOut className="h-4 w-4" />
             Sign out
@@ -57,7 +117,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </form>
           </div>
           <nav className="mt-3 flex gap-2 overflow-x-auto pb-1">
-            {navItems.map((item) => (
+            {mobileNavItems.map((item) => (
               <Link key={item.href} href={item.href} className="whitespace-nowrap rounded-md bg-muted px-3 py-1.5 text-xs">
                 {item.label}
               </Link>

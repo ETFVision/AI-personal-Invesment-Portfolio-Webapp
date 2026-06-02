@@ -29,7 +29,7 @@ function formNullableNumber(formData: FormData, key: string) {
 export async function seedUniverseAction() {
   await createContainer().authProvider.requireUser();
   const result = await createContainer().universeManagementService.ensureSeededUniverse();
-  redirect(`/universe?message=${encodeURIComponent(`Seeded ${result.instruments} instruments and ${result.watchlistItems} watchlist items.`)}`);
+  redirect(`/instruments/universe?message=${encodeURIComponent(`Seeded ${result.instruments} instruments and ${result.watchlistItems} watchlist items.`)}`);
 }
 
 export async function refreshUniverseMetadataAction() {
@@ -41,7 +41,7 @@ export async function refreshUniverseMetadataAction() {
     metadataMessage: result.message
   });
   if (result.errors.length > 0) params.set("metadataError", result.errors.join(" | "));
-  redirect(`/universe?${params.toString()}`);
+  redirect(`/instruments/universe?${params.toString()}`);
 }
 
 export async function refreshInstrumentPricesAction() {
@@ -51,7 +51,7 @@ export async function refreshInstrumentPricesAction() {
     priceMessage: result.message
   });
   if (result.errors.length > 0) params.set("priceError", result.errors.join(" | "));
-  redirect(`/universe?${params.toString()}`);
+  redirect(`/instruments/universe?${params.toString()}`);
 }
 
 export async function toggleInstrumentActiveAction(formData: FormData) {
@@ -59,7 +59,7 @@ export async function toggleInstrumentActiveAction(formData: FormData) {
   const instrumentId = formString(formData, "instrumentId");
   const isActive = formBoolean(formData, "isActive");
   await createContainer().instrumentService.setInstrumentActive(instrumentId, isActive);
-  redirect("/universe?message=Instrument%20status%20updated.");
+  redirect("/instruments/universe?message=Instrument%20status%20updated.");
 }
 
 export async function saveInstrumentTagsAction(formData: FormData) {
@@ -68,7 +68,7 @@ export async function saveInstrumentTagsAction(formData: FormData) {
   const benchmarkTags = formTags(formData, "benchmarkTags");
   const thematicTags = formTags(formData, "thematicTags");
   await createContainer().instrumentService.updateInstrumentTags([{ instrumentId, benchmarkTags, thematicTags }]);
-  redirect("/universe?message=Instrument%20tags%20updated.");
+  redirect("/instruments/universe?message=Instrument%20tags%20updated.");
 }
 
 export async function saveBondProfileAction(formData: FormData) {
@@ -117,7 +117,7 @@ export async function addWatchlistItemAction(formData: FormData) {
   const itemRank = itemRankValue ? Number(itemRankValue) : null;
   const rationale = formString(formData, "rationale") || null;
   await createContainer().watchlistService.addInstrumentToWatchlist({ watchlistId, instrumentId, itemRank, rationale });
-  redirect("/watchlists?message=Watchlist%20item%20added.");
+  redirect("/instruments/watchlist?message=Watchlist%20item%20added.");
 }
 
 export async function removeWatchlistItemAction(formData: FormData) {
@@ -125,5 +125,5 @@ export async function removeWatchlistItemAction(formData: FormData) {
   const watchlistId = formString(formData, "watchlistId");
   const instrumentId = formString(formData, "instrumentId");
   await createContainer().watchlistService.removeInstrumentFromWatchlist({ watchlistId, instrumentId });
-  redirect("/watchlists?message=Watchlist%20item%20removed.");
+  redirect("/instruments/watchlist?message=Watchlist%20item%20removed.");
 }
