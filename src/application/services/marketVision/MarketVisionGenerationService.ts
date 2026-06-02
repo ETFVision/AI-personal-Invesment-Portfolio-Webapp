@@ -134,7 +134,7 @@ export class MarketVisionGenerationService {
     private readonly macroRepository: MacroIndicatorRepository,
     private readonly aiProvider: AiMarketVisionProvider,
     private readonly portfolioServices: OptionalPortfolioServices = {},
-    private readonly config = { model: "gpt-5.4-mini" }
+    private readonly config = { model: "gpt-5-mini" }
   ) {}
 
   async generateWeeklyReport(input: { portfolioId?: string | null; force?: boolean; status?: "draft" | "published" } = {}) {

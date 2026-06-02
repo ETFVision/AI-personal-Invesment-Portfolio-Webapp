@@ -17,7 +17,7 @@ const envSchema = z.object({
   CRON_SECRET: z.string().min(1).optional(),
   NEWS_CLASSIFICATION_MODEL: z.string().min(1).default("gpt-5.4-nano"),
   NEWS_RECONCILIATION_MODEL: z.string().min(1).default("gpt-5.4-mini"),
-  MARKET_VISION_MODEL: z.string().min(1).default("gpt-5.4-mini"),
+  MARKET_VISION_MODEL: z.string().min(1).default("gpt-5-mini"),
   MARKET_VISION_INPUT_COST_PER_1M: z.coerce.number().nonnegative().default(0),
   MARKET_VISION_OUTPUT_COST_PER_1M: z.coerce.number().nonnegative().default(0),
   MAX_NEWS_ARTICLES_PER_DAY: z.coerce.number().int().positive().default(80),
