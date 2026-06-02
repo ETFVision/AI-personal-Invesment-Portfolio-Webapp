@@ -417,9 +417,11 @@ test("AI Market Vision generation skips duplicate weekly report unless forced", 
 test("AI Market Vision generation tightens unsupported exposure and curve language", async () => {
   const repository = new FakeMarketVisionRepository();
   const ai = new FakeAiMarketVisionProvider({
+    executiveSummary: "For the portfolio context provided, the current mix appears centered on broad equity exposure with meaningful bond, crypto, gold, and cash components.",
     globalMarketSummary: "The 2-year yield fell while the 30-year rose, and the curve flattened modestly.",
+    bondOutlook: "The bond sleeve's intermediate-duration mix sits in a mixed environment.",
     ratesOutlook: "The front end fell and the long end rose, so the curve flattened.",
-    cryptoOutlook: "The portfolio's crypto exposure appears most relevant as a high-beta sleeve.",
+    cryptoOutlook: "The portfolio context shows meaningful crypto exposure.",
     portfolioImplications: {
       ...emptyPortfolioImplications,
       cryptoImplication: "The portfolio's crypto sleeve can respond strongly to liquidity."
@@ -435,10 +437,14 @@ test("AI Market Vision generation tightens unsupported exposure and curve langua
 
   const report = await service.generateWeeklyReport({ portfolioId: "portfolio-1" });
 
+  assert.match(report.executiveSummary, /relevant cross-asset market context/i);
+  assert.doesNotMatch(report.executiveSummary, /meaningful bond, crypto, gold, and cash components/i);
   assert.match(report.globalMarketSummary, /yield-curve signals were mixed/i);
   assert.doesNotMatch(report.globalMarketSummary, /flatten/i);
+  assert.match(report.bondView, /bond market context/i);
+  assert.doesNotMatch(report.bondView, /bond sleeve/i);
   assert.match(report.cryptoView, /crypto market context/i);
-  assert.doesNotMatch(report.cryptoView, /portfolio's crypto exposure/i);
+  assert.doesNotMatch(report.cryptoView, /portfolio context shows meaningful crypto exposure/i);
   assert.match(String(report.portfolioImplications.cryptoImplication), /crypto market context/i);
 });
 

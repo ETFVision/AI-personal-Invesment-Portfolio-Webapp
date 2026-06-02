@@ -74,9 +74,39 @@ function assertNoRecommendations(output: AiMarketVisionOutput) {
   }
 }
 
-function replacePortfolioExposureClaims(text: string, exposureName: string) {
-  const pattern = new RegExp(`\\bthe portfolio(?:'|\\u2019|\\u00e2\\u20ac\\u2122)s\\s+${exposureName}\\s+(?:exposure|sleeve)\\b`, "gi");
-  return text.replace(pattern, `the ${exposureName} market context`);
+function replacePortfolioExposureClaims(text: string, exposureName: string, aliases: string[]) {
+  let next = text;
+  const marketContext = `${exposureName} market context`;
+  for (const alias of aliases) {
+    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const portfolioPossessive = new RegExp(`\\bthe portfolio(?:'|\\u2019|\\u00e2\\u20ac\\u2122)s\\s+${escaped}\\s+(?:exposure|holdings?|sleeve|component|allocation)\\b`, "gi");
+    const portfolioContext = new RegExp(`\\bportfolio context shows\\s+(?:meaningful\\s+)?${escaped}\\s+(?:exposure|holdings?|sleeve|component|allocation)\\b`, "gi");
+    const sleevePossessive = new RegExp(`\\bthe\\s+${escaped}\\s+sleeve(?:'|\\u2019|\\u00e2\\u20ac\\u2122)s\\b`, "gi");
+    const currentMix = new RegExp(`\\bcurrent mix appears centered on ([^.]*?)\\b(?:meaningful\\s+)?${escaped}\\s+(?:exposure|holdings?|sleeve|component|allocation|components?)\\b`, "gi");
+    const bareMeaningful = new RegExp(`\\bmeaningful\\s+${escaped}\\s+(?:exposure|holdings?|sleeve|component|allocation|components?)\\b`, "gi");
+    next = next
+      .replace(portfolioPossessive, marketContext)
+      .replace(portfolioContext, marketContext)
+      .replace(sleevePossessive, `the ${marketContext}`)
+      .replace(currentMix, "current mix appears centered on $1" + marketContext)
+      .replace(bareMeaningful, marketContext);
+  }
+  return next.replace(/\bwith\s+(?:,?\s*){0,2}components\b/gi, "with market context");
+}
+
+function replaceUnsupportedExposureLists(text: string, exposureFlags: PortfolioExposureFlags) {
+  const unsupported = [
+    !exposureFlags.hasBonds ? "bond" : null,
+    !exposureFlags.hasCrypto ? "crypto" : null,
+    !exposureFlags.hasGold ? "gold" : null,
+    !exposureFlags.hasCash ? "cash" : null
+  ].filter((item): item is string => Boolean(item));
+  if (unsupported.length === 0) return text;
+  return text.replace(/\bwith meaningful ([^.]*?) components\b/gi, (match, list: string) => {
+    const normalized = String(list).toLowerCase();
+    if (!unsupported.some((item) => normalized.includes(item))) return match;
+    return "with relevant cross-asset market context";
+  });
 }
 
 function sanitizeYieldCurveLanguage(text: string) {
@@ -84,7 +114,8 @@ function sanitizeYieldCurveLanguage(text: string) {
   const hasShortYieldFalling = /(?:2-year|two-year|front end|front-end).{0,80}(?:fell|falling|declined|lower|easing)/i.test(text);
   const hasLongYieldRising = /(?:30-year|thirty-year|long end|long-end).{0,80}(?:rose|rising|increased|higher|firming)/i.test(text);
   if (hasShortYieldFalling && hasLongYieldRising && lower.includes("flatten")) {
-    return text.replace(/\b(?:the\s+)?curve\s+(?:is\s+|was\s+|has\s+been\s+)?flatten(?:ed|ing)?(?:\s+modestly)?\b/gi, "yield-curve signals were mixed");
+    const withoutFlatteningClaim = text.replace(/\b(?:the\s+)?curve\s+(?:is\s+|was\s+|has\s+been\s+)?flatten(?:ed|ing)?(?:\s+modestly)?\b/gi, "yield-curve signals were mixed");
+    return withoutFlatteningClaim.replace(/\b(?:while\s+)?(?:the\s+)?(?:2s\/10s|10y\/3m|10y\/2y|yield-curve)\s+(?:and\s+(?:the\s+)?(?:2s\/10s|10y\/3m|10y\/2y|yield-curve)\s+)?spreads?\s+(?:both\s+)?fell,\s+implying\s+flattening pressure\b/gi, "while stored spread indicators pointed to flattening pressure, creating a mixed curve signal");
   }
   return text;
 }
@@ -100,15 +131,18 @@ function removeUnsupportedExposureClaims(output: AiMarketVisionOutput, exposureF
     };
   }
   const patchText = (text: string) => {
-    let next = patchMacroText(text);
-    if (!exposureFlags.hasCrypto) next = replacePortfolioExposureClaims(next, "crypto");
-    if (!exposureFlags.hasGold) next = replacePortfolioExposureClaims(next, "gold");
-    if (!exposureFlags.hasBonds) next = replacePortfolioExposureClaims(next, "bond");
+    let next = replaceUnsupportedExposureLists(patchMacroText(text), exposureFlags);
+    if (!exposureFlags.hasCrypto) next = replacePortfolioExposureClaims(next, "crypto", ["crypto", "bitcoin", "digital asset"]);
+    if (!exposureFlags.hasGold) next = replacePortfolioExposureClaims(next, "gold", ["gold", "commodities", "commodity"]);
+    if (!exposureFlags.hasBonds) next = replacePortfolioExposureClaims(next, "bond", ["bond", "bonds", "fixed income"]);
+    if (!exposureFlags.hasCash) next = replacePortfolioExposureClaims(next, "cash", ["cash", "liquidity"]);
     return next;
   };
   return {
     ...output,
+    executiveSummary: patchText(output.executiveSummary),
     globalMarketSummary: patchText(output.globalMarketSummary),
+    equityOutlook: patchText(output.equityOutlook),
     goldOutlook: patchText(output.goldOutlook),
     cryptoOutlook: patchText(output.cryptoOutlook),
     bondOutlook: patchText(output.bondOutlook),
@@ -117,7 +151,9 @@ function removeUnsupportedExposureClaims(output: AiMarketVisionOutput, exposureF
       ...output.portfolioImplications,
       bondAllocationImplication: patchText(output.portfolioImplications.bondAllocationImplication),
       goldImplication: patchText(output.portfolioImplications.goldImplication),
-      cryptoImplication: patchText(output.portfolioImplications.cryptoImplication)
+      cryptoImplication: patchText(output.portfolioImplications.cryptoImplication),
+      cashImplication: patchText(output.portfolioImplications.cashImplication),
+      riskImplication: patchText(output.portfolioImplications.riskImplication)
     }
   };
 }
@@ -183,6 +219,33 @@ function portfolioExposureFlags(dashboard: PortfolioDashboard | null): Portfolio
     hasCrypto: hasType(["crypto"], ["crypto", "bitcoin", "ethereum"]),
     hasCash: dashboard.totalCash > 0,
     hasEquities: hasType(["stock", "etf"], ["stock", "equity", "etf"])
+  };
+}
+
+function portfolioExposureGuidance(flags: PortfolioExposureFlags | null) {
+  if (!flags) {
+    return {
+      portfolioContextAvailable: false,
+      allowedClaims: {
+        equities: false,
+        bonds: false,
+        gold: false,
+        crypto: false,
+        cash: false
+      },
+      instruction: "No portfolio context is available. Discuss all asset classes as market context only."
+    };
+  }
+  return {
+    portfolioContextAvailable: flags.hasPortfolioContext,
+    allowedClaims: {
+      equities: flags.hasEquities,
+      bonds: flags.hasBonds,
+      gold: flags.hasGold,
+      crypto: flags.hasCrypto,
+      cash: flags.hasCash
+    },
+    instruction: "Only describe an asset class as a portfolio exposure when its allowedClaims value is true. Otherwise discuss it as market context only."
   };
 }
 
@@ -258,6 +321,7 @@ export class MarketVisionGenerationService {
       this.macroRepository.listLatestMacroThemeSignals(periodEnd)
     ]);
 
+    const exposureFlags = portfolioExposureFlags(dashboard);
     const sourceSnapshot = {
       promptVersion: MARKET_VISION_PROMPT_VERSION,
       weeklyReconciliation: {
@@ -292,7 +356,8 @@ export class MarketVisionGenerationService {
         }))
       },
       portfolio: portfolioSnapshot(dashboard),
-      portfolioExposureFlags: portfolioExposureFlags(dashboard),
+      portfolioExposureFlags: exposureFlags,
+      portfolioExposureGuidance: portfolioExposureGuidance(exposureFlags),
       bondAnalytics,
       riskAnalytics
     };
@@ -302,7 +367,7 @@ export class MarketVisionGenerationService {
         periodStart,
         periodEnd,
         context: sourceSnapshot
-      }), portfolioExposureFlags(dashboard));
+      }), exposureFlags);
       const completedAt = new Date();
       const duration = completedAt.getTime() - startedAt.getTime();
       const report = await this.marketVisionRepository.upsertReport({
