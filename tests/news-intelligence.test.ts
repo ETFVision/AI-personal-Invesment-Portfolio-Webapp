@@ -13,6 +13,7 @@ import { GlobalNewsIngestionService } from "../src/application/services/news/Glo
 import { isCronSecretValid } from "../src/application/services/news/cronSecret";
 import { GdeltNormalizationService, gdeltNormalizationInternals } from "../src/infrastructure/providers/news/GdeltNormalizationService";
 import { gdeltProviderInternals } from "../src/infrastructure/providers/news/GdeltNewsProvider";
+import { isJwtIssuedAtFutureError } from "../src/infrastructure/repositories/supabase/supabaseErrors";
 import type { GdeltArticleMetadata, GdeltIngestionLog, GdeltQueryGroup, NewsClassification, NewsIngestionLog, NewsItem, NormalizedNewsArticle, WeeklyNewsReconciliation } from "../src/domain/news/types";
 import type { GdeltNewsProvider, GdeltProviderArticle } from "../src/application/ports/providers/GdeltNewsProvider";
 import type { NewsProvider } from "../src/application/ports/providers/NewsProvider";
@@ -995,4 +996,10 @@ test("cron protection rejects missing or invalid secret", () => {
   assert.equal(isCronSecretValid(undefined, "secret"), false);
   assert.equal(isCronSecretValid("secret", "bad"), false);
   assert.equal(isCronSecretValid("secret", "secret"), true);
+});
+
+test("Supabase JWT clock-skew helper detects issued-at-future errors", () => {
+  assert.equal(isJwtIssuedAtFutureError({ message: "JWT issued at future" }), true);
+  assert.equal(isJwtIssuedAtFutureError({ message: "duplicate key value violates unique constraint" }), false);
+  assert.equal(isJwtIssuedAtFutureError(null), false);
 });

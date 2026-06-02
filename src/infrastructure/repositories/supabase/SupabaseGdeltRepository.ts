@@ -5,6 +5,7 @@ import type {
 } from "@/application/ports/repositories/GdeltRepository";
 import type { GdeltIngestionLog, GdeltQueryGroup, NewsCanonicalTheme } from "@/domain/news/types";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
+import { isJwtIssuedAtFutureError } from "./supabaseErrors";
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -107,6 +108,7 @@ export class SupabaseGdeltRepository implements GdeltRepository {
       .order("started_at", { ascending: false })
       .limit(limit);
     if (missing(error)) return [];
+    if (isJwtIssuedAtFutureError(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapLog);
   }

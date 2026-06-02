@@ -11,6 +11,7 @@ import type { NewsCanonicalTheme, NewsClassification, NewsGroup, NewsIngestionLo
 import { canonicalNewsThemes } from "@/application/services/news/NewsClassificationService";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 import { hashText } from "@/application/services/news/newsText";
+import { isJwtIssuedAtFutureError } from "./supabaseErrors";
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 type DbRow = Record<string, unknown>;
@@ -463,6 +464,7 @@ export class SupabaseNewsRepository implements NewsRepository {
   async listIngestionLogs(limit = 10) {
     const { data, error } = await this.db.from("news_ingestion_logs").select("*").order("started_at", { ascending: false }).limit(limit);
     if (isMissingNewsTable(error)) return [];
+    if (isJwtIssuedAtFutureError(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapLog);
   }
