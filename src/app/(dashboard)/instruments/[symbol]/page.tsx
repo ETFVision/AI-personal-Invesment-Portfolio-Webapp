@@ -148,17 +148,31 @@ function BondProfilePanel({ profile }: { profile: BondProfile | null }) {
 }
 
 function PerformancePanel({ marketView }: { marketView: InstrumentMarketView }) {
+  const currency = marketView.instrument.currency ?? "USD";
+  const range =
+    marketView.fiftyTwoWeekLow == null || marketView.fiftyTwoWeekHigh == null
+      ? "-"
+      : `${formatCurrencyWithCode(marketView.fiftyTwoWeekLow, currency)} - ${formatCurrencyWithCode(marketView.fiftyTwoWeekHigh, currency)}`;
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Performance</CardTitle>
-        <CardDescription>Directory-level market metrics. Benchmark comparison remains portfolio-level for now.</CardDescription>
+        <CardDescription>Instrument-level market metrics from stored derived price data.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <SummaryMetric label="Latest price" value={marketView.latestPrice == null ? "-" : formatCurrencyWithCode(marketView.latestPrice, currency)} />
+        <SummaryMetric label="Latest date" value={marketView.latestPriceDate ?? "-"} />
         <SummaryMetric label="Daily" value={marketView.dailyReturn == null ? "-" : formatPercent(marketView.dailyReturn)} />
         <SummaryMetric label="YTD" value={marketView.ytdReturn == null ? "-" : formatPercent(marketView.ytdReturn)} />
         <SummaryMetric label="1Y" value={marketView.oneYearReturn == null ? "-" : formatPercent(marketView.oneYearReturn)} />
+        <SummaryMetric label="3Y" value={marketView.threeYearReturn == null ? "-" : formatPercent(marketView.threeYearReturn)} />
         <SummaryMetric label="5Y" value={marketView.fiveYearReturn == null ? "-" : formatPercent(marketView.fiveYearReturn)} />
+        <SummaryMetric label="52W range" value={range} />
+        <SummaryMetric label="Liquidity" value={marketView.liquidity} />
+        <SummaryMetric label="Freshness" value={marketView.freshnessLabel} />
+        <SummaryMetric label="History start" value={marketView.priceHistoryStart ?? "-"} />
+        <SummaryMetric label="Observations" value={formatNumber(marketView.priceObservationCount)} />
       </CardContent>
     </Card>
   );
@@ -177,6 +191,7 @@ function tabsForType(type: CanonicalInstrumentType, instrument: Instrument, mark
   if (type === "stock") {
     return [
       { label: "Overview", content: common.overview },
+      { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
       { label: "News", content: common.news },
       { label: "Themes", content: common.themes },
       { label: "Risk", content: common.risk },
@@ -190,6 +205,7 @@ function tabsForType(type: CanonicalInstrumentType, instrument: Instrument, mark
   if (type === "bond_etf") {
     return [
       { label: "Overview", content: common.overview },
+      { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
       { label: "Bond Profile", content: <BondProfilePanel profile={bondProfile} /> },
       { label: "Duration", content: <PlaceholderPanel title="Duration" description="Duration analytics are prepared here and remain calculated in the bond intelligence service." /> },
       { label: "Credit Quality", content: <PlaceholderPanel title="Credit Quality" description="Credit exposure context is prepared here for bond intelligence." /> },
@@ -203,6 +219,7 @@ function tabsForType(type: CanonicalInstrumentType, instrument: Instrument, mark
   if (type === "gold_etf") {
     return [
       { label: "Overview", content: common.overview },
+      { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
       { label: "Commodity Profile", content: <PlaceholderPanel title="Commodity Profile" description="Prepared for commodity and inflation-hedge context." /> },
       { label: "News", content: common.news },
       { label: "Risk", content: common.risk },
@@ -235,6 +252,7 @@ function tabsForType(type: CanonicalInstrumentType, instrument: Instrument, mark
 
   return [
     { label: "Overview", content: common.overview },
+    { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
     { label: "ETF Exposure", content: <PlaceholderPanel title="ETF Exposure" description="Prepared for ETF exposure detail and future fundamentals support." /> },
     { label: "Holdings", content: <PlaceholderPanel title="Holdings" description="Prepared for ETF underlying holdings once provider support is added." /> },
     { label: "Themes", content: common.themes },
