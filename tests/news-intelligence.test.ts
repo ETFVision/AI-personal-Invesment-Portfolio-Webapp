@@ -985,7 +985,7 @@ test("GDELT ingestion stores normalized news, classifications, metadata, and log
     undefined,
     undefined,
     undefined,
-    { enabled: true, maxArticlesPerQuery: 8, maxArticlesPerDay: 10, recentWindowHours: 24, minRefreshMinutes: 30 }
+    { enabled: true, maxArticlesPerQuery: 8, maxArticlesPerDay: 10, recentWindowHours: 24, queryDelayMs: 0, minRefreshMinutes: 30 }
   );
 
   const result = await service.ingestGlobalNews({ force: true });
@@ -999,6 +999,43 @@ test("GDELT ingestion stores normalized news, classifications, metadata, and log
   assert.equal(gdeltRepository.metadata.length, 1);
   assert.equal(gdeltRepository.logs.some((log) => log.jobName === "gdelt-query-group-ingestion"), true);
   assert.equal(newsRepository.logs.some((log) => log.jobName === "gdelt-news-ingestion"), true);
+});
+
+test("GDELT ingestion records failed query groups without breaking successful groups", async () => {
+  const newsRepository = new UpsertingFakeNewsRepository();
+  const gdeltRepository = new FakeGdeltRepository();
+  gdeltRepository.groups = [
+    gdeltQueryGroup({ id: "success", queryKey: "macro_rates_policy", canonicalTheme: "Rates" }),
+    gdeltQueryGroup({ id: "failed", queryKey: "energy_commodities", canonicalTheme: "Energy" })
+  ];
+  const article = new GdeltNormalizationService().normalize({
+    url: "https://example.com/rates",
+    title: "Federal Reserve policy keeps interest rates in focus",
+    seendate: "20260601T120000Z"
+  }, gdeltRepository.groups[0] as GdeltQueryGroup);
+  class MixedGdeltProvider implements GdeltNewsProvider {
+    readonly name = "gdelt" as const;
+    async fetchQueryGroup(input: { queryGroup: GdeltQueryGroup }) {
+      if (input.queryGroup.id === "failed") throw new Error("GDELT request failed with status 429.");
+      return [article as GdeltProviderArticle];
+    }
+  }
+  const service = new GlobalNewsIngestionService(
+    newsRepository,
+    gdeltRepository,
+    new MixedGdeltProvider(),
+    undefined,
+    undefined,
+    undefined,
+    { enabled: true, maxArticlesPerQuery: 8, maxArticlesPerDay: 10, recentWindowHours: 24, queryDelayMs: 0, minRefreshMinutes: 30 }
+  );
+
+  const result = await service.ingestGlobalNews({ force: true });
+
+  assert.equal(result.failedQueryGroups, 1);
+  assert.equal(result.articlesInserted, 1);
+  assert.equal(gdeltRepository.logs.find((log) => log.queryGroupId === "failed")?.status, "failed");
+  assert.equal(gdeltRepository.logs.find((log) => log.queryGroupId === "success")?.status, "success");
 });
 
 test("news dashboard exposes latest status for each active GDELT query group", async () => {

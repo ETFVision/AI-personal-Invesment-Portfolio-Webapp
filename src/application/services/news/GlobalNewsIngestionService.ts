@@ -7,6 +7,10 @@ import { GdeltThemeMappingService } from "./GdeltThemeMappingService";
 import { NewsDeduplicationService } from "./NewsDeduplicationService";
 import { hashText } from "./newsText";
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function sourceKey(input: { sourceProvider: string; sourceId: string | null; url: string | null; title: string; publishedAt: string | null; contentHash: string }) {
   const sourceId = input.sourceId?.trim() || input.url?.trim() || hashText(`${input.title}|${input.publishedAt ?? ""}|${input.contentHash}`);
   return `${input.sourceProvider}|${sourceId}`;
@@ -25,6 +29,7 @@ export class GlobalNewsIngestionService {
       maxArticlesPerQuery: 8,
       maxArticlesPerDay: 80,
       recentWindowHours: 24,
+      queryDelayMs: 1200,
       minRefreshMinutes: 30
     }
   ) {}
@@ -83,8 +88,9 @@ export class GlobalNewsIngestionService {
       const classificationByKey = new Map<string, Omit<NewsClassification, "id" | "newsItemId" | "createdAt" | "updatedAt">>();
       const batchKeys = new Set<string>();
 
-      for (const group of groups) {
+      for (const [groupIndex, group] of groups.entries()) {
         if (articlesFetched >= this.config.maxArticlesPerDay) break;
+        if (groupIndex > 0 && this.config.queryDelayMs > 0) await sleep(this.config.queryDelayMs);
         const groupStartedAt = new Date().toISOString();
         let groupFetched = 0;
         let groupInserted = 0;

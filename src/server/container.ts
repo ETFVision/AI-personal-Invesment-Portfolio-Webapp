@@ -117,6 +117,7 @@ export function createContainer() {
       maxArticlesPerQuery: env.GDELT_MAX_ARTICLES_PER_QUERY,
       maxArticlesPerDay: env.GDELT_MAX_ARTICLES_PER_DAY,
       recentWindowHours: env.GDELT_RECENT_WINDOW_HOURS,
+      queryDelayMs: env.GDELT_QUERY_DELAY_MS,
       minRefreshMinutes: 30
     }
   );

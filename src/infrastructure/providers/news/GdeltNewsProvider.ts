@@ -7,6 +7,12 @@ type GdeltDocPayload = {
 
 const GDELT_DOC_URL = "https://api.gdeltproject.org/api/v2/doc/doc";
 
+class GdeltProviderError extends Error {
+  constructor(message: string, readonly status: number | null = null) {
+    super(message);
+  }
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -17,13 +23,13 @@ async function fetchJsonWithRetry(url: URL) {
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
       if (response.status === 429 || response.status >= 500) {
-        lastError = new Error(`GDELT request failed with status ${response.status}.`);
+        lastError = new GdeltProviderError(`GDELT request failed with status ${response.status}.`, response.status);
         if (attempt < 2) {
           await sleep(700 * attempt);
           continue;
         }
       }
-      if (!response.ok) throw new Error(`GDELT request failed with status ${response.status}.`);
+      if (!response.ok) throw new GdeltProviderError(`GDELT request failed with status ${response.status}.`, response.status);
       return response.json() as Promise<GdeltDocPayload>;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error("GDELT request failed.");
@@ -86,6 +92,7 @@ export class GdeltNewsProvider implements GdeltNewsProviderPort {
       const primary = await fetchJsonWithRetry(buildUrl({ query, maxArticles, recentWindowHours }));
       if (Array.isArray(primary.articles) && primary.articles.length > 0) return primary;
     } catch (error) {
+      if (error instanceof GdeltProviderError && error.status === 429) throw error;
       const fallback = await this.fetchFallbackTerms(query, maxArticles, recentWindowHours);
       if (fallback.articles?.length) return fallback;
       throw error;
