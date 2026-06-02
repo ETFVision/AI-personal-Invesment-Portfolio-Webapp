@@ -52,7 +52,7 @@ export class GlobalNewsIngestionService {
         errorMessage: null,
         metadata: { skipped: true, reason: "ENABLE_GDELT_INGESTION is false." }
       });
-      return { status: "success" as const, queryGroupsRequested: 0, articlesFetched: 0, articlesInserted: 0, duplicatesDetected: 0, skipped: true };
+      return { status: "success" as const, queryGroupsRequested: 0, articlesFetched: 0, articlesInserted: 0, duplicatesDetected: 0, articlesFiltered: 0, failedQueryGroups: 0, skipped: true };
     }
 
     try {
@@ -73,7 +73,7 @@ export class GlobalNewsIngestionService {
           errorMessage: null,
           metadata: { skipped: true, reason: "Recent GDELT ingestion already completed.", latestCompletedAt: logs[0]?.completedAt }
         });
-        return { status: "success" as const, queryGroupsRequested: 0, articlesFetched: 0, articlesInserted: 0, duplicatesDetected: 0, skipped: true };
+        return { status: "success" as const, queryGroupsRequested: 0, articlesFetched: 0, articlesInserted: 0, duplicatesDetected: 0, articlesFiltered: 0, failedQueryGroups: 0, skipped: true };
       }
 
       const groups = await this.gdeltRepository.listActiveQueryGroups();
@@ -251,7 +251,7 @@ export class GlobalNewsIngestionService {
         metadata: { queryGroupsRequested, failedQueryGroups, articlesFiltered, recentWindowHours: this.config.recentWindowHours }
       });
 
-      return { status, queryGroupsRequested, articlesFetched, articlesInserted, duplicatesDetected, skipped: false };
+      return { status, queryGroupsRequested, articlesFetched, articlesInserted, duplicatesDetected, articlesFiltered, failedQueryGroups, skipped: false };
     } catch (error) {
       await this.newsRepository.insertIngestionLog({
         jobName: "gdelt-news-ingestion",

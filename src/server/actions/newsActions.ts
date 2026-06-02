@@ -26,7 +26,10 @@ export async function runGdeltNewsIngestionAction() {
   let target = "/news?error=GDELT%20ingestion%20failed.";
   try {
     const result = await container.jobs.gdeltNewsIngestion.run({ force: true });
-    target = `/news?message=${encodeURIComponent(`GDELT fetched ${result.articlesFetched} articles and saved ${result.articlesInserted}.`)}`;
+    const suffix = result.skipped
+      ? "GDELT ingestion is disabled. Set ENABLE_GDELT_INGESTION=true and redeploy/restart."
+      : `GDELT fetched ${result.articlesFetched}, saved ${result.articlesInserted}, filtered ${result.articlesFiltered}, duplicates ${result.duplicatesDetected}, failed query groups ${result.failedQueryGroups}.`;
+    target = `/news?source=gdelt&message=${encodeURIComponent(suffix)}`;
   } catch (error) {
     target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "GDELT ingestion failed.")}`;
   }

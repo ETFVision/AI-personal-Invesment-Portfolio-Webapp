@@ -22,7 +22,7 @@ const envSchema = z.object({
   MAX_NEWS_ARTICLES_PER_INSTRUMENT: z.coerce.number().int().positive().default(3),
   GDELT_MAX_ARTICLES_PER_QUERY: z.coerce.number().int().positive().default(8),
   GDELT_MAX_ARTICLES_PER_DAY: z.coerce.number().int().positive().default(80),
-  GDELT_RECENT_WINDOW_HOURS: z.coerce.number().int().positive().default(24),
+  GDELT_RECENT_WINDOW_HOURS: z.coerce.number().int().positive().default(72),
   ENABLE_GDELT_INGESTION: envBoolean.default(false),
   ENABLE_AI_NEWS_CLASSIFICATION: envBoolean.default(false),
   ENABLE_WEEKLY_NEWS_RECONCILIATION: envBoolean.default(false)
