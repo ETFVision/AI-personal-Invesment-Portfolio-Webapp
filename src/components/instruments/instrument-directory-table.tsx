@@ -19,10 +19,13 @@ export function InstrumentDirectoryTable({ rows, emptyMessage = "No instruments 
             <th className="p-3">Symbol</th>
             <th className="p-3">Name</th>
             <th className="p-3">Type</th>
-            <th className="p-3">Asset / Sector</th>
+            <th className="p-3">Latest</th>
+            <th className="p-3">Daily</th>
+            <th className="p-3">52W range</th>
+            <th className="p-3">Liquidity</th>
+            <th className="p-3">Freshness</th>
             <th className="p-3">Themes</th>
             <th className="p-3">Risk</th>
-            <th className="p-3">Freshness</th>
             <th className="p-3">Open</th>
           </tr>
         </thead>
@@ -39,24 +42,31 @@ export function InstrumentDirectoryTable({ rows, emptyMessage = "No instruments 
                 <td className="p-3">
                   <p className="font-medium">{row.instrument.name}</p>
                   <p className="text-xs text-muted-foreground">{row.instrument.exchange ?? "-"} - {row.instrument.currency ?? "-"}</p>
+                  <p className="text-xs text-muted-foreground">{row.instrument.canonicalSector ?? row.instrument.sector ?? "-"}</p>
                   {row.thesis ? <p className="mt-1 text-xs text-muted-foreground">{row.thesis}</p> : null}
                 </td>
                 <td className="p-3"><InstrumentTypeBadge label={instrumentTypeLabel(type)} /></td>
                 <td className="p-3">
-                  <p className="capitalize">{row.instrument.assetClass.replaceAll("_", " ")}</p>
-                  <p className="text-xs text-muted-foreground">{row.instrument.canonicalSector ?? row.instrument.sector ?? "-"}</p>
+                  {row.latestPrice == null ? "-" : formatCurrencyWithCode(row.latestPrice, row.instrument.currency ?? "USD")}
+                </td>
+                <td className="p-3">
+                  {row.dailyReturn == null ? "-" : formatPercent(row.dailyReturn)}
+                </td>
+                <td className="p-3">
+                  {row.fiftyTwoWeekLow == null || row.fiftyTwoWeekHigh == null
+                    ? "-"
+                    : `${formatCurrencyWithCode(row.fiftyTwoWeekLow, row.instrument.currency ?? "USD")} - ${formatCurrencyWithCode(row.fiftyTwoWeekHigh, row.instrument.currency ?? "USD")}`}
+                </td>
+                <td className="p-3">
+                  {row.liquidity}
+                </td>
+                <td className="p-3">
+                  <DataFreshnessBadge label={row.freshnessLabel} tone={row.freshnessTone} />
                 </td>
                 <td className="p-3"><ThemeBadgeList themes={row.instrument.canonicalThemes.slice(0, 3)} /></td>
                 <td className="p-3">
                   <p>{row.instrument.riskCategory ?? "-"}</p>
                   <p className="text-xs text-muted-foreground">{row.instrument.volatilityBucket ?? "-"}</p>
-                </td>
-                <td className="p-3">
-                  <DataFreshnessBadge label={row.freshnessLabel} tone={row.freshnessTone} />
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {row.latestPrice == null ? "No latest price" : formatCurrencyWithCode(row.latestPrice, row.instrument.currency ?? "USD")}
-                    {row.dailyReturn == null ? "" : ` - ${formatPercent(row.dailyReturn)}`}
-                  </p>
                 </td>
                 <td className="p-3">
                   {symbol ? (

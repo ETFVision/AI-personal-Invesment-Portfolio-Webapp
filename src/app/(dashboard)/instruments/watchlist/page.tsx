@@ -26,7 +26,61 @@ const tierLabels: Record<WatchlistTier, string> = {
 function sortRows(rows: Array<InstrumentMarketView & { watchlistTierLabel?: string }>) {
   return rows
     .slice()
-    .sort((a, b) => `${a.watchlistTierLabel ?? ""}-${a.rank}`.localeCompare(`${b.watchlistTierLabel ?? ""}-${b.rank}`));
+    .sort((a, b) => {
+      const tierOrder = `${a.watchlistTierLabel ?? ""}-${a.rank}`.localeCompare(`${b.watchlistTierLabel ?? ""}-${b.rank}`);
+      if (tierOrder !== 0) return tierOrder;
+      const aReturn = a.dailyReturn ?? Number.NEGATIVE_INFINITY;
+      const bReturn = b.dailyReturn ?? Number.NEGATIVE_INFINITY;
+      if (bReturn !== aReturn) return bReturn - aReturn;
+      return (a.instrument.symbol ?? "").localeCompare(b.instrument.symbol ?? "");
+    });
+}
+
+function assetClassGroupKey(row: InstrumentMarketView) {
+  if (["bond_etf", "gold_etf", "cash_proxy"].includes(row.instrument.assetClass)) return "bond_gold_cash";
+  return row.instrument.assetClass;
+}
+
+function assetClassTitle(key: string) {
+  const titles: Record<string, string> = {
+    etf: "Equity ETFs",
+    bond_gold_cash: "Bond / gold / cash ETFs",
+    crypto: "Crypto",
+    benchmark: "Benchmarks",
+    stock: "Stocks",
+    other: "Other instruments"
+  };
+  return titles[key] ?? key.replaceAll("_", " ");
+}
+
+function assetClassOrder(key: string) {
+  const order: Record<string, number> = {
+    stock: 1,
+    etf: 2,
+    bond_gold_cash: 3,
+    crypto: 4,
+    benchmark: 5,
+    other: 6
+  };
+  return order[key] ?? 99;
+}
+
+function groupByAssetClass(rows: Array<InstrumentMarketView & { watchlistTierLabel?: string; thesis?: string | null }>) {
+  return rows.reduce<Record<string, Array<InstrumentMarketView & { watchlistTierLabel?: string; thesis?: string | null }>>>((groups, row) => {
+    const key = assetClassGroupKey(row);
+    groups[key] = groups[key] ?? [];
+    groups[key].push(row);
+    return groups;
+  }, {});
+}
+
+function groupStocksBySector(rows: Array<InstrumentMarketView & { watchlistTierLabel?: string; thesis?: string | null }>) {
+  return rows.reduce<Record<string, Array<InstrumentMarketView & { watchlistTierLabel?: string; thesis?: string | null }>>>((groups, row) => {
+    const key = row.instrument.canonicalSector ?? row.instrument.sector ?? "Unclassified";
+    groups[key] = groups[key] ?? [];
+    groups[key].push(row);
+    return groups;
+  }, {});
 }
 
 export default async function InstrumentWatchlistPage({ searchParams }: WatchlistPageProps) {
@@ -60,6 +114,7 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
       thesis: item?.rationale ?? null
     };
   });
+  const groupedRows = groupByAssetClass(rows);
 
   return (
     <div className="space-y-6">
@@ -102,15 +157,53 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Watchlist instruments</CardTitle>
-          <CardDescription>{rows.length} active watchlist instruments. Details are intentionally centralized at the instrument page.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <InstrumentDirectoryTable rows={sortRows(rows)} emptyMessage="No watchlist instruments matched your filters." />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        {Object.entries(groupedRows)
+          .sort(([a], [b]) => assetClassOrder(a) - assetClassOrder(b) || a.localeCompare(b))
+          .map(([groupKey, groupRows]) => {
+            if (groupKey === "stock") {
+              const sectorGroups = groupStocksBySector(groupRows);
+              return (
+                <Card key={groupKey}>
+                  <CardHeader>
+                    <CardTitle>{assetClassTitle(groupKey)}</CardTitle>
+                    <CardDescription>{groupRows.length} watchlist stocks grouped by sector. Open a symbol for full context.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {Object.entries(sectorGroups)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([sector, sectorRows]) => (
+                        <div key={sector} className="space-y-3">
+                          <div>
+                            <h3 className="text-sm font-semibold">{sector}</h3>
+                            <p className="text-xs text-muted-foreground">{sectorRows.length} instruments</p>
+                          </div>
+                          <InstrumentDirectoryTable rows={sortRows(sectorRows)} emptyMessage="No watchlist instruments matched your filters." />
+                        </div>
+                      ))}
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            return (
+              <Card key={groupKey}>
+                <CardHeader>
+                  <CardTitle>{assetClassTitle(groupKey)}</CardTitle>
+                  <CardDescription>{groupRows.length} watchlist instruments. Open a symbol for full context.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <InstrumentDirectoryTable rows={sortRows(groupRows)} emptyMessage="No watchlist instruments matched your filters." />
+                </CardContent>
+              </Card>
+            );
+          })}
+        {rows.length === 0 ? (
+          <Card>
+            <CardContent className="p-4 text-sm text-muted-foreground">No watchlist instruments matched your filters.</CardContent>
+          </Card>
+        ) : null}
+      </div>
     </div>
   );
 }

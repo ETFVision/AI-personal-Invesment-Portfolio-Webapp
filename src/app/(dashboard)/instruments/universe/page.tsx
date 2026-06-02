@@ -30,7 +30,61 @@ function instrumentBucket(row: InstrumentMarketView) {
 }
 
 function sortRows(rows: InstrumentMarketView[]) {
-  return rows.slice().sort((a, b) => (a.instrument.symbol ?? "").localeCompare(b.instrument.symbol ?? ""));
+  return rows
+    .slice()
+    .sort((a, b) => {
+      const aReturn = a.dailyReturn ?? Number.NEGATIVE_INFINITY;
+      const bReturn = b.dailyReturn ?? Number.NEGATIVE_INFINITY;
+      if (bReturn !== aReturn) return bReturn - aReturn;
+      return (a.instrument.symbol ?? "").localeCompare(b.instrument.symbol ?? "");
+    });
+}
+
+function assetClassGroupKey(row: InstrumentMarketView) {
+  if (["bond_etf", "gold_etf", "cash_proxy"].includes(row.instrument.assetClass)) return "bond_gold_cash";
+  return row.instrument.assetClass;
+}
+
+function assetClassTitle(key: string) {
+  const titles: Record<string, string> = {
+    etf: "Equity ETF universe",
+    bond_gold_cash: "Bond / gold / cash ETF universe",
+    crypto: "Crypto universe",
+    benchmark: "Benchmark universe",
+    stock: "Stock watchlist universe",
+    other: "Other universe"
+  };
+  return titles[key] ?? key.replaceAll("_", " ");
+}
+
+function assetClassOrder(key: string) {
+  const order: Record<string, number> = {
+    etf: 1,
+    bond_gold_cash: 2,
+    crypto: 3,
+    benchmark: 4,
+    stock: 5,
+    other: 6
+  };
+  return order[key] ?? 99;
+}
+
+function groupByAssetClass(rows: InstrumentMarketView[]) {
+  return rows.reduce<Record<string, InstrumentMarketView[]>>((groups, row) => {
+    const key = assetClassGroupKey(row);
+    groups[key] = groups[key] ?? [];
+    groups[key].push(row);
+    return groups;
+  }, {});
+}
+
+function groupStocksBySector(rows: InstrumentMarketView[]) {
+  return rows.reduce<Record<string, InstrumentMarketView[]>>((groups, row) => {
+    const key = row.instrument.canonicalSector ?? row.instrument.sector ?? "Unclassified";
+    groups[key] = groups[key] ?? [];
+    groups[key].push(row);
+    return groups;
+  }, {});
 }
 
 export default async function InstrumentUniversePage({ searchParams }: UniversePageProps) {
@@ -47,6 +101,7 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
   });
   const rows = await container.instrumentMarketService.buildInstrumentMarketViews(instruments, { lookbackYears: 1 });
   const filteredRows = type ? rows.filter((row) => instrumentBucket(row) === type) : rows;
+  const groupedRows = groupByAssetClass(filteredRows);
 
   return (
     <div className="space-y-6">
@@ -104,15 +159,48 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Active universe</CardTitle>
-          <CardDescription>{filteredRows.length} instruments. Summary only; open the symbol for full context.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <InstrumentDirectoryTable rows={sortRows(filteredRows)} />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        {Object.entries(groupedRows)
+          .sort(([a], [b]) => assetClassOrder(a) - assetClassOrder(b) || a.localeCompare(b))
+          .map(([groupKey, groupRows]) => {
+            if (groupKey === "stock") {
+              const sectorGroups = groupStocksBySector(groupRows);
+              return (
+                <Card key={groupKey}>
+                  <CardHeader>
+                    <CardTitle>{assetClassTitle(groupKey)}</CardTitle>
+                    <CardDescription>{groupRows.length} stocks grouped by sector and ranked by daily return. Open a symbol for full context.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {Object.entries(sectorGroups)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([sector, sectorRows]) => (
+                        <div key={sector} className="space-y-3">
+                          <div>
+                            <h3 className="text-sm font-semibold">{sector}</h3>
+                            <p className="text-xs text-muted-foreground">{sectorRows.length} instruments</p>
+                          </div>
+                          <InstrumentDirectoryTable rows={sortRows(sectorRows)} />
+                        </div>
+                      ))}
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            return (
+              <Card key={groupKey}>
+                <CardHeader>
+                  <CardTitle>{assetClassTitle(groupKey)}</CardTitle>
+                  <CardDescription>{groupRows.length} instruments ranked by daily return. Open a symbol for full context.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <InstrumentDirectoryTable rows={sortRows(groupRows)} />
+                </CardContent>
+              </Card>
+            );
+          })}
+      </div>
     </div>
   );
 }
