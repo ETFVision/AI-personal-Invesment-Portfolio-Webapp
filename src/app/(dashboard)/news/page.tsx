@@ -71,6 +71,13 @@ function trendTone(value?: string) {
   return "text-muted-foreground";
 }
 
+function statusTone(value?: string) {
+  if (value === "success") return "text-emerald-600";
+  if (value === "partial_success") return "text-amber-600";
+  if (value === "failed") return "text-destructive";
+  return "text-muted-foreground";
+}
+
 export default async function NewsPage({ searchParams }: NewsPageProps) {
   const params = await searchParams;
   const container = createContainer();
@@ -197,6 +204,50 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                 </div>
               ))}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>GDELT query-group status</CardTitle>
+          <CardDescription>Per-query diagnostics for tuning macro, rates, inflation, currency, geopolitical, energy, credit, and trade coverage.</CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          {dashboard.gdeltQueryStatuses.length === 0 ? (
+            <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+              No active GDELT query groups found. Apply migrations 025 and 026, then refresh GDELT.
+            </div>
+          ) : (
+            <table className="w-full min-w-[820px] text-sm">
+              <thead className="text-left text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="py-2 pr-3">Query group</th>
+                  <th className="py-2 pr-3">Theme</th>
+                  <th className="py-2 pr-3">Status</th>
+                  <th className="py-2 pr-3">Fetched</th>
+                  <th className="py-2 pr-3">Saved</th>
+                  <th className="py-2 pr-3">Duplicates</th>
+                  <th className="py-2 pr-3">Last error</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dashboard.gdeltQueryStatuses.map(({ queryGroup, latestLog }) => (
+                  <tr key={queryGroup.id} className="border-t align-top">
+                    <td className="py-3 pr-3">
+                      <div className="font-medium">{queryGroup.queryName}</div>
+                      <div className="text-xs text-muted-foreground">{queryGroup.queryKey}</div>
+                    </td>
+                    <td className="py-3 pr-3">{queryGroup.canonicalTheme}</td>
+                    <td className={`py-3 pr-3 font-medium ${statusTone(latestLog?.status)}`}>{latestLog?.status ?? "Not run"}</td>
+                    <td className="py-3 pr-3">{latestLog?.articlesFetched ?? 0}</td>
+                    <td className="py-3 pr-3">{latestLog?.articlesInserted ?? 0}</td>
+                    <td className="py-3 pr-3">{latestLog?.duplicatesDetected ?? 0}</td>
+                    <td className="max-w-sm py-3 pr-3 text-xs text-muted-foreground">{latestLog?.errorMessage ?? "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </CardContent>
       </Card>

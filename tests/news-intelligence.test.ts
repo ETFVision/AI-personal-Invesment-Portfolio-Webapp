@@ -4,6 +4,7 @@ import { NewsDeduplicationService } from "../src/application/services/news/NewsD
 import { WeeklyNewsReconciliationJob } from "../src/application/jobs/WeeklyNewsReconciliationJob";
 import { NewsInstrumentLinkingService } from "../src/application/services/news/NewsInstrumentLinkingService";
 import { NewsClassificationService, validateNewsClassificationOutput } from "../src/application/services/news/NewsClassificationService";
+import { NewsDashboardService } from "../src/application/services/news/NewsDashboardService";
 import { NewsIngestionService } from "../src/application/services/news/NewsIngestionService";
 import { ThemeIntelligenceService } from "../src/application/services/news/ThemeIntelligenceService";
 import { WeeklyNewsReconciliationService } from "../src/application/services/news/WeeklyNewsReconciliationService";
@@ -872,6 +873,14 @@ test("GDELT provider wraps OR query groups and formats day-based timespans", () 
   assert.equal(gdeltProviderInternals.formatTimespan(25), "25h");
 });
 
+test("GDELT provider extracts bounded fallback terms from OR query groups", () => {
+  assert.deepEqual(
+    gdeltProviderInternals.extractFallbackTerms('("Federal Reserve" OR "interest rates" OR "Treasury yields" OR "rate cuts" OR "rate hikes")'),
+    ['"Federal Reserve"', '"interest rates"', '"Treasury yields"', '"rate cuts"']
+  );
+  assert.deepEqual(gdeltProviderInternals.extractFallbackTerms('"Federal Reserve"'), ['"Federal Reserve"']);
+});
+
 test("GDELT relevance filter drops local noise but keeps macro/world news", () => {
   const group = gdeltQueryGroup();
   const normalizer = new GdeltNormalizationService();
@@ -990,6 +999,40 @@ test("GDELT ingestion stores normalized news, classifications, metadata, and log
   assert.equal(gdeltRepository.metadata.length, 1);
   assert.equal(gdeltRepository.logs.some((log) => log.jobName === "gdelt-query-group-ingestion"), true);
   assert.equal(newsRepository.logs.some((log) => log.jobName === "gdelt-news-ingestion"), true);
+});
+
+test("news dashboard exposes latest status for each active GDELT query group", async () => {
+  const newsRepository = new FakeNewsRepository();
+  const gdeltRepository = new FakeGdeltRepository();
+  gdeltRepository.groups = [
+    gdeltQueryGroup({ id: "rates", queryKey: "macro_rates_policy", queryName: "Rates", canonicalTheme: "Rates" }),
+    gdeltQueryGroup({ id: "geo", queryKey: "geopolitical_risk", queryName: "Geopolitical", canonicalTheme: "Geopolitical" })
+  ];
+  gdeltRepository.logs = [
+    {
+      id: "log-rates",
+      jobName: "gdelt-query-group-ingestion",
+      queryGroupId: "rates",
+      startedAt: "2026-06-02T00:00:00.000Z",
+      completedAt: "2026-06-02T00:00:01.000Z",
+      status: "success",
+      articlesFetched: 8,
+      articlesInserted: 8,
+      duplicatesDetected: 0,
+      errorMessage: null,
+      metadata: {},
+      createdAt: ""
+    }
+  ];
+  const dashboard = await new NewsDashboardService(
+    newsRepository,
+    new ThemeIntelligenceService(newsRepository),
+    gdeltRepository
+  ).getDashboard();
+
+  assert.equal(dashboard.gdeltQueryStatuses.length, 2);
+  assert.equal(dashboard.gdeltQueryStatuses.find((row) => row.queryGroup.id === "rates")?.latestLog?.status, "success");
+  assert.equal(dashboard.gdeltQueryStatuses.find((row) => row.queryGroup.id === "geo")?.latestLog, null);
 });
 
 test("cron protection rejects missing or invalid secret", () => {

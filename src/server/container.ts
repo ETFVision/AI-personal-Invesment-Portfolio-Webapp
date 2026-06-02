@@ -131,7 +131,7 @@ export function createContainer() {
     reconciliationModel: env.NEWS_RECONCILIATION_MODEL
   });
   const themeIntelligenceService = new ThemeIntelligenceService(newsRepository);
-  const newsDashboardService = new NewsDashboardService(newsRepository, themeIntelligenceService);
+  const newsDashboardService = new NewsDashboardService(newsRepository, themeIntelligenceService, gdeltRepository);
   const allocationService = new AllocationService();
   const performanceService = new PerformanceService();
   const analyticsService = new AnalyticsService(allocationService, performanceService);

@@ -1281,3 +1281,68 @@ Production-readiness assessment:
 - Ready as a foundational GDELT macro/world-news ingestion layer.
 - Safe for admin/manual testing after migration 025 and env configuration.
 - Ready to support richer Market Vision source inputs, but not yet a full AI Market Vision generator.
+
+## 2026-06-02 - GDELT Query Reliability And Theme Classification Hardening
+
+Scope:
+- Hardened the working GDELT layer after live refresh showed partial success: 24 articles saved, 5 failed query groups.
+- Focused on GDELT query reliability, diagnostics, and stable provider-neutral theme classification.
+- Did not add recommendations, scoring, telemetry, or AI Market Vision generation.
+
+Fixes and improvements:
+- Added bounded fallback behavior in `GdeltNewsProvider`:
+  - Try the full query group first.
+  - If a combined OR query fails or returns no articles, split into up to four simpler fallback terms.
+  - Deduplicate fallback results by URL.
+  - Use `datedesc` sorting for simpler recent-news retrieval.
+- Tuned seeded GDELT query groups to smaller broad macro query sets:
+  - Rates.
+  - Inflation.
+  - Growth/recession.
+  - Currency/USD.
+  - Geopolitical risk.
+  - Trade/supply chain.
+  - Energy/commodities.
+  - Global credit stress.
+- Added migration `027_tune_gdelt_query_groups.sql` to update already-deployed Supabase rows.
+- Added a GDELT query-group status table to the News page:
+  - Query group.
+  - Canonical theme.
+  - Latest status.
+  - Fetched/saved/duplicate counts.
+  - Last error.
+- Kept FMP and GDELT classification under the same canonical theme system.
+- Kept GDELT articles broad and macro-oriented; they remain unlinked to individual holdings unless future reliable entity/symbol extraction is added.
+
+Validation performed:
+- `npm.cmd run test` passed: 85 tests.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd run build` passed.
+
+Tests added or updated:
+- GDELT fallback term extraction.
+- GDELT query formatting.
+- GDELT query-group status exposure through `NewsDashboardService`.
+
+Critical issues:
+- None remaining after this hardening pass.
+
+Medium-priority issues:
+- None remaining after this hardening pass.
+
+Low-priority improvements for later:
+- Add an admin control to enable/disable individual GDELT query groups.
+- Add manual GDELT query editing with validation before save.
+- Add domain/source allowlist and blocklist controls.
+- Add a dedicated low-confidence review workflow for GDELT relevance, not just classification.
+- Add country/region rollups for Market Vision.
+- Add richer cross-provider duplicate diagnostics.
+
+Setup requirement:
+- Apply `supabase/migrations/027_tune_gdelt_query_groups.sql` after Vercel redeploys.
+
+Production-readiness assessment:
+- More stable as a macro/world-news input layer.
+- Ready for another live refresh and weekly reconciliation QA.
+- Ready to feed Market Vision source panels after query group status is verified in the app.

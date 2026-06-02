@@ -199,9 +199,15 @@ export type NewsDashboard = {
   latestNews: Array<NewsItem & { classification?: NewsClassification | null }>;
   weeklyReconciliations: WeeklyNewsReconciliation[];
   ingestionLogs: NewsIngestionLog[];
+  gdeltQueryStatuses: GdeltQueryStatus[];
   latestWeeklyReconciliation: WeeklyNewsReconciliation | null;
   themeSummary: NewsThemeSummary[];
   themeIntelligence: NewsThemeIntelligence;
+};
+
+export type GdeltQueryStatus = {
+  queryGroup: GdeltQueryGroup;
+  latestLog: GdeltIngestionLog | null;
 };
 
 export type NewsThemeSummary = {
