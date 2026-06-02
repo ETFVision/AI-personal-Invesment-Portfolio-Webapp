@@ -1,4 +1,5 @@
 import type { NewsCanonicalTheme, NewsClassificationLabel, NewsSentiment } from "@/domain/news/types";
+import { NewsThemeClassificationService } from "./NewsThemeClassificationService";
 
 export type GdeltThemeMapping = {
   primaryTheme: NewsCanonicalTheme;
@@ -51,32 +52,30 @@ function includesAny(text: string, terms: string[]) {
 }
 
 export class GdeltThemeMappingService {
+  constructor(private readonly themeClassificationService = new NewsThemeClassificationService()) {}
+
   map(input: { title: string; summary: string | null; primaryTheme: NewsCanonicalTheme; category: string }): GdeltThemeMapping {
     const text = `${input.title} ${input.summary ?? ""}`.toLowerCase();
-    const secondaryThemes = new Set<NewsCanonicalTheme>();
-    if (includesAny(text, ["jobs", "employment", "unemployment", "payroll"])) secondaryThemes.add("Employment");
-    if (includesAny(text, ["recession", "gdp", "slowdown", "growth"])) secondaryThemes.add("Growth");
-    if (includesAny(text, ["inflation", "cpi", "prices"])) secondaryThemes.add("Inflation");
-    if (includesAny(text, ["fed", "central bank", "interest rate", "treasury yield"])) secondaryThemes.add("Rates");
-    if (includesAny(text, ["dollar", "currency", "fx"])) secondaryThemes.add("Currency");
-    if (includesAny(text, ["war", "conflict", "sanction", "military", "election"])) secondaryThemes.add("Geopolitical");
-    if (includesAny(text, ["oil", "opec", "natural gas", "energy"])) secondaryThemes.add("Energy");
-    if (includesAny(text, ["tariff", "trade war", "export control", "supply chain"])) secondaryThemes.add("Trade / Supply Chain");
-    if (includesAny(text, ["banking stress", "sovereign debt", "credit stress", "debt ceiling"])) secondaryThemes.add("Credit");
-    secondaryThemes.delete(input.primaryTheme);
+    const theme = this.themeClassificationService.classify({
+      title: input.title,
+      summary: input.summary,
+      providerPrimaryTheme: input.primaryTheme,
+      providerCategory: input.category,
+      sourceProvider: "gdelt"
+    });
 
     const severe = includesAny(text, ["war", "conflict", "crisis", "shock", "escalation", "default", "recession"]);
-    const structural = includesAny(text, ["export controls", "trade war", "sanctions", "debt crisis", "military escalation"]);
+    const structural = theme.structural || includesAny(text, ["export controls", "trade war", "sanctions", "debt crisis", "military escalation"]);
     return {
-      primaryTheme: input.primaryTheme,
-      secondaryThemes: Array.from(secondaryThemes).slice(0, 5),
-      affectedAssetClasses: assetClassByTheme[input.primaryTheme] ?? ["macro"],
-      affectedMacroCategories: macroCategoryByTheme[input.primaryTheme] ?? [input.category],
+      primaryTheme: theme.primaryTheme ?? input.primaryTheme,
+      secondaryThemes: theme.secondaryThemes,
+      affectedAssetClasses: theme.affectedAssetClasses.length ? theme.affectedAssetClasses : assetClassByTheme[input.primaryTheme] ?? ["macro"],
+      affectedMacroCategories: theme.affectedMacroCategories.length ? theme.affectedMacroCategories : macroCategoryByTheme[input.primaryTheme] ?? [input.category],
       classification: structural ? "medium_term_theme" : "short_term_noise",
       sentiment: severe ? "negative" : "neutral",
       severityScore: severe ? 65 : 35,
       persistenceScore: structural ? 70 : 45,
-      confidenceScore: 70,
+      confidenceScore: Math.max(60, theme.themeConfidence),
       reasoningSummary: `Deterministic GDELT query-group mapping used for ${input.primaryTheme}.`
     };
   }

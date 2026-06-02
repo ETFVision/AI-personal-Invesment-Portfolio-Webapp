@@ -1452,3 +1452,50 @@ Production-readiness assessment:
 - Safer for manual testing and ready for scheduled GitHub Actions or Vercel Cron triggering.
 - GDELT should no longer attempt all query groups in one refresh.
 - Rate-limit behavior is now visible and recoverable through query-group backoff state.
+
+## 2026-06-02 - Overall News Theme Classification Hardening
+
+Scope:
+- Improved canonical theme classification for all normalized news sources.
+- Applied the same deterministic theme logic to FMP-style article classification and GDELT query-group classification.
+- Did not add recommendations, scoring, telemetry, or AI Market Vision generation.
+
+What changed:
+- Added `NewsThemeClassificationService` as the shared deterministic theme classifier.
+- Added ticker-aware theme mapping for curated stocks, ETFs, bonds, gold, and crypto proxies.
+- Added word-boundary matching for short terms such as `AI`, preventing accidental substring matches.
+- Added broad-market Growth handling so generic market articles do not default to Technology.
+- Kept GDELT query-group themes as provider context while enriching them with the shared classifier.
+- Continued filtering brittle false positives:
+  - Fund-structure articles should not become Credit without credit-risk language.
+  - Gold rush articles should not become gold/commodities.
+  - PMI/gold headlines should not become Industrials.
+- Source quality tier now contributes lightly to deterministic theme confidence.
+
+Validation performed:
+- `npm.cmd run test` passed: 90 tests.
+- `npm.cmd run typecheck` passed.
+
+Tests added or updated:
+- Broad-market articles classify as Growth rather than Technology.
+- Sector-specific ticker articles classify into Financials and Healthcare.
+- Existing false-positive regression tests remain passing.
+- GDELT theme mapping remains compatible with the shared classifier.
+
+Critical issues:
+- None.
+
+Medium-priority issues:
+- None.
+
+Low-priority improvements for later:
+- Move ticker/theme mappings into database-managed admin tables.
+- Add manual classification override workflow.
+- Add a source-quality weighted weekly reconciliation ranking.
+- Add cross-provider entity extraction before instrument-level macro linking.
+- Add a review queue action to approve or correct theme classifications.
+
+Production-readiness assessment:
+- Better as a deterministic, provider-neutral classification foundation.
+- Ready for another live reclassification/reconciliation pass in the app.
+- Ready to support future Market Vision theme sections with cleaner source data.

@@ -509,6 +509,37 @@ test("deterministic classifier maps hardware product articles to Technology", ()
   assert.equal(output.primaryTheme, "Technology");
 });
 
+test("deterministic classifier maps broad market articles to Growth instead of Technology", () => {
+  const service = new NewsClassificationService(new FakeNewsRepository());
+  const output = service.deterministicFallback(newsItem({
+    title: "5 Things to Know Before the Stock Market Opens",
+    summary: "S&P 500 futures are steady before jobs data.",
+    tickers: []
+  }));
+  assert.deepEqual(output.affectedAssetClasses, ["equities", "macro"]);
+  assert.equal(output.primaryTheme, "Growth");
+  assert.equal(output.secondaryThemes.includes("Technology"), false);
+});
+
+test("deterministic classifier uses ticker themes for sector-specific articles", () => {
+  const service = new NewsClassificationService(new FakeNewsRepository());
+  const financials = service.deterministicFallback(newsItem({
+    title: "Why Goldman Sachs is a top stock for the long term",
+    summary: "",
+    contentSnippet: "",
+    tickers: ["GS"]
+  }));
+  assert.equal(financials.primaryTheme, "Financials");
+
+  const healthcare = service.deterministicFallback(newsItem({
+    title: "Eli Lilly shares rise after drug trial update",
+    summary: "",
+    contentSnippet: "",
+    tickers: ["LLY"]
+  }));
+  assert.equal(healthcare.primaryTheme, "Healthcare");
+});
+
 test("deterministic classifier does not map macro PMI gold headlines to Industrials", () => {
   const service = new NewsClassificationService(new FakeNewsRepository());
   const output = service.deterministicFallback(newsItem({
