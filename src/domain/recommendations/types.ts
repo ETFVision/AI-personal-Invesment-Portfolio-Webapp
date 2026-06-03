@@ -39,6 +39,10 @@ export type InstrumentRecommendation = {
   negativeDrivers: string[];
   guardrailsApplied: string[];
   dataLimitations: string[];
+  recommendationChangeTriggers: {
+    upgrade: string[];
+    downgrade: string[];
+  };
   inputsSnapshot: Record<string, unknown>;
   scoringBreakdown: Record<string, unknown>;
   createdAt: string;

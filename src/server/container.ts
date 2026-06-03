@@ -211,6 +211,7 @@ export function createContainer() {
     universeRepository,
     fundamentalsRepository,
     macroIndicatorRepository,
+    marketVisionRepository,
     portfolioRepository,
     portfolioService
   );

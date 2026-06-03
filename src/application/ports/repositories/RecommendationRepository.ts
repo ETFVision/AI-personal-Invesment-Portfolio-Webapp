@@ -1,4 +1,4 @@
-import type { InstrumentRecommendation, RecommendationRun, RecommendationRunStatus, RecommendationRunType } from "@/domain/recommendations/types";
+import type { InstrumentRecommendation, RecommendationHistoryItem, RecommendationRun, RecommendationRunStatus, RecommendationRunType } from "@/domain/recommendations/types";
 
 export type CreateRecommendationRunInput = {
   runDate: string;
@@ -18,4 +18,5 @@ export interface RecommendationRepository {
   listRuns(limit?: number): Promise<RecommendationRun[]>;
   listLatestRecommendations(limit?: number): Promise<InstrumentRecommendation[]>;
   getLatestRecommendationForInstrument(instrumentId: string): Promise<InstrumentRecommendation | null>;
+  listHistoryForInstrument(instrumentId: string, limit?: number): Promise<RecommendationHistoryItem[]>;
 }

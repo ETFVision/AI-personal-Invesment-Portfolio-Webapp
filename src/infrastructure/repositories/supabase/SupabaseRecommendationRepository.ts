@@ -3,7 +3,7 @@ import type {
   RecommendationRepository,
   UpsertInstrumentRecommendationInput
 } from "@/application/ports/repositories/RecommendationRepository";
-import type { InstrumentRecommendation, RecommendationRun } from "@/domain/recommendations/types";
+import type { InstrumentRecommendation, RecommendationHistoryItem, RecommendationRun } from "@/domain/recommendations/types";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -29,6 +29,7 @@ function mapRun(row: any): RecommendationRun {
 }
 
 function mapRecommendation(row: any): InstrumentRecommendation {
+  const triggers = row.recommendation_change_triggers ?? {};
   return {
     id: row.id,
     recommendationRunId: row.recommendation_run_id,
@@ -45,10 +46,27 @@ function mapRecommendation(row: any): InstrumentRecommendation {
     negativeDrivers: toStringArray(row.negative_drivers),
     guardrailsApplied: toStringArray(row.guardrails_applied),
     dataLimitations: toStringArray(row.data_limitations),
+    recommendationChangeTriggers: {
+      upgrade: toStringArray(triggers.upgrade),
+      downgrade: toStringArray(triggers.downgrade)
+    },
     inputsSnapshot: row.inputs_snapshot ?? {},
     scoringBreakdown: row.scoring_breakdown ?? {},
     createdAt: row.created_at,
     updatedAt: row.updated_at
+  };
+}
+
+function mapHistory(row: any): RecommendationHistoryItem {
+  return {
+    id: row.id,
+    instrumentId: row.instrument_id,
+    symbol: row.symbol,
+    recommendationLabel: row.recommendation_label,
+    overallScore: row.overall_score == null ? null : Number(row.overall_score),
+    confidenceScore: Number(row.confidence_score ?? 0),
+    runDate: row.run_date,
+    createdAt: row.created_at
   };
 }
 
@@ -90,6 +108,7 @@ export class SupabaseRecommendationRepository implements RecommendationRepositor
         negative_drivers: item.negativeDrivers,
         guardrails_applied: item.guardrailsApplied,
         data_limitations: item.dataLimitations,
+        recommendation_change_triggers: item.recommendationChangeTriggers,
         inputs_snapshot: item.inputsSnapshot,
         scoring_breakdown: item.scoringBreakdown
       })),
@@ -145,5 +164,18 @@ export class SupabaseRecommendationRepository implements RecommendationRepositor
     if (isMissingRecommendationsTable(error)) return null;
     if (error) throw new Error(error.message);
     return data ? mapRecommendation(data) : null;
+  }
+
+  async listHistoryForInstrument(instrumentId: string, limit = 12) {
+    const { data, error } = await this.db
+      .from("recommendation_history")
+      .select("*")
+      .eq("instrument_id", instrumentId)
+      .order("run_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (isMissingRecommendationsTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapHistory);
   }
 }

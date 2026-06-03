@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
-import type { InstrumentRecommendation } from "@/domain/recommendations/types";
+import type { InstrumentRecommendation, RecommendationHistoryItem } from "@/domain/recommendations/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 import { DataFreshnessBadge, InstrumentTypeBadge, ThemeBadgeList } from "./instrument-badges";
@@ -75,6 +75,27 @@ function recommendationTone(label: string) {
   return "border-border bg-muted text-muted-foreground";
 }
 
+function scoreValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value)}/100` : "-";
+}
+
+function scoreComponents(recommendation: InstrumentRecommendation) {
+  const components = recommendation.scoringBreakdown.components;
+  if (!Array.isArray(components)) return [];
+  return components.map((component) => ({
+    key: String((component as Record<string, unknown>).key ?? ""),
+    label: String((component as Record<string, unknown>).label ?? ""),
+    score: (component as Record<string, unknown>).score,
+    weight: (component as Record<string, unknown>).weight,
+    reason: String((component as Record<string, unknown>).reason ?? "")
+  })).filter((component) => component.label);
+}
+
+function scoringLabel(recommendation: InstrumentRecommendation, key: "baseLabel" | "finalLabel") {
+  const value = recommendation.scoringBreakdown[key];
+  return typeof value === "string" ? value : "-";
+}
+
 export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMetric: InstrumentRiskMetric | null }) {
   if (!riskMetric) {
     return <PlaceholderPanel title="Risk" description="No sufficient stored price history is available for instrument risk metrics yet." />;
@@ -112,10 +133,11 @@ export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMe
   );
 }
 
-export function RecommendationSummaryCard({ recommendation }: { recommendation: InstrumentRecommendation | null }) {
+export function RecommendationSummaryCard({ recommendation, history = [] }: { recommendation: InstrumentRecommendation | null; history?: RecommendationHistoryItem[] }) {
   if (!recommendation) {
     return <PlaceholderPanel title="Recommendations" description="No recommendation has been generated for this instrument yet. Run the deterministic recommendation engine from Research." />;
   }
+  const components = scoreComponents(recommendation);
 
   return (
     <Card>
@@ -136,6 +158,8 @@ export function RecommendationSummaryCard({ recommendation }: { recommendation: 
           <SummaryMetric label="Risk level" value={recommendation.riskLevel.replaceAll("_", " ")} />
           <SummaryMetric label="Time horizon" value={recommendation.timeHorizon.replaceAll("_", " ")} />
           <SummaryMetric label="Last updated" value={recommendation.updatedAt?.slice(0, 10) ?? "-"} />
+          <SummaryMetric label="Base label" value={scoringLabel(recommendation, "baseLabel")} />
+          <SummaryMetric label="Final label" value={scoringLabel(recommendation, "finalLabel")} />
         </div>
         <p className="rounded-md border bg-muted p-3 text-sm text-muted-foreground">{recommendation.recommendationReasoningSummary}</p>
         <div className="grid gap-3 lg:grid-cols-2">
@@ -163,6 +187,63 @@ export function RecommendationSummaryCard({ recommendation }: { recommendation: 
               {(recommendation.dataLimitations.length ? recommendation.dataLimitations : ["-"]).map((item) => <li key={item}>{item}</li>)}
             </ul>
           </div>
+          <div className="rounded-md border p-3">
+            <p className="text-xs uppercase text-muted-foreground">Upgrade triggers</p>
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
+              {(recommendation.recommendationChangeTriggers.upgrade.length ? recommendation.recommendationChangeTriggers.upgrade : ["-"]).map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-xs uppercase text-muted-foreground">Downgrade triggers</p>
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
+              {(recommendation.recommendationChangeTriggers.downgrade.length ? recommendation.recommendationChangeTriggers.downgrade : ["-"]).map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+        </div>
+        <div className="rounded-md border p-3">
+          <p className="text-xs uppercase text-muted-foreground">Score breakdown</p>
+          {components.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">No component breakdown stored.</p>
+          ) : (
+            <div className="mt-2 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="py-2 pr-3">Component</th>
+                    <th className="py-2 pr-3">Score</th>
+                    <th className="py-2 pr-3">Weight</th>
+                    <th className="py-2 pr-3">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {components.map((component) => (
+                    <tr key={component.key || component.label} className="border-b last:border-0">
+                      <td className="py-2 pr-3 font-medium">{component.label}</td>
+                      <td className="py-2 pr-3">{scoreValue(component.score)}</td>
+                      <td className="py-2 pr-3">{typeof component.weight === "number" ? formatPercent(component.weight) : "-"}</td>
+                      <td className="py-2 pr-3 text-muted-foreground">{component.reason || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        <div className="rounded-md border p-3">
+          <p className="text-xs uppercase text-muted-foreground">Recent history</p>
+          {history.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">No historical recommendation runs stored yet.</p>
+          ) : (
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {history.map((item) => (
+                <div key={item.id} className="rounded-md border bg-background p-2 text-sm">
+                  <p className="text-xs text-muted-foreground">{item.runDate}</p>
+                  <p className="font-medium">{item.recommendationLabel}</p>
+                  <p className="text-xs text-muted-foreground">{item.overallScore == null ? "No score" : `${Math.round(item.overallScore)}/100`} - {formatPercent(item.confidenceScore / 100)} confidence</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

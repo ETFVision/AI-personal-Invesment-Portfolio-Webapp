@@ -1,4 +1,4 @@
-import { buildEvaluation, scoreMacroFit, scoreMomentum, scoreRisk, scoreThemeFit, type RecommendationInput } from "./recommendationScoring";
+import { buildEvaluation, scoreMacroFit, scoreMarketVisionAlignment, scoreMomentum, scoreRisk, scoreThemeFit, type RecommendationInput } from "./recommendationScoring";
 import type { RecommendationRulesService, ScoreComponent } from "./RecommendationRulesService";
 
 export class CryptoRecommendationService {
@@ -13,13 +13,18 @@ export class CryptoRecommendationService {
       { key: "portfolio_concentration", label: "Portfolio Concentration", score: concentrationScore, weight: 0.25, reason: "Crypto allocation remains small" },
       { key: "momentum", label: "Momentum", score: scoreMomentum(input.marketMetric), weight: 0.15, reason: "Positive crypto momentum" },
       { key: "liquidity_regime", label: "Liquidity Regime", score: liquidityScore, weight: 0.15, reason: "Liquidity regime supports risk assets" },
-      { key: "macro_risk_appetite", label: "Macro Risk Appetite", score: scoreMacroFit(input.instrument, input.macroRegime), weight: 0.1, reason: "Macro risk appetite is supportive" },
+      { key: "macro_risk_appetite", label: "Macro Risk Appetite", score: scoreMacroFit(input.instrument, input.macroRegime), weight: 0.07, reason: "Macro risk appetite is supportive" },
+      { key: "market_vision_alignment", label: "Market Vision Alignment", score: scoreMarketVisionAlignment(input), weight: 0.03, reason: "Market Vision risk appetite is supportive" },
       { key: "theme_score", label: "Theme Score", score: scoreThemeFit(input.instrument), weight: 0.05, reason: "Digital asset theme alignment" }
     ];
     return buildEvaluation(input, this.rules, components, {
       baseConfidence: 62,
       timeHorizon: "long_term",
-      negativeDrivers: ["Crypto recommendations are intentionally conservative in V1"]
+      negativeDrivers: ["Crypto recommendations are intentionally conservative in V1"],
+      changeTriggers: {
+        upgrade: ["Liquidity regime and Market Vision risk appetite improve"],
+        downgrade: ["Crypto concentration rises or liquidity regime tightens"]
+      }
     });
   }
 }

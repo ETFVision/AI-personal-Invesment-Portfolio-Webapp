@@ -1,5 +1,6 @@
 import type { FundamentalsSummaryRow } from "@/domain/fundamentals/types";
 import type { MacroRegimeSnapshot } from "@/domain/macro/types";
+import type { MarketVisionReport } from "@/domain/marketVision/types";
 import type { RecommendationLabel, RecommendationTimeHorizon } from "@/domain/recommendations/types";
 import type { BondProfile, Instrument, InstrumentMarketMetric, InstrumentRiskMetric } from "@/domain/universe/types";
 import { instrumentTypeLabel, resolveInstrumentType } from "../instruments/InstrumentTypeResolver";
@@ -13,6 +14,7 @@ export type RecommendationInput = {
   fundamentals: FundamentalsSummaryRow | null;
   bondProfile: BondProfile | null;
   macroRegime: MacroRegimeSnapshot | null;
+  marketVisionReport: MarketVisionReport | null;
   portfolioFit: PortfolioFitResult;
 };
 
@@ -30,6 +32,10 @@ export type RecommendationEvaluation = {
   negativeDrivers: string[];
   guardrailsApplied: string[];
   dataLimitations: string[];
+  recommendationChangeTriggers: {
+    upgrade: string[];
+    downgrade: string[];
+  };
   inputsSnapshot: Record<string, unknown>;
   scoringBreakdown: Record<string, unknown>;
 };
@@ -79,6 +85,56 @@ export function scoreMacroFit(instrument: Instrument, regime: MacroRegimeSnapsho
   return Math.max(0, Math.min(100, score));
 }
 
+function textIncludesAny(text: string, terms: string[]) {
+  const normalized = text.toLowerCase();
+  return terms.some((term) => normalized.includes(term.toLowerCase()));
+}
+
+function marketVisionText(report: MarketVisionReport | null) {
+  if (!report) return "";
+  return [
+    report.executiveSummary,
+    report.globalMarketSummary,
+    report.equityView,
+    report.bondView,
+    report.goldView,
+    report.cryptoView,
+    report.ratesView,
+    report.inflationView,
+    report.growthView,
+    report.currencyView,
+    report.geopoliticalRiskView,
+    ...report.opportunities,
+    ...report.risks,
+    report.portfolioImplications.equityAllocationImplication,
+    report.portfolioImplications.bondAllocationImplication,
+    report.portfolioImplications.goldImplication,
+    report.portfolioImplications.cryptoImplication,
+    report.portfolioImplications.riskImplication
+  ].filter(Boolean).join(" ");
+}
+
+export function scoreMarketVisionAlignment(input: RecommendationInput) {
+  const report = input.marketVisionReport;
+  if (!report) return null;
+  const text = marketVisionText(report);
+  if (!text.trim()) return null;
+
+  const sector = input.instrument.canonicalSector ?? input.instrument.sector ?? "";
+  const themes = [...(input.instrument.canonicalThemes ?? []), ...(input.instrument.thematicTags ?? [])];
+  let score = 55;
+  if (sector && textIncludesAny(text, [sector])) score += 8;
+  if (themes.some((theme) => textIncludesAny(text, [theme]))) score += 8;
+  if (textIncludesAny(text, ["opportunity", "supportive", "tailwind", "resilient", "constructive"])) score += 5;
+  if (textIncludesAny(text, ["risk", "pressure", "headwind", "stress", "deteriorat", "caution"])) score -= 5;
+
+  const assetClass = input.instrument.assetClass ?? "";
+  if (assetClass.includes("bond") && textIncludesAny(text, ["duration", "yield curve", "rates"])) score += 3;
+  if (assetClass.includes("gold") && textIncludesAny(text, ["gold", "inflation", "geopolitical"])) score += 5;
+  if (assetClass.includes("crypto") && textIncludesAny(text, ["liquidity", "risk appetite", "crypto"])) score += 3;
+  return Math.max(0, Math.min(100, score));
+}
+
 export function durationMismatch(profile: BondProfile | null, regime: MacroRegimeSnapshot | null) {
   if (!profile || !regime) return false;
   const ratesRestrictive = ["restrictive", "rising", "high"].some((term) => regime.ratesRegime.toLowerCase().includes(term));
@@ -98,6 +154,10 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
   dataLimitations?: string[];
   fundamentalScore?: number | null;
   valuationScore?: number | null;
+  changeTriggers?: {
+    upgrade?: string[];
+    downgrade?: string[];
+  };
 } = {}) {
   const score = rules.weightedScore(components);
   const confidence = rules.confidenceScore(components, extras.baseConfidence ?? 72);
@@ -131,6 +191,22 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
     ...(extras.negativeDrivers ?? [])
   ].filter(Boolean);
   const summary = `${input.instrument.symbol ?? input.instrument.name} is rated ${guardrail.label} with a deterministic score of ${score == null ? "insufficient data" : Math.round(score)}. The rating reflects ${components.filter((component) => component.score != null).map((component) => component.label.toLowerCase()).join(", ") || "limited available"} inputs${guardrail.guardrails.length ? `, with guardrails applied for ${guardrail.guardrails.join(", ").toLowerCase()}` : ""}.`;
+  const weakComponents = components.filter((component) => component.score != null && (component.score ?? 0) < 50);
+  const strongComponents = components.filter((component) => component.score != null && (component.score ?? 0) >= 70);
+  const recommendationChangeTriggers = {
+    upgrade: Array.from(new Set([
+      ...weakComponents.slice(0, 4).map((component) => `${component.label} improves`),
+      ...(input.portfolioFit.concentrationPercent != null && input.portfolioFit.concentrationPercent > 0.15 ? ["Portfolio concentration falls"] : []),
+      ...(guardrail.guardrails.some((item) => item.toLowerCase().includes("valuation")) ? ["Valuation improves"] : []),
+      ...(extras.changeTriggers?.upgrade ?? [])
+    ])).slice(0, 8),
+    downgrade: Array.from(new Set([
+      ...strongComponents.slice(0, 4).map((component) => `${component.label} deteriorates`),
+      "Risk score rises materially",
+      ...(input.instrument.assetClass === "crypto" ? ["Liquidity regime tightens further"] : []),
+      ...(extras.changeTriggers?.downgrade ?? [])
+    ])).slice(0, 8)
+  };
 
   return {
     instrumentId: input.instrument.id,
@@ -146,12 +222,20 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
     negativeDrivers: Array.from(new Set(negativeDrivers)).slice(0, 8),
     guardrailsApplied: guardrail.guardrails,
     dataLimitations: Array.from(new Set(dataLimitations)).slice(0, 10),
+    recommendationChangeTriggers,
     inputsSnapshot: {
       symbol: input.instrument.symbol,
       assetClass: input.instrument.assetClass,
       sector: input.instrument.canonicalSector ?? input.instrument.sector,
       themes: input.instrument.canonicalThemes,
       macroRegime: input.macroRegime,
+      marketVisionReport: input.marketVisionReport ? {
+        id: input.marketVisionReport.id,
+        reportDate: input.marketVisionReport.reportDate,
+        title: input.marketVisionReport.title,
+        status: input.marketVisionReport.status,
+        confidenceScore: input.marketVisionReport.confidenceScore
+      } : null,
       marketMetric: input.marketMetric,
       riskMetric: input.riskMetric,
       portfolioFit: input.portfolioFit,

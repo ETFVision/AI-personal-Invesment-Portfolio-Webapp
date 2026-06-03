@@ -1,4 +1,4 @@
-import { buildEvaluation, scoreMacroFit, scoreMomentum, scoreRisk, type RecommendationInput } from "./recommendationScoring";
+import { buildEvaluation, scoreMacroFit, scoreMarketVisionAlignment, scoreMomentum, scoreRisk, type RecommendationInput } from "./recommendationScoring";
 import type { RecommendationRulesService, ScoreComponent } from "./RecommendationRulesService";
 
 function scoreInflationHedge(input: RecommendationInput) {
@@ -21,13 +21,18 @@ export class GoldRecommendationService {
       { key: "inflation_hedge", label: "Inflation Hedge", score: scoreInflationHedge(input), weight: 0.25, reason: "Inflation backdrop supports gold hedge value" },
       { key: "geopolitical_hedge", label: "Geopolitical Hedge", score: scoreGeopoliticalHedge(input), weight: 0.2, reason: "Risk backdrop supports hedge value" },
       { key: "diversification", label: "Diversification", score: input.portfolioFit.score, weight: 0.2, reason: "Gold improves diversification" },
-      { key: "rates_context", label: "Rates Context", score: scoreMacroFit(input.instrument, input.macroRegime), weight: 0.15, reason: "Rates context is supportive" },
+      { key: "rates_context", label: "Rates Context", score: scoreMacroFit(input.instrument, input.macroRegime), weight: 0.1, reason: "Rates context is supportive" },
+      { key: "market_vision_alignment", label: "Market Vision Alignment", score: scoreMarketVisionAlignment(input), weight: 0.05, reason: "Market Vision supports gold hedge role" },
       { key: "portfolio_fit", label: "Portfolio Fit", score: input.portfolioFit.score, weight: 0.1, reason: "Position size fits portfolio" },
       { key: "momentum", label: "Momentum", score: scoreMomentum(input.marketMetric), weight: 0.1, reason: "Positive gold momentum" }
     ];
     return buildEvaluation(input, this.rules, components, {
       timeHorizon: "medium_term",
-      positiveDrivers: [scoreRisk(input.riskMetric) != null && (scoreRisk(input.riskMetric) ?? 0) >= 65 ? "Controlled volatility for hedge role" : ""].filter(Boolean)
+      positiveDrivers: [scoreRisk(input.riskMetric) != null && (scoreRisk(input.riskMetric) ?? 0) >= 65 ? "Controlled volatility for hedge role" : ""].filter(Boolean),
+      changeTriggers: {
+        upgrade: ["Inflation or geopolitical hedge value rises"],
+        downgrade: ["Inflation pressure eases and real-rate context becomes less supportive"]
+      }
     });
   }
 }

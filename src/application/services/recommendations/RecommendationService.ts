@@ -1,5 +1,6 @@
 import type { FundamentalsRepository } from "@/application/ports/repositories/FundamentalsRepository";
 import type { MacroIndicatorRepository } from "@/application/ports/repositories/MacroIndicatorRepository";
+import type { MarketVisionRepository } from "@/application/ports/repositories/MarketVisionRepository";
 import type { PortfolioRepository } from "@/application/ports/repositories/PortfolioRepository";
 import type { RecommendationRepository, UpsertInstrumentRecommendationInput } from "@/application/ports/repositories/RecommendationRepository";
 import type { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
@@ -40,6 +41,7 @@ function mapToInput(item: RecommendationEvaluation, runId: string | null): Upser
     negativeDrivers: item.negativeDrivers,
     guardrailsApplied: item.guardrailsApplied,
     dataLimitations: item.dataLimitations,
+    recommendationChangeTriggers: item.recommendationChangeTriggers,
     inputsSnapshot: item.inputsSnapshot,
     scoringBreakdown: item.scoringBreakdown
   };
@@ -59,6 +61,7 @@ export class RecommendationService {
     private readonly universeRepository: UniverseRepository,
     private readonly fundamentalsRepository: FundamentalsRepository,
     private readonly macroIndicatorRepository: MacroIndicatorRepository,
+    private readonly marketVisionRepository?: MarketVisionRepository,
     private readonly portfolioRepository?: PortfolioRepository,
     private readonly portfolioService?: PortfolioService,
     private readonly options: RecommendationServiceOptions = {}
@@ -88,6 +91,10 @@ export class RecommendationService {
 
   getLatestForInstrument(instrumentId: string) {
     return this.recommendationRepository.getLatestRecommendationForInstrument(instrumentId);
+  }
+
+  getHistoryForInstrument(instrumentId: string, limit = 8) {
+    return this.recommendationRepository.listHistoryForInstrument(instrumentId, limit);
   }
 
   async runRecommendations(input: {
@@ -139,12 +146,13 @@ export class RecommendationService {
 
   private async evaluateInstruments(instruments: Instrument[], portfolioId: string | null) {
     const ids = instruments.map((instrument) => instrument.id);
-    const [marketMetrics, riskMetrics, fundamentalRows, bondProfiles, macroRegime, dashboard] = await Promise.all([
+    const [marketMetrics, riskMetrics, fundamentalRows, bondProfiles, macroRegime, marketVisionReport, dashboard] = await Promise.all([
       this.universeRepository.listInstrumentMarketMetrics(ids),
       this.universeRepository.listInstrumentRiskMetrics(ids),
       this.fundamentalsRepository.listSummaryRows(),
       this.universeRepository.listBondProfiles(),
       this.macroIndicatorRepository.getLatestRegimeSnapshot(),
+      this.marketVisionRepository ? this.marketVisionRepository.getLatestPublishedReport() : Promise.resolve(null),
       this.getPortfolioDashboard(portfolioId)
     ]);
     const marketById = new Map(marketMetrics.map((item) => [item.instrumentId, item]));
@@ -160,6 +168,7 @@ export class RecommendationService {
         fundamentals: fundamentalsById.get(instrument.id) ?? null,
         bondProfile: bondById.get(instrument.id) ?? null,
         macroRegime,
+        marketVisionReport,
         portfolioFit: this.portfolioFitService.assess(instrument, dashboard)
       };
       const type = resolveInstrumentType(instrument);
