@@ -86,10 +86,14 @@ export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMe
         <SummaryMetric label="90D volatility" value={riskPercent(riskMetric.volatility90d)} />
         <SummaryMetric label="1Y volatility" value={riskPercent(riskMetric.volatility1y)} />
         <SummaryMetric label="Downside volatility" value={riskPercent(riskMetric.downsideVolatility)} />
-        <SummaryMetric label="Current drawdown" value={riskPercent(riskMetric.currentDrawdown)} />
-        <SummaryMetric label="Max drawdown" value={riskPercent(riskMetric.maxDrawdown)} />
-        <SummaryMetric label="Drawdown duration" value={`${riskMetric.drawdownDurationDays ?? 0}d`} />
-        <SummaryMetric label="Drawdown bucket" value={riskLabel(riskMetric.drawdownBucket)} />
+        <SummaryMetric label="Current DD (1Y)" value={riskPercent(riskMetric.currentDrawdown1y)} />
+        <SummaryMetric label="Max DD (1Y)" value={riskPercent(riskMetric.maxDrawdown1y)} />
+        <SummaryMetric label="Max DD (3Y)" value={riskPercent(riskMetric.maxDrawdown3y)} />
+        <SummaryMetric label="Max DD (5Y)" value={riskPercent(riskMetric.maxDrawdown5y)} />
+        <SummaryMetric label="Current DD (history)" value={riskPercent(riskMetric.currentDrawdown)} />
+        <SummaryMetric label="Max DD (history)" value={riskPercent(riskMetric.maxDrawdown)} />
+        <SummaryMetric label="DD duration" value={`${riskMetric.drawdownDurationDays ?? 0}d`} />
+        <SummaryMetric label="DD bucket" value={riskLabel(riskMetric.drawdownBucket)} />
         <SummaryMetric label="Negative days" value={riskPercent(riskMetric.negativeReturnFrequency)} />
         <SummaryMetric label="Worst day" value={riskPercent(riskMetric.worstDailyReturn)} />
         <SummaryMetric label="Worst week" value={riskPercent(riskMetric.worstWeeklyReturn)} />

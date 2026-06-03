@@ -98,6 +98,21 @@ function drawdownMetrics(series: InstrumentPrice[]) {
   return { currentDrawdown, maxDrawdown, drawdownDurationDays };
 }
 
+function periodDrawdownMetrics(series: InstrumentPrice[], days: number) {
+  const latestDate = series.at(-1)?.priceDate ?? null;
+  if (!latestDate) return { currentDrawdown: null, maxDrawdown: null };
+  const latestTime = new Date(`${latestDate}T00:00:00.000Z`).getTime();
+  const periodSeries = series.filter((point) => {
+    const pointTime = new Date(`${point.priceDate}T00:00:00.000Z`).getTime();
+    return Number.isFinite(pointTime) && latestTime - pointTime <= days * 86_400_000;
+  });
+  const drawdown = drawdownMetrics(periodSeries);
+  return {
+    currentDrawdown: drawdown.currentDrawdown,
+    maxDrawdown: drawdown.maxDrawdown
+  };
+}
+
 function worstWeeklyReturn(series: InstrumentPrice[]) {
   if (series.length < 6) return null;
   let worst: number | null = null;
@@ -157,6 +172,9 @@ export class InstrumentRiskService {
     const vol1y = annualizedVolatility(windowValues(returns, 252), 60);
     const downVol = downsideVolatility(windowValues(returns, 252), 10);
     const drawdown = drawdownMetrics(series);
+    const drawdown1y = periodDrawdownMetrics(series, 365);
+    const drawdown3y = periodDrawdownMetrics(series, 365 * 3);
+    const drawdown5y = periodDrawdownMetrics(series, 365 * 5);
     const negativeFrequency = values.length === 0 ? null : values.filter((value) => value < 0).length / values.length;
     const worstDaily = values.length === 0 ? null : Math.min(...values);
     const worstWeekly = worstWeeklyReturn(series);
@@ -176,6 +194,12 @@ export class InstrumentRiskService {
       volatility1y: vol1y,
       volatilityTrend: volatilityTrend(vol30, vol90),
       downsideVolatility: downVol,
+      currentDrawdown1y: drawdown1y.currentDrawdown,
+      maxDrawdown1y: drawdown1y.maxDrawdown,
+      currentDrawdown3y: drawdown3y.currentDrawdown,
+      maxDrawdown3y: drawdown3y.maxDrawdown,
+      currentDrawdown5y: drawdown5y.currentDrawdown,
+      maxDrawdown5y: drawdown5y.maxDrawdown,
       currentDrawdown: drawdown.currentDrawdown,
       maxDrawdown: drawdown.maxDrawdown,
       drawdownDurationDays: drawdown.drawdownDurationDays,

@@ -85,6 +85,12 @@ export type InstrumentRiskMetric = {
   volatility1y: number | null;
   volatilityTrend: "rising" | "stable" | "falling" | "insufficient_data";
   downsideVolatility: number | null;
+  currentDrawdown1y: number | null;
+  maxDrawdown1y: number | null;
+  currentDrawdown3y: number | null;
+  maxDrawdown3y: number | null;
+  currentDrawdown5y: number | null;
+  maxDrawdown5y: number | null;
   currentDrawdown: number | null;
   maxDrawdown: number | null;
   drawdownDurationDays: number | null;

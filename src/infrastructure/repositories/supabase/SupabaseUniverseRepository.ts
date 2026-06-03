@@ -203,6 +203,12 @@ function mapInstrumentRiskMetric(row: any): InstrumentRiskMetric {
     volatility1y: row.volatility_1y == null ? null : Number(row.volatility_1y),
     volatilityTrend: row.volatility_trend ?? "insufficient_data",
     downsideVolatility: row.downside_volatility == null ? null : Number(row.downside_volatility),
+    currentDrawdown1y: row.current_drawdown_1y == null ? null : Number(row.current_drawdown_1y),
+    maxDrawdown1y: row.max_drawdown_1y == null ? null : Number(row.max_drawdown_1y),
+    currentDrawdown3y: row.current_drawdown_3y == null ? null : Number(row.current_drawdown_3y),
+    maxDrawdown3y: row.max_drawdown_3y == null ? null : Number(row.max_drawdown_3y),
+    currentDrawdown5y: row.current_drawdown_5y == null ? null : Number(row.current_drawdown_5y),
+    maxDrawdown5y: row.max_drawdown_5y == null ? null : Number(row.max_drawdown_5y),
     currentDrawdown: row.current_drawdown == null ? null : Number(row.current_drawdown),
     maxDrawdown: row.max_drawdown == null ? null : Number(row.max_drawdown),
     drawdownDurationDays: row.drawdown_duration_days == null ? null : Number(row.drawdown_duration_days),
@@ -476,6 +482,12 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     });
     if (isMissingMetricsSupport(error)) return;
     if (error) throw new Error(error.message);
+
+    const { error: periodError } = await this.db.rpc("refresh_instrument_risk_period_drawdowns", {
+      target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
+    });
+    if (isMissingMetricsSupport(periodError)) return;
+    if (periodError) throw new Error(periodError.message);
   }
 
   async upsertInstrumentRiskMetrics(input: UpsertInstrumentRiskMetricInput[]) {
@@ -490,6 +502,12 @@ export class SupabaseUniverseRepository implements UniverseRepository {
         volatility_1y: item.volatility1y,
         volatility_trend: item.volatilityTrend,
         downside_volatility: item.downsideVolatility,
+        current_drawdown_1y: item.currentDrawdown1y,
+        max_drawdown_1y: item.maxDrawdown1y,
+        current_drawdown_3y: item.currentDrawdown3y,
+        max_drawdown_3y: item.maxDrawdown3y,
+        current_drawdown_5y: item.currentDrawdown5y,
+        max_drawdown_5y: item.maxDrawdown5y,
         current_drawdown: item.currentDrawdown,
         max_drawdown: item.maxDrawdown,
         drawdown_duration_days: item.drawdownDurationDays,
