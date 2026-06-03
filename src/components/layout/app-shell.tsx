@@ -5,6 +5,7 @@ import {
   Bookmark,
   Database,
   Globe2,
+  LineChart,
   HeartPulse,
   Home,
   Landmark,
@@ -46,6 +47,7 @@ const navGroups = [
     items: [
       { href: "/market-vision", label: "Market Vision", icon: Globe2 },
       { href: "/news", label: "News & Themes", icon: Newspaper },
+      { href: "/macro", label: "Macro", icon: LineChart },
       { href: "/fundamentals", label: "Fundamentals", icon: BarChart3 },
       { href: "/risk", label: "Risk", icon: ShieldCheck },
       { href: "/bonds", label: "Fixed Income", icon: Landmark },
