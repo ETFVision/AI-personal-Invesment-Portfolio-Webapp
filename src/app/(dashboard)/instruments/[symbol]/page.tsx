@@ -325,13 +325,13 @@ function tabsForType(
   if (type === "stock") {
     return [
       { label: "Overview", content: common.overview },
+      { label: "Recommendations", content: common.recommendations },
       { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
       { label: "News", content: common.news },
       { label: "Themes", content: common.themes },
       { label: "Risk", content: common.risk },
       { label: "Market Vision Context", content: common.marketVision },
       { label: "Fundamentals", content: <FundamentalsPanel detail={fundamentalsDetail} /> },
-      { label: "Recommendations", content: common.recommendations },
       { label: "Telemetry", content: <PlaceholderPanel title="Telemetry" description="Reserved for future telemetry learning." /> }
     ];
   }
@@ -339,38 +339,38 @@ function tabsForType(
   if (type === "bond_etf") {
     return [
       { label: "Overview", content: common.overview },
+      { label: "Recommendations", content: common.recommendations },
       { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
       { label: "Bond Profile", content: <BondProfilePanel profile={bondProfile} /> },
       { label: "Duration", content: <PlaceholderPanel title="Duration" description="Duration analytics are prepared here and remain calculated in the bond intelligence service." /> },
       { label: "Credit Quality", content: <PlaceholderPanel title="Credit Quality" description="Credit exposure context is prepared here for bond intelligence." /> },
       { label: "News", content: common.news },
       { label: "Risk", content: common.risk },
-      { label: "Market Vision Context", content: common.marketVision },
-      { label: "Recommendations", content: common.recommendations }
+      { label: "Market Vision Context", content: common.marketVision }
     ];
   }
 
   if (type === "gold_etf") {
     return [
       { label: "Overview", content: common.overview },
+      { label: "Recommendations", content: common.recommendations },
       { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
       { label: "Commodity Profile", content: <PlaceholderPanel title="Commodity Profile" description="Prepared for commodity and inflation-hedge context." /> },
       { label: "News", content: common.news },
       { label: "Risk", content: common.risk },
-      { label: "Market Vision Context", content: common.marketVision },
-      { label: "Recommendations", content: common.recommendations }
+      { label: "Market Vision Context", content: common.marketVision }
     ];
   }
 
   if (type === "crypto") {
     return [
       { label: "Overview", content: common.overview },
+      { label: "Recommendations", content: common.recommendations },
       { label: "Price Context", content: <PerformancePanel marketView={marketView} /> },
       { label: "News", content: common.news },
       { label: "Themes", content: common.themes },
       { label: "Risk", content: common.risk },
-      { label: "Market Vision Context", content: common.marketVision },
-      { label: "Recommendations", content: common.recommendations }
+      { label: "Market Vision Context", content: common.marketVision }
     ];
   }
 
@@ -386,14 +386,14 @@ function tabsForType(
 
   return [
     { label: "Overview", content: common.overview },
+    { label: "Recommendations", content: common.recommendations },
     { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
     { label: "ETF Exposure", content: <PlaceholderPanel title="ETF Exposure" description="Prepared for ETF exposure detail and future fundamentals support." /> },
     { label: "Holdings", content: <PlaceholderPanel title="Holdings" description="Prepared for ETF underlying holdings once provider support is added." /> },
     { label: "Themes", content: common.themes },
     { label: "News", content: common.news },
     { label: "Risk", content: common.risk },
-    { label: "Market Vision Context", content: common.marketVision },
-    { label: "Recommendations", content: common.recommendations }
+    { label: "Market Vision Context", content: common.marketVision }
   ];
 }
 
