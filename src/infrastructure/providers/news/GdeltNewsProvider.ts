@@ -36,6 +36,7 @@ async function fetchJsonWithRetry(url: URL) {
       return response.json() as Promise<GdeltDocPayload>;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error("GDELT request failed.");
+      if (lastError instanceof GdeltProviderError && lastError.status === 429) throw lastError;
       if (attempt < 2) await sleep(700 * attempt);
     }
   }
@@ -95,7 +96,7 @@ export class GdeltNewsProvider implements GdeltNewsProviderPort {
       const primary = await fetchJsonWithRetry(buildUrl({ query, maxArticles, recentWindowHours }));
       if (Array.isArray(primary.articles) && primary.articles.length > 0) return primary;
     } catch (error) {
-      if (error instanceof GdeltProviderError && error.status === 429) throw error;
+      if (error instanceof GdeltProviderError && error.status === 429) await sleep(1_500);
       const fallback = await this.fetchFallbackTerms(query, maxArticles, recentWindowHours);
       if (fallback.articles?.length) return fallback;
       throw error;
@@ -123,6 +124,7 @@ export class GdeltNewsProvider implements GdeltNewsProviderPort {
         }
       } catch (error) {
         lastError = error instanceof Error ? error : new Error("GDELT fallback query failed.");
+        if (lastError instanceof GdeltProviderError && lastError.status === 429) await sleep(1_200);
       }
     }
     if (articles.length === 0 && lastError) throw lastError;

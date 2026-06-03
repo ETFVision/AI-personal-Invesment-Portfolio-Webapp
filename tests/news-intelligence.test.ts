@@ -14,7 +14,7 @@ import { GlobalNewsIngestionService } from "../src/application/services/news/Glo
 import { SourceQualityService, sourceQualityInternals } from "../src/application/services/news/SourceQualityService";
 import { isCronSecretValid } from "../src/application/services/news/cronSecret";
 import { GdeltNormalizationService, gdeltNormalizationInternals } from "../src/infrastructure/providers/news/GdeltNormalizationService";
-import { gdeltProviderInternals } from "../src/infrastructure/providers/news/GdeltNewsProvider";
+import { GdeltNewsProvider as RealGdeltNewsProvider, gdeltProviderInternals } from "../src/infrastructure/providers/news/GdeltNewsProvider";
 import { isJwtIssuedAtFutureError } from "../src/infrastructure/repositories/supabase/supabaseErrors";
 import type { GdeltArticleMetadata, GdeltIngestionLog, GdeltQueryGroup, NewsClassification, NewsIngestionLog, NewsItem, NormalizedNewsArticle, WeeklyNewsReconciliation } from "../src/domain/news/types";
 import type { MacroIndicatorRepository } from "../src/application/ports/repositories/MacroIndicatorRepository";
@@ -1299,6 +1299,49 @@ test("GDELT provider extracts bounded fallback terms from OR query groups", () =
     ['"Federal Reserve"', '"interest rates"', '"Treasury yields"', '"rate cuts"']
   );
   assert.deepEqual(gdeltProviderInternals.extractFallbackTerms('"Federal Reserve"'), ['"Federal Reserve"']);
+});
+
+test("GDELT provider falls back to narrower terms when broad query is rate limited", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    const query = url.searchParams.get("query") ?? "";
+    calls.push(query);
+    if (query.includes(" OR ")) {
+      return new Response(JSON.stringify({}), { status: 429 });
+    }
+    return new Response(JSON.stringify({
+      articles: [{
+        url: "https://example.com/growth-risk",
+        title: "Recession risk rises as GDP growth slows",
+        seendate: "20260601T010000Z",
+        domain: "example.com",
+        language: "English"
+      }]
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+
+  try {
+    const provider = new RealGdeltNewsProvider();
+    const articles = await provider.fetchQueryGroup({
+      queryGroup: gdeltQueryGroup({
+        queryText: '("recession risk" OR "economic slowdown" OR "GDP growth")',
+        queryKey: "growth_recession",
+        canonicalTheme: "Growth",
+        category: "growth"
+      }),
+      maxArticles: 4,
+      recentWindowHours: 72
+    });
+
+    assert.equal(articles.length, 1);
+    assert.equal(articles[0]?.title, "Recession risk rises as GDP growth slows");
+    assert.equal(calls[0], '("recession risk" OR "economic slowdown" OR "GDP growth")');
+    assert.equal(calls[1], '"recession risk"');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("GDELT relevance filter drops local noise but keeps macro/world news", () => {
