@@ -92,6 +92,12 @@ export class GdeltNewsProvider implements GdeltNewsProviderPort {
   }
 
   private async fetchWithFallback(query: string, maxArticles: number, recentWindowHours: number): Promise<GdeltDocPayload> {
+    const fallbackTerms = extractFallbackTerms(query);
+    if (fallbackTerms.length > 1) {
+      const fallback = await this.fetchFallbackTerms(query, maxArticles, recentWindowHours);
+      if (fallback.articles?.length) return fallback;
+    }
+
     try {
       const primary = await fetchJsonWithRetry(buildUrl({ query, maxArticles, recentWindowHours }));
       if (Array.isArray(primary.articles) && primary.articles.length > 0) return primary;

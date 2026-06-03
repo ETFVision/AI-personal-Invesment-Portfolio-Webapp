@@ -1301,7 +1301,7 @@ test("GDELT provider extracts bounded fallback terms from OR query groups", () =
   assert.deepEqual(gdeltProviderInternals.extractFallbackTerms('"Federal Reserve"'), ['"Federal Reserve"']);
 });
 
-test("GDELT provider falls back to narrower terms when broad query is rate limited", async () => {
+test("GDELT provider fetches broad OR query groups through narrower terms first", async () => {
   const originalFetch = globalThis.fetch;
   const calls: string[] = [];
   globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -1337,8 +1337,7 @@ test("GDELT provider falls back to narrower terms when broad query is rate limit
 
     assert.equal(articles.length, 1);
     assert.equal(articles[0]?.title, "Recession risk rises as GDP growth slows");
-    assert.equal(calls[0], '("recession risk" OR "economic slowdown" OR "GDP growth")');
-    assert.equal(calls[1], '"recession risk"');
+    assert.deepEqual(calls, ['"recession risk"', '"economic slowdown"', '"GDP growth"']);
   } finally {
     globalThis.fetch = originalFetch;
   }
