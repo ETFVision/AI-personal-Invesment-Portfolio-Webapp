@@ -10,7 +10,7 @@ import { ThemeIntelligenceService } from "../src/application/services/news/Theme
 import { WeeklyNewsReconciliationService } from "../src/application/services/news/WeeklyNewsReconciliationService";
 import { GdeltRelevanceService } from "../src/application/services/news/GdeltRelevanceService";
 import { GdeltThemeMappingService } from "../src/application/services/news/GdeltThemeMappingService";
-import { GlobalNewsIngestionService } from "../src/application/services/news/GlobalNewsIngestionService";
+import { GlobalNewsIngestionService, globalNewsIngestionInternals } from "../src/application/services/news/GlobalNewsIngestionService";
 import { SourceQualityService, sourceQualityInternals } from "../src/application/services/news/SourceQualityService";
 import { isCronSecretValid } from "../src/application/services/news/cronSecret";
 import { GdeltNormalizationService, gdeltNormalizationInternals } from "../src/infrastructure/providers/news/GdeltNormalizationService";
@@ -1456,6 +1456,13 @@ test("theme intelligence includes Trade / Supply Chain in macro hierarchy", asyn
   const intelligence = await service.getThemeIntelligence("2026-06-01", "2026-06-07");
   const trade = intelligence.topThemesThisWeek.find((item) => item.theme === "Trade / Supply Chain");
   assert.deepEqual(trade?.categories, ["Macro"]);
+});
+
+test("GDELT successful query groups are scheduled for the next calendar day", () => {
+  assert.equal(
+    globalNewsIngestionInternals.nextCalendarDayRunAt(new Date("2026-06-03T15:30:00.000Z")),
+    "2026-06-04T00:00:00.000Z"
+  );
 });
 
 test("GDELT ingestion stores normalized news, classifications, metadata, and logs", async () => {

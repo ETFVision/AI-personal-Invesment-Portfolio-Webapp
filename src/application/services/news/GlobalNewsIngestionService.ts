@@ -16,6 +16,10 @@ function minutesFromNow(minutes: number, now = new Date()) {
   return new Date(now.getTime() + minutes * 60 * 1000).toISOString();
 }
 
+function nextCalendarDayRunAt(now = new Date()) {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0)).toISOString();
+}
+
 function sourceKey(input: { sourceProvider: string; sourceId: string | null; url: string | null; title: string; publishedAt: string | null; contentHash: string }) {
   const sourceId = input.sourceId?.trim() || input.url?.trim() || hashText(`${input.title}|${input.publishedAt ?? ""}|${input.contentHash}`);
   return `${input.sourceProvider}|${sourceId}`;
@@ -217,7 +221,7 @@ export class GlobalNewsIngestionService {
             id: group.id,
             lastAttemptedAt: groupStartedAt,
             lastSuccessAt: new Date().toISOString(),
-            nextRunAt: minutesFromNow(this.config.querySuccessCooldownMinutes),
+            nextRunAt: nextCalendarDayRunAt(new Date(groupStartedAt)),
             failureCount: 0,
             lastError: null
           });
@@ -326,3 +330,8 @@ export class GlobalNewsIngestionService {
     }
   }
 }
+
+export const globalNewsIngestionInternals = {
+  minutesFromNow,
+  nextCalendarDayRunAt
+};
