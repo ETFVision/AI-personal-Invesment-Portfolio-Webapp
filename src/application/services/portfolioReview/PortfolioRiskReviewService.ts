@@ -1,13 +1,19 @@
 import { finding, section, type PortfolioReviewInputContext } from "./portfolioReviewScoring";
 
+function normalizeRatio(value: number | null) {
+  if (value == null || !Number.isFinite(value)) return 0;
+  return Math.abs(value) > 1 ? value / 100 : value;
+}
+
 export class PortfolioRiskReviewService {
   review({ riskReport }: PortfolioReviewInputContext) {
-    const vol = riskReport.volatility.metrics.find((metric) => metric.label === "1Y")?.value
+    const rawVol = riskReport.volatility.metrics.find((metric) => metric.label === "1Y")?.value
       ?? riskReport.volatility.metrics.find((metric) => metric.label === "90D")?.value
       ?? riskReport.volatility.metrics.find((metric) => metric.label === "30D")?.value
       ?? null;
-    const maxDrawdown = riskReport.drawdown.maxDrawdown ?? 0;
-    const currentDrawdown = riskReport.drawdown.currentDrawdown ?? 0;
+    const vol = rawVol == null ? null : normalizeRatio(rawVol);
+    const maxDrawdown = normalizeRatio(riskReport.drawdown.maxDrawdown ?? 0);
+    const currentDrawdown = normalizeRatio(riskReport.drawdown.currentDrawdown ?? 0);
     const topRiskContributor = riskReport.riskContributors[0];
     const findings = [
       vol != null && vol > 0.25 ? finding("attention", "Elevated portfolio volatility", "Annualised volatility is above a moderate risk range.") : null,

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { PortfolioImprovementSuggestionService } from "../src/application/services/portfolioReview/PortfolioImprovementSuggestionService";
 import { PortfolioActionSuggestionService } from "../src/application/services/portfolioReview/PortfolioActionSuggestionService";
 import { AllocationReviewService } from "../src/application/services/portfolioReview/AllocationReviewService";
+import { PortfolioRiskReviewService } from "../src/application/services/portfolioReview/PortfolioRiskReviewService";
 import { weightedPortfolioScore } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import type { PortfolioReviewInputContext } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 
@@ -112,4 +113,17 @@ test("potential actions do not include exact trade amounts or position sizes", (
   assert.doesNotMatch(text, /\$\d/);
   assert.doesNotMatch(text, /\b\d+\s+shares\b/i);
   assert.doesNotMatch(text, /\b(buy|sell)\s+\d/i);
+});
+
+test("risk review normalizes percent-style drawdowns before scoring", () => {
+  const review = new PortfolioRiskReviewService().review(context({
+    riskReport: {
+      ...context().riskReport,
+      drawdown: { currentDrawdown: -18.59, maxDrawdown: -37.56, drawdownDurationDays: 12, points: [] }
+    } as any
+  }));
+
+  assert.ok(review.score > 0);
+  assert.ok(Math.abs(Number(review.metrics.currentDrawdown) - -0.1859) < 0.000001);
+  assert.ok(Math.abs(Number(review.metrics.maxDrawdown) - -0.3756) < 0.000001);
 });

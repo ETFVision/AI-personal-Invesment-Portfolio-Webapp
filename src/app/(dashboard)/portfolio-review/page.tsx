@@ -30,6 +30,44 @@ function severityTone(severity: PortfolioReviewFinding["severity"]) {
   return "border-blue-200 bg-blue-50 text-blue-900";
 }
 
+function metricLabel(value: string) {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function metricValue(value: unknown): string {
+  if (value == null) return "-";
+  if (typeof value === "number") {
+    if (Math.abs(value) <= 1 && value !== 0) return formatPercent(value);
+    return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
+  }
+  if (typeof value === "string") return value;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? "" : "s"}`;
+  if (typeof value === "object") return "Available";
+  return String(value);
+}
+
+function SectionMetrics({ metrics }: { metrics: Record<string, unknown> }) {
+  const entries = Object.entries(metrics).filter(([, value]) => value != null);
+  if (entries.length === 0) {
+    return <p className="mt-3 text-sm text-muted-foreground">No metrics available for this section.</p>;
+  }
+
+  return (
+    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      {entries.map(([key, value]) => (
+        <div key={key} className="rounded-md bg-muted p-3">
+          <p className="text-xs text-muted-foreground">{metricLabel(key)}</p>
+          <p className="mt-1 text-sm font-medium">{metricValue(value)}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SectionCard({ title, section }: { title: string; section: PortfolioReviewSection }) {
   return (
     <Card>
@@ -57,9 +95,7 @@ function SectionCard({ title, section }: { title: string; section: PortfolioRevi
         )}
         <details className="rounded-md border p-3 text-sm">
           <summary className="cursor-pointer text-muted-foreground">Section metrics</summary>
-          <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs">
-            {JSON.stringify(section.metrics, null, 2)}
-          </pre>
+          <SectionMetrics metrics={section.metrics} />
         </details>
       </CardContent>
     </Card>
@@ -92,7 +128,7 @@ function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggest
                     href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
                     className="rounded-md border px-2 py-1 text-xs hover:bg-muted"
                   >
-                    {candidate.symbol} · {candidate.recommendationLabel} · {score(candidate.score)}
+                    {candidate.symbol} - {candidate.recommendationLabel} - {score(candidate.score)}
                   </Link>
                 ))}
               </div>
