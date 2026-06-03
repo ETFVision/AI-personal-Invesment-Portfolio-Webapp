@@ -119,6 +119,46 @@ function queryStatusSummary(statuses: Array<{ latestLog: {
   };
 }
 
+function fmpFetchSummary(log: {
+  articlesFetched: number;
+  articlesInserted: number;
+  duplicatesDetected: number;
+  completedAt: string | null;
+  startedAt: string;
+  status: string;
+  instrumentsRequested: number;
+  metadata: Record<string, unknown> | null;
+} | null | undefined) {
+  const instrumentFetched = metadataNumber(log?.metadata, "instrumentArticlesFetched");
+  const generalFetched = metadataNumber(log?.metadata, "generalArticlesFetched");
+  const instrumentSaved = metadataNumber(log?.metadata, "instrumentArticlesSaved");
+  const generalSaved = metadataNumber(log?.metadata, "generalArticlesSaved");
+  return {
+    status: log?.status ?? "Not run",
+    fetched: log?.articlesFetched ?? 0,
+    saved: log?.articlesInserted ?? 0,
+    duplicates: log?.duplicatesDetected ?? 0,
+    latest: log?.completedAt ?? log?.startedAt ?? null,
+    instrumentsRequested: log?.instrumentsRequested ?? 0,
+    groups: [
+      {
+        name: "Instrument news",
+        description: `${log?.instrumentsRequested ?? 0} active instruments requested`,
+        fetched: instrumentFetched || (log ? log.articlesFetched - generalFetched : 0),
+        saved: instrumentSaved || (log ? log.articlesInserted - generalSaved : 0),
+        limit: metadataNumber(log?.metadata, "maxArticlesPerInstrument")
+      },
+      {
+        name: "General market news",
+        description: "FMP general-latest fill after instrument news",
+        fetched: generalFetched,
+        saved: generalSaved,
+        limit: 20
+      }
+    ]
+  };
+}
+
 export default async function NewsPage({ searchParams }: NewsPageProps) {
   const params = await searchParams;
   const container = createContainer();
@@ -131,6 +171,8 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
     includeDuplicates: true,
     limit: 60
   });
+  const latestFmpLog = dashboard.ingestionLogs.find((log) => log.sourceProvider === "financial_modeling_prep" && log.jobName === "daily-news-ingestion") ?? null;
+  const fmpSummary = fmpFetchSummary(latestFmpLog);
 
   const globalProviderNews = dashboard.latestNews.filter((item) => item.sourceProvider === "gdelt" || item.sourceProvider === "newsdata");
   const macroWorldNews = globalProviderNews.filter((item) => {
@@ -244,6 +286,47 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>FMP fetch summary</CardTitle>
+          <CardDescription>Instrument news is fetched by active universe symbol. General market news is fetched only if the daily article cap has remaining room.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-4 grid gap-3 md:grid-cols-6">
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Status</p><p className={`text-sm font-semibold ${statusTone(fmpSummary.status)}`}>{fmpSummary.status}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Fetched</p><p className="text-lg font-semibold">{fmpSummary.fetched}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Saved</p><p className="text-lg font-semibold">{fmpSummary.saved}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Duplicates</p><p className="text-lg font-semibold">{fmpSummary.duplicates}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Instruments</p><p className="text-lg font-semibold">{fmpSummary.instrumentsRequested}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Latest run</p><p className="text-sm font-medium">{formatDateTime(fmpSummary.latest)}</p></div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead className="text-left text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="py-2 pr-3">Group</th>
+                  <th className="py-2 pr-3">Description</th>
+                  <th className="py-2 pr-3">Fetched</th>
+                  <th className="py-2 pr-3">Saved</th>
+                  <th className="py-2 pr-3">Limit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fmpSummary.groups.map((group) => (
+                  <tr key={group.name} className="border-t">
+                    <td className="py-3 pr-3 font-medium">{group.name}</td>
+                    <td className="py-3 pr-3 text-muted-foreground">{group.description}</td>
+                    <td className="py-3 pr-3">{group.fetched}</td>
+                    <td className="py-3 pr-3">{group.saved}</td>
+                    <td className="py-3 pr-3">{group.limit || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
 

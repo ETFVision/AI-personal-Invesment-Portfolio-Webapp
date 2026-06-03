@@ -471,6 +471,10 @@ test("daily ingestion updates repeated canonical articles without marking them d
   assert.equal(repository.items.length, 1);
   assert.equal(repository.items[0]?.isDuplicate, false);
   assert.equal(repository.logs[1]?.metadata.articlesUpdated, 1);
+  assert.equal(repository.logs[1]?.metadata.instrumentArticlesFetched, 1);
+  assert.equal(repository.logs[1]?.metadata.generalArticlesFetched, 0);
+  assert.equal(repository.logs[1]?.metadata.instrumentArticlesSaved, 1);
+  assert.equal(repository.logs[1]?.metadata.generalArticlesSaved, 0);
 });
 
 test("daily ingestion removes duplicate articles inside the same provider batch", async () => {

@@ -11,6 +11,12 @@ function sourceKey(input: { sourceProvider: string; sourceId: string | null; url
   return `${input.sourceProvider}|${sourceId}`;
 }
 
+function fmpNewsGroup(input: { providerMetadata?: Record<string, unknown> | null; rawSymbols?: string[]; tickers?: string[] }) {
+  if (input.providerMetadata?.newsEndpoint === "general-latest") return "general";
+  if (input.providerMetadata?.newsEndpoint === "stock") return "instrument";
+  return (input.rawSymbols?.length ?? input.tickers?.length ?? 0) > 0 ? "instrument" : "general";
+}
+
 export class NewsIngestionService {
   constructor(
     private readonly newsRepository: NewsRepository,
@@ -48,6 +54,8 @@ export class NewsIngestionService {
         includeGeneralMarketNews: true
       });
       articlesFetched = fetched.length;
+      const instrumentArticlesFetched = fetched.filter((article) => fmpNewsGroup(article) === "instrument").length;
+      const generalArticlesFetched = fetched.length - instrumentArticlesFetched;
 
       const rows = [];
       const batchKeys = new Set<string>();
@@ -114,6 +122,8 @@ export class NewsIngestionService {
 
       const inserted = await this.newsRepository.upsertNewsItems(rows);
       articlesInserted = inserted.length;
+      const instrumentArticlesSaved = rows.filter((row) => fmpNewsGroup(row) === "instrument").length;
+      const generalArticlesSaved = rows.length - instrumentArticlesSaved;
       const status = duplicatesDetected > 0 || failedItems > 0 ? "partial_success" as const : "success" as const;
       await this.newsRepository.insertIngestionLog({
         jobName: "daily-news-ingestion",
@@ -132,6 +142,12 @@ export class NewsIngestionService {
           articlesUpdated,
           inBatchDuplicatesRemoved,
           failedItems,
+          requestedSymbolsCount: symbols.length,
+          maxArticlesPerInstrument: this.config.maxArticlesPerInstrument,
+          instrumentArticlesFetched,
+          generalArticlesFetched,
+          instrumentArticlesSaved,
+          generalArticlesSaved,
           articlesSaved: articlesInserted
         }
       });

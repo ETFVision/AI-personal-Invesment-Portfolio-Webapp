@@ -44,7 +44,7 @@ async function fetchJsonWithRetry(url: URL) {
   throw lastError ?? new Error("FMP news request failed.");
 }
 
-function normalizeRow(row: FmpNewsRow, fallbackSymbol?: string): NormalizedNewsArticle | null {
+function normalizeRow(row: FmpNewsRow, fallbackSymbol: string | undefined, endpoint: "stock" | "general-latest"): NormalizedNewsArticle | null {
   const title = row.title?.trim();
   if (!title) return null;
   const symbol = row.symbol ?? fallbackSymbol;
@@ -66,7 +66,7 @@ function normalizeRow(row: FmpNewsRow, fallbackSymbol?: string): NormalizedNewsA
     imageUrl: row.image ?? null,
     language: "en",
     country: null,
-    providerMetadata: row as Record<string, unknown>
+    providerMetadata: { ...row, newsEndpoint: endpoint } as Record<string, unknown>
   };
 }
 
@@ -87,7 +87,7 @@ export class FmpNewsProvider implements NewsProvider {
       const payload = await fetchJsonWithRetry(url);
       const items = Array.isArray(payload) ? payload : [];
       for (const item of items) {
-        const normalized = normalizeRow(item as FmpNewsRow, symbol);
+        const normalized = normalizeRow(item as FmpNewsRow, symbol, "stock");
         if (normalized) rows.push(normalized);
         if (rows.length >= input.maxArticlesTotal) break;
       }
@@ -100,7 +100,7 @@ export class FmpNewsProvider implements NewsProvider {
       const payload = await fetchJsonWithRetry(url);
       const items = Array.isArray(payload) ? payload : [];
       for (const item of items) {
-        const normalized = normalizeRow(item as FmpNewsRow);
+        const normalized = normalizeRow(item as FmpNewsRow, undefined, "general-latest");
         if (normalized) rows.push(normalized);
       }
     }
