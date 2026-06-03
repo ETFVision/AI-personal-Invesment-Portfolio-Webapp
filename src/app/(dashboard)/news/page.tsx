@@ -95,6 +95,30 @@ function sourceLabel(value: string) {
   return value;
 }
 
+function queryStatusSummary(statuses: Array<{ latestLog: {
+  status: string;
+  articlesFetched: number;
+  articlesInserted: number;
+  duplicatesDetected: number;
+  completedAt: string | null;
+  startedAt: string;
+  metadata: Record<string, unknown> | null;
+} | null }>) {
+  const logs = statuses.map((status) => status.latestLog).filter((log): log is NonNullable<typeof log> => Boolean(log));
+  const latest = logs
+    .map((log) => log.completedAt ?? log.startedAt)
+    .sort()
+    .at(-1) ?? null;
+  return {
+    fetched: logs.reduce((sum, log) => sum + log.articlesFetched, 0),
+    saved: logs.reduce((sum, log) => sum + log.articlesInserted, 0),
+    filtered: logs.reduce((sum, log) => sum + metadataNumber(log.metadata, "articlesFiltered"), 0),
+    duplicates: logs.reduce((sum, log) => sum + log.duplicatesDetected, 0),
+    failed: logs.filter((log) => log.status === "failed").length,
+    latest
+  };
+}
+
 export default async function NewsPage({ searchParams }: NewsPageProps) {
   const params = await searchParams;
   const container = createContainer();
@@ -113,6 +137,8 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
     const theme = item.classification?.primaryTheme;
     return theme === "Geopolitical" || theme === "Rates" || theme === "Inflation" || theme === "Energy" || theme === "Currency" || theme === "Trade / Supply Chain" || theme === "Credit";
   });
+  const newsDataFetchSummary = queryStatusSummary(dashboard.newsDataQueryStatuses);
+  const gdeltFetchSummary = queryStatusSummary(dashboard.gdeltQueryStatuses);
 
   return (
     <div className="space-y-6">
@@ -227,6 +253,14 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
           <CardDescription>Primary macro/world-news provider. Uses the same macro, rates, inflation, currency, geopolitical, energy, credit, and trade query groups as GDELT.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
+          <div className="mb-4 grid gap-3 md:grid-cols-6">
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Fetched</p><p className="text-lg font-semibold">{newsDataFetchSummary.fetched}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Saved</p><p className="text-lg font-semibold">{newsDataFetchSummary.saved}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Filtered</p><p className="text-lg font-semibold">{newsDataFetchSummary.filtered}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Duplicates</p><p className="text-lg font-semibold">{newsDataFetchSummary.duplicates}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Failed groups</p><p className="text-lg font-semibold">{newsDataFetchSummary.failed}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Latest run</p><p className="text-sm font-medium">{formatDateTime(newsDataFetchSummary.latest)}</p></div>
+          </div>
           {dashboard.newsDataQueryStatuses.length === 0 ? (
             <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
               No active NewsData query groups found. Apply migration 048, add `NEWSDATA_API_KEY`, set `ENABLE_NEWSDATA_INGESTION=true`, then refresh NewsData.
@@ -282,6 +316,14 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
           <CardDescription>Fallback provider diagnostics for macro, rates, inflation, currency, geopolitical, energy, credit, and trade coverage.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
+          <div className="mb-4 grid gap-3 md:grid-cols-6">
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Fetched</p><p className="text-lg font-semibold">{gdeltFetchSummary.fetched}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Saved</p><p className="text-lg font-semibold">{gdeltFetchSummary.saved}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Filtered</p><p className="text-lg font-semibold">{gdeltFetchSummary.filtered}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Duplicates</p><p className="text-lg font-semibold">{gdeltFetchSummary.duplicates}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Failed groups</p><p className="text-lg font-semibold">{gdeltFetchSummary.failed}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Latest run</p><p className="text-sm font-medium">{formatDateTime(gdeltFetchSummary.latest)}</p></div>
+          </div>
           {dashboard.gdeltQueryStatuses.length === 0 ? (
             <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
               No active GDELT query groups found. Apply migrations 025 and 026, then refresh GDELT.
