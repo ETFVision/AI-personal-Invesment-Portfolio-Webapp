@@ -7,6 +7,10 @@ function formString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
 
+async function classifyBackfill(container: ReturnType<typeof createContainer>) {
+  return container.newsClassificationService.classifyPending();
+}
+
 export async function runDailyNewsIngestionAction() {
   const container = createContainer();
   await container.authProvider.requireUser();
@@ -31,7 +35,8 @@ export async function runGdeltNewsIngestionAction() {
         ? "No GDELT query group is due yet. The next scheduled batch will run later."
         : "GDELT ingestion is disabled. Set ENABLE_GDELT_INGESTION=true and redeploy/restart."
       : `GDELT queued batch fetched ${result.articlesFetched}, saved ${result.articlesInserted}, filtered ${result.articlesFiltered}, duplicates ${result.duplicatesDetected}, failed query groups ${result.failedQueryGroups}${result.rateLimitHit ? ". Rate limit hit; this group was backed off automatically." : "."}`;
-    target = `/news?source=gdelt&message=${encodeURIComponent(suffix)}`;
+    const classification = await classifyBackfill(container);
+    target = `/news?source=gdelt&message=${encodeURIComponent(`${suffix} Classified ${classification.classified} pending articles.`)}`;
   } catch (error) {
     target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "GDELT ingestion failed.")}`;
   }
@@ -49,7 +54,8 @@ export async function runNewsDataNewsIngestionAction() {
         ? "No NewsData query group is due yet. The next scheduled batch will run later."
         : "NewsData ingestion is disabled. Set ENABLE_NEWSDATA_INGESTION=true, add NEWSDATA_API_KEY, and redeploy/restart."
       : `NewsData queued batch fetched ${result.articlesFetched}, saved ${result.articlesInserted}, filtered ${result.articlesFiltered}, duplicates ${result.duplicatesDetected}, failed query groups ${result.failedQueryGroups}${result.rateLimitHit ? ". Rate limit or quota hit; this group was backed off automatically." : "."}`;
-    target = `/news?source=newsdata&message=${encodeURIComponent(suffix)}`;
+    const classification = await classifyBackfill(container);
+    target = `/news?source=newsdata&message=${encodeURIComponent(`${suffix} Classified ${classification.classified} pending articles.`)}`;
   } catch (error) {
     target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "NewsData ingestion failed.")}`;
   }
@@ -67,10 +73,12 @@ export async function runMacroNewsIngestionAction() {
       newsDataResult.articlesInserted === 0 ||
       newsDataResult.failedQueryGroups > 0;
     if (!shouldFallback) {
+      const classification = await classifyBackfill(container);
       const suffix = `NewsData macro batch fetched ${newsDataResult.articlesFetched}, saved ${newsDataResult.articlesInserted}, filtered ${newsDataResult.articlesFiltered}, duplicates ${newsDataResult.duplicatesDetected}.`;
-      target = `/news?source=newsdata&message=${encodeURIComponent(suffix)}`;
+      target = `/news?source=newsdata&message=${encodeURIComponent(`${suffix} Classified ${classification.classified} pending articles.`)}`;
     } else {
       const gdeltResult = await container.jobs.gdeltNewsIngestion.run();
+      const classification = await classifyBackfill(container);
       const newsDataReason = newsDataResult.skipped
         ? newsDataResult.skippedReason === "not_due"
           ? "NewsData had no due query group"
@@ -85,7 +93,7 @@ export async function runMacroNewsIngestionAction() {
           ? "GDELT fallback had no due query group."
           : "GDELT fallback is disabled."
         : `GDELT fallback fetched ${gdeltResult.articlesFetched}, saved ${gdeltResult.articlesInserted}, filtered ${gdeltResult.articlesFiltered}, duplicates ${gdeltResult.duplicatesDetected}, failed query groups ${gdeltResult.failedQueryGroups}.`;
-      target = `/news?source=newsdata&message=${encodeURIComponent(`${newsDataReason}; ${gdeltSuffix}`)}`;
+      target = `/news?source=newsdata&message=${encodeURIComponent(`${newsDataReason}; ${gdeltSuffix} Classified ${classification.classified} pending articles.`)}`;
     }
   } catch (error) {
     try {
@@ -93,7 +101,8 @@ export async function runMacroNewsIngestionAction() {
       const suffix = gdeltResult.skipped
         ? "NewsData failed; GDELT fallback had no due query group or is disabled."
         : `NewsData failed; GDELT fallback fetched ${gdeltResult.articlesFetched}, saved ${gdeltResult.articlesInserted}, filtered ${gdeltResult.articlesFiltered}, duplicates ${gdeltResult.duplicatesDetected}.`;
-      target = `/news?source=gdelt&message=${encodeURIComponent(suffix)}`;
+      const classification = await classifyBackfill(container);
+      target = `/news?source=gdelt&message=${encodeURIComponent(`${suffix} Classified ${classification.classified} pending articles.`)}`;
     } catch (fallbackError) {
       const primaryMessage = error instanceof Error ? error.message : "NewsData ingestion failed.";
       const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : "GDELT fallback failed.";
@@ -125,34 +134,6 @@ export async function reclassifyPendingNewsAction() {
     target = `/news?message=${encodeURIComponent(`Classified ${result.classified} of ${result.requested} pending articles.`)}`;
   } catch (error) {
     target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "News classification failed.")}`;
-  }
-  redirect(target);
-}
-
-export async function reclassifyLatestDeterministicNewsAction() {
-  const container = createContainer();
-  await container.authProvider.requireUser();
-  let target = "/news?error=News%20reclassification%20failed.";
-  try {
-    const result = await container.newsClassificationService.reclassifyLatestDeterministic();
-    target = `/news?message=${encodeURIComponent(`Reclassified ${result.reclassified} of ${result.requested} latest deterministic articles.`)}`;
-  } catch (error) {
-    target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "News reclassification failed.")}`;
-  }
-  redirect(target);
-}
-
-export async function reclassifyCurrentWeekDeterministicNewsAction() {
-  const container = createContainer();
-  await container.authProvider.requireUser();
-  let target = "/news?error=Weekly%20news%20reclassification%20failed.";
-  try {
-    const latest = await container.newsRepository.getLatestWeeklyReconciliation();
-    if (!latest) throw new Error("Run Weekly reconcile once before reclassifying the current week.");
-    const result = await container.newsClassificationService.reclassifyDeterministicForPeriod(latest.periodStart, latest.periodEnd);
-    target = `/news?message=${encodeURIComponent(`Reclassified ${result.reclassified} of ${result.requested} deterministic articles for ${result.periodStart} to ${result.periodEnd}.`)}`;
-  } catch (error) {
-    target = `/news?error=${encodeURIComponent(error instanceof Error ? error.message : "Weekly news reclassification failed.")}`;
   }
   redirect(target);
 }

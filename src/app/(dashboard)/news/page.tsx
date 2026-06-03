@@ -1,8 +1,6 @@
 import { createContainer } from "@/server/container";
 import {
   duplicateOverrideAction,
-  reclassifyCurrentWeekDeterministicNewsAction,
-  reclassifyLatestDeterministicNewsAction,
   reclassifyPendingNewsAction,
   runDailyNewsIngestionAction,
   runGdeltNewsIngestionAction,
@@ -134,13 +132,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
             <SubmitButton variant="outline" pendingLabel="Fetching next GDELT fallback batch...">Refresh GDELT fallback</SubmitButton>
           </form>
           <form action={reclassifyPendingNewsAction}>
-            <SubmitButton variant="outline" pendingLabel="Classifying...">Classify pending</SubmitButton>
-          </form>
-          <form action={reclassifyLatestDeterministicNewsAction}>
-            <SubmitButton variant="outline" pendingLabel="Reclassifying...">Reclassify latest</SubmitButton>
-          </form>
-          <form action={reclassifyCurrentWeekDeterministicNewsAction}>
-            <SubmitButton variant="outline" pendingLabel="Reclassifying week...">Reclassify week</SubmitButton>
+            <SubmitButton variant="outline" pendingLabel="Classifying...">Classify backfill</SubmitButton>
           </form>
           <form action={runWeeklyNewsReconciliationAction}>
             <SubmitButton variant="secondary" pendingLabel="Reconciling...">Weekly reconcile</SubmitButton>
