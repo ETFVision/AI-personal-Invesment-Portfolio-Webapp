@@ -92,11 +92,11 @@ export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMe
         <SummaryMetric label="Max DD (5Y)" value={riskPercent(riskMetric.maxDrawdown5y)} />
         <SummaryMetric label="Current DD (history)" value={riskPercent(riskMetric.currentDrawdown)} />
         <SummaryMetric label="Max DD (history)" value={riskPercent(riskMetric.maxDrawdown)} />
-        <SummaryMetric label="DD duration" value={`${riskMetric.drawdownDurationDays ?? 0}d`} />
+        <SummaryMetric label="History DD duration" value={`${riskMetric.drawdownDurationDays ?? 0}d`} />
         <SummaryMetric label="DD bucket" value={riskLabel(riskMetric.drawdownBucket)} />
-        <SummaryMetric label="Negative days" value={riskPercent(riskMetric.negativeReturnFrequency)} />
+        <SummaryMetric label="Negative day freq" value={riskPercent(riskMetric.negativeReturnFrequency)} />
         <SummaryMetric label="Worst day" value={riskPercent(riskMetric.worstDailyReturn)} />
-        <SummaryMetric label="Worst week" value={riskPercent(riskMetric.worstWeeklyReturn)} />
+        <SummaryMetric label="Worst 5D" value={riskPercent(riskMetric.worstWeeklyReturn)} />
         <SummaryMetric label="Risk observations" value={formatNumber(riskMetric.observationCount)} />
       </CardContent>
     </Card>

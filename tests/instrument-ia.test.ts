@@ -86,9 +86,24 @@ test("instrument risk service calculates volatility and drawdown without return 
   assert.ok(metric.volatility30d !== null && metric.volatility30d > 0);
   assert.ok(metric.maxDrawdown !== null && metric.maxDrawdown < 0);
   assert.ok(metric.currentDrawdown !== null);
+  assert.equal(metric.currentDrawdown1y, null);
+  assert.equal(metric.maxDrawdown1y, null);
   assert.ok(metric.worstDailyReturn !== null && metric.worstDailyReturn < 0);
   assert.equal(metric.observationCount, 90);
   assert.equal(metric.riskBucket !== "insufficient_data", true);
+});
+
+test("instrument risk service requires enough history before fixed-period drawdowns", () => {
+  const service = new InstrumentRiskService({} as UniverseRepository);
+  const values = Array.from({ length: 370 }, (_, index) => 120 - index * 0.05 + Math.sin(index / 8) * 3);
+  const metric = service.calculate(instrument({ id: "instrument-id", symbol: "TEST" }), priceSeries(values));
+
+  assert.ok(metric.currentDrawdown1y !== null);
+  assert.ok(metric.maxDrawdown1y !== null && metric.maxDrawdown1y < 0);
+  assert.equal(metric.currentDrawdown3y, null);
+  assert.equal(metric.maxDrawdown3y, null);
+  assert.equal(metric.currentDrawdown5y, null);
+  assert.equal(metric.maxDrawdown5y, null);
 });
 
 test("instrument risk service marks sparse history as low confidence", () => {
