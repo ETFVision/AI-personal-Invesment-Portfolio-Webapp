@@ -40,7 +40,18 @@ export class RecommendationRulesService {
       .reduce((sum, component) => sum + component.weight, 0);
     const totalWeight = components.reduce((sum, component) => sum + component.weight, 0);
     if (totalWeight <= 0) return 0;
-    return clamp(baseConfidence * (availableWeight / totalWeight));
+    const available = components.filter((component) => component.score != null && Number.isFinite(component.score));
+    const availableRatio = availableWeight / totalWeight;
+    const scores = available.map((component) => component.score ?? 0);
+    const averageScore = scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0;
+    const variance = scores.length ? scores.reduce((sum, score) => sum + (score - averageScore) ** 2, 0) / scores.length : 0;
+    const dispersion = Math.sqrt(variance);
+    const hasStrongAndWeakSignals = scores.some((score) => score >= 70) && scores.some((score) => score < 45);
+    const completenessBonus = availableRatio >= 0.95 ? 8 : availableRatio >= 0.8 ? 4 : 0;
+    const agreementBonus = dispersion > 0 && dispersion < 12 ? 5 : 0;
+    const conflictPenalty = hasStrongAndWeakSignals ? 8 : 0;
+    const dispersionPenalty = Math.min(12, dispersion * 0.25);
+    return clamp(baseConfidence * availableRatio + completenessBonus + agreementBonus - conflictPenalty - dispersionPenalty);
   }
 
   labelFromScore(score: number | null): RecommendationLabel {
@@ -67,37 +78,38 @@ export class RecommendationRulesService {
   }): GuardrailResult {
     const guardrails: string[] = [];
     let label = input.label;
+    const applyCap = (cap: RecommendationLabel, reason: string) => {
+      const capped = capLabel(label, cap);
+      if (capped !== label) {
+        label = capped;
+        guardrails.push(reason);
+      }
+    };
 
     if (input.confidenceScore < 50) {
       return { label: "Insufficient Data", guardrails: ["Data confidence below 50"] };
     }
     if (input.fundamentalScore != null && input.fundamentalScore < 35) {
-      label = capLabel(label, "Watch");
-      guardrails.push("Weak fundamentals cap");
+      applyCap("Watch", "Weak fundamentals cap");
     }
     if (input.valuationScore != null && input.valuationScore < 25) {
-      label = capLabel(label, "Watch");
-      guardrails.push("Poor valuation cap");
+      const qualityAwareCap = input.fundamentalScore != null && input.fundamentalScore >= 70 ? "Hold" : "Watch";
+      applyCap(qualityAwareCap, qualityAwareCap === "Hold" ? "Poor valuation quality-aware cap" : "Poor valuation cap");
     }
     if (input.riskScore != null && input.riskScore > 75) {
-      label = capLabel(label, input.label === "Sell" || input.label === "Reduce" ? input.label : "Watch");
-      guardrails.push("Excessive instrument risk cap");
+      applyCap(input.label === "Sell" || input.label === "Reduce" ? input.label : "Watch", "Excessive instrument risk cap");
     }
     if ((input.concentrationPercent ?? 0) > 0.25) {
-      label = capLabel(label, "Hold");
-      guardrails.push("Portfolio concentration cap");
+      applyCap("Hold", "Portfolio concentration cap");
     }
     if (input.duplicateExposure) {
-      label = capLabel(label, "Hold");
-      guardrails.push("Duplicate exposure cap");
+      applyCap("Hold", "Duplicate exposure cap");
     }
     if (input.isCrypto && (input.concentrationPercent ?? 0) > 0.05) {
-      label = capLabel(label, "Watch");
-      guardrails.push("Crypto allocation cap");
+      applyCap("Watch", "Crypto allocation cap");
     }
     if (input.durationMismatch) {
-      label = capLabel(label, "Hold");
-      guardrails.push("Bond duration and rate regime mismatch cap");
+      applyCap("Hold", "Bond duration and rate regime mismatch cap");
     }
 
     return { label, guardrails };

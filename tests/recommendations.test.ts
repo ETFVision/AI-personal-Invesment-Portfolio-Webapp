@@ -150,6 +150,29 @@ function fundamentals(score = 82, valuation = 64): FundamentalsSummaryRow {
   };
 }
 
+function highQualityExpensiveFundamentals(): FundamentalsSummaryRow {
+  const row = fundamentals(95, 10);
+  return {
+    ...row,
+    latestScore: row.latestScore ? {
+      ...row.latestScore,
+      growthScore: 92,
+      profitabilityScore: 96,
+      balanceSheetScore: 88,
+      cashFlowScore: 94,
+      qualityScore: 95,
+      overallFundamentalScore: 95,
+      valuationScore: 10
+    } : null,
+    latestTrendSummary: row.latestTrendSummary ? {
+      ...row.latestTrendSummary,
+      overallTrendScore: 95,
+      overallConfidenceScore: 90,
+      overallTrendDirection: "improving"
+    } : null
+  };
+}
+
 function marketVisionReport(overrides: Partial<MarketVisionReport> = {}): MarketVisionReport {
   return {
     id: "mv-1",
@@ -250,6 +273,35 @@ test("guardrails cap weak fundamentals and low confidence", () => {
   assert.equal(rules.applyGuardrails({ label: "Strong Buy", confidenceScore: 80, concentrationPercent: 0.3 }).label, "Hold");
 });
 
+test("confidence score reflects completeness and signal conflict", () => {
+  const aligned = rules.confidenceScore([
+    { key: "a", label: "A", score: 72, weight: 0.5, reason: "Aligned" },
+    { key: "b", label: "B", score: 70, weight: 0.3, reason: "Aligned" },
+    { key: "c", label: "C", score: 68, weight: 0.2, reason: "Aligned" }
+  ], 70);
+  const conflicted = rules.confidenceScore([
+    { key: "a", label: "A", score: 82, weight: 0.5, reason: "Strong" },
+    { key: "b", label: "B", score: 35, weight: 0.3, reason: "Weak" },
+    { key: "c", label: "C", score: null, weight: 0.2, reason: "Missing" }
+  ], 70);
+
+  assert.ok(aligned > conflicted);
+  assert.ok(aligned > 75);
+  assert.ok(conflicted < 60);
+});
+
+test("guardrails are only recorded when they change the label", () => {
+  const result = rules.applyGuardrails({
+    label: "Watch",
+    confidenceScore: 80,
+    duplicateExposure: true,
+    concentrationPercent: 0.02
+  });
+
+  assert.equal(result.label, "Watch");
+  assert.deepEqual(result.guardrails, []);
+});
+
 test("stock recommendation uses fundamentals, trends, risk and portfolio fit", () => {
   const result = new StockRecommendationService(rules).evaluate(input());
   assert.ok((result.overallScore ?? 0) >= 70);
@@ -261,9 +313,21 @@ test("stock recommendation uses fundamentals, trends, risk and portfolio fit", (
 });
 
 test("stock recommendation caps poor valuation", () => {
-  const result = new StockRecommendationService(rules).evaluate(input({ fundamentals: fundamentals(80, 10) }));
-  assert.equal(result.recommendationLabel, "Watch");
-  assert.ok(result.guardrailsApplied.includes("Poor valuation cap"));
+  const result = new StockRecommendationService(rules).evaluate(input({
+    fundamentals: highQualityExpensiveFundamentals(),
+    riskMetric: { ...riskMetric, riskScore: 5 },
+    marketMetric: { ...marketMetric, dailyReturn: 0.04, ytdReturn: 0.5, oneYearReturn: 0.8 },
+    portfolioFit: {
+      score: 95,
+      concentrationPercent: 0.02,
+      duplicateExposure: false,
+      positiveDrivers: ["Adds a new sleeve"],
+      negativeDrivers: [],
+      dataLimitations: []
+    }
+  }));
+  assert.equal(result.recommendationLabel, "Hold");
+  assert.ok(result.guardrailsApplied.includes("Poor valuation quality-aware cap"));
 });
 
 test("weak component scores do not use positive driver wording", () => {
@@ -286,13 +350,23 @@ test("risk analytics wording reflects moderate risk scores", () => {
 
 test("Market Vision cannot override hard guardrails", () => {
   const result = new StockRecommendationService(rules).evaluate(input({
-    fundamentals: fundamentals(80, 10),
+    fundamentals: highQualityExpensiveFundamentals(),
+    riskMetric: { ...riskMetric, riskScore: 5 },
+    marketMetric: { ...marketMetric, dailyReturn: 0.04, ytdReturn: 0.5, oneYearReturn: 0.8 },
+    portfolioFit: {
+      score: 95,
+      concentrationPercent: 0.02,
+      duplicateExposure: false,
+      positiveDrivers: ["Adds a new sleeve"],
+      negativeDrivers: [],
+      dataLimitations: []
+    },
     marketVisionReport: marketVisionReport({
       executiveSummary: "Technology and AI / Automation have a powerful opportunity and supportive tailwind."
     })
   }));
-  assert.equal(result.recommendationLabel, "Watch");
-  assert.ok(result.guardrailsApplied.includes("Poor valuation cap"));
+  assert.equal(result.recommendationLabel, "Hold");
+  assert.ok(result.guardrailsApplied.includes("Poor valuation quality-aware cap"));
 });
 
 test("ETF, bond, gold and crypto services return deterministic labels", () => {
