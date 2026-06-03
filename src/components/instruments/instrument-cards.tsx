@@ -81,14 +81,27 @@ function scoreValue(value: unknown) {
 
 function scoreComponents(recommendation: InstrumentRecommendation) {
   const components = recommendation.scoringBreakdown.components;
-  if (!Array.isArray(components)) return [];
-  return components.map((component) => ({
+  const rows = Array.isArray(components) ? components.map((component) => ({
     key: String((component as Record<string, unknown>).key ?? ""),
     label: String((component as Record<string, unknown>).label ?? ""),
     score: (component as Record<string, unknown>).score,
     weight: (component as Record<string, unknown>).weight,
     reason: String((component as Record<string, unknown>).reason ?? "")
-  })).filter((component) => component.label);
+  })).filter((component) => component.label) : [];
+
+  if (!rows.some((component) => component.key === "market_vision_alignment")) {
+    const type = recommendation.instrumentType.toLowerCase();
+    const weight = type.includes("stock") ? 0.1 : type.includes("crypto") ? 0.03 : type.includes("etf") || type.includes("gold") ? 0.05 : 0.05;
+    rows.push({
+      key: "market_vision_alignment",
+      label: "Market Vision Alignment",
+      score: null,
+      weight,
+      reason: "Not stored in this recommendation run yet. Run recommendations again after the hardening migration."
+    });
+  }
+
+  return rows;
 }
 
 function scoringLabel(recommendation: InstrumentRecommendation, key: "baseLabel" | "finalLabel") {

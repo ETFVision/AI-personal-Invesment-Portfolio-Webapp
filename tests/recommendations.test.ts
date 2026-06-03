@@ -312,3 +312,46 @@ test("ETF, bond, gold and crypto services return deterministic labels", () => {
   assert.notEqual(new GoldRecommendationService(rules).evaluate(input({ instrument: instrument({ assetClass: "gold_etf", instrumentType: "gold_etf", canonicalSector: "Commodities / Gold" }), fundamentals: null })).recommendationLabel, "Not Applicable");
   assert.notEqual(new CryptoRecommendationService(rules).evaluate(input({ instrument: instrument({ assetClass: "crypto", instrumentType: "crypto", canonicalSector: "Crypto" }), fundamentals: null })).recommendationLabel, "Not Applicable");
 });
+
+test("Market Vision alignment is included for every supported recommendation type", () => {
+  const cases = [
+    new StockRecommendationService(rules).evaluate(input()),
+    new EtfRecommendationService(rules).evaluate(input({ instrument: instrument({ assetClass: "etf", instrumentType: "etf" }), fundamentals: null })),
+    new BondEtfRecommendationService(rules).evaluate(input({
+      instrument: instrument({ assetClass: "bond_etf", instrumentType: "bond_etf", canonicalSector: "Bonds / Fixed Income" }),
+      fundamentals: null,
+      bondProfile: {
+        instrumentId: "instrument-1",
+        symbol: "BND",
+        durationCategory: "intermediate",
+        treasuryClassification: "aggregate",
+        inflationLinked: false,
+        creditQuality: "mixed",
+        geoExposure: "US",
+        rateSensitivity: "medium",
+        inflationSensitivity: "moderate",
+        recessionSensitivity: "mixed",
+        liquidityRole: "stability",
+        currency: "USD",
+        secYield: null,
+        distributionYield: null,
+        yieldToMaturity: null,
+        yieldAsOfDate: null,
+        effectiveDuration: null,
+        averageMaturity: null,
+        spreadDuration: null,
+        optionAdjustedSpread: null,
+        expenseRatio: null,
+        isManualOverride: true,
+        updatedAt: null,
+        providerMetadata: {}
+      }
+    })),
+    new GoldRecommendationService(rules).evaluate(input({ instrument: instrument({ assetClass: "gold_etf", instrumentType: "gold_etf", canonicalSector: "Commodities / Gold" }), fundamentals: null })),
+    new CryptoRecommendationService(rules).evaluate(input({ instrument: instrument({ assetClass: "crypto", instrumentType: "crypto", canonicalSector: "Crypto" }), fundamentals: null }))
+  ];
+
+  for (const result of cases) {
+    assert.ok((result.scoringBreakdown.components as Array<{ key: string }>).some((component) => component.key === "market_vision_alignment"));
+  }
+});
