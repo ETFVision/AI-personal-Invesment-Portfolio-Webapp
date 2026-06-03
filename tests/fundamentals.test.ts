@@ -277,6 +277,71 @@ test("fundamental scoring produces deterministic scores and confidence", () => {
   assert.match(score.explanation, /Deterministic fundamentals score/);
 });
 
+test("fundamental scoring gives quality growth stocks a bounded valuation adjustment", () => {
+  const service = new FundamentalScoringService();
+  const baseRatio: FinancialRatio = {
+    instrumentId: "inst-msft",
+    symbol: "MSFT",
+    period: "annual",
+    fiscalYear: 2025,
+    fiscalQuarter: 0,
+    reportDate: "2025-12-31",
+    peRatio: 70,
+    forwardPe: 60,
+    priceToSales: 18,
+    priceToBook: 14,
+    evToEbitda: 38,
+    evToSales: 20,
+    grossMargin: 0.68,
+    operatingMargin: 0.42,
+    netMargin: 0.32,
+    roe: 0.35,
+    roic: 0.3,
+    roa: 0.18,
+    debtToEquity: 0.4,
+    netDebtToEbitda: 0.8,
+    currentRatio: 1.8,
+    quickRatio: 1.4,
+    freeCashFlowYield: 0.015,
+    revenueGrowth: 0.18,
+    epsGrowth: 0.22,
+    netIncomeGrowth: 0.2,
+    freeCashFlowGrowth: 0.19,
+    provider: "test",
+    providerMetadata: {}
+  };
+  const score = service.calculateScore({
+    instrumentId: "inst-msft",
+    symbol: "MSFT",
+    profile: {
+      instrumentId: "inst-msft",
+      symbol: "MSFT",
+      companyName: "Microsoft Corporation",
+      sector: "Technology",
+      industry: "Software",
+      country: "US",
+      exchange: "NASDAQ",
+      currency: "USD",
+      marketCap: 3_000_000_000_000,
+      beta: null,
+      description: null,
+      website: null,
+      ceo: null,
+      ipoDate: null,
+      employees: null,
+      lastRefreshedAt: null,
+      provider: "test",
+      providerMetadata: {}
+    },
+    ratios: [baseRatio],
+    statements: []
+  });
+
+  assert.ok((score.valuationScore ?? 0) >= 28);
+  assert.ok((score.inputsSnapshot.rawValuationScore as number) < score.valuationScore!);
+  assert.ok((score.inputsSnapshot.valuationAdjustment as number) > 0);
+});
+
 test("fundamentals refresh derives missing ratios from financial statements", () => {
   const ratios = fundamentalsRefreshInternals.deriveMissingRatios({
     instrumentId: "inst-msft",

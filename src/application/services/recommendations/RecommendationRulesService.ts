@@ -49,9 +49,15 @@ export class RecommendationRulesService {
     const hasStrongAndWeakSignals = scores.some((score) => score >= 70) && scores.some((score) => score < 45);
     const completenessBonus = availableRatio >= 0.95 ? 8 : availableRatio >= 0.8 ? 4 : 0;
     const agreementBonus = dispersion > 0 && dispersion < 12 ? 5 : 0;
+    const strategicAgreementBonus =
+      (available.find((component) => component.key === "fundamentals")?.score ?? 0) >= 70 &&
+      (available.find((component) => component.key === "market_vision_alignment")?.score ?? 0) >= 70 &&
+      (available.find((component) => component.key === "theme_alignment")?.score ?? 0) >= 70
+        ? 5
+        : 0;
     const conflictPenalty = hasStrongAndWeakSignals ? 8 : 0;
     const dispersionPenalty = Math.min(12, dispersion * 0.25);
-    return clamp(baseConfidence * availableRatio + completenessBonus + agreementBonus - conflictPenalty - dispersionPenalty);
+    return clamp(baseConfidence * availableRatio + completenessBonus + agreementBonus + strategicAgreementBonus - conflictPenalty - dispersionPenalty);
   }
 
   labelFromScore(score: number | null): RecommendationLabel {

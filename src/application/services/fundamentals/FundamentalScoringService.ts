@@ -46,6 +46,48 @@ function scoreHigherBetter(value: number | null, poor: number, excellent: number
   return clamp((value - poor) / (excellent - poor) * 80 + 10);
 }
 
+function isQualityGrowthSector(profile: CompanyProfile | null) {
+  const text = `${profile?.sector ?? ""} ${profile?.industry ?? ""}`.toLowerCase();
+  return [
+    "technology",
+    "communication",
+    "semiconductor",
+    "software",
+    "internet",
+    "healthcare",
+    "biotechnology",
+    "pharmaceutical"
+  ].some((term) => text.includes(term));
+}
+
+function qualityAdjustedValuationScore(input: {
+  rawValuationScore: number | null;
+  growthScore: number | null;
+  profitabilityScore: number | null;
+  cashFlowScore: number | null;
+  qualityScore: number | null;
+  profile: CompanyProfile | null;
+}) {
+  if (input.rawValuationScore == null) return null;
+  const qualityComposite = average([
+    input.growthScore,
+    input.profitabilityScore,
+    input.cashFlowScore,
+    input.qualityScore
+  ]);
+  const isLargeCap = (input.profile?.marketCap ?? 0) >= 50_000_000_000;
+  const isQualityGrowth = isLargeCap && isQualityGrowthSector(input.profile) && (qualityComposite ?? 0) >= 70;
+  if (!isQualityGrowth || input.rawValuationScore >= 55) return input.rawValuationScore;
+
+  const premiumTolerance =
+    (qualityComposite ?? 0) >= 85 ? 22 :
+    (qualityComposite ?? 0) >= 78 ? 17 :
+    12;
+  const growthBonus = (input.growthScore ?? 0) >= 70 ? 4 : 0;
+  const adjusted = input.rawValuationScore + premiumTolerance + growthBonus;
+  return clamp(Math.max(adjusted, 28), 0, 55);
+}
+
 function latestStatement(statements: FinancialStatement[], type: FinancialStatement["statementType"]) {
   return statements
     .filter((statement) => statement.statementType === type)
@@ -110,7 +152,7 @@ export class FundamentalScoringService {
 
     const growthScore = average(growthInputs.map((value) => scorePositivePercent(value ?? null)));
     const profitabilityScore = average(profitabilityInputs);
-    const valuationScore = average(valuationInputs);
+    const rawValuationScore = average(valuationInputs);
     const balanceSheetScore = average(balanceInputs);
     const cashFlowScore = average(cashFlowInputs);
     const qualityScore = average([
@@ -120,6 +162,14 @@ export class FundamentalScoringService {
       scoreReturn(latestRatio?.roic ?? null),
       scoreMargin(latestRatio?.operatingMargin ?? null)
     ]);
+    const valuationScore = qualityAdjustedValuationScore({
+      rawValuationScore,
+      growthScore,
+      profitabilityScore,
+      cashFlowScore,
+      qualityScore,
+      profile: input.profile
+    });
 
     const weightedCandidates: Array<{ score: number | null; weight: number }> = [
       { score: growthScore, weight: FUNDAMENTAL_SCORE_WEIGHTS.growth },
@@ -154,7 +204,7 @@ export class FundamentalScoringService {
     const explanation =
       overallFundamentalScore == null
         ? "Insufficient normalized fundamentals to calculate a reliable score."
-        : `Deterministic fundamentals score from growth, profitability, valuation, balance sheet, cash flow, and quality inputs. Sector-aware peer medians are reserved for a later phase.`;
+        : `Deterministic fundamentals score from growth, profitability, quality-adjusted valuation, balance sheet, cash flow, and quality inputs.`;
 
     return {
       instrumentId: input.instrumentId,
@@ -175,6 +225,8 @@ export class FundamentalScoringService {
         latestIncomeStatement: income,
         latestCashFlowStatement: cashFlow,
         latestBalanceSheet: balanceSheet,
+        rawValuationScore,
+        valuationAdjustment: rawValuationScore == null || valuationScore == null ? null : valuationScore - rawValuationScore,
         weights: FUNDAMENTAL_SCORE_WEIGHTS
       }
     };
@@ -186,5 +238,6 @@ export const fundamentalScoringInternals = {
   scoreLowerBetter,
   scoreHigherBetter,
   scoreMargin,
+  qualityAdjustedValuationScore,
   FUNDAMENTAL_SCORE_WEIGHTS
 };

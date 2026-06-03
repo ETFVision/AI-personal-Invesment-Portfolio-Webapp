@@ -290,6 +290,23 @@ test("confidence score reflects completeness and signal conflict", () => {
   assert.ok(conflicted < 60);
 });
 
+test("confidence score rewards strategic agreement across fundamentals, Market Vision and themes", () => {
+  const generic = rules.confidenceScore([
+    { key: "a", label: "A", score: 78, weight: 0.3, reason: "Aligned" },
+    { key: "b", label: "B", score: 74, weight: 0.1, reason: "Aligned" },
+    { key: "c", label: "C", score: 80, weight: 0.1, reason: "Aligned" },
+    { key: "risk_analytics", label: "Risk", score: 58, weight: 0.1, reason: "Moderate risk" }
+  ], 70);
+  const strategic = rules.confidenceScore([
+    { key: "fundamentals", label: "Fundamentals", score: 78, weight: 0.3, reason: "Aligned" },
+    { key: "market_vision_alignment", label: "Market Vision", score: 74, weight: 0.1, reason: "Aligned" },
+    { key: "theme_alignment", label: "Theme", score: 80, weight: 0.1, reason: "Aligned" },
+    { key: "risk_analytics", label: "Risk", score: 58, weight: 0.1, reason: "Moderate risk" }
+  ], 70);
+
+  assert.ok(strategic > generic);
+});
+
 test("guardrails are only recorded when they change the label", () => {
   const result = rules.applyGuardrails({
     label: "Watch",
