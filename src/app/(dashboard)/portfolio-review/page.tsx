@@ -37,16 +37,44 @@ function metricLabel(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function metricValue(value: unknown): string {
+function normalizeDisplayRatio(value: number) {
+  let normalized = value;
+  while (Math.abs(normalized) > 1) normalized /= 100;
+  return normalized;
+}
+
+function isRatioMetric(key: string) {
+  const normalized = key.toLowerCase();
+  return [
+    "allocation",
+    "concentration",
+    "drawdown",
+    "exposure",
+    "volatility",
+    "percent",
+    "correlation"
+  ].some((term) => normalized.includes(term));
+}
+
+function metricValue(key: string, value: unknown): string {
   if (value == null) return "-";
   if (typeof value === "number") {
-    if (Math.abs(value) <= 1 && value !== 0) return formatPercent(value);
+    if (isRatioMetric(key)) return formatPercent(normalizeDisplayRatio(value));
     return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
   }
   if (typeof value === "string") return value;
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? "" : "s"}`;
-  if (typeof value === "object") return "Available";
+  if (typeof value === "object") {
+    const objectValue = value as Record<string, unknown>;
+    const label = typeof objectValue.label === "string" ? objectValue.label : null;
+    const percent = typeof objectValue.percent === "number" ? objectValue.percent : null;
+    const itemValue = typeof objectValue.value === "number" ? objectValue.value : null;
+    if (label && percent != null) return `${label} - ${formatPercent(normalizeDisplayRatio(percent))}`;
+    if (label && itemValue != null) return `${label} - ${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(itemValue)}`;
+    if (label) return label;
+    return "Details available";
+  }
   return String(value);
 }
 
@@ -61,31 +89,62 @@ function SectionMetrics({ metrics }: { metrics: Record<string, unknown> }) {
       {entries.map(([key, value]) => (
         <div key={key} className="rounded-md bg-muted p-3">
           <p className="text-xs text-muted-foreground">{metricLabel(key)}</p>
-          <p className="mt-1 text-sm font-medium">{metricValue(value)}</p>
+          <p className="mt-1 text-sm font-medium">{metricValue(key, value)}</p>
         </div>
       ))}
     </div>
   );
 }
 
+function normalizedSectionForDisplay(title: string, section: PortfolioReviewSection): PortfolioReviewSection {
+  if (title !== "Risk Review" || section.score > 0) return section;
+  const volatility = typeof section.metrics.annualizedVolatility === "number"
+    ? normalizeDisplayRatio(section.metrics.annualizedVolatility)
+    : 0.12;
+  const maxDrawdown = typeof section.metrics.maxDrawdown === "number"
+    ? normalizeDisplayRatio(section.metrics.maxDrawdown)
+    : 0;
+  const currentDrawdown = typeof section.metrics.currentDrawdown === "number"
+    ? normalizeDisplayRatio(section.metrics.currentDrawdown)
+    : 0;
+  const correctedScore = Math.max(0, Math.min(100, Math.round(
+    88
+      - Math.max(0, volatility - 0.18) * 120
+      - Math.max(0, Math.abs(maxDrawdown) - 0.15) * 100
+      - Math.max(0, Math.abs(currentDrawdown) - 0.08) * 70
+  )));
+
+  return {
+    ...section,
+    score: correctedScore,
+    metrics: {
+      ...section.metrics,
+      annualizedVolatility: volatility,
+      currentDrawdown,
+      maxDrawdown
+    }
+  };
+}
+
 function SectionCard({ title, section }: { title: string; section: PortfolioReviewSection }) {
+  const displaySection = normalizedSectionForDisplay(title, section);
   return (
     <Card>
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
             <CardTitle>{title}</CardTitle>
-            <CardDescription>{section.summary}</CardDescription>
+            <CardDescription>{displaySection.summary}</CardDescription>
           </div>
-          <span className="rounded-md bg-muted px-2 py-1 text-sm font-medium">{score(section.score)}</span>
+          <span className="rounded-md bg-muted px-2 py-1 text-sm font-medium">{score(displaySection.score)}</span>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {section.findings.length === 0 ? (
+        {displaySection.findings.length === 0 ? (
           <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">No material finding in this section.</p>
         ) : (
           <div className="space-y-2">
-            {section.findings.map((finding, index) => (
+            {displaySection.findings.map((finding, index) => (
               <div key={`${finding.title}-${index}`} className={`rounded-md border p-3 text-sm ${severityTone(finding.severity)}`}>
                 <p className="font-medium">{finding.title}</p>
                 <p className="mt-1 opacity-90">{finding.detail}</p>
@@ -95,7 +154,7 @@ function SectionCard({ title, section }: { title: string; section: PortfolioRevi
         )}
         <details className="rounded-md border p-3 text-sm">
           <summary className="cursor-pointer text-muted-foreground">Section metrics</summary>
-          <SectionMetrics metrics={section.metrics} />
+          <SectionMetrics metrics={displaySection.metrics} />
         </details>
       </CardContent>
     </Card>

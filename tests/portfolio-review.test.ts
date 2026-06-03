@@ -119,11 +119,13 @@ test("risk review normalizes percent-style drawdowns before scoring", () => {
   const review = new PortfolioRiskReviewService().review(context({
     riskReport: {
       ...context().riskReport,
+      volatility: { metrics: [{ label: "1Y", value: 951, observations: 252 }], trend: [] },
       drawdown: { currentDrawdown: -18.59, maxDrawdown: -37.56, drawdownDurationDays: 12, points: [] }
     } as any
   }));
 
   assert.ok(review.score > 0);
+  assert.ok(Math.abs(Number(review.metrics.annualizedVolatility) - 0.0951) < 0.000001);
   assert.ok(Math.abs(Number(review.metrics.currentDrawdown) - -0.1859) < 0.000001);
   assert.ok(Math.abs(Number(review.metrics.maxDrawdown) - -0.3756) < 0.000001);
 });

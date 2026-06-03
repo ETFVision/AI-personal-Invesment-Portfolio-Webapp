@@ -2,7 +2,9 @@ import { finding, section, type PortfolioReviewInputContext } from "./portfolioR
 
 function normalizeRatio(value: number | null) {
   if (value == null || !Number.isFinite(value)) return 0;
-  return Math.abs(value) > 1 ? value / 100 : value;
+  let normalized = value;
+  while (Math.abs(normalized) > 1) normalized /= 100;
+  return normalized;
 }
 
 export class PortfolioRiskReviewService {
