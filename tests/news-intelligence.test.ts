@@ -12,6 +12,7 @@ import { GdeltRelevanceService } from "../src/application/services/news/GdeltRel
 import { GdeltThemeMappingService } from "../src/application/services/news/GdeltThemeMappingService";
 import { GlobalNewsIngestionService, globalNewsIngestionInternals } from "../src/application/services/news/GlobalNewsIngestionService";
 import { SourceQualityService, sourceQualityInternals } from "../src/application/services/news/SourceQualityService";
+import { compareDueQueryGroups } from "../src/application/services/news/gdeltQueryOrdering";
 import { isCronSecretValid } from "../src/application/services/news/cronSecret";
 import { GdeltNormalizationService, gdeltNormalizationInternals } from "../src/infrastructure/providers/news/GdeltNormalizationService";
 import { GdeltNewsProvider as RealGdeltNewsProvider, gdeltProviderInternals } from "../src/infrastructure/providers/news/GdeltNewsProvider";
@@ -1575,6 +1576,33 @@ test("GDELT ingestion processes only the next due query group batch", async () =
   assert.equal(result.articlesInserted, 1);
   assert.equal(gdeltRepository.logs.find((log) => log.queryGroupId === "success")?.status, "success");
   assert.equal(gdeltRepository.logs.find((log) => log.queryGroupId === "queued"), undefined);
+});
+
+test("GDELT due query ordering prioritizes never-successful queued groups", () => {
+  const ordered = [
+    gdeltQueryGroup({
+      queryKey: "global_credit_stress",
+      nextRunAt: "2026-06-03T03:00:00.000Z",
+      lastAttemptedAt: "2026-06-03T02:00:00.000Z",
+      lastSuccessAt: "2026-06-02T10:00:00.000Z"
+    }),
+    gdeltQueryGroup({
+      queryKey: "geopolitical_risk",
+      nextRunAt: "2026-06-03T03:47:00.000Z",
+      lastAttemptedAt: "2026-06-03T02:12:00.000Z",
+      lastSuccessAt: null
+    }),
+    gdeltQueryGroup({
+      queryKey: "growth_recession",
+      nextRunAt: "2026-06-03T03:47:00.000Z",
+      lastAttemptedAt: "2026-06-03T02:14:00.000Z",
+      lastSuccessAt: null
+    })
+  ].sort(compareDueQueryGroups);
+
+  assert.equal(ordered[0]?.queryKey, "geopolitical_risk");
+  assert.equal(ordered[1]?.queryKey, "growth_recession");
+  assert.equal(ordered[2]?.queryKey, "global_credit_stress");
 });
 
 test("GDELT ingestion backs off failed due groups", async () => {

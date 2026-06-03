@@ -117,8 +117,9 @@ export class GdeltNewsProvider implements GdeltNewsProviderPort {
     const seen = new Set<string>();
     const maxPerTerm = Math.max(1, Math.ceil(maxArticles / Math.min(terms.length, 4)));
     let lastError: Error | null = null;
-    for (const term of terms) {
+    for (const [index, term] of terms.entries()) {
       if (articles.length >= maxArticles) break;
+      if (index > 0) await sleep(2_000);
       try {
         const payload = await fetchJsonWithRetry(buildUrl({ query: term, maxArticles: maxPerTerm, recentWindowHours }));
         for (const row of Array.isArray(payload.articles) ? payload.articles : []) {

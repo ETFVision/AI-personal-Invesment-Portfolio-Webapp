@@ -4,6 +4,7 @@ import type {
   UpdateGdeltQueryGroupScheduleInput,
   UpsertGdeltArticleMetadataInput
 } from "@/application/ports/repositories/GdeltRepository";
+import { compareDueQueryGroups } from "@/application/services/news/gdeltQueryOrdering";
 import type { GdeltIngestionLog, GdeltQueryGroup, NewsCanonicalTheme } from "@/domain/news/types";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 import { isJwtIssuedAtFutureError } from "./supabaseErrors";
@@ -79,11 +80,10 @@ export class SupabaseGdeltRepository implements GdeltRepository {
       .or(`next_run_at.is.null,next_run_at.lte.${input.now}`)
       .order("next_run_at", { ascending: true, nullsFirst: true })
       .order("last_attempted_at", { ascending: true, nullsFirst: true })
-      .order("query_key")
-      .limit(input.limit);
+      .order("query_key");
     if (missing(error)) return [];
     if (error) throw new Error(error.message);
-    return (data ?? []).map(mapQueryGroup);
+    return (data ?? []).map(mapQueryGroup).sort(compareDueQueryGroups).slice(0, input.limit);
   }
 
   async updateQueryGroupSchedule(input: UpdateGdeltQueryGroupScheduleInput) {
