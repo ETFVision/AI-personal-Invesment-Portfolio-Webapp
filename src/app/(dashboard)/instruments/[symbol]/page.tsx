@@ -42,6 +42,12 @@ function trendLabel(value: string | null | undefined) {
   return value ? value.replaceAll("_", " ") : "-";
 }
 
+function displayPeriodLabel(value: string | null | undefined) {
+  if (value === "annual") return "annual";
+  if (value === "quarterly") return "quarterly";
+  return "period";
+}
+
 function trendValue(value: number | null | undefined, metricName: string) {
   if (value == null) return "-";
   if (metricName.includes("margin") || metricName.includes("growth") || ["roe", "roic", "roa"].includes(metricName)) {
@@ -184,8 +190,8 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
                         <thead className="border-b uppercase text-muted-foreground">
                           <tr>
                             <th className="py-2 pr-3">Metric</th>
-                            <th className="py-2 pr-3">Current</th>
-                            <th className="py-2 pr-3">Previous</th>
+                            <th className="py-2 pr-3">Latest shown</th>
+                            <th className="py-2 pr-3">Prior shown</th>
                             <th className="py-2 pr-3">Short term</th>
                             <th className="py-2 pr-3">Long term</th>
                             <th className="py-2 pr-3">Overall</th>
@@ -198,8 +204,14 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
                           {rows.map((trend) => (
                             <tr key={trend.metricName} className="border-b align-top last:border-0">
                               <td className="py-2 pr-3 font-medium capitalize">{trend.metricName.replaceAll("_", " ")}</td>
-                              <td className="py-2 pr-3">{trendValue(trend.currentValue, trend.metricName)}</td>
-                              <td className="py-2 pr-3">{trendValue(trend.previousValue, trend.metricName)}</td>
+                              <td className="py-2 pr-3">
+                                {trendValue(trend.currentValue, trend.metricName)}
+                                <div className="text-[11px] text-muted-foreground">{displayPeriodLabel(trend.displayPeriod)}</div>
+                              </td>
+                              <td className="py-2 pr-3">
+                                {trendValue(trend.previousValue, trend.metricName)}
+                                <div className="text-[11px] text-muted-foreground">{displayPeriodLabel(trend.displayPeriod)}</div>
+                              </td>
                               <td className="py-2 pr-3 capitalize">{trendLabel(trend.shortTermTrendDirection)} ({trend.shortTermPeriodsAnalyzed})</td>
                               <td className="py-2 pr-3 capitalize">{trendLabel(trend.longTermTrendDirection)} ({trend.longTermPeriodsAnalyzed})</td>
                               <td className="py-2 pr-3 capitalize">{trendLabel(trend.overallTrendDirection)}</td>

@@ -569,30 +569,43 @@ test("fundamental trend service treats falling debt-to-equity as improving", () 
 
 test("fundamental trend service derives growth trends from stored quarterly statements when FMP growth ratios are sparse", () => {
   const service = new FundamentalTrendCalculationService();
+  const quarterlyRevenue = [80, 84, 88, 92, 100, 110, 124, 142, 166];
+  const quarterlyEps = [0.8, 0.85, 0.9, 0.95, 1.05, 1.18, 1.38, 1.65, 2.02];
+  const quarterlyEbitda = [24, 26, 28, 30, 34, 39, 47, 58, 74];
+  const quarterlyFcf = [12, 13, 14, 15, 18, 22, 29, 39, 54];
+  const incomeStatements = quarterlyRevenue.map((revenue, index) => {
+    const year = index < 4 ? 2024 : index < 8 ? 2025 : 2026;
+    const quarter = (index % 4) + 1;
+    return trendStatement({
+      statementType: "income_statement",
+      period: "quarterly",
+      year,
+      quarter,
+      revenue,
+      netIncome: quarterlyEps[index] * 20,
+      dilutedEps: quarterlyEps[index],
+      ebitda: quarterlyEbitda[index]
+    });
+  });
+  const cashFlowStatements = quarterlyFcf.map((freeCashFlow, index) => {
+    const year = index < 4 ? 2024 : index < 8 ? 2025 : 2026;
+    const quarter = (index % 4) + 1;
+    return trendStatement({ statementType: "cash_flow", period: "quarterly", year, quarter, freeCashFlow });
+  });
   const result = service.calculate({
     instrumentId: "inst-AAPL",
     symbol: "AAPL",
     scores: [],
     ratios: [],
-    statements: [
-      trendStatement({ statementType: "income_statement", period: "quarterly", year: 2025, quarter: 1, revenue: 100, netIncome: 20, dilutedEps: 1, ebitda: 30 }),
-      trendStatement({ statementType: "income_statement", period: "quarterly", year: 2025, quarter: 2, revenue: 108, netIncome: 23, dilutedEps: 1.15, ebitda: 34 }),
-      trendStatement({ statementType: "income_statement", period: "quarterly", year: 2025, quarter: 3, revenue: 120, netIncome: 28, dilutedEps: 1.4, ebitda: 40 }),
-      trendStatement({ statementType: "income_statement", period: "quarterly", year: 2025, quarter: 4, revenue: 135, netIncome: 35, dilutedEps: 1.75, ebitda: 50 }),
-      trendStatement({ statementType: "income_statement", period: "quarterly", year: 2026, quarter: 1, revenue: 155, netIncome: 44, dilutedEps: 2.2, ebitda: 62 }),
-      trendStatement({ statementType: "cash_flow", period: "quarterly", year: 2025, quarter: 1, freeCashFlow: 15 }),
-      trendStatement({ statementType: "cash_flow", period: "quarterly", year: 2025, quarter: 2, freeCashFlow: 18 }),
-      trendStatement({ statementType: "cash_flow", period: "quarterly", year: 2025, quarter: 3, freeCashFlow: 23 }),
-      trendStatement({ statementType: "cash_flow", period: "quarterly", year: 2025, quarter: 4, freeCashFlow: 30 }),
-      trendStatement({ statementType: "cash_flow", period: "quarterly", year: 2026, quarter: 1, freeCashFlow: 39 })
-    ]
+    statements: [...incomeStatements, ...cashFlowStatements]
   });
 
   const revenue = result.trends.find((trend) => trend.metricName === "revenue_growth");
   const eps = result.trends.find((trend) => trend.metricName === "eps_growth");
   const fcf = result.trends.find((trend) => trend.metricName === "free_cash_flow_growth");
   const ebitda = result.trends.find((trend) => trend.metricName === "ebitda_growth");
-  assert.equal(revenue?.shortTermPeriodsAnalyzed, 4);
+  assert.equal(revenue?.shortTermPeriodsAnalyzed, 5);
+  assert.equal(revenue?.displayPeriod, "quarterly");
   assert.notEqual(revenue?.shortTermTrendDirection, "insufficient_data");
   assert.notEqual(eps?.shortTermTrendDirection, "insufficient_data");
   assert.notEqual(fcf?.shortTermTrendDirection, "insufficient_data");

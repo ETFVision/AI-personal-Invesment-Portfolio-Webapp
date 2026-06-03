@@ -133,6 +133,8 @@ export type FundamentalTrend = {
   periodsAnalyzed: number;
   shortTermPeriodsAnalyzed: number;
   longTermPeriodsAnalyzed: number;
+  displayPeriod: FinancialPeriod | null;
+  displayWindow: "short_term" | "long_term" | null;
   asOfDate: string;
   explanation: string;
   inputsSnapshot: Record<string, unknown>;

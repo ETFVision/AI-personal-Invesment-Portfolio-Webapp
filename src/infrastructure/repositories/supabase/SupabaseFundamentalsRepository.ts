@@ -199,6 +199,8 @@ function mapFundamentalTrend(row: any): FundamentalTrend {
     periodsAnalyzed: Number(row.periods_analyzed ?? 0),
     shortTermPeriodsAnalyzed: Number(row.short_term_periods_analyzed ?? 0),
     longTermPeriodsAnalyzed: Number(row.long_term_periods_analyzed ?? 0),
+    displayPeriod: row.display_period ?? null,
+    displayWindow: row.display_window ?? null,
     asOfDate: row.as_of_date,
     explanation: row.explanation ?? "",
     inputsSnapshot: row.inputs_snapshot ?? {}
@@ -578,6 +580,8 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
       periods_analyzed: item.periodsAnalyzed,
       short_term_periods_analyzed: item.shortTermPeriodsAnalyzed,
       long_term_periods_analyzed: item.longTermPeriodsAnalyzed,
+      display_period: item.displayPeriod,
+      display_window: item.displayWindow,
       as_of_date: item.asOfDate,
       explanation: item.explanation,
       inputs_snapshot: item.inputsSnapshot

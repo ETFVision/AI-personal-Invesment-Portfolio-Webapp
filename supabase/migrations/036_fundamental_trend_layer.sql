@@ -25,6 +25,8 @@ create table if not exists fundamental_trends (
   periods_analyzed integer not null default 0,
   short_term_periods_analyzed integer not null default 0,
   long_term_periods_analyzed integer not null default 0,
+  display_period text check (display_period in ('annual', 'quarterly')),
+  display_window text check (display_window in ('short_term', 'long_term')),
   as_of_date date not null,
   explanation text not null default '',
   inputs_snapshot jsonb not null default '{}',

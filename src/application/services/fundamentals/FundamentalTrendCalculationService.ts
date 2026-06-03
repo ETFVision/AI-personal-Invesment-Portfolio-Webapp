@@ -178,7 +178,15 @@ function growthSeriesFromStatements(bundles: PeriodBundle[], selector: (bundle: 
     .sort((a, b) => a.date.localeCompare(b.date));
   const growthPoints: SeriesPoint[] = [];
   for (let index = 1; index < levels.length; index += 1) {
-    const calculated = growth(levels[index].value, levels[index - 1].value);
+    const current = levels[index];
+    const currentBundle = bundles.find((bundle) => bundle.reportDate === current.date);
+    const comparablePrior = currentBundle?.period === "quarterly"
+      ? levels.find((point) => {
+        const priorBundle = bundles.find((bundle) => bundle.reportDate === point.date);
+        return priorBundle?.fiscalYear === Number(currentBundle.fiscalYear) - 1 && priorBundle.fiscalQuarter === currentBundle.fiscalQuarter;
+      })
+      : levels[index - 1];
+    const calculated = growth(current.value, comparablePrior?.value);
     if (calculated != null) growthPoints.push({ date: levels[index].date, value: calculated });
   }
   return growthPoints.slice(-limit);
@@ -433,7 +441,8 @@ export class FundamentalTrendCalculationService {
       { value: shortTerm.confidence, weight: shortTerm.periodsAnalyzed > 0 ? 0.4 : 0 },
       { value: longTerm.confidence, weight: longTerm.periodsAnalyzed > 0 ? 0.6 : 0 }
     ]) ?? 20;
-    const primary = longTerm.direction !== "insufficient_data" ? longTerm : shortTerm;
+    const useLongTermDisplay = longTerm.direction !== "insufficient_data";
+    const primary = useLongTermDisplay ? longTerm : shortTerm;
 
     return {
       instrumentId: input.instrumentId,
@@ -458,6 +467,8 @@ export class FundamentalTrendCalculationService {
       periodsAnalyzed: Math.max(shortTerm.periodsAnalyzed, longTerm.periodsAnalyzed),
       shortTermPeriodsAnalyzed: shortTerm.periodsAnalyzed,
       longTermPeriodsAnalyzed: longTerm.periodsAnalyzed,
+      displayPeriod: useLongTermDisplay ? "annual" : shortTerm.periodsAnalyzed > 0 ? "quarterly" : null,
+      displayWindow: useLongTermDisplay ? "long_term" : shortTerm.periodsAnalyzed > 0 ? "short_term" : null,
       asOfDate,
       explanation: explanationFor(metric, overallTrendDirection, longTerm.direction !== "insufficient_data" ? "long-term" : "short-term", primary.currentValue),
       inputsSnapshot: {

@@ -243,7 +243,7 @@ export class FundamentalsRefreshService {
       try {
         const [annualResult, quarterlyResult] = await Promise.all([
           this.provider.getFundamentals(symbol, { period: "annual", limit: 5 }),
-          this.provider.getFundamentals(symbol, { period: "quarterly", limit: 5 })
+          this.provider.getFundamentals(symbol, { period: "quarterly", limit: 9 })
         ]);
         const providerProfile = annualResult.profile ?? quarterlyResult.profile;
         const profile: CompanyProfile | null = providerProfile
