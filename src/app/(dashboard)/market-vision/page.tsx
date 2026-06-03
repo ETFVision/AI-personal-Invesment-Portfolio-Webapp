@@ -16,7 +16,9 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
+import { NewsSummaryEligibilityService } from "@/application/services/news/NewsSummaryEligibilityService";
 import type { MacroContextCard, MacroContextIndicator } from "@/application/services/macro/MacroContextService";
+import type { NewsClassification, NewsItem } from "@/domain/news/types";
 import type { MarketThemeEvent, MarketVisionReport } from "@/domain/marketVision/types";
 
 type MarketVisionPageProps = {
@@ -186,6 +188,13 @@ function ThemeTable({ events }: { events: MarketThemeEvent[] }) {
   );
 }
 
+function eligibleGdeltInput(items: Array<NewsItem & { classification?: NewsClassification | null }>) {
+  const eligibilityService = new NewsSummaryEligibilityService();
+  return items
+    .filter((item): item is NewsItem & { classification: NewsClassification } => Boolean(item.classification))
+    .filter((item) => eligibilityService.isEligible(item));
+}
+
 function ReportEditor({ report }: { report: MarketVisionReport }) {
   return (
     <Card>
@@ -289,7 +298,9 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
   await container.authProvider.requireUser();
   const dashboard = await container.marketVisionService.getDashboard(params?.reportId);
   const latestWeeklyNews = await container.newsRepository.getLatestWeeklyReconciliation();
-  const latestGdeltNews = await container.newsRepository.listNewsWithClassifications({ sourceProvider: "gdelt", includeDuplicates: false, limit: 8 });
+  const latestGdeltNews = eligibleGdeltInput(
+    await container.newsRepository.listNewsWithClassifications({ sourceProvider: "gdelt", includeDuplicates: false, limit: 40 })
+  ).slice(0, 8);
   const macroDashboard = await container.macroDashboardService.getDashboard();
   const macroContext = container.macroContextService.buildContext(macroDashboard);
   const report = dashboard.selectedReport;
