@@ -474,6 +474,55 @@ function trendRatio(input: {
   };
 }
 
+function trendStatement(input: {
+  symbol?: string;
+  statementType: "income_statement" | "balance_sheet" | "cash_flow";
+  period: "annual" | "quarterly";
+  year: number;
+  quarter?: number;
+  revenue?: number | null;
+  operatingIncome?: number | null;
+  ebitda?: number | null;
+  netIncome?: number | null;
+  dilutedEps?: number | null;
+  freeCashFlow?: number | null;
+  totalAssets?: number | null;
+  shareholdersEquity?: number | null;
+  totalDebt?: number | null;
+  cashAndEquivalents?: number | null;
+  sharesOutstanding?: number | null;
+  providerMetadata?: Record<string, unknown>;
+}): FinancialStatement {
+  return {
+    instrumentId: `inst-${input.symbol ?? "AAPL"}`,
+    symbol: input.symbol ?? "AAPL",
+    statementType: input.statementType,
+    period: input.period,
+    fiscalYear: input.year,
+    fiscalQuarter: input.quarter ?? 0,
+    reportDate: input.period === "annual" ? `${input.year}-12-31` : `${input.year}-${String((input.quarter ?? 1) * 3).padStart(2, "0")}-30`,
+    filingDate: null,
+    revenue: input.revenue ?? null,
+    grossProfit: null,
+    operatingIncome: input.operatingIncome ?? null,
+    ebitda: input.ebitda ?? null,
+    netIncome: input.netIncome ?? null,
+    eps: null,
+    dilutedEps: input.dilutedEps ?? null,
+    totalAssets: input.totalAssets ?? null,
+    totalLiabilities: null,
+    shareholdersEquity: input.shareholdersEquity ?? null,
+    cashAndEquivalents: input.cashAndEquivalents ?? null,
+    totalDebt: input.totalDebt ?? null,
+    operatingCashFlow: null,
+    capitalExpenditure: null,
+    freeCashFlow: input.freeCashFlow ?? null,
+    sharesOutstanding: input.sharesOutstanding ?? null,
+    provider: "test",
+    providerMetadata: input.providerMetadata ?? {}
+  };
+}
+
 test("fundamental trend service detects improving and deteriorating growth trends", () => {
   const service = new FundamentalTrendCalculationService();
   const result = service.calculate({
@@ -516,6 +565,86 @@ test("fundamental trend service treats falling debt-to-equity as improving", () 
   const leverage = result.trends.find((trend) => trend.metricName === "debt_to_equity");
   assert.equal(leverage?.overallTrendDirection, "improving");
   assert.ok((leverage?.overallTrendScore ?? 0) >= 65);
+});
+
+test("fundamental trend service derives growth trends from stored quarterly statements when FMP growth ratios are sparse", () => {
+  const service = new FundamentalTrendCalculationService();
+  const result = service.calculate({
+    instrumentId: "inst-AAPL",
+    symbol: "AAPL",
+    scores: [],
+    ratios: [],
+    statements: [
+      trendStatement({ statementType: "income_statement", period: "quarterly", year: 2025, quarter: 1, revenue: 100, netIncome: 20, dilutedEps: 1, ebitda: 30 }),
+      trendStatement({ statementType: "income_statement", period: "quarterly", year: 2025, quarter: 2, revenue: 108, netIncome: 23, dilutedEps: 1.15, ebitda: 34 }),
+      trendStatement({ statementType: "income_statement", period: "quarterly", year: 2025, quarter: 3, revenue: 120, netIncome: 28, dilutedEps: 1.4, ebitda: 40 }),
+      trendStatement({ statementType: "income_statement", period: "quarterly", year: 2025, quarter: 4, revenue: 135, netIncome: 35, dilutedEps: 1.75, ebitda: 50 }),
+      trendStatement({ statementType: "income_statement", period: "quarterly", year: 2026, quarter: 1, revenue: 155, netIncome: 44, dilutedEps: 2.2, ebitda: 62 }),
+      trendStatement({ statementType: "cash_flow", period: "quarterly", year: 2025, quarter: 1, freeCashFlow: 15 }),
+      trendStatement({ statementType: "cash_flow", period: "quarterly", year: 2025, quarter: 2, freeCashFlow: 18 }),
+      trendStatement({ statementType: "cash_flow", period: "quarterly", year: 2025, quarter: 3, freeCashFlow: 23 }),
+      trendStatement({ statementType: "cash_flow", period: "quarterly", year: 2025, quarter: 4, freeCashFlow: 30 }),
+      trendStatement({ statementType: "cash_flow", period: "quarterly", year: 2026, quarter: 1, freeCashFlow: 39 })
+    ]
+  });
+
+  const revenue = result.trends.find((trend) => trend.metricName === "revenue_growth");
+  const eps = result.trends.find((trend) => trend.metricName === "eps_growth");
+  const fcf = result.trends.find((trend) => trend.metricName === "free_cash_flow_growth");
+  const ebitda = result.trends.find((trend) => trend.metricName === "ebitda_growth");
+  assert.equal(revenue?.shortTermPeriodsAnalyzed, 4);
+  assert.notEqual(revenue?.shortTermTrendDirection, "insufficient_data");
+  assert.notEqual(eps?.shortTermTrendDirection, "insufficient_data");
+  assert.notEqual(fcf?.shortTermTrendDirection, "insufficient_data");
+  assert.notEqual(ebitda?.shortTermTrendDirection, "insufficient_data");
+});
+
+test("fundamental trend service derives profitability and liquidity trends from stored statements when FMP ratios are missing", () => {
+  const service = new FundamentalTrendCalculationService();
+  const statements: FinancialStatement[] = [];
+  for (let index = 0; index < 5; index += 1) {
+    const year = 2021 + index;
+    statements.push(
+      trendStatement({
+        statementType: "income_statement",
+        period: "annual",
+        year,
+        revenue: 100 + index * 10,
+        operatingIncome: 30 + index * 5,
+        netIncome: 20 + index * 3,
+        sharesOutstanding: 100 - index * 2,
+        providerMetadata: { interestExpense: 10 - index }
+      }),
+      trendStatement({
+        statementType: "balance_sheet",
+        period: "annual",
+        year,
+        totalAssets: 200 + index * 20,
+        shareholdersEquity: 80 + index * 8,
+        totalDebt: 40 - index * 2,
+        cashAndEquivalents: 10,
+        providerMetadata: { totalCurrentAssets: 120 + index * 8, totalCurrentLiabilities: 80 - index * 2 }
+      })
+    );
+  }
+
+  const result = service.calculate({
+    instrumentId: "inst-AAPL",
+    symbol: "AAPL",
+    scores: [],
+    ratios: [],
+    statements
+  });
+
+  const roic = result.trends.find((trend) => trend.metricName === "roic");
+  const currentRatio = result.trends.find((trend) => trend.metricName === "current_ratio");
+  const interestCoverage = result.trends.find((trend) => trend.metricName === "interest_coverage");
+  const revenuePerShare = result.trends.find((trend) => trend.metricName === "revenue_per_share_growth");
+  assert.equal(roic?.longTermPeriodsAnalyzed, 5);
+  assert.notEqual(roic?.longTermTrendDirection, "insufficient_data");
+  assert.notEqual(currentRatio?.longTermTrendDirection, "insufficient_data");
+  assert.notEqual(interestCoverage?.longTermTrendDirection, "insufficient_data");
+  assert.notEqual(revenuePerShare?.longTermTrendDirection, "insufficient_data");
 });
 
 test("fundamental trend service marks insufficient data and creates quality warnings", () => {

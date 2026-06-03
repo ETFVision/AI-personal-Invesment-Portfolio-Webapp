@@ -23,6 +23,7 @@ type MetricDefinition = {
   category: FundamentalTrendMetricCategory;
   shortTerm?: (period: PeriodBundle) => number | null;
   longTerm?: (period: PeriodBundle) => number | null;
+  statementGrowth?: (period: PeriodBundle) => number | null;
   lowerIsBetter?: boolean;
   formatter: "percent" | "ratio";
 };
@@ -59,6 +60,40 @@ function safeRatio(numerator: number | null | undefined, denominator: number | n
   if (numerator == null || denominator == null || denominator === 0) return null;
   const value = numerator / denominator;
   return Number.isFinite(value) ? value : null;
+}
+
+function numberFromUnknown(value: unknown) {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function metadataNumber(source: Record<string, unknown> | undefined, keys: string[]) {
+  if (!source) return null;
+  for (const key of keys) {
+    const value = numberFromUnknown(source[key]);
+    if (value != null) return value;
+  }
+  return null;
+}
+
+function currentAssets(period: PeriodBundle) {
+  return metadataNumber(period.balance?.providerMetadata, ["totalCurrentAssets", "currentAssets"]);
+}
+
+function currentLiabilities(period: PeriodBundle) {
+  return metadataNumber(period.balance?.providerMetadata, ["totalCurrentLiabilities", "currentLiabilities"]);
+}
+
+function interestExpense(period: PeriodBundle) {
+  return metadataNumber(period.income?.providerMetadata, ["interestExpense", "interest_expense"]);
+}
+
+function investedCapital(period: PeriodBundle) {
+  const equity = period.balance?.shareholdersEquity;
+  const debt = period.balance?.totalDebt;
+  const cash = period.balance?.cashAndEquivalents ?? 0;
+  if (equity == null || debt == null) return null;
+  return equity + debt - cash;
 }
 
 function growth(latest: number | null | undefined, previous: number | null | undefined) {
@@ -134,6 +169,26 @@ function seriesFrom(bundles: PeriodBundle[], selector: (bundle: PeriodBundle) =>
     .map((bundle) => ({ date: bundle.reportDate, value: selector(bundle) }))
     .filter((point): point is SeriesPoint => point.value != null && Number.isFinite(point.value))
     .slice(-limit);
+}
+
+function growthSeriesFromStatements(bundles: PeriodBundle[], selector: (bundle: PeriodBundle) => number | null, limit: number): SeriesPoint[] {
+  const levels = bundles
+    .map((bundle) => ({ date: bundle.reportDate, value: selector(bundle) }))
+    .filter((point): point is SeriesPoint => point.value != null && Number.isFinite(point.value))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const growthPoints: SeriesPoint[] = [];
+  for (let index = 1; index < levels.length; index += 1) {
+    const calculated = growth(levels[index].value, levels[index - 1].value);
+    if (calculated != null) growthPoints.push({ date: levels[index].date, value: calculated });
+  }
+  return growthPoints.slice(-limit);
+}
+
+function metricSeries(bundles: PeriodBundle[], metric: MetricDefinition, selector: ((bundle: PeriodBundle) => number | null) | undefined, limit: number) {
+  const providerOrRatioSeries = selector ? seriesFrom(bundles, selector, limit) : [];
+  if (providerOrRatioSeries.length >= 3 || !metric.statementGrowth) return providerOrRatioSeries;
+  const derivedSeries = growthSeriesFromStatements(bundles, metric.statementGrowth, limit);
+  return derivedSeries.length > providerOrRatioSeries.length ? derivedSeries : providerOrRatioSeries;
 }
 
 function inferDirection(values: number[], lowerIsBetter: boolean): FundamentalTrendDirection {
@@ -288,13 +343,21 @@ const metricDefinitions: MetricDefinition[] = [
     category: "growth",
     shortTerm: (period) => period.ratio?.revenueGrowth ?? null,
     longTerm: (period) => period.ratio?.revenueGrowth ?? null,
+    statementGrowth: (period) => period.income?.revenue ?? null,
     formatter: "percent"
   },
   {
     name: "eps_growth",
     category: "growth",
-    shortTerm: (period) => period.ratio?.epsGrowth ?? growth(period.income?.dilutedEps ?? period.income?.eps, null),
+    shortTerm: (period) => period.ratio?.epsGrowth ?? null,
     longTerm: (period) => period.ratio?.epsGrowth ?? null,
+    statementGrowth: (period) => period.income?.dilutedEps ?? period.income?.eps ?? null,
+    formatter: "percent"
+  },
+  {
+    name: "ebitda_growth",
+    category: "growth",
+    statementGrowth: (period) => period.income?.ebitda ?? null,
     formatter: "percent"
   },
   {
@@ -302,6 +365,7 @@ const metricDefinitions: MetricDefinition[] = [
     category: "growth",
     shortTerm: (period) => period.ratio?.netIncomeGrowth ?? null,
     longTerm: (period) => period.ratio?.netIncomeGrowth ?? null,
+    statementGrowth: (period) => period.income?.netIncome ?? null,
     formatter: "percent"
   },
   {
@@ -309,6 +373,7 @@ const metricDefinitions: MetricDefinition[] = [
     category: "growth",
     shortTerm: (period) => period.ratio?.freeCashFlowGrowth ?? null,
     longTerm: (period) => period.ratio?.freeCashFlowGrowth ?? null,
+    statementGrowth: (period) => period.cashFlow?.freeCashFlow ?? null,
     formatter: "percent"
   },
   {
@@ -333,12 +398,14 @@ const metricDefinitions: MetricDefinition[] = [
     formatter: "percent"
   },
   { name: "roe", category: "profitability", longTerm: (period) => period.ratio?.roe ?? safeRatio(period.income?.netIncome, period.balance?.shareholdersEquity), formatter: "percent" },
-  { name: "roic", category: "profitability", longTerm: (period) => period.ratio?.roic ?? null, formatter: "percent" },
+  { name: "roic", category: "profitability", longTerm: (period) => period.ratio?.roic ?? safeRatio(period.income?.operatingIncome, investedCapital(period)), formatter: "percent" },
   { name: "roa", category: "profitability", longTerm: (period) => period.ratio?.roa ?? safeRatio(period.income?.netIncome, period.balance?.totalAssets), formatter: "percent" },
   { name: "debt_to_equity", category: "balance_sheet", longTerm: (period) => period.ratio?.debtToEquity ?? safeRatio(period.balance?.totalDebt, period.balance?.shareholdersEquity), lowerIsBetter: true, formatter: "ratio" },
-  { name: "current_ratio", category: "balance_sheet", longTerm: (period) => period.ratio?.currentRatio ?? null, formatter: "ratio" },
+  { name: "current_ratio", category: "balance_sheet", longTerm: (period) => period.ratio?.currentRatio ?? safeRatio(currentAssets(period), currentLiabilities(period)), formatter: "ratio" },
+  { name: "interest_coverage", category: "balance_sheet", longTerm: (period) => safeRatio(period.income?.operatingIncome, interestExpense(period)), formatter: "ratio" },
   { name: "fcf_conversion", category: "quality", longTerm: (period) => safeRatio(period.cashFlow?.freeCashFlow, period.income?.netIncome), formatter: "ratio" },
   { name: "free_cash_flow_margin", category: "quality", shortTerm: (period) => safeRatio(period.cashFlow?.freeCashFlow, period.income?.revenue), longTerm: (period) => safeRatio(period.cashFlow?.freeCashFlow, period.income?.revenue), formatter: "percent" },
+  { name: "revenue_per_share_growth", category: "quality", statementGrowth: (period) => safeRatio(period.income?.revenue, period.income?.sharesOutstanding), formatter: "percent" },
   { name: "dilution_trend", category: "quality", longTerm: (period) => period.income?.sharesOutstanding ?? period.balance?.sharesOutstanding ?? null, lowerIsBetter: true, formatter: "ratio" }
 ];
 
@@ -353,8 +420,8 @@ export class FundamentalTrendCalculationService {
   }
 
   private calculateMetric(input: TrendInput, metric: MetricDefinition, quarterly: PeriodBundle[], annual: PeriodBundle[], asOfDate: string): FundamentalTrend {
-    const shortPoints = metric.shortTerm ? seriesFrom(quarterly, metric.shortTerm, 5) : [];
-    const longPoints = metric.longTerm ? seriesFrom(annual, metric.longTerm, 5) : [];
+    const shortPoints = metricSeries(quarterly, metric, metric.shortTerm, 5);
+    const longPoints = metricSeries(annual, metric, metric.longTerm, 5);
     const shortTerm = analyze(shortPoints, metric.lowerIsBetter);
     const longTerm = analyze(longPoints, metric.lowerIsBetter);
     const overallTrendDirection = combineDirection(shortTerm, longTerm);
