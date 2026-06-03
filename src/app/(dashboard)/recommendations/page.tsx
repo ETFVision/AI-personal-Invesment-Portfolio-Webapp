@@ -53,7 +53,7 @@ function RecommendationTable({ title, description, rows }: { title: string; desc
                 {rows.map((row) => (
                   <tr key={row.id} className="border-b align-top last:border-0">
                     <td className="p-3">
-                      <Link href={`/recommendations/${encodeURIComponent(row.symbol)}`} className="font-medium hover:underline">{row.symbol}</Link>
+                      <Link href={`/instruments/${encodeURIComponent(row.symbol)}#recommendations`} className="font-medium hover:underline">{row.symbol}</Link>
                       <p className="text-xs text-muted-foreground">{row.instrumentType}</p>
                     </td>
                     <td className="p-3">
