@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
+import type { InstrumentRecommendation } from "@/domain/recommendations/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 import { DataFreshnessBadge, InstrumentTypeBadge, ThemeBadgeList } from "./instrument-badges";
@@ -98,6 +99,58 @@ export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMe
         <SummaryMetric label="Worst day" value={riskPercent(riskMetric.worstDailyReturn)} />
         <SummaryMetric label="Worst 5D" value={riskPercent(riskMetric.worstWeeklyReturn)} />
         <SummaryMetric label="Risk observations" value={formatNumber(riskMetric.observationCount)} />
+      </CardContent>
+    </Card>
+  );
+}
+
+export function RecommendationSummaryCard({ recommendation }: { recommendation: InstrumentRecommendation | null }) {
+  if (!recommendation) {
+    return <PlaceholderPanel title="Recommendations" description="No recommendation has been generated for this instrument yet. Run the deterministic recommendation engine from Research." />;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Recommendation</CardTitle>
+        <CardDescription>Deterministic V1 score with explainable drivers and guardrails. This does not place trades.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryMetric label="Label" value={recommendation.recommendationLabel} />
+          <SummaryMetric label="Score" value={recommendation.overallScore == null ? "-" : `${Math.round(recommendation.overallScore)}/100`} />
+          <SummaryMetric label="Confidence" value={formatPercent(recommendation.confidenceScore / 100)} />
+          <SummaryMetric label="Risk level" value={recommendation.riskLevel.replaceAll("_", " ")} />
+          <SummaryMetric label="Time horizon" value={recommendation.timeHorizon.replaceAll("_", " ")} />
+          <SummaryMetric label="Last updated" value={recommendation.updatedAt?.slice(0, 10) ?? "-"} />
+        </div>
+        <p className="rounded-md border bg-muted p-3 text-sm text-muted-foreground">{recommendation.recommendationReasoningSummary}</p>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-md border p-3">
+            <p className="text-xs uppercase text-muted-foreground">Positive drivers</p>
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
+              {(recommendation.positiveDrivers.length ? recommendation.positiveDrivers : ["-"]).map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-xs uppercase text-muted-foreground">Negative drivers</p>
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
+              {(recommendation.negativeDrivers.length ? recommendation.negativeDrivers : ["-"]).map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-xs uppercase text-muted-foreground">Guardrails</p>
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
+              {(recommendation.guardrailsApplied.length ? recommendation.guardrailsApplied : ["-"]).map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-xs uppercase text-muted-foreground">Data limitations</p>
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
+              {(recommendation.dataLimitations.length ? recommendation.dataLimitations : ["-"]).map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

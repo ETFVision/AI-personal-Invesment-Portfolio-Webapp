@@ -6,6 +6,7 @@ import { GdeltNewsIngestionJob } from "@/application/jobs/GdeltNewsIngestionJob"
 import { WeeklyNewsReconciliationJob } from "@/application/jobs/WeeklyNewsReconciliationJob";
 import { GenerateMarketVisionReportJob } from "@/application/jobs/GenerateMarketVisionReportJob";
 import { FundamentalsRefreshJob } from "@/application/jobs/FundamentalsRefreshJob";
+import { RecommendationRunJob } from "@/application/jobs/RecommendationRunJob";
 import { BenchmarkComparisonService } from "@/application/services/BenchmarkComparisonService";
 import { BenchmarkService } from "@/application/services/BenchmarkService";
 import { AllocationService } from "@/application/services/AllocationService";
@@ -39,6 +40,7 @@ import { FinancialStatementService } from "@/application/services/fundamentals/F
 import { FundamentalScoringService } from "@/application/services/fundamentals/FundamentalScoringService";
 import { FundamentalTrendCalculationService } from "@/application/services/fundamentals/FundamentalTrendCalculationService";
 import { FundamentalsRefreshService } from "@/application/services/fundamentals/FundamentalsRefreshService";
+import { RecommendationService } from "@/application/services/recommendations/RecommendationService";
 import { PerformanceService } from "@/application/services/PerformanceService";
 import { BondService } from "@/application/services/bonds/BondService";
 import { RiskAnalyticsService } from "@/application/services/risk/RiskAnalyticsService";
@@ -66,6 +68,7 @@ import { SupabasePortfolioRepository } from "@/infrastructure/repositories/supab
 import { SupabaseRiskAnalyticsRepository } from "@/infrastructure/repositories/supabase/SupabaseRiskAnalyticsRepository";
 import { SupabaseUniverseRepository } from "@/infrastructure/repositories/supabase/SupabaseUniverseRepository";
 import { SupabaseFundamentalsRepository } from "@/infrastructure/repositories/supabase/SupabaseFundamentalsRepository";
+import { SupabaseRecommendationRepository } from "@/infrastructure/repositories/supabase/SupabaseRecommendationRepository";
 import { env } from "@/infrastructure/config/env";
 
 export function createContainer() {
@@ -80,6 +83,7 @@ export function createContainer() {
   const gdeltRepository = new SupabaseGdeltRepository();
   const newsRepository = new SupabaseNewsRepository();
   const fundamentalsRepository = new SupabaseFundamentalsRepository();
+  const recommendationRepository = new SupabaseRecommendationRepository();
   const marketDataProvider = new FmpMarketDataProvider();
   const assetMetadataProvider = new FmpAssetMetadataProvider();
   const newsProvider = new FmpNewsProvider();
@@ -202,6 +206,14 @@ export function createContainer() {
     },
     { model: env.MARKET_VISION_MODEL }
   );
+  const recommendationService = new RecommendationService(
+    recommendationRepository,
+    universeRepository,
+    fundamentalsRepository,
+    macroIndicatorRepository,
+    portfolioRepository,
+    portfolioService
+  );
   return {
     authProvider: new SupabaseAuthProvider(),
     portfolioRepository,
@@ -243,6 +255,8 @@ export function createContainer() {
     themeIntelligenceService,
     newsDashboardService,
     fundamentalsRepository,
+    recommendationRepository,
+    recommendationService,
     fundamentalsProvider,
     fundamentalScoringService,
     fundamentalTrendCalculationService,
@@ -268,7 +282,8 @@ export function createContainer() {
       weeklyNewsReconciliation: new WeeklyNewsReconciliationJob(weeklyNewsReconciliationService, newsClassificationService),
       fredMacroIngestion: new FredMacroIngestionJob(macroIndicatorIngestionService),
       weeklyMarketVision: new GenerateMarketVisionReportJob(marketVisionGenerationService),
-      fundamentalsRefresh: new FundamentalsRefreshJob(fundamentalsRefreshService)
+      fundamentalsRefresh: new FundamentalsRefreshJob(fundamentalsRefreshService),
+      recommendationRun: new RecommendationRunJob(recommendationService)
     }
   };
 }

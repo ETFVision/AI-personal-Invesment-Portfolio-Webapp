@@ -8,12 +8,14 @@ import {
   MarketVisionContextCard,
   NewsSummaryCard,
   PlaceholderPanel,
+  RecommendationSummaryCard,
   RiskSummaryCard,
   SummaryMetric,
   ThemesPanel
 } from "@/components/instruments/instrument-cards";
 import { instrumentTypeLabel, resolveInstrumentType, type CanonicalInstrumentType } from "@/application/services/instruments/InstrumentTypeResolver";
 import type { FundamentalsDetail } from "@/domain/fundamentals/types";
+import type { InstrumentRecommendation } from "@/domain/recommendations/types";
 import type { BondProfile, Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
@@ -308,7 +310,8 @@ function tabsForType(
   marketView: InstrumentMarketView,
   bondProfile: BondProfile | null,
   fundamentalsDetail: FundamentalsDetail | null,
-  riskMetric: InstrumentRiskMetric | null
+  riskMetric: InstrumentRiskMetric | null,
+  recommendation: InstrumentRecommendation | null
 ) {
   const common = {
     overview: <InstrumentSummaryCard marketView={marketView} />,
@@ -316,7 +319,7 @@ function tabsForType(
     themes: <ThemesPanel instrument={instrument} />,
     risk: <RiskSummaryCard instrument={instrument} riskMetric={riskMetric} />,
     marketVision: <MarketVisionContextCard />,
-    recommendations: <PlaceholderPanel title="Recommendations" description="Prepared for the future recommendation layer. No buy/sell logic is implemented." />
+    recommendations: <RecommendationSummaryCard recommendation={recommendation} />
   };
 
   if (type === "stock") {
@@ -410,8 +413,11 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
   const typeLabel = instrumentTypeLabel(type);
   const bondProfile = bondProfiles.find((profile) => profile.instrumentId === instrument.id) ?? null;
   const fundamentalsDetail = type === "stock" && instrument.symbol ? await container.fundamentalsRepository.getDetailBySymbol(instrument.symbol) : null;
-  const riskMetric = await container.instrumentRiskService.getInstrumentRiskMetric(instrument);
-  const tabs = tabsForType(type, instrument, marketView, bondProfile, fundamentalsDetail, riskMetric);
+  const [riskMetric, recommendation] = await Promise.all([
+    container.instrumentRiskService.getInstrumentRiskMetric(instrument),
+    container.recommendationService.getLatestForInstrument(instrument.id)
+  ]);
+  const tabs = tabsForType(type, instrument, marketView, bondProfile, fundamentalsDetail, riskMetric, recommendation);
 
   return (
     <div className="space-y-6">
