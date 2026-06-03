@@ -42,6 +42,8 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
   }
 
   const dashboard = await container.portfolioService.getDashboard(portfolio.id);
+  const portfolioReviewDashboard = await container.portfolioReviewService.getDashboard(portfolio.id);
+  const latestPortfolioReview = portfolioReviewDashboard.latestReport;
   const cashCurrencies = new Set(dashboard.cashBalances.map((cash) => cash.currency));
   const holdingCurrencies = new Set(dashboard.holdingValuations.map((valuation) => valuation.valueCurrency));
   const allCurrencies = new Set([...cashCurrencies, ...holdingCurrencies]);
@@ -167,6 +169,44 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
           </CardContent>
         </Card>
       </section>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <CardTitle>Portfolio Review Snapshot</CardTitle>
+              <CardDescription>
+                Deterministic review across allocation, concentration, risk, macro, recommendations and themes.
+              </CardDescription>
+            </div>
+            <Link className="rounded-md border px-3 py-2 text-sm hover:bg-muted" href="/portfolio-review">Open review</Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {latestPortfolioReview ? (
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Score</p>
+                <p className="text-xl font-semibold">{latestPortfolioReview.overallPortfolioScore == null ? "-" : `${Math.round(latestPortfolioReview.overallPortfolioScore)}/100`}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Confidence</p>
+                <p className="text-xl font-semibold">{formatPercent(latestPortfolioReview.confidenceScore / 100)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Watch areas</p>
+                <p className="text-xl font-semibold">{latestPortfolioReview.watchAreas.length}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Review date</p>
+                <p className="text-xl font-semibold">{latestPortfolioReview.reviewDate}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No portfolio review has been run yet.</p>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
