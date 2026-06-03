@@ -3,6 +3,7 @@ import { RefreshBenchmarkDataJob } from "@/application/jobs/RefreshBenchmarkData
 import { DailyNewsIngestionJob } from "@/application/jobs/DailyNewsIngestionJob";
 import { FredMacroIngestionJob } from "@/application/jobs/FredMacroIngestionJob";
 import { GdeltNewsIngestionJob } from "@/application/jobs/GdeltNewsIngestionJob";
+import { NewsDataNewsIngestionJob } from "@/application/jobs/NewsDataNewsIngestionJob";
 import { WeeklyNewsReconciliationJob } from "@/application/jobs/WeeklyNewsReconciliationJob";
 import { GenerateMarketVisionReportJob } from "@/application/jobs/GenerateMarketVisionReportJob";
 import { FundamentalsRefreshJob } from "@/application/jobs/FundamentalsRefreshJob";
@@ -21,6 +22,7 @@ import { NewsClassificationService } from "@/application/services/news/NewsClass
 import { NewsDashboardService } from "@/application/services/news/NewsDashboardService";
 import { NewsDeduplicationService } from "@/application/services/news/NewsDeduplicationService";
 import { GlobalNewsIngestionService } from "@/application/services/news/GlobalNewsIngestionService";
+import { NewsDataIngestionService } from "@/application/services/news/NewsDataIngestionService";
 import { NewsIngestionService } from "@/application/services/news/NewsIngestionService";
 import { NewsInstrumentLinkingService } from "@/application/services/news/NewsInstrumentLinkingService";
 import { NewsProviderService } from "@/application/services/news/NewsProviderService";
@@ -56,6 +58,7 @@ import { OpenAiMarketVisionProvider } from "@/infrastructure/providers/ai/OpenAi
 import { FmpNewsProvider } from "@/infrastructure/providers/news/FmpNewsProvider";
 import { FmpFundamentalsProvider } from "@/infrastructure/providers/fundamentals/FmpFundamentalsProvider";
 import { GdeltNewsProvider } from "@/infrastructure/providers/news/GdeltNewsProvider";
+import { NewsDataNewsProvider } from "@/infrastructure/providers/news/NewsDataNewsProvider";
 import { FredMacroDataProvider } from "@/infrastructure/providers/macro/FredMacroDataProvider";
 import { SupabaseAnalyticsRepository } from "@/infrastructure/repositories/supabase/SupabaseAnalyticsRepository";
 import { SupabaseBenchmarkRepository } from "@/infrastructure/repositories/supabase/SupabaseBenchmarkRepository";
@@ -63,6 +66,7 @@ import { SupabaseMarketDataRepository } from "@/infrastructure/repositories/supa
 import { SupabaseMarketVisionRepository } from "@/infrastructure/repositories/supabase/SupabaseMarketVisionRepository";
 import { SupabaseMacroIndicatorRepository } from "@/infrastructure/repositories/supabase/SupabaseMacroIndicatorRepository";
 import { SupabaseGdeltRepository } from "@/infrastructure/repositories/supabase/SupabaseGdeltRepository";
+import { SupabaseNewsDataRepository } from "@/infrastructure/repositories/supabase/SupabaseNewsDataRepository";
 import { SupabaseNewsRepository } from "@/infrastructure/repositories/supabase/SupabaseNewsRepository";
 import { SupabasePortfolioRepository } from "@/infrastructure/repositories/supabase/SupabasePortfolioRepository";
 import { SupabaseRiskAnalyticsRepository } from "@/infrastructure/repositories/supabase/SupabaseRiskAnalyticsRepository";
@@ -81,6 +85,7 @@ export function createContainer() {
   const marketVisionRepository = new SupabaseMarketVisionRepository();
   const macroIndicatorRepository = new SupabaseMacroIndicatorRepository();
   const gdeltRepository = new SupabaseGdeltRepository();
+  const newsDataRepository = new SupabaseNewsDataRepository();
   const newsRepository = new SupabaseNewsRepository();
   const fundamentalsRepository = new SupabaseFundamentalsRepository();
   const recommendationRepository = new SupabaseRecommendationRepository();
@@ -88,6 +93,7 @@ export function createContainer() {
   const assetMetadataProvider = new FmpAssetMetadataProvider();
   const newsProvider = new FmpNewsProvider();
   const gdeltNewsProvider = new GdeltNewsProvider();
+  const newsDataNewsProvider = new NewsDataNewsProvider();
   const macroDataProvider = new FredMacroDataProvider();
   const newsAiProvider = new OpenAiNewsProvider();
   const marketVisionAiProvider = new OpenAiMarketVisionProvider();
@@ -146,6 +152,24 @@ export function createContainer() {
       queryRateLimitBackoffMinutes: env.GDELT_QUERY_RATE_LIMIT_BACKOFF_MINUTES
     }
   );
+  const newsDataIngestionService = new NewsDataIngestionService(
+    newsRepository,
+    newsDataRepository,
+    newsDataNewsProvider,
+    newsDeduplicationService,
+    undefined,
+    undefined,
+    {
+      enabled: env.ENABLE_NEWSDATA_INGESTION,
+      maxQueryGroups: env.NEWSDATA_MAX_QUERY_GROUPS,
+      maxArticlesPerQuery: env.NEWSDATA_MAX_ARTICLES_PER_QUERY,
+      maxArticlesPerDay: env.NEWSDATA_MAX_ARTICLES_PER_DAY,
+      runFrequencyDays: env.NEWSDATA_RUN_FREQUENCY_DAYS,
+      minSecondsBetweenRequests: env.NEWSDATA_MIN_SECONDS_BETWEEN_REQUESTS,
+      rateLimitBackoffMinutes: 24 * 60,
+      failureBackoffMinutes: 120
+    }
+  );
   const newsClassificationService = new NewsClassificationService(newsRepository, newsAiProvider, {
     classificationModel: env.NEWS_CLASSIFICATION_MODEL,
     maxArticlesPerDay: env.MAX_NEWS_ARTICLES_PER_DAY,
@@ -157,7 +181,7 @@ export function createContainer() {
     reconciliationModel: env.NEWS_RECONCILIATION_MODEL
   }, undefined, undefined, macroIndicatorRepository);
   const themeIntelligenceService = new ThemeIntelligenceService(newsRepository, macroIndicatorRepository);
-  const newsDashboardService = new NewsDashboardService(newsRepository, themeIntelligenceService, gdeltRepository);
+  const newsDashboardService = new NewsDashboardService(newsRepository, themeIntelligenceService, gdeltRepository, newsDataRepository);
   const fundamentalScoringService = new FundamentalScoringService();
   const fundamentalTrendCalculationService = new FundamentalTrendCalculationService();
   const fundamentalsRefreshService = new FundamentalsRefreshService(
@@ -244,11 +268,14 @@ export function createContainer() {
     marketThemeService,
     newsRepository,
     gdeltRepository,
+    newsDataRepository,
     newsProvider,
     gdeltNewsProvider,
+    newsDataNewsProvider,
     newsProviderService,
     newsIngestionService,
     globalNewsIngestionService,
+    newsDataIngestionService,
     newsDeduplicationService,
     newsInstrumentLinkingService,
     newsClassificationService,
@@ -280,6 +307,7 @@ export function createContainer() {
       refreshBenchmarkData: new RefreshBenchmarkDataJob(benchmarkService),
       dailyNewsIngestion: new DailyNewsIngestionJob(newsIngestionService, newsClassificationService),
       gdeltNewsIngestion: new GdeltNewsIngestionJob(globalNewsIngestionService),
+      newsDataNewsIngestion: new NewsDataNewsIngestionJob(newsDataIngestionService),
       weeklyNewsReconciliation: new WeeklyNewsReconciliationJob(weeklyNewsReconciliationService, newsClassificationService),
       fredMacroIngestion: new FredMacroIngestionJob(macroIndicatorIngestionService),
       weeklyMarketVision: new GenerateMarketVisionReportJob(marketVisionGenerationService),

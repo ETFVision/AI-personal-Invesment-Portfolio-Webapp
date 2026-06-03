@@ -181,6 +181,8 @@ export type GdeltQueryGroup = {
   updatedAt: string;
 };
 
+export type NewsDataQueryGroup = GdeltQueryGroup;
+
 export type GdeltIngestionLog = {
   id: string;
   jobName: string;
@@ -212,12 +214,31 @@ export type GdeltArticleMetadata = {
   updatedAt: string;
 };
 
+export type NewsDataIngestionLog = GdeltIngestionLog;
+
+export type NewsDataArticleMetadata = {
+  id: string;
+  newsItemId: string;
+  sourceId: string | null;
+  sourceName: string | null;
+  sourceUrl: string | null;
+  country: string | null;
+  language: string | null;
+  category: string[];
+  creator: unknown[];
+  keywords: string[];
+  providerMetadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type NewsDashboard = {
   latestNews: Array<NewsItem & { classification?: NewsClassification | null }>;
   stats: NewsDashboardStats;
   weeklyReconciliations: WeeklyNewsReconciliation[];
   ingestionLogs: NewsIngestionLog[];
   gdeltQueryStatuses: GdeltQueryStatus[];
+  newsDataQueryStatuses: NewsDataQueryStatus[];
   latestWeeklyReconciliation: WeeklyNewsReconciliation | null;
   themeSummary: NewsThemeSummary[];
   themeIntelligence: NewsThemeIntelligence;
@@ -233,6 +254,11 @@ export type NewsDashboardStats = {
 export type GdeltQueryStatus = {
   queryGroup: GdeltQueryGroup;
   latestLog: GdeltIngestionLog | null;
+};
+
+export type NewsDataQueryStatus = {
+  queryGroup: NewsDataQueryGroup;
+  latestLog: NewsDataIngestionLog | null;
 };
 
 export type NewsThemeSummary = {

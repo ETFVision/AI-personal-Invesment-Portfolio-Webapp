@@ -11,18 +11,23 @@ import { WeeklyNewsReconciliationService } from "../src/application/services/new
 import { GdeltRelevanceService } from "../src/application/services/news/GdeltRelevanceService";
 import { GdeltThemeMappingService } from "../src/application/services/news/GdeltThemeMappingService";
 import { GlobalNewsIngestionService, globalNewsIngestionInternals } from "../src/application/services/news/GlobalNewsIngestionService";
+import { NewsDataIngestionService } from "../src/application/services/news/NewsDataIngestionService";
 import { SourceQualityService, sourceQualityInternals } from "../src/application/services/news/SourceQualityService";
 import { compareDueQueryGroups } from "../src/application/services/news/gdeltQueryOrdering";
 import { isCronSecretValid } from "../src/application/services/news/cronSecret";
 import { GdeltNormalizationService, gdeltNormalizationInternals } from "../src/infrastructure/providers/news/GdeltNormalizationService";
 import { GdeltNewsProvider as RealGdeltNewsProvider, gdeltProviderInternals } from "../src/infrastructure/providers/news/GdeltNewsProvider";
+import { NewsDataNormalizationService, newsDataNormalizationInternals } from "../src/infrastructure/providers/news/NewsDataNormalizationService";
+import { newsDataProviderInternals } from "../src/infrastructure/providers/news/NewsDataNewsProvider";
 import { isJwtIssuedAtFutureError } from "../src/infrastructure/repositories/supabase/supabaseErrors";
-import type { GdeltArticleMetadata, GdeltIngestionLog, GdeltQueryGroup, NewsClassification, NewsIngestionLog, NewsItem, NormalizedNewsArticle, WeeklyNewsReconciliation } from "../src/domain/news/types";
+import type { GdeltArticleMetadata, GdeltIngestionLog, GdeltQueryGroup, NewsClassification, NewsDataArticleMetadata, NewsDataIngestionLog, NewsDataQueryGroup, NewsIngestionLog, NewsItem, NormalizedNewsArticle, WeeklyNewsReconciliation } from "../src/domain/news/types";
 import type { MacroIndicatorRepository } from "../src/application/ports/repositories/MacroIndicatorRepository";
 import type { MacroThemeSignal } from "../src/domain/macro/types";
 import type { GdeltNewsProvider, GdeltProviderArticle } from "../src/application/ports/providers/GdeltNewsProvider";
+import type { NewsDataNewsProvider, NewsDataProviderArticle } from "../src/application/ports/providers/NewsDataNewsProvider";
 import type { NewsProvider } from "../src/application/ports/providers/NewsProvider";
 import type { GdeltRepository, InsertGdeltIngestionLogInput, UpsertGdeltArticleMetadataInput } from "../src/application/ports/repositories/GdeltRepository";
+import type { InsertNewsDataIngestionLogInput, NewsDataRepository, UpsertNewsDataArticleMetadataInput } from "../src/application/ports/repositories/NewsDataRepository";
 import type { NewsRepository, UpsertNewsClassificationInput, UpsertNewsItemInput, UpsertWeeklyNewsReconciliationInput } from "../src/application/ports/repositories/NewsRepository";
 import type { UniverseRepository } from "../src/application/ports/repositories/UniverseRepository";
 import type { Instrument } from "../src/domain/universe/types";
@@ -276,6 +281,61 @@ class FakeGdeltRepository implements GdeltRepository {
   }
 }
 
+class FakeNewsDataRepository implements NewsDataRepository {
+  groups: NewsDataQueryGroup[] = [gdeltQueryGroup({ id: "newsdata-group-1" }) as NewsDataQueryGroup];
+  logs: NewsDataIngestionLog[] = [];
+  metadata: NewsDataArticleMetadata[] = [];
+
+  async listActiveQueryGroups() {
+    return this.groups.filter((group) => group.isActive);
+  }
+
+  async listDueQueryGroups(input: { now: string; limit: number }) {
+    const now = new Date(input.now).getTime();
+    return this.groups
+      .filter((group) => group.isActive && (!group.nextRunAt || new Date(group.nextRunAt).getTime() <= now))
+      .sort(compareDueQueryGroups)
+      .slice(0, input.limit);
+  }
+
+  async updateQueryGroupSchedule(input: {
+    id: string;
+    lastAttemptedAt: string;
+    lastSuccessAt?: string | null;
+    nextRunAt: string;
+    failureCount: number;
+    lastError: string | null;
+  }) {
+    this.groups = this.groups.map((group) => group.id === input.id
+      ? {
+          ...group,
+          lastAttemptedAt: input.lastAttemptedAt,
+          lastSuccessAt: input.lastSuccessAt ?? null,
+          nextRunAt: input.nextRunAt,
+          failureCount: input.failureCount,
+          lastError: input.lastError
+        }
+      : group);
+  }
+
+  async upsertArticleMetadata(input: UpsertNewsDataArticleMetadataInput[]) {
+    for (const item of input) {
+      const row = { ...item, id: `newsdata-meta-${this.metadata.length + 1}`, createdAt: "", updatedAt: "" };
+      const existingIndex = this.metadata.findIndex((entry) => entry.newsItemId === item.newsItemId);
+      if (existingIndex >= 0) this.metadata[existingIndex] = { ...this.metadata[existingIndex], ...row, id: this.metadata[existingIndex].id };
+      else this.metadata.push(row);
+    }
+  }
+
+  async insertIngestionLog(input: InsertNewsDataIngestionLogInput) {
+    this.logs.unshift({ ...input, id: `newsdata-log-${this.logs.length + 1}`, createdAt: "" });
+  }
+
+  async listIngestionLogs(limit = 20) {
+    return this.logs.slice(0, limit);
+  }
+}
+
 class FakeMacroSignalRepository implements Partial<MacroIndicatorRepository> {
   constructor(private readonly signals: MacroThemeSignal[]) {}
   async listMacroThemeSignalsForPeriod(periodStart: string, periodEnd: string) {
@@ -314,6 +374,15 @@ class FakeGdeltProvider implements GdeltNewsProvider {
   readonly name = "gdelt" as const;
   constructor(private readonly articles: GdeltProviderArticle[]) {}
   async fetchQueryGroup() {
+    return this.articles;
+  }
+}
+
+class FakeNewsDataProvider implements NewsDataNewsProvider {
+  readonly name = "newsdata" as const;
+  constructor(private readonly articles: NewsDataProviderArticle[], private readonly error: Error | null = null) {}
+  async fetchQueryGroup() {
+    if (this.error) throw this.error;
     return this.articles;
   }
 }
@@ -1314,6 +1383,55 @@ test("GDELT provider extracts bounded fallback terms from OR query groups", () =
   assert.deepEqual(gdeltProviderInternals.extractFallbackTerms('"Federal Reserve"'), ['"Federal Reserve"']);
 });
 
+test("NewsData provider builds latest endpoint q requests with English language", () => {
+  const previous = process.env.NEWSDATA_API_KEY;
+  process.env.NEWSDATA_API_KEY = "test-key";
+  try {
+    const url = newsDataProviderInternals.buildUrl({
+      query: '("geopolitical risk" OR "Middle East tensions" OR "Iran sanctions")',
+      maxArticles: 15
+    });
+    assert.equal(url.origin + url.pathname, "https://newsdata.io/api/1/latest");
+    assert.equal(url.searchParams.get("apikey"), "test-key");
+    assert.equal(url.searchParams.get("language"), "en");
+    assert.equal(url.searchParams.get("size"), "10");
+    assert.equal(url.searchParams.get("q"), "geopolitical risk OR Middle East tensions OR Iran sanctions");
+    assert.equal(url.searchParams.has("qInTitle"), false);
+    assert.equal(url.searchParams.has("qInMeta"), false);
+  } finally {
+    if (previous == null) delete process.env.NEWSDATA_API_KEY;
+    else process.env.NEWSDATA_API_KEY = previous;
+  }
+});
+
+test("NewsData normalizer maps latest endpoint rows into canonical news", () => {
+  const group = gdeltQueryGroup({ queryKey: "currency_usd", canonicalTheme: "Currency", category: "currency" }) as NewsDataQueryGroup;
+  const article = new NewsDataNormalizationService().normalize({
+    article_id: "article-1",
+    title: "US dollar weakens as currency markets await Fed decision",
+    description: "The dollar index edged lower before policy comments.",
+    link: "https://example.com/dollar",
+    pubDate: "2026-06-03 08:30:00",
+    source_id: "example",
+    source_name: "Example News",
+    source_url: "https://example.com",
+    language: "english",
+    country: ["US"],
+    category: ["business"],
+    creator: ["Reporter"],
+    keywords: ["dollar", "fed"]
+  }, group);
+
+  assert.equal(article?.sourceProvider, "newsdata");
+  assert.equal(article?.sourceId, "article-1");
+  assert.equal(article?.title, "US dollar weakens as currency markets await Fed decision");
+  assert.equal(article?.language, "english");
+  assert.equal(article?.country, "US");
+  assert.equal(article?.providerMetadata.macroCategory, "currency");
+  assert.deepEqual(article?.newsDataMetadata.keywords, ["dollar", "fed"]);
+  assert.equal(newsDataNormalizationInternals.normalizeDate("not-a-date"), null);
+});
+
 test("GDELT provider fetches broad OR query groups through narrower terms first", async () => {
   const originalFetch = globalThis.fetch;
   const calls: string[] = [];
@@ -1648,6 +1766,111 @@ test("GDELT ingestion backs off failed due groups", async () => {
   assert.match(newsRepository.logs[0]?.errorMessage ?? "", /rate limit/i);
 });
 
+test("NewsData ingestion stores normalized news, classifications, metadata, and logs", async () => {
+  const newsRepository = new UpsertingFakeNewsRepository();
+  const newsDataRepository = new FakeNewsDataRepository();
+  newsDataRepository.groups = [
+    gdeltQueryGroup({ id: "newsdata-currency", queryKey: "currency_usd", queryName: "Currency / USD", canonicalTheme: "Currency", category: "currency" }) as NewsDataQueryGroup
+  ];
+  const article = new NewsDataNormalizationService().normalize({
+    article_id: "article-1",
+    title: "US dollar weakens as currency markets await Fed decision",
+    description: "The dollar index edged lower before policy comments.",
+    link: "https://example.com/dollar",
+    pubDate: "2026-06-03 08:30:00",
+    source_id: "example",
+    source_name: "Example News",
+    language: "english",
+    country: ["US"],
+    category: ["business"]
+  }, newsDataRepository.groups[0] as NewsDataQueryGroup);
+  const service = new NewsDataIngestionService(
+    newsRepository,
+    newsDataRepository,
+    new FakeNewsDataProvider([article as NewsDataProviderArticle]),
+    undefined,
+    undefined,
+    undefined,
+    {
+      enabled: true,
+      maxQueryGroups: 1,
+      maxArticlesPerQuery: 10,
+      maxArticlesPerDay: 20,
+      runFrequencyDays: 3,
+      minSecondsBetweenRequests: 0,
+      rateLimitBackoffMinutes: 1440,
+      failureBackoffMinutes: 120
+    }
+  );
+
+  const result = await service.ingestNewsData();
+
+  assert.equal(result.articlesFetched, 1);
+  assert.equal(result.articlesInserted, 1);
+  assert.equal(newsRepository.items[0]?.sourceProvider, "newsdata");
+  assert.equal(newsRepository.classifications[0]?.primaryTheme, "Currency");
+  assert.ok(newsRepository.classifications[0]?.affectedMacroCategories.includes("currency"));
+  assert.equal(newsDataRepository.metadata.length, 1);
+  assert.equal(newsDataRepository.groups[0]?.failureCount, 0);
+  assert.notEqual(newsDataRepository.groups[0]?.nextRunAt, null);
+  assert.equal(newsDataRepository.logs.some((log) => log.jobName === "newsdata-query-group-ingestion"), true);
+  assert.equal(newsRepository.logs.some((log) => log.jobName === "newsdata-news-ingestion"), true);
+});
+
+test("NewsData ingestion logs partial success when a later query group fails", async () => {
+  const newsRepository = new UpsertingFakeNewsRepository();
+  const newsDataRepository = new FakeNewsDataRepository();
+  newsDataRepository.groups = [
+    gdeltQueryGroup({ id: "newsdata-success", queryKey: "currency_usd", canonicalTheme: "Currency", category: "currency" }) as NewsDataQueryGroup,
+    gdeltQueryGroup({ id: "newsdata-fail", queryKey: "geopolitical_risk", canonicalTheme: "Geopolitical", category: "geopolitical" }) as NewsDataQueryGroup
+  ];
+  const article = new NewsDataNormalizationService().normalize({
+    article_id: "article-1",
+    title: "US dollar weakens as currency markets await Fed decision",
+    description: "The dollar index edged lower before policy comments.",
+    link: "https://example.com/dollar",
+    pubDate: "2026-06-03 08:30:00",
+    language: "english"
+  }, newsDataRepository.groups[0] as NewsDataQueryGroup);
+  class MixedNewsDataProvider implements NewsDataNewsProvider {
+    readonly name = "newsdata" as const;
+    calls = 0;
+    async fetchQueryGroup() {
+      this.calls += 1;
+      if (this.calls > 1) throw new Error("NewsData quota exhausted.");
+      return [article as NewsDataProviderArticle];
+    }
+  }
+  const provider = new MixedNewsDataProvider();
+  const service = new NewsDataIngestionService(
+    newsRepository,
+    newsDataRepository,
+    provider,
+    undefined,
+    undefined,
+    undefined,
+    {
+      enabled: true,
+      maxQueryGroups: 2,
+      maxArticlesPerQuery: 10,
+      maxArticlesPerDay: 20,
+      runFrequencyDays: 3,
+      minSecondsBetweenRequests: 0,
+      rateLimitBackoffMinutes: 1440,
+      failureBackoffMinutes: 120
+    }
+  );
+
+  const result = await service.ingestNewsData();
+
+  assert.equal(result.status, "partial_success");
+  assert.equal(result.articlesInserted, 1);
+  assert.equal(result.failedQueryGroups, 1);
+  assert.equal(result.rateLimitHit, true);
+  assert.equal(newsDataRepository.groups.find((group) => group.id === "newsdata-fail")?.failureCount, 1);
+  assert.match(newsRepository.logs[0]?.errorMessage ?? "", /quota|rate limit/i);
+});
+
 test("news dashboard stats count stored records instead of the visible latest list", async () => {
   const newsRepository = new FakeNewsRepository();
   newsRepository.items = [
@@ -1727,6 +1950,41 @@ test("news dashboard exposes latest status for each active GDELT query group", a
   assert.equal(dashboard.gdeltQueryStatuses.length, 2);
   assert.equal(dashboard.gdeltQueryStatuses.find((row) => row.queryGroup.id === "rates")?.latestLog?.status, "success");
   assert.equal(dashboard.gdeltQueryStatuses.find((row) => row.queryGroup.id === "geo")?.latestLog, null);
+});
+
+test("news dashboard exposes latest status for each active NewsData query group", async () => {
+  const newsRepository = new FakeNewsRepository();
+  const newsDataRepository = new FakeNewsDataRepository();
+  newsDataRepository.groups = [
+    gdeltQueryGroup({ id: "currency", queryKey: "currency_usd", queryName: "Currency / USD", canonicalTheme: "Currency" }) as NewsDataQueryGroup,
+    gdeltQueryGroup({ id: "growth", queryKey: "growth_recession", queryName: "Growth / recession risk", canonicalTheme: "Growth" }) as NewsDataQueryGroup
+  ];
+  newsDataRepository.logs = [
+    {
+      id: "log-currency",
+      jobName: "newsdata-query-group-ingestion",
+      queryGroupId: "currency",
+      startedAt: "2026-06-03T00:00:00.000Z",
+      completedAt: "2026-06-03T00:00:01.000Z",
+      status: "success",
+      articlesFetched: 5,
+      articlesInserted: 4,
+      duplicatesDetected: 1,
+      errorMessage: null,
+      metadata: { articlesFiltered: 0 },
+      createdAt: ""
+    }
+  ];
+  const dashboard = await new NewsDashboardService(
+    newsRepository,
+    new ThemeIntelligenceService(newsRepository),
+    undefined,
+    newsDataRepository
+  ).getDashboard();
+
+  assert.equal(dashboard.newsDataQueryStatuses.length, 2);
+  assert.equal(dashboard.newsDataQueryStatuses.find((row) => row.queryGroup.id === "currency")?.latestLog?.status, "success");
+  assert.equal(dashboard.newsDataQueryStatuses.find((row) => row.queryGroup.id === "growth")?.latestLog, null);
 });
 
 test("news dashboard hides stale failed GDELT logs after a query group reset", async () => {

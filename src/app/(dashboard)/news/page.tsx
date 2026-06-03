@@ -6,6 +6,7 @@ import {
   reclassifyPendingNewsAction,
   runDailyNewsIngestionAction,
   runGdeltNewsIngestionAction,
+  runMacroNewsIngestionAction,
   runWeeklyNewsReconciliationAction
 } from "@/server/actions/newsActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,6 +90,13 @@ function statusTone(value?: string) {
   return "text-muted-foreground";
 }
 
+function sourceLabel(value: string) {
+  if (value === "gdelt") return "GDELT";
+  if (value === "newsdata") return "NewsData";
+  if (value === "financial_modeling_prep") return "FMP";
+  return value;
+}
+
 export default async function NewsPage({ searchParams }: NewsPageProps) {
   const params = await searchParams;
   const container = createContainer();
@@ -102,8 +110,8 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
     limit: 60
   });
 
-  const gdeltNews = dashboard.latestNews.filter((item) => item.sourceProvider === "gdelt");
-  const macroWorldNews = gdeltNews.filter((item) => {
+  const globalProviderNews = dashboard.latestNews.filter((item) => item.sourceProvider === "gdelt" || item.sourceProvider === "newsdata");
+  const macroWorldNews = globalProviderNews.filter((item) => {
     const theme = item.classification?.primaryTheme;
     return theme === "Geopolitical" || theme === "Rates" || theme === "Inflation" || theme === "Energy" || theme === "Currency" || theme === "Trade / Supply Chain" || theme === "Credit";
   });
@@ -119,8 +127,11 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
           <form action={runDailyNewsIngestionAction}>
             <SubmitButton pendingLabel="Fetching FMP...">Refresh FMP</SubmitButton>
           </form>
+          <form action={runMacroNewsIngestionAction}>
+            <SubmitButton variant="secondary" pendingLabel="Fetching macro news...">Refresh macro news</SubmitButton>
+          </form>
           <form action={runGdeltNewsIngestionAction}>
-            <SubmitButton variant="outline" pendingLabel="Fetching next GDELT batch...">Refresh next GDELT batch</SubmitButton>
+            <SubmitButton variant="outline" pendingLabel="Fetching next GDELT fallback batch...">Refresh GDELT fallback</SubmitButton>
           </form>
           <form action={reclassifyPendingNewsAction}>
             <SubmitButton variant="outline" pendingLabel="Classifying...">Classify pending</SubmitButton>
@@ -177,6 +188,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
             <select name="source" defaultValue={params?.source ?? ""} className="h-10 rounded-md border bg-background px-3 text-sm">
               <option value="">All sources</option>
               <option value="financial_modeling_prep">FMP</option>
+              <option value="newsdata">NewsData</option>
               <option value="gdelt">GDELT</option>
             </select>
             <Button type="submit" variant="outline">Apply</Button>
@@ -187,12 +199,12 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
       <Card>
         <CardHeader>
           <CardTitle>Macro / World News</CardTitle>
-          <CardDescription>GDELT-backed macro, geopolitical, energy, currency, trade, and credit stories for Market Vision input.</CardDescription>
+          <CardDescription>NewsData-backed macro/world coverage is primary; GDELT remains available as fallback enrichment for Market Vision input.</CardDescription>
         </CardHeader>
         <CardContent>
           {macroWorldNews.length === 0 ? (
             <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
-              No GDELT macro/world-news articles are visible yet. Enable `ENABLE_GDELT_INGESTION`, apply migration 025, then run Refresh GDELT.
+              No NewsData or GDELT macro/world-news articles are visible yet. Enable `ENABLE_NEWSDATA_INGESTION`, add `NEWSDATA_API_KEY`, apply migration 048, then run Refresh macro news.
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
@@ -202,7 +214,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                     <div>
                       <p className="text-sm font-medium">{item.title}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {item.sourceName ?? "GDELT"} - {item.country ?? "Global"} - {formatDate(item.publishedAt)}
+                        {item.sourceName ?? sourceLabel(item.sourceProvider)} - {item.country ?? "Global"} - {formatDate(item.publishedAt)}
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs">{item.classification?.primaryTheme ?? "Unmapped"}</span>
@@ -219,8 +231,63 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
 
       <Card>
         <CardHeader>
+          <CardTitle>NewsData query-group status</CardTitle>
+          <CardDescription>Primary macro/world-news provider. Uses the same macro, rates, inflation, currency, geopolitical, energy, credit, and trade query groups as GDELT.</CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          {dashboard.newsDataQueryStatuses.length === 0 ? (
+            <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+              No active NewsData query groups found. Apply migration 048, add `NEWSDATA_API_KEY`, set `ENABLE_NEWSDATA_INGESTION=true`, then refresh NewsData.
+            </div>
+          ) : (
+            <table className="w-full min-w-[960px] text-sm">
+              <thead className="text-left text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="py-2 pr-3">Query group</th>
+                  <th className="py-2 pr-3">Theme</th>
+                  <th className="py-2 pr-3">Status</th>
+                  <th className="py-2 pr-3">Fetched</th>
+                  <th className="py-2 pr-3">Saved</th>
+                  <th className="py-2 pr-3">Filtered</th>
+                  <th className="py-2 pr-3">Duplicates</th>
+                  <th className="py-2 pr-3">Last run</th>
+                  <th className="py-2 pr-3">Next run</th>
+                  <th className="py-2 pr-3">Failures</th>
+                  <th className="py-2 pr-3">Last error</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dashboard.newsDataQueryStatuses.map(({ queryGroup, latestLog }) => {
+                  const statusLabel = latestLog?.status ?? (queryGroup.nextRunAt ? "Queued" : "Not run");
+                  return (
+                    <tr key={queryGroup.id} className="border-t align-top">
+                      <td className="py-3 pr-3">
+                        <div className="font-medium">{queryGroup.queryName}</div>
+                        <div className="text-xs text-muted-foreground">{queryGroup.queryKey}</div>
+                      </td>
+                      <td className="py-3 pr-3">{queryGroup.canonicalTheme}</td>
+                      <td className={`py-3 pr-3 font-medium ${statusTone(statusLabel)}`}>{statusLabel}</td>
+                      <td className="py-3 pr-3">{latestLog?.articlesFetched ?? 0}</td>
+                      <td className="py-3 pr-3">{latestLog?.articlesInserted ?? 0}</td>
+                      <td className="py-3 pr-3">{metadataNumber(latestLog?.metadata, "articlesFiltered")}</td>
+                      <td className="py-3 pr-3">{latestLog?.duplicatesDetected ?? 0}</td>
+                      <td className="py-3 pr-3 text-xs text-muted-foreground">{formatDateTime(latestLog?.completedAt ?? latestLog?.startedAt)}</td>
+                      <td className="py-3 pr-3 text-xs text-muted-foreground">{formatDateTime(queryGroup.nextRunAt)}</td>
+                      <td className="py-3 pr-3">{queryGroup.failureCount}</td>
+                      <td className="max-w-sm py-3 pr-3 text-xs text-muted-foreground">{latestLog?.errorMessage ?? queryGroup.lastError ?? "-"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>GDELT query-group status</CardTitle>
-          <CardDescription>Per-query diagnostics for tuning macro, rates, inflation, currency, geopolitical, energy, credit, and trade coverage.</CardDescription>
+          <CardDescription>Fallback provider diagnostics for macro, rates, inflation, currency, geopolitical, energy, credit, and trade coverage.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           {dashboard.gdeltQueryStatuses.length === 0 ? (
@@ -303,7 +370,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                     </td>
                     <td className="py-3 pr-3">{formatDate(item.publishedAt)}</td>
                     <td className="py-3 pr-3">
-                      <div>{item.sourceProvider === "gdelt" ? "GDELT" : "FMP"}</div>
+                      <div>{sourceLabel(item.sourceProvider)}</div>
                       <div className="text-xs text-muted-foreground">{item.country ?? item.language ?? "-"}</div>
                       <div className="text-xs text-muted-foreground">{item.sourceQualityTier.replace("_", " ")} - {item.sourceQualityScore}/100</div>
                     </td>

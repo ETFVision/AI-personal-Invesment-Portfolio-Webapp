@@ -2087,3 +2087,52 @@ Production-readiness assessment:
 - READY FOR RECOMMENDATION ENGINE V1 as a deterministic input layer.
 - Recommendation Engine V1 should treat fundamental scores as one input, not a standalone buy/sell signal.
 - Sector-relative scoring and financial-sector-specific scoring should be added before fundamentals become a high-weight recommendation driver.
+
+## 2026-06-03 - Recommendation Engine Macro-Fit Calibration Checkpoint
+
+Scope:
+- Reviewed how stored FRED macro regime data feeds the deterministic Recommendation Engine.
+- Checked live latest recommendation records for macro-score coverage by instrument type.
+- Focused only on diagnostics and future hardening notes; no scoring changes were made.
+
+Live recommendation diagnostics:
+- Latest recommendation set contains 83 instruments.
+- Standard ETFs: 24 / 24 have a stored `Macro Fit` component.
+- Standard ETF `Macro Fit` scores are all exactly `55/100`.
+- Bond ETFs: 11 / 11 have macro-related components, but they are named `Rate Regime`, `Inflation Regime`, and `Yield Curve`.
+- Crypto instruments: 5 / 5 have `Liquidity Regime` and `Macro Risk Appetite`.
+- Stocks do not currently have a direct FRED macro component.
+- Gold ETFs do not currently have a visible direct macro component in the recommendation breakdown.
+
+Latest FRED macro regime observed:
+- Rates: `falling_rate_support`
+- Inflation: `reaccelerating`
+- Growth: `expanding`
+- Employment: `stable`
+- Yield curve: `normal`
+- Liquidity: `tightening`
+- Dollar: `weakening`
+- Commodities: `falling_energy_pressure`
+
+Assessment:
+- This is not a display bug. Standard ETF macro fit is stored and shown on instrument detail pages.
+- The main Recommendations page intentionally remains compact and does not show component-level breakdowns.
+- The current ETF macro-fit rule set is too sparse: it starts at neutral `55/100` and only adjusts for a small number of macro-sensitive cases.
+- In the current macro regime, none of the standard ETF-specific adjustment rules fire, so every standard ETF remains neutral.
+- Current behavior is safe and deterministic, but too bland to be useful for ETF differentiation.
+
+Low-priority improvements for the next Recommendation Engine hardening pass:
+- Expand ETF macro-fit scoring by sector, theme, geography, and macro sensitivity.
+- Add broad-market ETF macro scoring that blends growth, rates, liquidity, inflation, and dollar context.
+- Add rate-sensitive logic for REITs, Utilities, Growth, Technology, and long-duration equity themes.
+- Add dollar-sensitivity logic for international developed markets, emerging markets, and global ex-US ETFs.
+- Add energy/commodity regime logic for Energy ETFs and Gold ETFs.
+- Add defensive-sector macro logic for Consumer Staples, Healthcare, and Utilities during weak-growth or risk-off regimes.
+- Add financial-sector logic using yield-curve regime and credit/liquidity context.
+- Add a visible direct macro component for Gold ETFs.
+- Consider a low-weight stock macro component only if it can remain stable and not overfit short-term macro noise.
+- Rename or explain `55/100` as "Neutral macro context" in UI copy if the score remains common.
+
+Recommended next action:
+- Keep current scoring unchanged until a broader recommendation calibration pass.
+- Treat this as a calibration backlog item, not a critical defect.
