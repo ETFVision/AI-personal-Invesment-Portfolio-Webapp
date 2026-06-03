@@ -80,6 +80,7 @@ function statusTone(value?: string) {
   if (value === "success") return "text-emerald-600";
   if (value === "partial_success") return "text-amber-600";
   if (value === "failed") return "text-destructive";
+  if (value === "Queued") return "text-amber-600";
   return "text-muted-foreground";
 }
 
@@ -240,23 +241,26 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                 </tr>
               </thead>
               <tbody>
-                {dashboard.gdeltQueryStatuses.map(({ queryGroup, latestLog }) => (
-                  <tr key={queryGroup.id} className="border-t align-top">
-                    <td className="py-3 pr-3">
-                      <div className="font-medium">{queryGroup.queryName}</div>
-                      <div className="text-xs text-muted-foreground">{queryGroup.queryKey}</div>
-                    </td>
-                    <td className="py-3 pr-3">{queryGroup.canonicalTheme}</td>
-                    <td className={`py-3 pr-3 font-medium ${statusTone(latestLog?.status)}`}>{latestLog?.status ?? "Not run"}</td>
-                    <td className="py-3 pr-3">{latestLog?.articlesFetched ?? 0}</td>
-                    <td className="py-3 pr-3">{latestLog?.articlesInserted ?? 0}</td>
-                    <td className="py-3 pr-3">{latestLog?.duplicatesDetected ?? 0}</td>
-                    <td className="py-3 pr-3 text-xs text-muted-foreground">{formatDateTime(latestLog?.completedAt ?? latestLog?.startedAt)}</td>
-                    <td className="py-3 pr-3 text-xs text-muted-foreground">{formatDateTime(queryGroup.nextRunAt)}</td>
-                    <td className="py-3 pr-3">{queryGroup.failureCount}</td>
-                    <td className="max-w-sm py-3 pr-3 text-xs text-muted-foreground">{latestLog?.errorMessage ?? queryGroup.lastError ?? "-"}</td>
-                  </tr>
-                ))}
+                {dashboard.gdeltQueryStatuses.map(({ queryGroup, latestLog }) => {
+                  const statusLabel = latestLog?.status ?? (queryGroup.nextRunAt ? "Queued" : "Not run");
+                  return (
+                    <tr key={queryGroup.id} className="border-t align-top">
+                      <td className="py-3 pr-3">
+                        <div className="font-medium">{queryGroup.queryName}</div>
+                        <div className="text-xs text-muted-foreground">{queryGroup.queryKey}</div>
+                      </td>
+                      <td className="py-3 pr-3">{queryGroup.canonicalTheme}</td>
+                      <td className={`py-3 pr-3 font-medium ${statusTone(statusLabel)}`}>{statusLabel}</td>
+                      <td className="py-3 pr-3">{latestLog?.articlesFetched ?? 0}</td>
+                      <td className="py-3 pr-3">{latestLog?.articlesInserted ?? 0}</td>
+                      <td className="py-3 pr-3">{latestLog?.duplicatesDetected ?? 0}</td>
+                      <td className="py-3 pr-3 text-xs text-muted-foreground">{formatDateTime(latestLog?.completedAt ?? latestLog?.startedAt)}</td>
+                      <td className="py-3 pr-3 text-xs text-muted-foreground">{formatDateTime(queryGroup.nextRunAt)}</td>
+                      <td className="py-3 pr-3">{queryGroup.failureCount}</td>
+                      <td className="max-w-sm py-3 pr-3 text-xs text-muted-foreground">{latestLog?.errorMessage ?? queryGroup.lastError ?? "-"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

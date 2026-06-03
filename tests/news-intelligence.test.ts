@@ -52,8 +52,8 @@ function newsItem(overrides: Partial<NewsItem> = {}): NewsItem {
     canonicalHash: overrides.canonicalHash ?? "canonical",
     isDuplicate: overrides.isDuplicate ?? false,
     duplicateOfId: overrides.duplicateOfId ?? null,
-    createdAt: "",
-    updatedAt: ""
+    createdAt: overrides.createdAt ?? "",
+    updatedAt: overrides.updatedAt ?? ""
   };
 }
 
@@ -1634,6 +1634,45 @@ test("news dashboard exposes latest status for each active GDELT query group", a
   assert.equal(dashboard.gdeltQueryStatuses.length, 2);
   assert.equal(dashboard.gdeltQueryStatuses.find((row) => row.queryGroup.id === "rates")?.latestLog?.status, "success");
   assert.equal(dashboard.gdeltQueryStatuses.find((row) => row.queryGroup.id === "geo")?.latestLog, null);
+});
+
+test("news dashboard hides stale failed GDELT logs after a query group reset", async () => {
+  const newsRepository = new FakeNewsRepository();
+  const gdeltRepository = new FakeGdeltRepository();
+  gdeltRepository.groups = [
+    gdeltQueryGroup({
+      id: "geo",
+      queryKey: "geopolitical_risk",
+      queryName: "Geopolitical",
+      canonicalTheme: "Geopolitical",
+      failureCount: 0,
+      lastError: null,
+      updatedAt: "2026-06-03T04:00:00.000Z"
+    })
+  ];
+  gdeltRepository.logs = [
+    {
+      id: "old-fail",
+      jobName: "gdelt-query-group-ingestion",
+      queryGroupId: "geo",
+      startedAt: "2026-06-03T02:00:00.000Z",
+      completedAt: "2026-06-03T02:01:00.000Z",
+      status: "failed",
+      articlesFetched: 0,
+      articlesInserted: 0,
+      duplicatesDetected: 0,
+      errorMessage: "GDELT request failed with status 429.",
+      metadata: {},
+      createdAt: "2026-06-03T02:01:00.000Z"
+    }
+  ];
+  const dashboard = await new NewsDashboardService(
+    newsRepository,
+    new ThemeIntelligenceService(newsRepository, new FakeMacroSignalRepository([]) as unknown as MacroIndicatorRepository),
+    gdeltRepository
+  ).getDashboard();
+
+  assert.equal(dashboard.gdeltQueryStatuses[0]?.latestLog, null);
 });
 
 test("cron protection rejects missing or invalid secret", () => {

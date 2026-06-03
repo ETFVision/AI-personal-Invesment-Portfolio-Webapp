@@ -2,7 +2,16 @@ import type { NewsRepository } from "@/application/ports/repositories/NewsReposi
 import type { NewsFilters } from "@/application/ports/repositories/NewsRepository";
 import type { GdeltRepository } from "@/application/ports/repositories/GdeltRepository";
 import type { NewsThemeIntelligence, NewsThemeSummary } from "@/domain/news/types";
+import type { GdeltIngestionLog, GdeltQueryGroup } from "@/domain/news/types";
 import type { ThemeIntelligenceService } from "./ThemeIntelligenceService";
+
+function isStaleResetFailureLog(queryGroup: GdeltQueryGroup, latestLog: GdeltIngestionLog | null) {
+  if (!latestLog || latestLog.status !== "failed") return false;
+  if (queryGroup.failureCount === 0 && !queryGroup.lastError) return true;
+  const logTime = new Date(latestLog.startedAt).getTime();
+  const groupUpdatedAt = new Date(queryGroup.updatedAt).getTime();
+  return Number.isFinite(logTime) && Number.isFinite(groupUpdatedAt) && logTime < groupUpdatedAt;
+}
 
 export class NewsDashboardService {
   constructor(
@@ -44,10 +53,13 @@ export class NewsDashboardService {
       this.gdeltRepository.listActiveQueryGroups(),
       this.gdeltRepository.listIngestionLogs(80)
     ]);
-    return queryGroups.map((queryGroup) => ({
-      queryGroup,
-      latestLog: logs.find((log) => log.queryGroupId === queryGroup.id) ?? null
-    }));
+    return queryGroups.map((queryGroup) => {
+      const latestLog = logs.find((log) => log.queryGroupId === queryGroup.id) ?? null;
+      return {
+        queryGroup,
+        latestLog: isStaleResetFailureLog(queryGroup, latestLog) ? null : latestLog
+      };
+    });
   }
 
   private emptyThemeIntelligence(): NewsThemeIntelligence {
