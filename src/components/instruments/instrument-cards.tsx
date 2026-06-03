@@ -67,6 +67,14 @@ function riskPercent(value: number | null | undefined) {
   return value == null ? "-" : formatPercent(value);
 }
 
+function recommendationTone(label: string) {
+  if (label === "Strong Buy" || label === "Buy") return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  if (label === "Hold") return "border-blue-200 bg-blue-50 text-blue-900";
+  if (label === "Watch") return "border-amber-200 bg-amber-50 text-amber-900";
+  if (label === "Reduce" || label === "Sell") return "border-red-200 bg-red-50 text-red-900";
+  return "border-border bg-muted text-muted-foreground";
+}
+
 export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMetric: InstrumentRiskMetric | null }) {
   if (!riskMetric) {
     return <PlaceholderPanel title="Risk" description="No sufficient stored price history is available for instrument risk metrics yet." />;
@@ -117,7 +125,12 @@ export function RecommendationSummaryCard({ recommendation }: { recommendation: 
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <SummaryMetric label="Label" value={recommendation.recommendationLabel} />
+          <div className="rounded-md border bg-background p-3">
+            <p className="text-xs uppercase text-muted-foreground">Label</p>
+            <span className={`mt-2 inline-flex rounded-md border px-2 py-1 text-sm font-medium ${recommendationTone(recommendation.recommendationLabel)}`}>
+              {recommendation.recommendationLabel}
+            </span>
+          </div>
           <SummaryMetric label="Score" value={recommendation.overallScore == null ? "-" : `${Math.round(recommendation.overallScore)}/100`} />
           <SummaryMetric label="Confidence" value={formatPercent(recommendation.confidenceScore / 100)} />
           <SummaryMetric label="Risk level" value={recommendation.riskLevel.replaceAll("_", " ")} />
