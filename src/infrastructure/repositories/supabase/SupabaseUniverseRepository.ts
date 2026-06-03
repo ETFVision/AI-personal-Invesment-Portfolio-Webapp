@@ -5,6 +5,7 @@ import {
   Instrument,
   InstrumentMarketMetric,
   InstrumentPrice,
+  InstrumentRiskMetric,
   MetadataRefreshLog,
   Watchlist,
   WatchlistItem
@@ -17,6 +18,7 @@ import {
   UniverseRepository,
   UpsertInstrumentInput,
   UpsertInstrumentPriceInput,
+  UpsertInstrumentRiskMetricInput,
   UpsertWatchlistInput,
   UpsertWatchlistItemInput
 } from "@/application/ports/repositories/UniverseRepository";
@@ -38,6 +40,7 @@ function isMissingMetricsSupport(error: { code?: string; message?: string } | nu
       (error.code === "42P01" ||
         error.code === "42883" ||
         error.message?.toLowerCase().includes("instrument_market_metrics") ||
+        error.message?.toLowerCase().includes("instrument_risk_metrics") ||
         error.message?.toLowerCase().includes("refresh_instrument_market_metrics"))
   );
 }
@@ -188,6 +191,33 @@ function mapInstrumentMarketMetric(row: any): InstrumentMarketMetric {
     historyStartDate: row.history_start_date,
     historyEndDate: row.history_end_date,
     updatedAt: row.updated_at
+  };
+}
+
+function mapInstrumentRiskMetric(row: any): InstrumentRiskMetric {
+  return {
+    instrumentId: row.instrument_id,
+    metricDate: row.metric_date,
+    volatility30d: row.volatility_30d == null ? null : Number(row.volatility_30d),
+    volatility90d: row.volatility_90d == null ? null : Number(row.volatility_90d),
+    volatility1y: row.volatility_1y == null ? null : Number(row.volatility_1y),
+    volatilityTrend: row.volatility_trend ?? "insufficient_data",
+    downsideVolatility: row.downside_volatility == null ? null : Number(row.downside_volatility),
+    currentDrawdown: row.current_drawdown == null ? null : Number(row.current_drawdown),
+    maxDrawdown: row.max_drawdown == null ? null : Number(row.max_drawdown),
+    drawdownDurationDays: row.drawdown_duration_days == null ? null : Number(row.drawdown_duration_days),
+    drawdownBucket: row.drawdown_bucket ?? "insufficient_data",
+    negativeReturnFrequency: row.negative_return_frequency == null ? null : Number(row.negative_return_frequency),
+    worstDailyReturn: row.worst_daily_return == null ? null : Number(row.worst_daily_return),
+    worstWeeklyReturn: row.worst_weekly_return == null ? null : Number(row.worst_weekly_return),
+    riskScore: row.risk_score == null ? null : Number(row.risk_score),
+    riskBucket: row.risk_bucket ?? "insufficient_data",
+    volatilityBucket: row.volatility_bucket ?? "insufficient_data",
+    confidenceScore: Number(row.confidence_score ?? 0),
+    observationCount: Number(row.observation_count ?? 0),
+    historyStartDate: row.history_start_date,
+    historyEndDate: row.history_end_date,
+    calculatedAt: row.calculated_at
   };
 }
 
@@ -424,6 +454,52 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     const { error } = await this.db.rpc("refresh_instrument_market_metrics", {
       target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
     });
+    if (isMissingMetricsSupport(error)) return;
+    if (error) throw new Error(error.message);
+  }
+
+  async listInstrumentRiskMetrics(instrumentIds?: string[]) {
+    let query = this.db.from("instrument_risk_metrics").select("*").order("metric_date", { ascending: false, nullsFirst: false });
+    if (instrumentIds && instrumentIds.length > 0) {
+      query = query.in("instrument_id", instrumentIds);
+    }
+
+    const { data, error } = await query;
+    if (isMissingMetricsSupport(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapInstrumentRiskMetric);
+  }
+
+  async upsertInstrumentRiskMetrics(input: UpsertInstrumentRiskMetricInput[]) {
+    if (input.length === 0) return;
+
+    const { error } = await this.db.from("instrument_risk_metrics").upsert(
+      input.map((item) => ({
+        instrument_id: item.instrumentId,
+        metric_date: item.metricDate,
+        volatility_30d: item.volatility30d,
+        volatility_90d: item.volatility90d,
+        volatility_1y: item.volatility1y,
+        volatility_trend: item.volatilityTrend,
+        downside_volatility: item.downsideVolatility,
+        current_drawdown: item.currentDrawdown,
+        max_drawdown: item.maxDrawdown,
+        drawdown_duration_days: item.drawdownDurationDays,
+        drawdown_bucket: item.drawdownBucket,
+        negative_return_frequency: item.negativeReturnFrequency,
+        worst_daily_return: item.worstDailyReturn,
+        worst_weekly_return: item.worstWeeklyReturn,
+        risk_score: item.riskScore,
+        risk_bucket: item.riskBucket,
+        volatility_bucket: item.volatilityBucket,
+        confidence_score: item.confidenceScore,
+        observation_count: item.observationCount,
+        history_start_date: item.historyStartDate,
+        history_end_date: item.historyEndDate,
+        calculated_at: item.calculatedAt ?? new Date().toISOString()
+      })),
+      { onConflict: "instrument_id,metric_date" }
+    );
     if (isMissingMetricsSupport(error)) return;
     if (error) throw new Error(error.message);
   }

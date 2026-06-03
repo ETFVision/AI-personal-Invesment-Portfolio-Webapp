@@ -14,7 +14,7 @@ import {
 } from "@/components/instruments/instrument-cards";
 import { instrumentTypeLabel, resolveInstrumentType, type CanonicalInstrumentType } from "@/application/services/instruments/InstrumentTypeResolver";
 import type { FundamentalsDetail } from "@/domain/fundamentals/types";
-import type { BondProfile, Instrument, InstrumentMarketView } from "@/domain/universe/types";
+import type { BondProfile, Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 
@@ -302,12 +302,19 @@ function PerformancePanel({ marketView }: { marketView: InstrumentMarketView }) 
   );
 }
 
-function tabsForType(type: CanonicalInstrumentType, instrument: Instrument, marketView: InstrumentMarketView, bondProfile: BondProfile | null, fundamentalsDetail: FundamentalsDetail | null) {
+function tabsForType(
+  type: CanonicalInstrumentType,
+  instrument: Instrument,
+  marketView: InstrumentMarketView,
+  bondProfile: BondProfile | null,
+  fundamentalsDetail: FundamentalsDetail | null,
+  riskMetric: InstrumentRiskMetric | null
+) {
   const common = {
     overview: <InstrumentSummaryCard marketView={marketView} />,
     news: <NewsSummaryCard />,
     themes: <ThemesPanel instrument={instrument} />,
-    risk: <RiskSummaryCard instrument={instrument} />,
+    risk: <RiskSummaryCard instrument={instrument} riskMetric={riskMetric} />,
     marketVision: <MarketVisionContextCard />,
     recommendations: <PlaceholderPanel title="Recommendations" description="Prepared for the future recommendation layer. No buy/sell logic is implemented." />
   };
@@ -403,7 +410,8 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
   const typeLabel = instrumentTypeLabel(type);
   const bondProfile = bondProfiles.find((profile) => profile.instrumentId === instrument.id) ?? null;
   const fundamentalsDetail = type === "stock" && instrument.symbol ? await container.fundamentalsRepository.getDetailBySymbol(instrument.symbol) : null;
-  const tabs = tabsForType(type, instrument, marketView, bondProfile, fundamentalsDetail);
+  const riskMetric = await container.instrumentRiskService.getInstrumentRiskMetric(instrument);
+  const tabs = tabsForType(type, instrument, marketView, bondProfile, fundamentalsDetail, riskMetric);
 
   return (
     <div className="space-y-6">

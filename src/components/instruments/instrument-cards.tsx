@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import type { Instrument, InstrumentMarketView } from "@/domain/universe/types";
+import type { Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrencyWithCode, formatPercent } from "@/lib/utils";
+import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 import { DataFreshnessBadge, InstrumentTypeBadge, ThemeBadgeList } from "./instrument-badges";
 
 export function InstrumentHeader({
@@ -57,20 +57,43 @@ export function InstrumentSummaryCard({ marketView }: { marketView: InstrumentMa
   );
 }
 
-export function RiskSummaryCard({ instrument }: { instrument: Instrument }) {
+function riskLabel(value: string | null | undefined) {
+  if (!value) return "-";
+  return value.replaceAll("_", " ");
+}
+
+function riskPercent(value: number | null | undefined) {
+  return value == null ? "-" : formatPercent(value);
+}
+
+export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMetric: InstrumentRiskMetric | null }) {
+  if (!riskMetric) {
+    return <PlaceholderPanel title="Risk" description="No sufficient stored price history is available for instrument risk metrics yet." />;
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Risk</CardTitle>
-        <CardDescription>Risk attributes prepared for portfolio and future recommendation context.</CardDescription>
+        <CardDescription>Calculated from stored price history. Return, price and liquidity metrics stay in Performance.</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <SummaryMetric label="Risk category" value={instrument.riskCategory ?? "-"} />
-        <SummaryMetric label="Volatility bucket" value={instrument.volatilityBucket ?? "-"} />
-        <SummaryMetric label="Rate sensitivity" value={instrument.rateSensitivity ?? "-"} />
-        <SummaryMetric label="Inflation sensitivity" value={instrument.inflationSensitivity ?? "-"} />
-        <SummaryMetric label="Recession sensitivity" value={instrument.recessionSensitivity ?? "-"} />
-        <SummaryMetric label="Liquidity role" value={instrument.liquidityRole ?? "-"} />
+      <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <SummaryMetric label="Risk score" value={riskMetric.riskScore == null ? "-" : `${Math.round(riskMetric.riskScore)}/100`} />
+        <SummaryMetric label="Risk bucket" value={riskLabel(riskMetric.riskBucket)} />
+        <SummaryMetric label="Confidence" value={formatPercent(riskMetric.confidenceScore / 100)} />
+        <SummaryMetric label="Vol trend" value={riskLabel(riskMetric.volatilityTrend)} />
+        <SummaryMetric label="30D volatility" value={riskPercent(riskMetric.volatility30d)} />
+        <SummaryMetric label="90D volatility" value={riskPercent(riskMetric.volatility90d)} />
+        <SummaryMetric label="1Y volatility" value={riskPercent(riskMetric.volatility1y)} />
+        <SummaryMetric label="Downside volatility" value={riskPercent(riskMetric.downsideVolatility)} />
+        <SummaryMetric label="Current drawdown" value={riskPercent(riskMetric.currentDrawdown)} />
+        <SummaryMetric label="Max drawdown" value={riskPercent(riskMetric.maxDrawdown)} />
+        <SummaryMetric label="Drawdown duration" value={`${riskMetric.drawdownDurationDays ?? 0}d`} />
+        <SummaryMetric label="Drawdown bucket" value={riskLabel(riskMetric.drawdownBucket)} />
+        <SummaryMetric label="Negative days" value={riskPercent(riskMetric.negativeReturnFrequency)} />
+        <SummaryMetric label="Worst day" value={riskPercent(riskMetric.worstDailyReturn)} />
+        <SummaryMetric label="Worst week" value={riskPercent(riskMetric.worstWeeklyReturn)} />
+        <SummaryMetric label="Risk observations" value={formatNumber(riskMetric.observationCount)} />
       </CardContent>
     </Card>
   );

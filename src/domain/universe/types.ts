@@ -77,6 +77,31 @@ export type InstrumentMarketMetric = {
   updatedAt: string | null;
 };
 
+export type InstrumentRiskMetric = {
+  instrumentId: string;
+  metricDate: string;
+  volatility30d: number | null;
+  volatility90d: number | null;
+  volatility1y: number | null;
+  volatilityTrend: "rising" | "stable" | "falling" | "insufficient_data";
+  downsideVolatility: number | null;
+  currentDrawdown: number | null;
+  maxDrawdown: number | null;
+  drawdownDurationDays: number | null;
+  drawdownBucket: "low" | "moderate" | "elevated" | "severe" | "insufficient_data";
+  negativeReturnFrequency: number | null;
+  worstDailyReturn: number | null;
+  worstWeeklyReturn: number | null;
+  riskScore: number | null;
+  riskBucket: "low" | "medium" | "high" | "very_high" | "insufficient_data";
+  volatilityBucket: "low" | "medium" | "high" | "very_high" | "insufficient_data";
+  confidenceScore: number;
+  observationCount: number;
+  historyStartDate: string | null;
+  historyEndDate: string | null;
+  calculatedAt: string | null;
+};
+
 export type InstrumentMarketDetailField = {
   label: string;
   value: string;
