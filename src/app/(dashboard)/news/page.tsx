@@ -4,7 +4,7 @@ import {
   reclassifyPendingNewsAction,
   runDailyNewsIngestionAction,
   runGdeltNewsIngestionAction,
-  runMacroNewsIngestionAction,
+  runNewsDataNewsIngestionAction,
   runWeeklyNewsReconciliationAction
 } from "@/server/actions/newsActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -125,8 +125,8 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
           <form action={runDailyNewsIngestionAction}>
             <SubmitButton pendingLabel="Fetching FMP...">Refresh FMP</SubmitButton>
           </form>
-          <form action={runMacroNewsIngestionAction}>
-            <SubmitButton variant="secondary" pendingLabel="Fetching macro news...">Refresh macro news</SubmitButton>
+          <form action={runNewsDataNewsIngestionAction}>
+            <SubmitButton variant="secondary" pendingLabel="Fetching NewsData...">Refresh NewsData</SubmitButton>
           </form>
           <form action={runGdeltNewsIngestionAction}>
             <SubmitButton variant="outline" pendingLabel="Fetching next GDELT fallback batch...">Refresh GDELT fallback</SubmitButton>
@@ -191,12 +191,12 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
       <Card>
         <CardHeader>
           <CardTitle>Macro / World News</CardTitle>
-          <CardDescription>NewsData-backed macro/world coverage is primary; GDELT remains available as fallback enrichment for Market Vision input.</CardDescription>
+          <CardDescription>NewsData and GDELT are separate macro/world-news source refreshes for Market Vision input.</CardDescription>
         </CardHeader>
         <CardContent>
           {macroWorldNews.length === 0 ? (
             <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
-              No NewsData or GDELT macro/world-news articles are visible yet. Enable `ENABLE_NEWSDATA_INGESTION`, add `NEWSDATA_API_KEY`, apply migration 048, then run Refresh macro news.
+              No NewsData or GDELT macro/world-news articles are visible yet. Enable `ENABLE_NEWSDATA_INGESTION`, add `NEWSDATA_API_KEY`, apply migration 048, then run Refresh NewsData.
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
