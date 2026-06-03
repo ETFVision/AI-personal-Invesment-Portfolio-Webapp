@@ -541,7 +541,7 @@ test("fundamental trend service detects improving and deteriorating growth trend
 
   const revenue = result.trends.find((trend) => trend.metricName === "revenue_growth");
   const eps = result.trends.find((trend) => trend.metricName === "eps_growth");
-  assert.equal(revenue?.overallTrendDirection, "improving");
+  assert.equal(revenue?.overallTrendDirection, "accelerating");
   assert.equal(eps?.overallTrendDirection, "deteriorating");
   assert.ok((revenue?.overallTrendScore ?? 0) > (eps?.overallTrendScore ?? 100));
 });
@@ -564,6 +564,7 @@ test("fundamental trend service treats falling debt-to-equity as improving", () 
 
   const leverage = result.trends.find((trend) => trend.metricName === "debt_to_equity");
   assert.equal(leverage?.overallTrendDirection, "improving");
+  assert.equal(leverage?.shortTermTrendDirection, "not_applicable");
   assert.ok((leverage?.overallTrendScore ?? 0) >= 65);
 });
 
@@ -606,6 +607,7 @@ test("fundamental trend service derives growth trends from stored quarterly stat
   const ebitda = result.trends.find((trend) => trend.metricName === "ebitda_growth");
   assert.equal(revenue?.shortTermPeriodsAnalyzed, 5);
   assert.equal(revenue?.displayPeriod, "quarterly");
+  assert.equal(revenue?.displayWindow, "short_term");
   assert.notEqual(revenue?.shortTermTrendDirection, "insufficient_data");
   assert.notEqual(eps?.shortTermTrendDirection, "insufficient_data");
   assert.notEqual(fcf?.shortTermTrendDirection, "insufficient_data");
@@ -654,6 +656,7 @@ test("fundamental trend service derives profitability and liquidity trends from 
   const interestCoverage = result.trends.find((trend) => trend.metricName === "interest_coverage");
   const revenuePerShare = result.trends.find((trend) => trend.metricName === "revenue_per_share_growth");
   assert.equal(roic?.longTermPeriodsAnalyzed, 5);
+  assert.equal(roic?.shortTermTrendDirection, "not_applicable");
   assert.notEqual(roic?.longTermTrendDirection, "insufficient_data");
   assert.notEqual(currentRatio?.longTermTrendDirection, "insufficient_data");
   assert.notEqual(interestCoverage?.longTermTrendDirection, "insufficient_data");

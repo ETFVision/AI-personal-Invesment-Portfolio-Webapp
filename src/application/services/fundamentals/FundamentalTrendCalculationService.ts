@@ -56,6 +56,17 @@ type WindowAnalysis = {
   periodsAnalyzed: number;
 };
 
+const annualOnlyMetricNames = new Set([
+  "roe",
+  "roic",
+  "roa",
+  "debt_to_equity",
+  "current_ratio",
+  "interest_coverage",
+  "fcf_conversion",
+  "dilution_trend"
+]);
+
 function safeRatio(numerator: number | null | undefined, denominator: number | null | undefined) {
   if (numerator == null || denominator == null || denominator === 0) return null;
   const value = numerator / denominator;
@@ -217,15 +228,21 @@ function inferDirection(values: number[], lowerIsBetter: boolean): FundamentalTr
     if (priorMove !== 0 && move !== 0 && Math.sign(priorMove) !== Math.sign(move)) directionChanges += 1;
   }
   const volatility = stdev(values);
-  if (directionChanges >= 2 || volatility > Math.max(0.2, Math.abs(avg(values) ?? 0) * 0.6)) return "volatile";
+  const latestPositive = !lowerIsBetter && latest > 0;
+  if (latestPositive && latest < previous && secondAverage > firstAverage) return "decelerating";
+  if (latestPositive && latest > previous && firstAverage < 0 && secondAverage > 0) return "rebounding";
+  if (!lowerIsBetter && latest > previous && secondAverage > firstAverage) return latestPositive ? "accelerating" : "improving";
+  if (!lowerIsBetter && latest < previous && secondAverage < firstAverage) return latestPositive ? "decelerating" : "deteriorating";
+  if (directionChanges >= 3 || volatility > Math.max(0.35, Math.abs(avg(values) ?? 0) * 1.2)) return "volatile";
   if (Math.abs(delta) <= tolerance && Math.abs(latestDelta) <= tolerance) return "stable";
-  if (delta > tolerance && latestDelta >= -tolerance) return "improving";
-  if (delta < -tolerance || latestDelta < -tolerance) return "deteriorating";
+  if (delta > tolerance && latestDelta >= -tolerance) return lowerIsBetter ? "improving" : latestPositive ? "accelerating" : "improving";
+  if (delta < -tolerance || latestDelta < -tolerance) return lowerIsBetter ? "deteriorating" : latestPositive ? "decelerating" : "deteriorating";
   return "stable";
 }
 
 function strengthFrom(values: number[], direction: FundamentalTrendDirection): FundamentalTrendStrength {
   if (direction === "insufficient_data") return "insufficient_data";
+  if (direction === "not_applicable") return "not_applicable";
   if (direction === "stable" || direction === "mixed") return "weak";
   if (direction === "volatile") return "moderate";
   const first = values[0];
@@ -238,14 +255,18 @@ function strengthFrom(values: number[], direction: FundamentalTrendDirection): F
 
 function scoreFrom(direction: FundamentalTrendDirection, strength: FundamentalTrendStrength) {
   if (direction === "insufficient_data") return null;
-  if (direction === "improving") return strength === "strong" ? 90 : strength === "moderate" ? 74 : 66;
+  if (direction === "not_applicable") return null;
+  if (direction === "accelerating" || direction === "improving") return strength === "strong" ? 90 : strength === "moderate" ? 74 : 66;
+  if (direction === "rebounding") return strength === "strong" ? 78 : 68;
   if (direction === "stable") return 56;
+  if (direction === "decelerating") return strength === "strong" ? 44 : 50;
   if (direction === "deteriorating") return strength === "strong" ? 18 : strength === "moderate" ? 34 : 42;
   if (direction === "volatile") return strength === "strong" ? 32 : 44;
   return 50;
 }
 
 function confidenceFrom(values: number[], direction: FundamentalTrendDirection) {
+  if (direction === "not_applicable") return 0;
   if (values.length < 3) return 20;
   let confidence = values.length >= 5 ? 82 : 62;
   if (direction === "volatile") confidence -= 18;
@@ -271,7 +292,7 @@ function analyze(points: SeriesPoint[], lowerIsBetter = false): WindowAnalysis {
 }
 
 function combineDirection(shortTerm: WindowAnalysis, longTerm: WindowAnalysis): FundamentalTrendDirection {
-  const usable = [shortTerm, longTerm].filter((item) => item.direction !== "insufficient_data");
+  const usable = [shortTerm, longTerm].filter((item) => item.direction !== "insufficient_data" && item.direction !== "not_applicable");
   if (usable.length === 0) return "insufficient_data";
   if (usable.some((item) => item.direction === "volatile")) return "volatile";
   if (usable.length === 2 && usable[0].direction !== usable[1].direction) return "mixed";
@@ -296,8 +317,12 @@ function formatValue(value: number | null, formatter: MetricDefinition["formatte
 }
 
 function explanationFor(metric: MetricDefinition, direction: FundamentalTrendDirection, windowLabel: string, value: number | null) {
+  if (direction === "not_applicable") return `${humanMetric(metric.name)} is assessed on an annual basis; short-term quarterly analysis is not used for this metric.`;
   if (direction === "insufficient_data") return `Insufficient historical data is available to determine a reliable ${humanMetric(metric.name)} trend.`;
+  if (direction === "accelerating") return `${humanMetric(metric.name)} is accelerating in the ${windowLabel} window, with the latest value at ${formatValue(value, metric.formatter)}.`;
   if (direction === "improving") return `${humanMetric(metric.name)} is improving in the ${windowLabel} window, with the latest value at ${formatValue(value, metric.formatter)}.`;
+  if (direction === "rebounding") return `${humanMetric(metric.name)} is rebounding in the ${windowLabel} window, with the latest value at ${formatValue(value, metric.formatter)}.`;
+  if (direction === "decelerating") return `${humanMetric(metric.name)} is decelerating but remains positive in the ${windowLabel} window, with the latest value at ${formatValue(value, metric.formatter)}.`;
   if (direction === "deteriorating") return `${humanMetric(metric.name)} is deteriorating in the ${windowLabel} window, with the latest value at ${formatValue(value, metric.formatter)}.`;
   if (direction === "volatile") return `${humanMetric(metric.name)} is volatile across the ${windowLabel} window, so confidence is reduced.`;
   if (direction === "mixed") return `${humanMetric(metric.name)} has mixed short-term and long-term signals.`;
@@ -321,6 +346,14 @@ function countByDirection(trends: FundamentalTrend[], direction: FundamentalTren
   return trends.filter((trend) => trend.overallTrendDirection === direction).length;
 }
 
+function isPositiveDirection(direction: FundamentalTrendDirection) {
+  return direction === "accelerating" || direction === "improving" || direction === "rebounding";
+}
+
+function isNegativeDirection(direction: FundamentalTrendDirection) {
+  return direction === "decelerating" || direction === "deteriorating";
+}
+
 function buildWarnings(trends: FundamentalTrend[]) {
   const byName = new Map(trends.map((trend) => [trend.metricName, trend]));
   const warnings: string[] = [];
@@ -332,16 +365,16 @@ function buildWarnings(trends: FundamentalTrend[]) {
   const netIncome = byName.get("net_income_growth");
   const dilution = byName.get("dilution_trend");
 
-  if (revenue?.overallTrendDirection === "deteriorating") warnings.push("Revenue growth trend is weakening.");
-  if (eps?.overallTrendDirection === "deteriorating") warnings.push("EPS growth trend is weakening.");
-  if (fcf?.overallTrendDirection === "deteriorating") warnings.push("Free cash flow growth trend is weakening.");
+  if (revenue?.overallTrendDirection === "deteriorating" || revenue?.overallTrendDirection === "decelerating") warnings.push("Revenue growth trend is weakening.");
+  if (eps?.overallTrendDirection === "deteriorating" || eps?.overallTrendDirection === "decelerating") warnings.push("EPS growth trend is weakening.");
+  if (fcf?.overallTrendDirection === "deteriorating" || fcf?.overallTrendDirection === "decelerating") warnings.push("Free cash flow growth trend is weakening.");
   if (margin?.overallTrendDirection === "deteriorating") warnings.push("Margins are compressing.");
   if (debt?.overallTrendDirection === "deteriorating") warnings.push("Leverage trend is rising.");
-  if (revenue?.overallTrendDirection === "improving" && fcf?.overallTrendDirection === "deteriorating") warnings.push("Revenue is improving while free cash flow is weakening.");
-  if (revenue?.overallTrendDirection === "improving" && margin?.overallTrendDirection === "deteriorating") warnings.push("Revenue is improving while margins are compressing.");
+  if (revenue && isPositiveDirection(revenue.overallTrendDirection) && fcf && isNegativeDirection(fcf.overallTrendDirection)) warnings.push("Revenue is improving while free cash flow is weakening.");
+  if (revenue && isPositiveDirection(revenue.overallTrendDirection) && margin && isNegativeDirection(margin.overallTrendDirection)) warnings.push("Revenue is improving while margins are compressing.");
   if (debt?.overallTrendDirection === "deteriorating" && netIncome?.overallTrendDirection === "deteriorating") warnings.push("Leverage is rising while profitability is weakening.");
-  if (eps?.overallTrendDirection === "improving" && netIncome?.overallTrendDirection === "deteriorating") warnings.push("EPS improvement may not be supported by net income growth.");
-  if (eps?.overallTrendDirection === "improving" && dilution?.overallTrendDirection === "improving") warnings.push("EPS improvement may be helped by lower share count.");
+  if (eps && isPositiveDirection(eps.overallTrendDirection) && netIncome && isNegativeDirection(netIncome.overallTrendDirection)) warnings.push("EPS improvement may not be supported by net income growth.");
+  if (eps && isPositiveDirection(eps.overallTrendDirection) && dilution && isPositiveDirection(dilution.overallTrendDirection)) warnings.push("EPS improvement may be helped by lower share count.");
   return warnings;
 }
 
@@ -430,7 +463,19 @@ export class FundamentalTrendCalculationService {
   private calculateMetric(input: TrendInput, metric: MetricDefinition, quarterly: PeriodBundle[], annual: PeriodBundle[], asOfDate: string): FundamentalTrend {
     const shortPoints = metricSeries(quarterly, metric, metric.shortTerm, 5);
     const longPoints = metricSeries(annual, metric, metric.longTerm, 5);
-    const shortTerm = analyze(shortPoints, metric.lowerIsBetter);
+    const shortTerm = annualOnlyMetricNames.has(metric.name)
+      ? {
+        direction: "not_applicable" as const,
+        strength: "not_applicable" as const,
+        score: null,
+        confidence: 0,
+        currentValue: null,
+        previousValue: null,
+        threePeriodAvg: null,
+        fivePeriodAvg: null,
+        periodsAnalyzed: 0
+      }
+      : analyze(shortPoints, metric.lowerIsBetter);
     const longTerm = analyze(longPoints, metric.lowerIsBetter);
     const overallTrendDirection = combineDirection(shortTerm, longTerm);
     const overallTrendScore = weightedAverage([
@@ -441,7 +486,7 @@ export class FundamentalTrendCalculationService {
       { value: shortTerm.confidence, weight: shortTerm.periodsAnalyzed > 0 ? 0.4 : 0 },
       { value: longTerm.confidence, weight: longTerm.periodsAnalyzed > 0 ? 0.6 : 0 }
     ]) ?? 20;
-    const useLongTermDisplay = longTerm.direction !== "insufficient_data";
+    const useLongTermDisplay = longTerm.direction !== "insufficient_data" && longTerm.direction !== "not_applicable";
     const primary = useLongTermDisplay ? longTerm : shortTerm;
 
     return {
@@ -501,10 +546,10 @@ export class FundamentalTrendCalculationService {
       { value: categoryScores.balanceSheet, weight: categoryWeights.balance_sheet },
       { value: categoryScores.quality, weight: categoryWeights.quality }
     ]);
-    const directionalTrends = trends.filter((trend) => trend.overallTrendDirection !== "insufficient_data");
+    const directionalTrends = trends.filter((trend) => trend.overallTrendDirection !== "insufficient_data" && trend.overallTrendDirection !== "not_applicable");
     const averageConfidence = avg(directionalTrends.map((trend) => trend.overallConfidenceScore)) ?? 20;
-    const improving = countByDirection(trends, "improving");
-    const deteriorating = countByDirection(trends, "deteriorating");
+    const improving = trends.filter((trend) => isPositiveDirection(trend.overallTrendDirection)).length;
+    const deteriorating = trends.filter((trend) => isNegativeDirection(trend.overallTrendDirection)).length;
     const volatile = countByDirection(trends, "volatile");
     const stable = countByDirection(trends, "stable");
     const insufficient = countByDirection(trends, "insufficient_data");

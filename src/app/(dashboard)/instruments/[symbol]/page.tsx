@@ -39,6 +39,7 @@ function percent(value: number | null | undefined) {
 }
 
 function trendLabel(value: string | null | undefined) {
+  if (value === "not_applicable") return "N/A";
   return value ? value.replaceAll("_", " ") : "-";
 }
 
@@ -46,6 +47,13 @@ function displayPeriodLabel(value: string | null | undefined) {
   if (value === "annual") return "annual";
   if (value === "quarterly") return "quarterly";
   return "period";
+}
+
+function basisLabel(window: string | null | undefined, period: string | null | undefined) {
+  if (!window || !period) return "-";
+  if (window === "short_term" && period === "quarterly") return "YoY quarterly";
+  if (window === "long_term" && period === "annual") return "Annual";
+  return `${trendLabel(window)} ${displayPeriodLabel(period)}`;
 }
 
 function trendValue(value: number | null | undefined, metricName: string) {
@@ -194,6 +202,7 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
                             <th className="py-2 pr-3">Prior shown</th>
                             <th className="py-2 pr-3">Short term</th>
                             <th className="py-2 pr-3">Long term</th>
+                            <th className="py-2 pr-3">Basis</th>
                             <th className="py-2 pr-3">Overall</th>
                             <th className="py-2 pr-3">Score</th>
                             <th className="py-2 pr-3">Confidence</th>
@@ -214,6 +223,7 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
                               </td>
                               <td className="py-2 pr-3 capitalize">{trendLabel(trend.shortTermTrendDirection)} ({trend.shortTermPeriodsAnalyzed})</td>
                               <td className="py-2 pr-3 capitalize">{trendLabel(trend.longTermTrendDirection)} ({trend.longTermPeriodsAnalyzed})</td>
+                              <td className="py-2 pr-3">{basisLabel(trend.displayWindow, trend.displayPeriod)}</td>
                               <td className="py-2 pr-3 capitalize">{trendLabel(trend.overallTrendDirection)}</td>
                               <td className="py-2 pr-3">{score(trend.overallTrendScore)}</td>
                               <td className="py-2 pr-3">{formatPercent(trend.overallConfidenceScore / 100)}</td>

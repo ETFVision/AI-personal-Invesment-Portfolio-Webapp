@@ -3,8 +3,18 @@ import type { Instrument } from "@/domain/universe/types";
 export type FinancialStatementType = "income_statement" | "balance_sheet" | "cash_flow";
 export type FinancialPeriod = "annual" | "quarterly";
 export type FundamentalsRefreshStatus = "success" | "partial_success" | "failed";
-export type FundamentalTrendDirection = "improving" | "stable" | "deteriorating" | "volatile" | "mixed" | "insufficient_data";
-export type FundamentalTrendStrength = "weak" | "moderate" | "strong" | "insufficient_data";
+export type FundamentalTrendDirection =
+  | "accelerating"
+  | "improving"
+  | "rebounding"
+  | "stable"
+  | "decelerating"
+  | "deteriorating"
+  | "volatile"
+  | "mixed"
+  | "insufficient_data"
+  | "not_applicable";
+export type FundamentalTrendStrength = "weak" | "moderate" | "strong" | "insufficient_data" | "not_applicable";
 export type FundamentalTrendMetricCategory = "growth" | "margin" | "profitability" | "balance_sheet" | "quality";
 
 export type CompanyProfile = {
