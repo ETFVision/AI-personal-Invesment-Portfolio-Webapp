@@ -2136,3 +2136,69 @@ Low-priority improvements for the next Recommendation Engine hardening pass:
 Recommended next action:
 - Keep current scoring unchanged until a broader recommendation calibration pass.
 - Treat this as a calibration backlog item, not a critical defect.
+
+## 2026-06-03 - News Intelligence QA Checkpoint After NewsData.io Integration
+
+Scope:
+- Re-reviewed the News Intelligence layer after adding NewsData.io as a separate macro/world-news provider.
+- Covered FMP instrument/general news, NewsData macro query groups, GDELT fallback query groups, deduplication, deterministic classification, source quality, weekly reconciliation readiness, UI summaries, cron routes, env config, and Supabase migration readiness.
+
+Architecture assessment:
+- PASS: FMP, NewsData, and GDELT remain server-side providers only.
+- PASS: UI uses server actions and does not call FMP, NewsData, GDELT, or OpenAI directly.
+- PASS: NewsData uses its own provider, normalization service, repository, ingestion service, cron route, and query-group queue state.
+- PASS: GDELT remains a separate manual fallback source, not an automatic fallback.
+- PASS: NewsData and GDELT query-group diagnostics are shown independently.
+- PASS: FMP now has a dedicated fetch summary split into `Instrument news` and `General market news`.
+
+Data model and migration assessment:
+- PASS: `news_items` remains the canonical normalized article table.
+- PASS: NewsData-specific raw metadata is stored in `newsdata_article_metadata`.
+- PASS: NewsData query groups and logs are stored separately from GDELT query groups and logs.
+- PASS: NewsData migration remains portable PostgreSQL and uses standard constraints/indexes.
+- MEDIUM ISSUE FIXED: NewsData app defaults were changed to `8 x 10 = 80`, but migration 048 still seeded query groups at `8` articles/run. Added migration 049 and updated migration 048 so existing and fresh databases align at 10 articles per group.
+
+Ingestion and classification assessment:
+- PASS: FMP fetches active instrument news by symbol and then fills with general market news if capacity remains.
+- PASS: NewsData fetches the 8 macro/world-news query groups using the same canonical group list as GDELT.
+- PASS: NewsData query-group theme is used as the primary deterministic theme; headline/content signals are secondary context.
+- PASS: GDELT remains queue-paced and rate-limit tolerant.
+- PASS: Duplicate articles are not deleted; they are marked and linked to canonical articles.
+- PASS: Source quality scores are assigned consistently for all news providers.
+- PASS: Refresh FMP, Refresh NewsData, and Refresh GDELT each run pending classification backfill after ingestion.
+
+UI/UX assessment:
+- PASS: News page controls are clearer: `Refresh FMP`, `Refresh NewsData`, `Refresh GDELT fallback`, `Classify backfill`, and `Weekly reconcile`.
+- PASS: NewsData and GDELT both show summary cards for fetched, saved, filtered, duplicates, failed groups, and latest run.
+- PASS: FMP now shows provider summary cards and group-level rows for instrument/general news.
+- PASS: Latest fetched news and filters support FMP, NewsData, and GDELT source labels.
+- LOW: The News page is now functionally complete but dense; later product polish should move some diagnostics into Admin > Jobs or Data Sources.
+
+Critical issues:
+- None found.
+
+Medium-priority issues fixed:
+- Aligned NewsData DB query-group article cap with app defaults using migration 049.
+- Updated service fallback defaults to match the intended NewsData refresh size.
+- Corrected FMP group-level saved counts to use repository-returned saved rows.
+- Increased dashboard ingestion-log lookback so FMP summaries do not disappear after several NewsData/GDELT refreshes.
+
+Low-priority improvements for later:
+- Add a provider-health page that centralizes FMP, NewsData, GDELT, FRED, and OpenAI job summaries.
+- Add manual source allow/deny lists once NewsData/GDELT source quality has been observed over several weeks.
+- Add per-provider article-quality histograms.
+- Add a manual review workflow for low-confidence macro classifications.
+- Add query tuning history for NewsData/GDELT query groups.
+- Consider cron scheduling: NewsData daily/periodic, GDELT slower fallback, FMP daily instrument news, weekly reconciliation after ingestion.
+
+Validation performed:
+- `npm.cmd test -- news-intelligence` passed.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY for controlled use after applying migrations 048 and 049 and setting required env vars.
+- Required env vars: `NEWSDATA_API_KEY`, `ENABLE_NEWSDATA_INGESTION=true`, `CRON_SECRET`.
+- Recommended env vars: `ENABLE_GDELT_INGESTION=true`, `NEWSDATA_MAX_QUERY_GROUPS=8`, `NEWSDATA_MAX_ARTICLES_PER_QUERY=10`, `NEWSDATA_MAX_ARTICLES_PER_DAY=80`.
+- Continue treating News Intelligence as an input layer only. It should support Market Vision and future scoring, but it does not make buy/sell decisions.

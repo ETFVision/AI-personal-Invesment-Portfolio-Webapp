@@ -35,9 +35,9 @@ export class NewsDataIngestionService {
     private readonly themeMappingService = new GdeltThemeMappingService(),
     private readonly config = {
       enabled: false,
-      maxQueryGroups: 5,
+      maxQueryGroups: 8,
       maxArticlesPerQuery: 10,
-      maxArticlesPerDay: 50,
+      maxArticlesPerDay: 80,
       runFrequencyDays: 3,
       minSecondsBetweenRequests: 5,
       rateLimitBackoffMinutes: 24 * 60,

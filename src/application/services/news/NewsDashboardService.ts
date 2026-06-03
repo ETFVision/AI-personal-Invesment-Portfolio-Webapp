@@ -27,7 +27,7 @@ export class NewsDashboardService {
       this.repository.listNewsWithClassifications({ ...filters, limit: filters?.limit ?? 50 }),
       this.repository.getDashboardStats(),
       this.repository.listWeeklyReconciliations(8),
-      this.repository.listIngestionLogs(10),
+      this.repository.listIngestionLogs(50),
       this.repository.getLatestWeeklyReconciliation(),
       this.getGdeltQueryStatuses(),
       this.getNewsDataQueryStatuses()

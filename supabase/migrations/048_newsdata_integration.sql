@@ -10,7 +10,7 @@ create table if not exists newsdata_query_groups (
   canonical_theme text not null,
   category text not null,
   is_active boolean not null default true,
-  max_articles_per_run integer not null default 8,
+  max_articles_per_run integer not null default 10,
   last_attempted_at timestamptz,
   last_success_at timestamptz,
   next_run_at timestamptz,
@@ -80,14 +80,14 @@ create policy "users can read newsdata article metadata" on newsdata_article_met
 
 insert into newsdata_query_groups (query_key, query_name, query_text, canonical_theme, category, is_active, max_articles_per_run, next_run_at)
 values
-  ('macro_rates_policy', 'Macro / rates policy', 'Federal Reserve OR interest rates OR Treasury yields', 'Rates', 'macro_rates', true, 8, now()),
-  ('inflation_prices', 'Inflation and prices', 'inflation OR CPI OR PCE inflation', 'Inflation', 'inflation', true, 8, now()),
-  ('growth_recession', 'Growth / recession risk', 'recession risk OR economic slowdown OR GDP growth', 'Growth', 'growth', true, 8, now()),
-  ('currency_usd', 'Currency / USD', 'US dollar OR dollar index OR currency markets', 'Currency', 'currency', true, 8, now()),
-  ('geopolitical_risk', 'Geopolitical risk', 'geopolitical risk OR Middle East OR Iran sanctions', 'Geopolitical', 'geopolitical', true, 8, now()),
-  ('trade_supply_chain', 'Trade / supply chain', 'tariffs OR export controls OR supply chain', 'Trade / Supply Chain', 'trade_supply_chain', true, 8, now()),
-  ('energy_commodities', 'Energy / commodities', 'oil prices OR OPEC OR natural gas', 'Energy', 'energy_commodities', true, 8, now()),
-  ('global_credit_stress', 'Global risk / credit stress', 'banking stress OR sovereign debt OR credit stress', 'Credit', 'global_credit', true, 8, now())
+  ('macro_rates_policy', 'Macro / rates policy', 'Federal Reserve OR interest rates OR Treasury yields', 'Rates', 'macro_rates', true, 10, now()),
+  ('inflation_prices', 'Inflation and prices', 'inflation OR CPI OR PCE inflation', 'Inflation', 'inflation', true, 10, now()),
+  ('growth_recession', 'Growth / recession risk', 'recession risk OR economic slowdown OR GDP growth', 'Growth', 'growth', true, 10, now()),
+  ('currency_usd', 'Currency / USD', 'US dollar OR dollar index OR currency markets', 'Currency', 'currency', true, 10, now()),
+  ('geopolitical_risk', 'Geopolitical risk', 'geopolitical risk OR Middle East OR Iran sanctions', 'Geopolitical', 'geopolitical', true, 10, now()),
+  ('trade_supply_chain', 'Trade / supply chain', 'tariffs OR export controls OR supply chain', 'Trade / Supply Chain', 'trade_supply_chain', true, 10, now()),
+  ('energy_commodities', 'Energy / commodities', 'oil prices OR OPEC OR natural gas', 'Energy', 'energy_commodities', true, 10, now()),
+  ('global_credit_stress', 'Global risk / credit stress', 'banking stress OR sovereign debt OR credit stress', 'Credit', 'global_credit', true, 10, now())
 on conflict (query_key) do update
 set
   query_name = excluded.query_name,

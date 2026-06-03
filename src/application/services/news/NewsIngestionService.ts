@@ -122,8 +122,8 @@ export class NewsIngestionService {
 
       const inserted = await this.newsRepository.upsertNewsItems(rows);
       articlesInserted = inserted.length;
-      const instrumentArticlesSaved = rows.filter((row) => fmpNewsGroup(row) === "instrument").length;
-      const generalArticlesSaved = rows.length - instrumentArticlesSaved;
+      const instrumentArticlesSaved = inserted.filter((row) => fmpNewsGroup(row) === "instrument").length;
+      const generalArticlesSaved = inserted.length - instrumentArticlesSaved;
       const status = duplicatesDetected > 0 || failedItems > 0 ? "partial_success" as const : "success" as const;
       await this.newsRepository.insertIngestionLog({
         jobName: "daily-news-ingestion",
