@@ -14,8 +14,18 @@ function isoDateDaysAgo(days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function isoDateDaysAgoFrom(baseDateIso: string, days: number) {
+  const date = new Date(`${baseDateIso}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
 function startOfYearIsoDate() {
   return `${new Date().getUTCFullYear()}-01-01`;
+}
+
+function startOfYearFromIsoDate(baseDateIso: string) {
+  return `${baseDateIso.slice(0, 4)}-01-01`;
 }
 
 function todayIsoDate() {
@@ -161,12 +171,13 @@ export class PerformanceService {
       return snapshot.holdingId === input.valuation.holding.id && (!inceptionDate || snapshot.snapshotDate >= inceptionDate);
     });
     const priceHistory = input.priceHistory ?? [];
+    const currentDate = input.valuation.priceDate ?? todayIsoDate();
     return [
-      this.buildHoldingFlowAdjustedMetric("Daily", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(1), inceptionDate),
-      this.buildHoldingFlowAdjustedMetric("Weekly", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(7), inceptionDate),
-      this.buildHoldingFlowAdjustedMetric("Monthly", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(30), inceptionDate),
-      this.buildHoldingFlowAdjustedMetric("1Y", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgo(365), inceptionDate),
-      this.buildHoldingFlowAdjustedMetric("YTD", input.valuation, holdingSnapshots, input.transactions, priceHistory, startOfYearIsoDate(), inceptionDate),
+      this.buildHoldingFlowAdjustedMetric("Daily", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgoFrom(currentDate, 1), inceptionDate),
+      this.buildHoldingFlowAdjustedMetric("Weekly", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgoFrom(currentDate, 7), inceptionDate),
+      this.buildHoldingFlowAdjustedMetric("Monthly", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgoFrom(currentDate, 30), inceptionDate),
+      this.buildHoldingFlowAdjustedMetric("1Y", input.valuation, holdingSnapshots, input.transactions, priceHistory, isoDateDaysAgoFrom(currentDate, 365), inceptionDate),
+      this.buildHoldingFlowAdjustedMetric("YTD", input.valuation, holdingSnapshots, input.transactions, priceHistory, startOfYearFromIsoDate(currentDate), inceptionDate),
       this.buildAssetSinceInceptionMetric(input.valuation, input.transactions)
     ];
   }

@@ -36,6 +36,7 @@ import { CompanyProfileService } from "@/application/services/fundamentals/Compa
 import { FinancialRatioService } from "@/application/services/fundamentals/FinancialRatioService";
 import { FinancialStatementService } from "@/application/services/fundamentals/FinancialStatementService";
 import { FundamentalScoringService } from "@/application/services/fundamentals/FundamentalScoringService";
+import { FundamentalTrendCalculationService } from "@/application/services/fundamentals/FundamentalTrendCalculationService";
 import { FundamentalsRefreshService } from "@/application/services/fundamentals/FundamentalsRefreshService";
 import { PerformanceService } from "@/application/services/PerformanceService";
 import { BondService } from "@/application/services/bonds/BondService";
@@ -152,10 +153,12 @@ export function createContainer() {
   const themeIntelligenceService = new ThemeIntelligenceService(newsRepository, macroIndicatorRepository);
   const newsDashboardService = new NewsDashboardService(newsRepository, themeIntelligenceService, gdeltRepository);
   const fundamentalScoringService = new FundamentalScoringService();
+  const fundamentalTrendCalculationService = new FundamentalTrendCalculationService();
   const fundamentalsRefreshService = new FundamentalsRefreshService(
     fundamentalsRepository,
     fundamentalsProvider,
     fundamentalScoringService,
+    fundamentalTrendCalculationService,
     {
       enabled: env.ENABLE_FUNDAMENTALS_REFRESH,
       maxStocksPerRefresh: env.FUNDAMENTALS_MAX_STOCKS_PER_REFRESH,
@@ -239,6 +242,7 @@ export function createContainer() {
     fundamentalsRepository,
     fundamentalsProvider,
     fundamentalScoringService,
+    fundamentalTrendCalculationService,
     fundamentalsRefreshService,
     companyProfileService,
     financialStatementService,

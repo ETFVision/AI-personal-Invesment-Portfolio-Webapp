@@ -3,6 +3,9 @@ import type { Instrument } from "@/domain/universe/types";
 export type FinancialStatementType = "income_statement" | "balance_sheet" | "cash_flow";
 export type FinancialPeriod = "annual" | "quarterly";
 export type FundamentalsRefreshStatus = "success" | "partial_success" | "failed";
+export type FundamentalTrendDirection = "improving" | "stable" | "deteriorating" | "volatile" | "mixed" | "insufficient_data";
+export type FundamentalTrendStrength = "weak" | "moderate" | "strong" | "insufficient_data";
+export type FundamentalTrendMetricCategory = "growth" | "margin" | "profitability" | "balance_sheet" | "quality";
 
 export type CompanyProfile = {
   id?: string;
@@ -106,6 +109,58 @@ export type FundamentalScore = {
   inputsSnapshot: Record<string, unknown>;
 };
 
+export type FundamentalTrend = {
+  id?: string;
+  instrumentId: string;
+  symbol: string;
+  metricName: string;
+  metricCategory: FundamentalTrendMetricCategory;
+  currentValue: number | null;
+  previousValue: number | null;
+  threePeriodAvg: number | null;
+  fivePeriodAvg: number | null;
+  shortTermTrendDirection: FundamentalTrendDirection;
+  shortTermTrendStrength: FundamentalTrendStrength;
+  shortTermTrendScore: number | null;
+  shortTermConfidenceScore: number;
+  longTermTrendDirection: FundamentalTrendDirection;
+  longTermTrendStrength: FundamentalTrendStrength;
+  longTermTrendScore: number | null;
+  longTermConfidenceScore: number;
+  overallTrendDirection: FundamentalTrendDirection;
+  overallTrendScore: number | null;
+  overallConfidenceScore: number;
+  periodsAnalyzed: number;
+  shortTermPeriodsAnalyzed: number;
+  longTermPeriodsAnalyzed: number;
+  asOfDate: string;
+  explanation: string;
+  inputsSnapshot: Record<string, unknown>;
+};
+
+export type FundamentalTrendSummary = {
+  id?: string;
+  instrumentId: string;
+  symbol: string;
+  asOfDate: string;
+  overallTrendScore: number | null;
+  overallConfidenceScore: number;
+  overallTrendDirection: FundamentalTrendDirection;
+  improvingMetricsCount: number;
+  deterioratingMetricsCount: number;
+  stableMetricsCount: number;
+  volatileMetricsCount: number;
+  insufficientDataMetricsCount: number;
+  growthTrendScore: number | null;
+  marginTrendScore: number | null;
+  profitabilityTrendScore: number | null;
+  balanceSheetTrendScore: number | null;
+  qualityTrendScore: number | null;
+  warnings: string[];
+  explanation: string;
+  inputsSnapshot: Record<string, unknown>;
+};
+
 export type FundamentalsRefreshLog = {
   id?: string;
   jobName: string;
@@ -127,6 +182,7 @@ export type FundamentalsSummaryRow = {
   profile: CompanyProfile | null;
   latestRatio: FinancialRatio | null;
   latestScore: FundamentalScore | null;
+  latestTrendSummary: FundamentalTrendSummary | null;
   statementCount: number;
   missingDataWarnings: string[];
 };
@@ -135,4 +191,6 @@ export type FundamentalsDetail = FundamentalsSummaryRow & {
   statements: FinancialStatement[];
   ratios: FinancialRatio[];
   scores: FundamentalScore[];
+  trends: FundamentalTrend[];
+  trendSummary: FundamentalTrendSummary | null;
 };

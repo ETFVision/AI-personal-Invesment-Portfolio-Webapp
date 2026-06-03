@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FundamentalScoringService } from "../src/application/services/fundamentals/FundamentalScoringService";
+import { FundamentalTrendCalculationService } from "../src/application/services/fundamentals/FundamentalTrendCalculationService";
 import { FundamentalsRefreshService, fundamentalsRefreshInternals } from "../src/application/services/fundamentals/FundamentalsRefreshService";
 import type { FundamentalsProvider, FundamentalsProviderResult } from "../src/application/ports/providers/FundamentalsProvider";
 import type { FundamentalsRepository } from "../src/application/ports/repositories/FundamentalsRepository";
@@ -9,6 +10,8 @@ import type {
   FinancialRatio,
   FinancialStatement,
   FundamentalScore,
+  FundamentalTrend,
+  FundamentalTrendSummary,
   FundamentalsDetail,
   FundamentalsRefreshLog,
   FundamentalsSummaryRow
@@ -61,6 +64,8 @@ class FakeFundamentalsRepository implements FundamentalsRepository {
   statements: FinancialStatement[] = [];
   ratios: FinancialRatio[] = [];
   scores: FundamentalScore[] = [];
+  trends: FundamentalTrend[] = [];
+  trendSummaries: FundamentalTrendSummary[] = [];
   logs: FundamentalsRefreshLog[] = [];
 
   constructor(private readonly instruments: Instrument[]) {}
@@ -89,6 +94,10 @@ class FakeFundamentalsRepository implements FundamentalsRepository {
     return this.scores.filter((score) => instrumentIds.includes(score.instrumentId));
   }
 
+  async getLatestTrendSummaries(instrumentIds: string[]) {
+    return this.trendSummaries.filter((summary) => instrumentIds.includes(summary.instrumentId));
+  }
+
   async upsertCompanyProfiles(input: CompanyProfile[]) {
     this.profiles.push(...input);
   }
@@ -103,6 +112,14 @@ class FakeFundamentalsRepository implements FundamentalsRepository {
 
   async upsertFundamentalScores(input: FundamentalScore[]) {
     this.scores.push(...input);
+  }
+
+  async upsertFundamentalTrends(input: FundamentalTrend[]) {
+    this.trends.push(...input);
+  }
+
+  async upsertFundamentalTrendSummaries(input: FundamentalTrendSummary[]) {
+    this.trendSummaries.push(...input);
   }
 
   async insertRefreshLog(input: FundamentalsRefreshLog) {
@@ -410,6 +427,115 @@ test("fundamentals refresh derives missing ratios from financial statements", ()
   assert.equal(ratios[0]?.debtToEquity, 150 / 600);
 });
 
+function trendRatio(input: {
+  symbol?: string;
+  period: "annual" | "quarterly";
+  year: number;
+  quarter?: number;
+  revenueGrowth?: number | null;
+  epsGrowth?: number | null;
+  freeCashFlowGrowth?: number | null;
+  grossMargin?: number | null;
+  operatingMargin?: number | null;
+  roe?: number | null;
+  roic?: number | null;
+  debtToEquity?: number | null;
+}): FinancialRatio {
+  return {
+    instrumentId: `inst-${input.symbol ?? "AAPL"}`,
+    symbol: input.symbol ?? "AAPL",
+    period: input.period,
+    fiscalYear: input.year,
+    fiscalQuarter: input.quarter ?? 0,
+    reportDate: input.period === "annual" ? `${input.year}-12-31` : `${input.year}-${String((input.quarter ?? 1) * 3).padStart(2, "0")}-30`,
+    peRatio: null,
+    forwardPe: null,
+    priceToSales: null,
+    priceToBook: null,
+    evToEbitda: null,
+    evToSales: null,
+    grossMargin: input.grossMargin ?? null,
+    operatingMargin: input.operatingMargin ?? null,
+    netMargin: null,
+    roe: input.roe ?? null,
+    roic: input.roic ?? null,
+    roa: null,
+    debtToEquity: input.debtToEquity ?? null,
+    netDebtToEbitda: null,
+    currentRatio: null,
+    quickRatio: null,
+    freeCashFlowYield: null,
+    revenueGrowth: input.revenueGrowth ?? null,
+    epsGrowth: input.epsGrowth ?? null,
+    netIncomeGrowth: null,
+    freeCashFlowGrowth: input.freeCashFlowGrowth ?? null,
+    provider: "test",
+    providerMetadata: {}
+  };
+}
+
+test("fundamental trend service detects improving and deteriorating growth trends", () => {
+  const service = new FundamentalTrendCalculationService();
+  const result = service.calculate({
+    instrumentId: "inst-AAPL",
+    symbol: "AAPL",
+    statements: [],
+    scores: [],
+    ratios: [
+      trendRatio({ period: "quarterly", year: 2025, quarter: 1, revenueGrowth: 0.02, epsGrowth: 0.3 }),
+      trendRatio({ period: "quarterly", year: 2025, quarter: 2, revenueGrowth: 0.05, epsGrowth: 0.2 }),
+      trendRatio({ period: "quarterly", year: 2025, quarter: 3, revenueGrowth: 0.08, epsGrowth: 0.12 }),
+      trendRatio({ period: "quarterly", year: 2025, quarter: 4, revenueGrowth: 0.12, epsGrowth: 0.04 }),
+      trendRatio({ period: "quarterly", year: 2026, quarter: 1, revenueGrowth: 0.16, epsGrowth: -0.02 })
+    ]
+  });
+
+  const revenue = result.trends.find((trend) => trend.metricName === "revenue_growth");
+  const eps = result.trends.find((trend) => trend.metricName === "eps_growth");
+  assert.equal(revenue?.overallTrendDirection, "improving");
+  assert.equal(eps?.overallTrendDirection, "deteriorating");
+  assert.ok((revenue?.overallTrendScore ?? 0) > (eps?.overallTrendScore ?? 100));
+});
+
+test("fundamental trend service treats falling debt-to-equity as improving", () => {
+  const service = new FundamentalTrendCalculationService();
+  const result = service.calculate({
+    instrumentId: "inst-AAPL",
+    symbol: "AAPL",
+    statements: [],
+    scores: [],
+    ratios: [
+      trendRatio({ period: "annual", year: 2021, debtToEquity: 1.2, roe: 0.2, roic: 0.15 }),
+      trendRatio({ period: "annual", year: 2022, debtToEquity: 1.0, roe: 0.22, roic: 0.17 }),
+      trendRatio({ period: "annual", year: 2023, debtToEquity: 0.8, roe: 0.24, roic: 0.18 }),
+      trendRatio({ period: "annual", year: 2024, debtToEquity: 0.6, roe: 0.26, roic: 0.2 }),
+      trendRatio({ period: "annual", year: 2025, debtToEquity: 0.4, roe: 0.28, roic: 0.22 })
+    ]
+  });
+
+  const leverage = result.trends.find((trend) => trend.metricName === "debt_to_equity");
+  assert.equal(leverage?.overallTrendDirection, "improving");
+  assert.ok((leverage?.overallTrendScore ?? 0) >= 65);
+});
+
+test("fundamental trend service marks insufficient data and creates quality warnings", () => {
+  const service = new FundamentalTrendCalculationService();
+  const result = service.calculate({
+    instrumentId: "inst-AAPL",
+    symbol: "AAPL",
+    statements: [],
+    scores: [],
+    ratios: [
+      trendRatio({ period: "annual", year: 2024, revenueGrowth: 0.1, freeCashFlowGrowth: 0.05, operatingMargin: 0.3 }),
+      trendRatio({ period: "annual", year: 2025, revenueGrowth: 0.2, freeCashFlowGrowth: -0.1, operatingMargin: 0.2 })
+    ]
+  });
+
+  const revenue = result.trends.find((trend) => trend.metricName === "revenue_growth");
+  assert.equal(revenue?.overallTrendDirection, "insufficient_data");
+  assert.equal(result.summary.overallTrendDirection, "insufficient_data");
+});
+
 test("fundamentals refresh excludes non-stocks and logs partial success", async () => {
   const repository = new FakeFundamentalsRepository([
     stock("AAPL"),
@@ -418,7 +544,7 @@ test("fundamentals refresh excludes non-stocks and logs partial success", async 
   ]);
   const provider = new FakeFundamentalsProvider();
   provider.failed.add("MSFT");
-  const service = new FundamentalsRefreshService(repository, provider, new FundamentalScoringService(), {
+  const service = new FundamentalsRefreshService(repository, provider, new FundamentalScoringService(), new FundamentalTrendCalculationService(), {
     enabled: true,
     maxStocksPerRefresh: 10,
     refreshFrequencyDays: 1,
@@ -432,6 +558,8 @@ test("fundamentals refresh excludes non-stocks and logs partial success", async 
   assert.deepEqual(result.failedSymbols, ["MSFT"]);
   assert.equal(repository.profiles.length, 1);
   assert.equal(repository.scores.length, 1);
+  assert.ok(repository.trends.length > 0);
+  assert.equal(repository.trendSummaries.length, 1);
   assert.equal(repository.logs[0]?.status, "partial_success");
 });
 

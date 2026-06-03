@@ -4,6 +4,8 @@ import type {
   FinancialRatio,
   FinancialStatement,
   FundamentalScore,
+  FundamentalTrend,
+  FundamentalTrendSummary,
   FundamentalsDetail,
   FundamentalsRefreshLog,
   FundamentalsSummaryRow
@@ -172,6 +174,62 @@ function mapFundamentalScore(row: any): FundamentalScore {
   };
 }
 
+function mapFundamentalTrend(row: any): FundamentalTrend {
+  return {
+    id: row.id,
+    instrumentId: row.instrument_id,
+    symbol: row.symbol,
+    metricName: row.metric_name,
+    metricCategory: row.metric_category,
+    currentValue: numberOrNull(row.current_value),
+    previousValue: numberOrNull(row.previous_value),
+    threePeriodAvg: numberOrNull(row.three_period_avg),
+    fivePeriodAvg: numberOrNull(row.five_period_avg),
+    shortTermTrendDirection: row.short_term_trend_direction,
+    shortTermTrendStrength: row.short_term_trend_strength,
+    shortTermTrendScore: numberOrNull(row.short_term_trend_score),
+    shortTermConfidenceScore: Number(row.short_term_confidence_score ?? 0),
+    longTermTrendDirection: row.long_term_trend_direction,
+    longTermTrendStrength: row.long_term_trend_strength,
+    longTermTrendScore: numberOrNull(row.long_term_trend_score),
+    longTermConfidenceScore: Number(row.long_term_confidence_score ?? 0),
+    overallTrendDirection: row.overall_trend_direction,
+    overallTrendScore: numberOrNull(row.overall_trend_score),
+    overallConfidenceScore: Number(row.overall_confidence_score ?? 0),
+    periodsAnalyzed: Number(row.periods_analyzed ?? 0),
+    shortTermPeriodsAnalyzed: Number(row.short_term_periods_analyzed ?? 0),
+    longTermPeriodsAnalyzed: Number(row.long_term_periods_analyzed ?? 0),
+    asOfDate: row.as_of_date,
+    explanation: row.explanation ?? "",
+    inputsSnapshot: row.inputs_snapshot ?? {}
+  };
+}
+
+function mapFundamentalTrendSummary(row: any): FundamentalTrendSummary {
+  return {
+    id: row.id,
+    instrumentId: row.instrument_id,
+    symbol: row.symbol,
+    asOfDate: row.as_of_date,
+    overallTrendScore: numberOrNull(row.overall_trend_score),
+    overallConfidenceScore: Number(row.overall_confidence_score ?? 0),
+    overallTrendDirection: row.overall_trend_direction,
+    improvingMetricsCount: Number(row.improving_metrics_count ?? 0),
+    deterioratingMetricsCount: Number(row.deteriorating_metrics_count ?? 0),
+    stableMetricsCount: Number(row.stable_metrics_count ?? 0),
+    volatileMetricsCount: Number(row.volatile_metrics_count ?? 0),
+    insufficientDataMetricsCount: Number(row.insufficient_data_metrics_count ?? 0),
+    growthTrendScore: numberOrNull(row.growth_trend_score),
+    marginTrendScore: numberOrNull(row.margin_trend_score),
+    profitabilityTrendScore: numberOrNull(row.profitability_trend_score),
+    balanceSheetTrendScore: numberOrNull(row.balance_sheet_trend_score),
+    qualityTrendScore: numberOrNull(row.quality_trend_score),
+    warnings: asArray(row.warnings),
+    explanation: row.explanation ?? "",
+    inputsSnapshot: row.inputs_snapshot ?? {}
+  };
+}
+
 function mapRefreshLog(row: any): FundamentalsRefreshLog {
   return {
     id: row.id,
@@ -274,15 +332,17 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
   async listSummaryRows() {
     const instruments = await this.listEligibleStockInstruments(500);
     const ids = instruments.map((instrument) => instrument.id);
-    const [profiles, ratios, scores, statements] = await Promise.all([
+    const [profiles, ratios, scores, trends, statements] = await Promise.all([
       this.getProfiles(ids),
       this.getLatestRatios(ids),
       this.getLatestScores(ids),
+      this.getLatestTrendSummaries(ids),
       this.listStatements(ids)
     ]);
     const profileById = new Map(profiles.map((item) => [item.instrumentId, item]));
     const ratioById = new Map(ratios.map((item) => [item.instrumentId, item]));
     const scoreById = new Map(scores.map((item) => [item.instrumentId, item]));
+    const trendById = new Map(trends.map((item) => [item.instrumentId, item]));
     const statementCountById = new Map<string, number>();
     for (const statement of statements) {
       statementCountById.set(statement.instrumentId, (statementCountById.get(statement.instrumentId) ?? 0) + 1);
@@ -291,12 +351,14 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
       const profile = profileById.get(instrument.id) ?? null;
       const latestRatio = ratioById.get(instrument.id) ?? null;
       const latestScore = scoreById.get(instrument.id) ?? null;
+      const latestTrendSummary = trendById.get(instrument.id) ?? null;
       const statementCount = statementCountById.get(instrument.id) ?? 0;
       return {
         instrument,
         profile,
         latestRatio,
         latestScore,
+        latestTrendSummary,
         statementCount,
         missingDataWarnings: warnings(profile, latestRatio, latestScore, statementCount)
       };
@@ -313,11 +375,13 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
     if (error) throw new Error(error.message);
     if (!data) return null;
     const instrument = mapInstrument(data);
-    const [profiles, ratios, scores, statements] = await Promise.all([
+    const [profiles, ratios, scores, statements, trends, trendSummaries] = await Promise.all([
       this.getProfiles([instrument.id]),
       this.listRatios([instrument.id]),
       this.listScores([instrument.id]),
-      this.listStatements([instrument.id])
+      this.listStatements([instrument.id]),
+      this.listTrends([instrument.id]),
+      this.getLatestTrendSummaries([instrument.id])
     ]);
     const profile = profiles[0] ?? null;
     const latestRatio = ratios[0] ?? null;
@@ -327,11 +391,14 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
       profile,
       latestRatio,
       latestScore,
+      latestTrendSummary: trendSummaries[0] ?? null,
       statementCount: statements.length,
       missingDataWarnings: warnings(profile, latestRatio, latestScore, statements.length),
       statements,
       ratios,
-      scores
+      scores,
+      trends,
+      trendSummary: trendSummaries[0] ?? null
     } satisfies FundamentalsDetail;
   }
 
@@ -358,6 +425,16 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
     return scores.filter((score) => {
       if (seen.has(score.instrumentId)) return false;
       seen.add(score.instrumentId);
+      return true;
+    });
+  }
+
+  async getLatestTrendSummaries(instrumentIds: string[]) {
+    const summaries = await this.listTrendSummaries(instrumentIds);
+    const seen = new Set<string>();
+    return summaries.filter((summary) => {
+      if (seen.has(summary.instrumentId)) return false;
+      seen.add(summary.instrumentId);
       return true;
     });
   }
@@ -476,6 +553,64 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
     if (error) throw new Error(error.message);
   }
 
+  async upsertFundamentalTrends(input: FundamentalTrend[]) {
+    if (input.length === 0) return;
+    const { error } = await this.db.from("fundamental_trends").upsert(input.map((item) => ({
+      instrument_id: item.instrumentId,
+      symbol: item.symbol,
+      metric_name: item.metricName,
+      metric_category: item.metricCategory,
+      current_value: item.currentValue,
+      previous_value: item.previousValue,
+      three_period_avg: item.threePeriodAvg,
+      five_period_avg: item.fivePeriodAvg,
+      short_term_trend_direction: item.shortTermTrendDirection,
+      short_term_trend_strength: item.shortTermTrendStrength,
+      short_term_trend_score: item.shortTermTrendScore,
+      short_term_confidence_score: item.shortTermConfidenceScore,
+      long_term_trend_direction: item.longTermTrendDirection,
+      long_term_trend_strength: item.longTermTrendStrength,
+      long_term_trend_score: item.longTermTrendScore,
+      long_term_confidence_score: item.longTermConfidenceScore,
+      overall_trend_direction: item.overallTrendDirection,
+      overall_trend_score: item.overallTrendScore,
+      overall_confidence_score: item.overallConfidenceScore,
+      periods_analyzed: item.periodsAnalyzed,
+      short_term_periods_analyzed: item.shortTermPeriodsAnalyzed,
+      long_term_periods_analyzed: item.longTermPeriodsAnalyzed,
+      as_of_date: item.asOfDate,
+      explanation: item.explanation,
+      inputs_snapshot: item.inputsSnapshot
+    })), { onConflict: "instrument_id,metric_name,as_of_date" });
+    if (error) throw new Error(error.message);
+  }
+
+  async upsertFundamentalTrendSummaries(input: FundamentalTrendSummary[]) {
+    if (input.length === 0) return;
+    const { error } = await this.db.from("fundamental_trend_summaries").upsert(input.map((item) => ({
+      instrument_id: item.instrumentId,
+      symbol: item.symbol,
+      as_of_date: item.asOfDate,
+      overall_trend_score: item.overallTrendScore,
+      overall_confidence_score: item.overallConfidenceScore,
+      overall_trend_direction: item.overallTrendDirection,
+      improving_metrics_count: item.improvingMetricsCount,
+      deteriorating_metrics_count: item.deterioratingMetricsCount,
+      stable_metrics_count: item.stableMetricsCount,
+      volatile_metrics_count: item.volatileMetricsCount,
+      insufficient_data_metrics_count: item.insufficientDataMetricsCount,
+      growth_trend_score: item.growthTrendScore,
+      margin_trend_score: item.marginTrendScore,
+      profitability_trend_score: item.profitabilityTrendScore,
+      balance_sheet_trend_score: item.balanceSheetTrendScore,
+      quality_trend_score: item.qualityTrendScore,
+      warnings: item.warnings,
+      explanation: item.explanation,
+      inputs_snapshot: item.inputsSnapshot
+    })), { onConflict: "instrument_id,as_of_date" });
+    if (error) throw new Error(error.message);
+  }
+
   async insertRefreshLog(input: FundamentalsRefreshLog) {
     const { error } = await this.db.from("fundamentals_refresh_logs").insert({
       job_name: input.jobName,
@@ -519,5 +654,19 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
     const { data, error } = await this.db.from("fundamental_scores").select("*").in("instrument_id", instrumentIds).order("as_of_date", { ascending: false });
     if (error) return [];
     return (data ?? []).map(mapFundamentalScore);
+  }
+
+  private async listTrends(instrumentIds: string[]) {
+    if (instrumentIds.length === 0) return [];
+    const { data, error } = await this.db.from("fundamental_trends").select("*").in("instrument_id", instrumentIds).order("metric_category").order("metric_name");
+    if (error) return [];
+    return (data ?? []).map(mapFundamentalTrend);
+  }
+
+  private async listTrendSummaries(instrumentIds: string[]) {
+    if (instrumentIds.length === 0) return [];
+    const { data, error } = await this.db.from("fundamental_trend_summaries").select("*").in("instrument_id", instrumentIds).order("as_of_date", { ascending: false });
+    if (error) return [];
+    return (data ?? []).map(mapFundamentalTrendSummary);
   }
 }

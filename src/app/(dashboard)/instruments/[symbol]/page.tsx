@@ -38,6 +38,29 @@ function percent(value: number | null | undefined) {
   return value == null ? "-" : formatPercent(value);
 }
 
+function trendLabel(value: string | null | undefined) {
+  return value ? value.replaceAll("_", " ") : "-";
+}
+
+function trendValue(value: number | null | undefined, metricName: string) {
+  if (value == null) return "-";
+  if (metricName.includes("margin") || metricName.includes("growth") || ["roe", "roic", "roa"].includes(metricName)) {
+    return formatPercent(value);
+  }
+  return formatNumber(value);
+}
+
+function categoryLabel(value: string) {
+  const labels: Record<string, string> = {
+    growth: "Growth",
+    margin: "Margins",
+    profitability: "Profitability",
+    balance_sheet: "Balance Sheet",
+    quality: "Quality"
+  };
+  return labels[value] ?? value;
+}
+
 function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
   if (!detail) {
     return <PlaceholderPanel title="Fundamentals" description="No fundamentals are linked to this stock yet. Refresh fundamentals from the Fundamentals overview page." />;
@@ -118,6 +141,81 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
           <SummaryMetric label="Total debt" value={latestBalance?.totalDebt == null ? "-" : formatCurrencyWithCode(latestBalance.totalDebt, currency)} />
           <SummaryMetric label="Equity" value={latestBalance?.shareholdersEquity == null ? "-" : formatCurrencyWithCode(latestBalance.shareholdersEquity, currency)} />
           <SummaryMetric label="Warnings" value={detail.missingDataWarnings.length === 0 ? "-" : detail.missingDataWarnings.join("; ")} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Fundamental Trends</CardTitle>
+          <CardDescription>Stored deterministic trend analysis from annual and quarterly fundamentals. No AI or recommendations are used.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {detail.trendSummary ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <SummaryMetric label="Overall trend" value={trendLabel(detail.trendSummary.overallTrendDirection)} />
+              <SummaryMetric label="Trend score" value={score(detail.trendSummary.overallTrendScore)} />
+              <SummaryMetric label="Trend confidence" value={formatPercent(detail.trendSummary.overallConfidenceScore / 100)} />
+              <SummaryMetric label="Metric mix" value={`+${detail.trendSummary.improvingMetricsCount} / -${detail.trendSummary.deterioratingMetricsCount}`} />
+              <SummaryMetric label="Growth trend" value={score(detail.trendSummary.growthTrendScore)} />
+              <SummaryMetric label="Margin trend" value={score(detail.trendSummary.marginTrendScore)} />
+              <SummaryMetric label="Profitability trend" value={score(detail.trendSummary.profitabilityTrendScore)} />
+              <SummaryMetric label="Balance trend" value={score(detail.trendSummary.balanceSheetTrendScore)} />
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No stored trend summary yet. Refresh fundamentals after applying the trend migration.</p>
+          )}
+          {detail.trendSummary?.warnings.length ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              {detail.trendSummary.warnings.join(" ")}
+            </div>
+          ) : null}
+          {detail.trends.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Trend rows will appear after the next fundamentals refresh.</p>
+          ) : (
+            <div className="space-y-5">
+              {["growth", "margin", "profitability", "balance_sheet", "quality"].map((category) => {
+                const rows = detail.trends.filter((trend) => trend.metricCategory === category);
+                if (rows.length === 0) return null;
+                return (
+                  <div key={category} className="space-y-2">
+                    <h3 className="text-sm font-semibold">{categoryLabel(category)}</h3>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-left text-xs">
+                        <thead className="border-b uppercase text-muted-foreground">
+                          <tr>
+                            <th className="py-2 pr-3">Metric</th>
+                            <th className="py-2 pr-3">Current</th>
+                            <th className="py-2 pr-3">Previous</th>
+                            <th className="py-2 pr-3">Short term</th>
+                            <th className="py-2 pr-3">Long term</th>
+                            <th className="py-2 pr-3">Overall</th>
+                            <th className="py-2 pr-3">Score</th>
+                            <th className="py-2 pr-3">Confidence</th>
+                            <th className="py-2 pr-3">Explanation</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((trend) => (
+                            <tr key={trend.metricName} className="border-b align-top last:border-0">
+                              <td className="py-2 pr-3 font-medium capitalize">{trend.metricName.replaceAll("_", " ")}</td>
+                              <td className="py-2 pr-3">{trendValue(trend.currentValue, trend.metricName)}</td>
+                              <td className="py-2 pr-3">{trendValue(trend.previousValue, trend.metricName)}</td>
+                              <td className="py-2 pr-3 capitalize">{trendLabel(trend.shortTermTrendDirection)} ({trend.shortTermPeriodsAnalyzed})</td>
+                              <td className="py-2 pr-3 capitalize">{trendLabel(trend.longTermTrendDirection)} ({trend.longTermPeriodsAnalyzed})</td>
+                              <td className="py-2 pr-3 capitalize">{trendLabel(trend.overallTrendDirection)}</td>
+                              <td className="py-2 pr-3">{score(trend.overallTrendScore)}</td>
+                              <td className="py-2 pr-3">{formatPercent(trend.overallConfidenceScore / 100)}</td>
+                              <td className="max-w-md py-2 pr-3 text-muted-foreground">{trend.explanation}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -10,6 +10,10 @@ function score(value: number | null | undefined) {
   return value == null ? "-" : `${Math.round(value)}/100`;
 }
 
+function label(value: string | null | undefined) {
+  return value ? value.replaceAll("_", " ") : "-";
+}
+
 function freshness(lastRefreshedAt: string | null | undefined) {
   if (!lastRefreshedAt) return "Not refreshed";
   const days = Math.max(0, Math.floor((Date.now() - new Date(lastRefreshedAt).getTime()) / 86_400_000));
@@ -89,6 +93,7 @@ export default async function FundamentalsPage({ searchParams }: { searchParams:
                     <th className="py-2 pr-3">Valuation</th>
                     <th className="py-2 pr-3">Balance</th>
                     <th className="py-2 pr-3">Cash flow</th>
+                    <th className="py-2 pr-3">Trend</th>
                     <th className="py-2 pr-3">Confidence</th>
                     <th className="py-2 pr-3">Freshness</th>
                     <th className="py-2 pr-3">Warnings</th>
@@ -112,9 +117,22 @@ export default async function FundamentalsPage({ searchParams }: { searchParams:
                       <td className="py-3 pr-3">{score(row.latestScore?.valuationScore)}</td>
                       <td className="py-3 pr-3">{score(row.latestScore?.balanceSheetScore)}</td>
                       <td className="py-3 pr-3">{score(row.latestScore?.cashFlowScore)}</td>
+                      <td className="py-3 pr-3">
+                        {row.latestTrendSummary ? (
+                          <div>
+                            <div className="font-medium">{score(row.latestTrendSummary.overallTrendScore)}</div>
+                            <div className="text-xs capitalize text-muted-foreground">{label(row.latestTrendSummary.overallTrendDirection)}</div>
+                            <div className="text-xs text-muted-foreground">
+                              +{row.latestTrendSummary.improvingMetricsCount} / -{row.latestTrendSummary.deterioratingMetricsCount}
+                            </div>
+                          </div>
+                        ) : "-"}
+                      </td>
                       <td className="py-3 pr-3">{row.latestScore ? formatPercent(row.latestScore.scoreConfidence / 100) : "-"}</td>
                       <td className="py-3 pr-3">{freshness(row.profile?.lastRefreshedAt)}</td>
-                      <td className="py-3 pr-3 text-xs text-muted-foreground">{row.missingDataWarnings.join("; ") || "-"}</td>
+                      <td className="py-3 pr-3 text-xs text-muted-foreground">
+                        {[...row.missingDataWarnings, ...(row.latestTrendSummary?.warnings ?? []).slice(0, 2)].join("; ") || "-"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -1,6 +1,7 @@
 import type { FundamentalsProvider } from "@/application/ports/providers/FundamentalsProvider";
 import type { FundamentalsRepository } from "@/application/ports/repositories/FundamentalsRepository";
 import { FundamentalScoringService } from "@/application/services/fundamentals/FundamentalScoringService";
+import { FundamentalTrendCalculationService } from "@/application/services/fundamentals/FundamentalTrendCalculationService";
 import type { CompanyProfile, FinancialRatio, FinancialStatement } from "@/domain/fundamentals/types";
 
 export type FundamentalsRefreshResult = {
@@ -12,6 +13,7 @@ export type FundamentalsRefreshResult = {
   statementsUpdated: number;
   ratiosUpdated: number;
   scoresUpdated: number;
+  trendsUpdated: number;
   failedSymbols: string[];
 };
 
@@ -173,6 +175,7 @@ export class FundamentalsRefreshService {
     private readonly repository: FundamentalsRepository,
     private readonly provider: FundamentalsProvider,
     private readonly scoringService: FundamentalScoringService,
+    private readonly trendCalculationService: FundamentalTrendCalculationService,
     private readonly config: {
       enabled: boolean;
       maxStocksPerRefresh: number;
@@ -193,6 +196,7 @@ export class FundamentalsRefreshService {
         statementsUpdated: 0,
         ratiosUpdated: 0,
         scoresUpdated: 0,
+        trendsUpdated: 0,
         failedSymbols: []
       };
       await this.repository.insertRefreshLog({
@@ -230,31 +234,53 @@ export class FundamentalsRefreshService {
     let statementsUpdated = 0;
     let ratiosUpdated = 0;
     let scoresUpdated = 0;
+    let trendsUpdated = 0;
     const failedSymbols: string[] = [];
 
     for (const instrument of due) {
       const symbol = instrument.symbol?.toUpperCase();
       if (!symbol) continue;
       try {
-        const result = await this.provider.getFundamentals(symbol, { period: "annual", limit: 5 });
-        const profile: CompanyProfile | null = result.profile
-          ? { ...result.profile, instrumentId: instrument.id }
+        const [annualResult, quarterlyResult] = await Promise.all([
+          this.provider.getFundamentals(symbol, { period: "annual", limit: 5 }),
+          this.provider.getFundamentals(symbol, { period: "quarterly", limit: 5 })
+        ]);
+        const providerProfile = annualResult.profile ?? quarterlyResult.profile;
+        const profile: CompanyProfile | null = providerProfile
+          ? { ...providerProfile, instrumentId: instrument.id }
           : null;
-        const statements: FinancialStatement[] = result.statements.map((statement) => ({
+        const annualStatements: FinancialStatement[] = annualResult.statements.map((statement) => ({
           ...statement,
           instrumentId: instrument.id
         }));
-        const providerRatios: FinancialRatio[] = result.ratios.map((ratio) => ({
+        const quarterlyStatements: FinancialStatement[] = quarterlyResult.statements.map((statement) => ({
+          ...statement,
+          instrumentId: instrument.id
+        }));
+        const annualProviderRatios: FinancialRatio[] = annualResult.ratios.map((ratio) => ({
           ...ratio,
           instrumentId: instrument.id
         }));
-        const ratios = deriveMissingRatios({
+        const quarterlyProviderRatios: FinancialRatio[] = quarterlyResult.ratios.map((ratio) => ({
+          ...ratio,
+          instrumentId: instrument.id
+        }));
+        const annualRatios = deriveMissingRatios({
           instrumentId: instrument.id,
           symbol,
           profile,
-          statements,
-          ratios: providerRatios
+          statements: annualStatements,
+          ratios: annualProviderRatios
         });
+        const quarterlyRatios = deriveMissingRatios({
+          instrumentId: instrument.id,
+          symbol,
+          profile,
+          statements: quarterlyStatements,
+          ratios: quarterlyProviderRatios
+        });
+        const statements = [...annualStatements, ...quarterlyStatements];
+        const ratios = [...annualRatios, ...quarterlyRatios];
 
         if (profile) {
           await this.repository.upsertCompanyProfiles([profile]);
@@ -274,6 +300,16 @@ export class FundamentalsRefreshService {
         });
         await this.repository.upsertFundamentalScores([score]);
         scoresUpdated += score.overallFundamentalScore == null ? 0 : 1;
+        const trendResult = this.trendCalculationService.calculate({
+          instrumentId: instrument.id,
+          symbol,
+          ratios,
+          statements,
+          scores: [score]
+        });
+        await this.repository.upsertFundamentalTrends(trendResult.trends);
+        await this.repository.upsertFundamentalTrendSummaries([trendResult.summary]);
+        trendsUpdated += trendResult.trends.length;
       } catch {
         failedSymbols.push(symbol);
       }
@@ -300,7 +336,8 @@ export class FundamentalsRefreshService {
         force: Boolean(options.force),
         requestedSymbol: options.symbol ?? null,
         staleAfterDays: this.config.staleAfterDays,
-        provider: this.provider.name
+        provider: this.provider.name,
+        trendsUpdated
       }
     });
 
@@ -313,6 +350,7 @@ export class FundamentalsRefreshService {
       statementsUpdated,
       ratiosUpdated,
       scoresUpdated,
+      trendsUpdated,
       failedSymbols
     };
   }
