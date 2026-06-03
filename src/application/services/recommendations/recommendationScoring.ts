@@ -146,6 +146,13 @@ export function riskLevel(riskMetric: InstrumentRiskMetric | null, instrument: I
   return instrument.riskCategory ?? instrument.volatilityBucket ?? "unknown";
 }
 
+function componentReasonForScore(component: ScoreComponent) {
+  if (component.score == null || !Number.isFinite(component.score)) return component.reason;
+  if (component.score < 45) return `${component.label} score is weak`;
+  if (component.score < 70) return `${component.label} score is mixed`;
+  return component.reason;
+}
+
 export function buildEvaluation(input: RecommendationInput, rules: RecommendationRulesService, components: ScoreComponent[], extras: {
   baseConfidence?: number;
   timeHorizon?: RecommendationTimeHorizon;
@@ -186,7 +193,7 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
     ...(extras.positiveDrivers ?? [])
   ].filter(Boolean);
   const negativeDrivers = [
-    ...components.filter((component) => component.score != null && (component.score ?? 0) < 45).map((component) => component.reason),
+    ...components.filter((component) => component.score != null && (component.score ?? 0) < 45).map(componentReasonForScore),
     ...input.portfolioFit.negativeDrivers,
     ...(extras.negativeDrivers ?? [])
   ].filter(Boolean);
@@ -249,7 +256,7 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
         label: component.label,
         score: component.score,
         weight: component.weight,
-        reason: component.reason
+        reason: componentReasonForScore(component)
       })),
       baseLabel,
       finalLabel: guardrail.label

@@ -104,9 +104,31 @@ function scoreComponents(recommendation: InstrumentRecommendation) {
   return rows;
 }
 
+function componentDisplayReason(component: { label: string; score: unknown; reason: string }) {
+  if (typeof component.score === "number" && Number.isFinite(component.score)) {
+    if (component.score < 45) return `${component.label} score is weak`;
+    if (component.score < 70) return `${component.label} score is mixed`;
+  }
+  return component.reason || "-";
+}
+
 function scoringLabel(recommendation: InstrumentRecommendation, key: "baseLabel" | "finalLabel") {
   const value = recommendation.scoringBreakdown[key];
   return typeof value === "string" ? value : "-";
+}
+
+function normalizeNegativeDriver(item: string) {
+  const replacements: Record<string, string> = {
+    "Strong overall fundamentals": "Weak overall fundamentals",
+    "Improving fundamental trends": "Deteriorating fundamental trends",
+    "Supportive valuation score": "Weak valuation score",
+    "Market Vision context supports the instrument": "Market Vision context is cautious for the instrument",
+    "Useful canonical theme alignment": "Limited canonical theme alignment",
+    "Instrument risk is controlled": "Instrument risk is elevated",
+    "Improves portfolio fit": "Weak portfolio fit",
+    "Positive price momentum": "Weak price momentum"
+  };
+  return replacements[item] ?? item;
 }
 
 export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMetric: InstrumentRiskMetric | null }) {
@@ -185,7 +207,7 @@ export function RecommendationSummaryCard({ recommendation, history = [] }: { re
           <div className="rounded-md border p-3">
             <p className="text-xs uppercase text-muted-foreground">Negative drivers</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
-              {(recommendation.negativeDrivers.length ? recommendation.negativeDrivers : ["-"]).map((item) => <li key={item}>{item}</li>)}
+              {(recommendation.negativeDrivers.length ? recommendation.negativeDrivers : ["-"]).map((item) => <li key={item}>{normalizeNegativeDriver(item)}</li>)}
             </ul>
           </div>
           <div className="rounded-md border p-3">
@@ -234,7 +256,7 @@ export function RecommendationSummaryCard({ recommendation, history = [] }: { re
                       <td className="py-2 pr-3 font-medium">{component.label}</td>
                       <td className="py-2 pr-3">{scoreValue(component.score)}</td>
                       <td className="py-2 pr-3">{typeof component.weight === "number" ? formatPercent(component.weight) : "-"}</td>
-                      <td className="py-2 pr-3 text-muted-foreground">{component.reason || "-"}</td>
+                      <td className="py-2 pr-3 text-muted-foreground">{componentDisplayReason(component)}</td>
                     </tr>
                   ))}
                 </tbody>

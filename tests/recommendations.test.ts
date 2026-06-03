@@ -266,6 +266,14 @@ test("stock recommendation caps poor valuation", () => {
   assert.ok(result.guardrailsApplied.includes("Poor valuation cap"));
 });
 
+test("weak component scores do not use positive driver wording", () => {
+  const result = new StockRecommendationService(rules).evaluate(input({ fundamentals: fundamentals(40, 64) }));
+  const components = result.scoringBreakdown.components as Array<{ key: string; reason: string }>;
+  assert.equal(components.find((component) => component.key === "fundamentals")?.reason, "Fundamentals score is weak");
+  assert.ok(result.negativeDrivers.includes("Fundamentals score is weak"));
+  assert.ok(!result.negativeDrivers.includes("Strong overall fundamentals"));
+});
+
 test("Market Vision cannot override hard guardrails", () => {
   const result = new StockRecommendationService(rules).evaluate(input({
     fundamentals: fundamentals(80, 10),
