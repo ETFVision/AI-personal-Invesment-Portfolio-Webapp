@@ -148,6 +148,11 @@ export function riskLevel(riskMetric: InstrumentRiskMetric | null, instrument: I
 
 function componentReasonForScore(component: ScoreComponent) {
   if (component.score == null || !Number.isFinite(component.score)) return component.reason;
+  if (component.key === "risk_analytics") {
+    if (component.score < 45) return "Instrument risk is elevated";
+    if (component.score < 70) return "Instrument risk is moderate";
+    return component.reason;
+  }
   if (component.score < 45) return `${component.label} score is weak`;
   if (component.score < 70) return `${component.label} score is mixed`;
   return component.reason;

@@ -104,8 +104,12 @@ function scoreComponents(recommendation: InstrumentRecommendation) {
   return rows;
 }
 
-function componentDisplayReason(component: { label: string; score: unknown; reason: string }) {
+function componentDisplayReason(component: { key: string; label: string; score: unknown; reason: string }) {
   if (typeof component.score === "number" && Number.isFinite(component.score)) {
+    if (component.key === "risk_analytics") {
+      if (component.score < 45) return "Instrument risk is elevated";
+      if (component.score < 70) return "Instrument risk is moderate";
+    }
     if (component.score < 45) return `${component.label} score is weak`;
     if (component.score < 70) return `${component.label} score is mixed`;
   }

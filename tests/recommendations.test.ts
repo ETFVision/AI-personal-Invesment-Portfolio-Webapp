@@ -274,6 +274,16 @@ test("weak component scores do not use positive driver wording", () => {
   assert.ok(!result.negativeDrivers.includes("Strong overall fundamentals"));
 });
 
+test("risk analytics wording reflects moderate risk scores", () => {
+  const result = new StockRecommendationService(rules).evaluate(input({
+    riskMetric: { ...riskMetric, riskScore: 52 }
+  }));
+  const components = result.scoringBreakdown.components as Array<{ key: string; reason: string; score: number }>;
+  const riskComponent = components.find((component) => component.key === "risk_analytics");
+  assert.equal(Math.round(riskComponent?.score ?? 0), 48);
+  assert.equal(riskComponent?.reason, "Instrument risk is moderate");
+});
+
 test("Market Vision cannot override hard guardrails", () => {
   const result = new StockRecommendationService(rules).evaluate(input({
     fundamentals: fundamentals(80, 10),
