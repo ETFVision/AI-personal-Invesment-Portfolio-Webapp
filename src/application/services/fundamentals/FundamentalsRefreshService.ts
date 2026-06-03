@@ -42,6 +42,11 @@ function safeRatio(numerator: number | null | undefined, denominator: number | n
   return Number.isFinite(value) ? value : null;
 }
 
+function safePositiveDenominatorRatio(numerator: number | null | undefined, denominator: number | null | undefined) {
+  if (denominator == null || denominator <= 0) return null;
+  return safeRatio(numerator, denominator);
+}
+
 function numberFromMetadata(value: unknown) {
   const number = typeof value === "number" ? value : Number(value);
   return Number.isFinite(number) ? number : null;
@@ -122,21 +127,21 @@ function deriveMissingRatios(input: {
   const latestRatio = sorted[0] ?? createEmptyDerivedRatio({ instrumentId: input.instrumentId, symbol: input.symbol, income, balanceSheet });
 
   const derivedPe =
-    safeRatio(derivedMarketCap, income?.netIncome) ??
-    safeRatio(derivedMarketCap, previousIncome?.netIncome);
-  const derivedPriceToSales = safeRatio(derivedMarketCap, income?.revenue);
-  const derivedPriceToBook = safeRatio(derivedMarketCap, balanceSheet?.shareholdersEquity);
-  const derivedGrossMargin = safeRatio(income?.grossProfit, income?.revenue);
-  const derivedOperatingMargin = safeRatio(income?.operatingIncome, income?.revenue);
-  const derivedNetMargin = safeRatio(income?.netIncome, income?.revenue);
-  const derivedRoe = safeRatio(income?.netIncome, balanceSheet?.shareholdersEquity);
-  const derivedRoa = safeRatio(income?.netIncome, balanceSheet?.totalAssets);
-  const derivedDebtToEquity = safeRatio(balanceSheet?.totalDebt, balanceSheet?.shareholdersEquity);
-  const derivedCurrentRatio = safeRatio(
+    safePositiveDenominatorRatio(derivedMarketCap, income?.netIncome) ??
+    safePositiveDenominatorRatio(derivedMarketCap, previousIncome?.netIncome);
+  const derivedPriceToSales = safePositiveDenominatorRatio(derivedMarketCap, income?.revenue);
+  const derivedPriceToBook = safePositiveDenominatorRatio(derivedMarketCap, balanceSheet?.shareholdersEquity);
+  const derivedGrossMargin = safePositiveDenominatorRatio(income?.grossProfit, income?.revenue);
+  const derivedOperatingMargin = safePositiveDenominatorRatio(income?.operatingIncome, income?.revenue);
+  const derivedNetMargin = safePositiveDenominatorRatio(income?.netIncome, income?.revenue);
+  const derivedRoe = safePositiveDenominatorRatio(income?.netIncome, balanceSheet?.shareholdersEquity);
+  const derivedRoa = safePositiveDenominatorRatio(income?.netIncome, balanceSheet?.totalAssets);
+  const derivedDebtToEquity = safePositiveDenominatorRatio(balanceSheet?.totalDebt, balanceSheet?.shareholdersEquity);
+  const derivedCurrentRatio = safePositiveDenominatorRatio(
     Number(input.profile?.providerMetadata?.currentAssets ?? balanceSheet?.providerMetadata?.totalCurrentAssets),
     Number(input.profile?.providerMetadata?.currentLiabilities ?? balanceSheet?.providerMetadata?.totalCurrentLiabilities)
   );
-  const derivedFreeCashFlowYield = safeRatio(cashFlow?.freeCashFlow, derivedMarketCap);
+  const derivedFreeCashFlowYield = safePositiveDenominatorRatio(cashFlow?.freeCashFlow, derivedMarketCap);
 
   const enhanced: FinancialRatio = {
     ...latestRatio,

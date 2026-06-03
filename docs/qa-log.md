@@ -1996,3 +1996,94 @@ Validation performed:
 
 Production-readiness assessment:
 - READY FOR RECOMMENDATION ENGINE as an input layer with one caveat: Recommendation Engine V1 should treat sector-aware scoring as preliminary until sector-relative peer median scoring is implemented.
+
+## 2026-06-03 - Fundamentals And Trend Layer QA
+
+Scope:
+- Reviewed the completed Company Fundamentals and Fundamental Trend layers before Recommendation Engine V1.
+- Covered FMP ingestion, stock-only eligibility, annual and quarterly statements, derived ratios, deterministic scores, trend calculations, UI display, refresh controls, architecture boundaries, and future recommendation readiness.
+- Explicitly did not build recommendations, buy/sell logic, telemetry, AI scoring, or Portfolio Assistant behavior.
+
+Fundamentals layer score:
+- 88/100.
+
+Provider and coverage assessment:
+- FMP remains the only active fundamentals provider and is wrapped behind `FundamentalsProvider`.
+- Refresh pulls profile, annual statements/ratios, and quarterly statements/ratios for eligible stocks.
+- Stock eligibility excludes ETFs, bond ETFs, gold ETFs, crypto, benchmarks, and reference instruments.
+- Raw provider payloads continue to be stored in `provider_metadata`.
+- Missing FMP ratios can be derived from stored financial statements where accounting inputs are sufficient.
+
+Database integrity assessment:
+- `company_profiles`, `financial_statements`, `financial_ratios`, `fundamental_scores`, `fundamental_trends`, `fundamental_trend_summaries`, and `fundamentals_refresh_logs` remain portable PostgreSQL tables.
+- Unique constraints prevent duplicate company profiles, statements, ratios, scores, trends, trend summaries, and refresh-log identity issues.
+- The trend migrations now support `not_applicable` plus expanded trend labels, and the UI renders short-term annual-only metrics as `N/A`.
+
+Normalization and derived-ratio assessment:
+- Missing provider values remain `null`; they are not coerced to zero.
+- Annual and quarterly statement data are stored separately and can both feed trend calculations.
+- Derived ratio fallbacks cover valuation, margins, profitability, balance-sheet, cash-flow, and growth metrics.
+- Medium-priority hardening was added so invalid accounting denominators do not create misleading ratios:
+  - negative or zero earnings no longer create derived P/E
+  - negative or zero equity no longer creates price/book, ROE, or debt/equity
+  - negative or zero current liabilities no longer creates current ratio
+  - negative or zero revenue no longer creates margin ratios
+  - negative or zero invested capital no longer creates ROIC
+  - negative free cash flow yield is still allowed when market cap is valid
+
+Trend accuracy assessment:
+- Short-term growth and margin trends use YoY quarterly data when available.
+- Long-term trend analysis uses annual data.
+- Annual-only balance sheet and profitability metrics intentionally show short-term `N/A`.
+- Trend labels are deterministic and include accelerating, improving, rebounding, stable, decelerating, deteriorating, volatile, mixed, insufficient data, and N/A.
+- Trend confidence falls when history is sparse or volatile.
+- Trend summaries produce category-level and overall trend scores without relying on AI.
+
+UI/UX assessment:
+- `/fundamentals` remains a compact stock fundamentals overview.
+- `/instruments/[symbol]#fundamentals` shows detailed fundamentals, scores, statement snapshots, and trend metrics.
+- Instrument detail trend rows show `Latest shown`, `Prior shown`, and basis labels without crowding the table.
+- Non-stock instruments do not show misleading stock-fundamental data.
+
+Architecture assessment:
+- No FMP calls were found in UI components.
+- No direct Supabase table access was found in `src/app` or `src/components` during the QA scan.
+- The service/repository/provider architecture is preserved.
+- Fundamentals refresh route remains protected by `CRON_SECRET`.
+- API keys remain server-side only.
+
+Critical issues:
+- None found.
+
+Medium-priority issues fixed automatically:
+- Invalid denominator handling was tightened for derived fundamentals ratios.
+- Trend calculations now ignore invalid balance-sheet and profitability denominators instead of producing misleading trend signals.
+- Tests now cover invalid denominator behavior for both refresh-time derived ratios and trend calculations.
+
+Low-priority improvements for later:
+- Add sector-relative and industry-relative scoring before using fundamentals as a strong recommendation score input.
+- Add financial-sector-specific scoring logic for banks, insurers, REITs, and capital-intensive sectors.
+- Add a coverage/admin view showing which symbols have profile, annual, quarterly, ratio, score, and trend coverage.
+- Add provider fallback support if FMP fundamentals coverage is incomplete for certain symbols.
+- Add job overlap protection if fundamentals refresh is scheduled frequently.
+- Add explicit per-table freshness badges for profile, statements, ratios, scores, and trends.
+
+Tests added or updated:
+- Derived ratios from financial statements.
+- Invalid denominator protection for valuation, profitability, leverage, liquidity, and cash-flow yield.
+- Quarterly statement fallback for short-term growth trends.
+- Annual statement fallback for profitability and liquidity trends.
+- Annual-only short-term `N/A` behavior.
+- Non-stock exclusion during fundamentals refresh.
+- Partial failure refresh logging and CRON secret protection.
+
+Validation performed:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed: 131 tests.
+- `npm.cmd run lint` passed.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY FOR RECOMMENDATION ENGINE V1 as a deterministic input layer.
+- Recommendation Engine V1 should treat fundamental scores as one input, not a standalone buy/sell signal.
+- Sector-relative scoring and financial-sector-specific scoring should be added before fundamentals become a high-weight recommendation driver.

@@ -523,6 +523,69 @@ function trendStatement(input: {
   };
 }
 
+test("fundamentals refresh does not derive valuation or leverage ratios from invalid denominators", () => {
+  const ratios = fundamentalsRefreshInternals.deriveMissingRatios({
+    instrumentId: "inst-distress",
+    symbol: "DST",
+    profile: {
+      instrumentId: "inst-distress",
+      symbol: "DST",
+      companyName: "Distress Co",
+      sector: "Technology",
+      industry: "Software",
+      country: "US",
+      exchange: "NASDAQ",
+      currency: "USD",
+      marketCap: 1_000,
+      beta: null,
+      description: null,
+      website: null,
+      ceo: null,
+      ipoDate: null,
+      employees: null,
+      lastRefreshedAt: "2026-06-01T00:00:00Z",
+      provider: "test",
+      providerMetadata: {}
+    },
+    statements: [
+      trendStatement({
+        statementType: "income_statement",
+        period: "annual",
+        year: 2025,
+        revenue: 400,
+        operatingIncome: 80,
+        netIncome: -50,
+        dilutedEps: -1,
+        sharesOutstanding: 100
+      }),
+      trendStatement({
+        statementType: "balance_sheet",
+        period: "annual",
+        year: 2025,
+        totalAssets: 600,
+        shareholdersEquity: -100,
+        totalDebt: 300,
+        providerMetadata: { totalCurrentAssets: 100, totalCurrentLiabilities: -20 }
+      }),
+      trendStatement({
+        statementType: "cash_flow",
+        period: "annual",
+        year: 2025,
+        freeCashFlow: -20
+      })
+    ],
+    ratios: []
+  });
+
+  assert.equal(ratios[0]?.peRatio, null);
+  assert.equal(ratios[0]?.priceToBook, null);
+  assert.equal(ratios[0]?.roe, null);
+  assert.equal(ratios[0]?.debtToEquity, null);
+  assert.equal(ratios[0]?.currentRatio, null);
+  assert.equal(ratios[0]?.freeCashFlowYield, -0.02);
+  assert.equal(ratios[0]?.priceToSales, 2.5);
+});
+
 test("fundamental trend service detects improving and deteriorating growth trends", () => {
   const service = new FundamentalTrendCalculationService();
   const result = service.calculate({
@@ -661,6 +724,54 @@ test("fundamental trend service derives profitability and liquidity trends from 
   assert.notEqual(currentRatio?.longTermTrendDirection, "insufficient_data");
   assert.notEqual(interestCoverage?.longTermTrendDirection, "insufficient_data");
   assert.notEqual(revenuePerShare?.longTermTrendDirection, "insufficient_data");
+});
+
+test("fundamental trend service ignores invalid balance sheet denominators", () => {
+  const service = new FundamentalTrendCalculationService();
+  const statements: FinancialStatement[] = [];
+  for (let index = 0; index < 5; index += 1) {
+    const year = 2021 + index;
+    statements.push(
+      trendStatement({
+        statementType: "income_statement",
+        period: "annual",
+        year,
+        revenue: 100 + index * 5,
+        operatingIncome: 20,
+        netIncome: 10,
+        providerMetadata: { interestExpense: 0 }
+      }),
+      trendStatement({
+        statementType: "balance_sheet",
+        period: "annual",
+        year,
+        totalAssets: 200,
+        shareholdersEquity: -50,
+        totalDebt: 120,
+        cashAndEquivalents: 300,
+        providerMetadata: { totalCurrentAssets: 100, totalCurrentLiabilities: -25 }
+      })
+    );
+  }
+
+  const result = service.calculate({
+    instrumentId: "inst-DST",
+    symbol: "DST",
+    scores: [],
+    ratios: [],
+    statements
+  });
+
+  const roe = result.trends.find((trend) => trend.metricName === "roe");
+  const roic = result.trends.find((trend) => trend.metricName === "roic");
+  const debtToEquity = result.trends.find((trend) => trend.metricName === "debt_to_equity");
+  const currentRatio = result.trends.find((trend) => trend.metricName === "current_ratio");
+  const interestCoverage = result.trends.find((trend) => trend.metricName === "interest_coverage");
+  assert.equal(roe?.longTermTrendDirection, "insufficient_data");
+  assert.equal(roic?.longTermTrendDirection, "insufficient_data");
+  assert.equal(debtToEquity?.longTermTrendDirection, "insufficient_data");
+  assert.equal(currentRatio?.longTermTrendDirection, "insufficient_data");
+  assert.equal(interestCoverage?.longTermTrendDirection, "insufficient_data");
 });
 
 test("fundamental trend service marks insufficient data and creates quality warnings", () => {

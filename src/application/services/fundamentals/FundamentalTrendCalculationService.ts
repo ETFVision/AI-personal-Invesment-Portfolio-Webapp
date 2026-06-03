@@ -73,6 +73,11 @@ function safeRatio(numerator: number | null | undefined, denominator: number | n
   return Number.isFinite(value) ? value : null;
 }
 
+function safePositiveDenominatorRatio(numerator: number | null | undefined, denominator: number | null | undefined) {
+  if (denominator == null || denominator <= 0) return null;
+  return safeRatio(numerator, denominator);
+}
+
 function numberFromUnknown(value: unknown) {
   const number = typeof value === "number" ? value : Number(value);
   return Number.isFinite(number) ? number : null;
@@ -104,7 +109,8 @@ function investedCapital(period: PeriodBundle) {
   const debt = period.balance?.totalDebt;
   const cash = period.balance?.cashAndEquivalents ?? 0;
   if (equity == null || debt == null) return null;
-  return equity + debt - cash;
+  const value = equity + debt - cash;
+  return value > 0 ? value : null;
 }
 
 function growth(latest: number | null | undefined, previous: number | null | undefined) {
@@ -420,33 +426,33 @@ const metricDefinitions: MetricDefinition[] = [
   {
     name: "gross_margin",
     category: "margin",
-    shortTerm: (period) => period.ratio?.grossMargin ?? safeRatio(period.income?.grossProfit, period.income?.revenue),
-    longTerm: (period) => period.ratio?.grossMargin ?? safeRatio(period.income?.grossProfit, period.income?.revenue),
+    shortTerm: (period) => period.ratio?.grossMargin ?? safePositiveDenominatorRatio(period.income?.grossProfit, period.income?.revenue),
+    longTerm: (period) => period.ratio?.grossMargin ?? safePositiveDenominatorRatio(period.income?.grossProfit, period.income?.revenue),
     formatter: "percent"
   },
   {
     name: "operating_margin",
     category: "margin",
-    shortTerm: (period) => period.ratio?.operatingMargin ?? safeRatio(period.income?.operatingIncome, period.income?.revenue),
-    longTerm: (period) => period.ratio?.operatingMargin ?? safeRatio(period.income?.operatingIncome, period.income?.revenue),
+    shortTerm: (period) => period.ratio?.operatingMargin ?? safePositiveDenominatorRatio(period.income?.operatingIncome, period.income?.revenue),
+    longTerm: (period) => period.ratio?.operatingMargin ?? safePositiveDenominatorRatio(period.income?.operatingIncome, period.income?.revenue),
     formatter: "percent"
   },
   {
     name: "net_margin",
     category: "margin",
-    shortTerm: (period) => period.ratio?.netMargin ?? safeRatio(period.income?.netIncome, period.income?.revenue),
-    longTerm: (period) => period.ratio?.netMargin ?? safeRatio(period.income?.netIncome, period.income?.revenue),
+    shortTerm: (period) => period.ratio?.netMargin ?? safePositiveDenominatorRatio(period.income?.netIncome, period.income?.revenue),
+    longTerm: (period) => period.ratio?.netMargin ?? safePositiveDenominatorRatio(period.income?.netIncome, period.income?.revenue),
     formatter: "percent"
   },
-  { name: "roe", category: "profitability", longTerm: (period) => period.ratio?.roe ?? safeRatio(period.income?.netIncome, period.balance?.shareholdersEquity), formatter: "percent" },
-  { name: "roic", category: "profitability", longTerm: (period) => period.ratio?.roic ?? safeRatio(period.income?.operatingIncome, investedCapital(period)), formatter: "percent" },
-  { name: "roa", category: "profitability", longTerm: (period) => period.ratio?.roa ?? safeRatio(period.income?.netIncome, period.balance?.totalAssets), formatter: "percent" },
-  { name: "debt_to_equity", category: "balance_sheet", longTerm: (period) => period.ratio?.debtToEquity ?? safeRatio(period.balance?.totalDebt, period.balance?.shareholdersEquity), lowerIsBetter: true, formatter: "ratio" },
-  { name: "current_ratio", category: "balance_sheet", longTerm: (period) => period.ratio?.currentRatio ?? safeRatio(currentAssets(period), currentLiabilities(period)), formatter: "ratio" },
-  { name: "interest_coverage", category: "balance_sheet", longTerm: (period) => safeRatio(period.income?.operatingIncome, interestExpense(period)), formatter: "ratio" },
-  { name: "fcf_conversion", category: "quality", longTerm: (period) => safeRatio(period.cashFlow?.freeCashFlow, period.income?.netIncome), formatter: "ratio" },
-  { name: "free_cash_flow_margin", category: "quality", shortTerm: (period) => safeRatio(period.cashFlow?.freeCashFlow, period.income?.revenue), longTerm: (period) => safeRatio(period.cashFlow?.freeCashFlow, period.income?.revenue), formatter: "percent" },
-  { name: "revenue_per_share_growth", category: "quality", statementGrowth: (period) => safeRatio(period.income?.revenue, period.income?.sharesOutstanding), formatter: "percent" },
+  { name: "roe", category: "profitability", longTerm: (period) => period.ratio?.roe ?? safePositiveDenominatorRatio(period.income?.netIncome, period.balance?.shareholdersEquity), formatter: "percent" },
+  { name: "roic", category: "profitability", longTerm: (period) => period.ratio?.roic ?? safePositiveDenominatorRatio(period.income?.operatingIncome, investedCapital(period)), formatter: "percent" },
+  { name: "roa", category: "profitability", longTerm: (period) => period.ratio?.roa ?? safePositiveDenominatorRatio(period.income?.netIncome, period.balance?.totalAssets), formatter: "percent" },
+  { name: "debt_to_equity", category: "balance_sheet", longTerm: (period) => period.ratio?.debtToEquity ?? safePositiveDenominatorRatio(period.balance?.totalDebt, period.balance?.shareholdersEquity), lowerIsBetter: true, formatter: "ratio" },
+  { name: "current_ratio", category: "balance_sheet", longTerm: (period) => period.ratio?.currentRatio ?? safePositiveDenominatorRatio(currentAssets(period), currentLiabilities(period)), formatter: "ratio" },
+  { name: "interest_coverage", category: "balance_sheet", longTerm: (period) => safePositiveDenominatorRatio(period.income?.operatingIncome, interestExpense(period)), formatter: "ratio" },
+  { name: "fcf_conversion", category: "quality", longTerm: (period) => safePositiveDenominatorRatio(period.cashFlow?.freeCashFlow, period.income?.netIncome), formatter: "ratio" },
+  { name: "free_cash_flow_margin", category: "quality", shortTerm: (period) => safePositiveDenominatorRatio(period.cashFlow?.freeCashFlow, period.income?.revenue), longTerm: (period) => safePositiveDenominatorRatio(period.cashFlow?.freeCashFlow, period.income?.revenue), formatter: "percent" },
+  { name: "revenue_per_share_growth", category: "quality", statementGrowth: (period) => safePositiveDenominatorRatio(period.income?.revenue, period.income?.sharesOutstanding), formatter: "percent" },
   { name: "dilution_trend", category: "quality", longTerm: (period) => period.income?.sharesOutstanding ?? period.balance?.sharesOutstanding ?? null, lowerIsBetter: true, formatter: "ratio" }
 ];
 
@@ -602,5 +608,6 @@ export const fundamentalTrendInternals = {
   bundlesFor,
   metricDefinitions,
   safeRatio,
+  safePositiveDenominatorRatio,
   growth
 };
