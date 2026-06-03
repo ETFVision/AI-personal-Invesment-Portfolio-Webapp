@@ -470,6 +470,14 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     return (data ?? []).map(mapInstrumentRiskMetric);
   }
 
+  async refreshInstrumentRiskMetrics(instrumentIds?: string[]) {
+    const { error } = await this.db.rpc("refresh_instrument_risk_metrics", {
+      target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
+    });
+    if (isMissingMetricsSupport(error)) return;
+    if (error) throw new Error(error.message);
+  }
+
   async upsertInstrumentRiskMetrics(input: UpsertInstrumentRiskMetricInput[]) {
     if (input.length === 0) return;
 

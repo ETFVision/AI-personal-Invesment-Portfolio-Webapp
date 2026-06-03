@@ -1,12 +1,6 @@
 import type { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
 import type { Instrument, InstrumentPrice, InstrumentRiskMetric } from "@/domain/universe/types";
 
-function yearsAgoIso(years: number) {
-  const date = new Date();
-  date.setUTCFullYear(date.getUTCFullYear() - years);
-  return date.toISOString().slice(0, 10);
-}
-
 function dailyReturns(series: InstrumentPrice[]) {
   const sorted = series
     .filter((point) => Number.isFinite(point.closePrice) && point.closePrice > 0)
@@ -148,13 +142,7 @@ export class InstrumentRiskService {
 
   async getInstrumentRiskMetric(instrument: Instrument): Promise<InstrumentRiskMetric | null> {
     const stored = await this.repository.listInstrumentRiskMetrics([instrument.id]);
-    const latestStored = stored.slice().sort((a, b) => (b.metricDate ?? "").localeCompare(a.metricDate ?? ""))[0];
-    const prices = await this.repository.listInstrumentPrices([instrument.id], yearsAgoIso(1));
-    if (prices.length < 2) return latestStored ?? null;
-
-    const metric = this.calculate(instrument, prices);
-    await this.repository.upsertInstrumentRiskMetrics([metric]);
-    return metric;
+    return stored.slice().sort((a, b) => (b.metricDate ?? "").localeCompare(a.metricDate ?? ""))[0] ?? null;
   }
 
   calculate(instrument: Instrument, prices: InstrumentPrice[]): InstrumentRiskMetric {

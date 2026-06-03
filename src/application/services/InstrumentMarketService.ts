@@ -257,8 +257,10 @@ export class InstrumentMarketService {
       }
 
       if (rows.length > 0) {
+        const updatedInstrumentIds = Array.from(new Set(rows.map((row) => row.instrumentId)));
         await this.repository.upsertInstrumentPrices(rows);
-        await this.repository.refreshInstrumentMarketMetrics(Array.from(new Set(rows.map((row) => row.instrumentId))));
+        await this.repository.refreshInstrumentMarketMetrics(updatedInstrumentIds);
+        await this.repository.refreshInstrumentRiskMetrics(updatedInstrumentIds);
       }
 
       return {
@@ -333,8 +335,10 @@ export class InstrumentMarketService {
     }
 
     if (rows.length > 0) {
+      const updatedInstrumentIds = Array.from(new Set(rows.map((row) => row.instrumentId)));
       await this.repository.upsertInstrumentPrices(rows);
-      await this.repository.refreshInstrumentMarketMetrics(Array.from(new Set(rows.map((row) => row.instrumentId))));
+      await this.repository.refreshInstrumentMarketMetrics(updatedInstrumentIds);
+      await this.repository.refreshInstrumentRiskMetrics(updatedInstrumentIds);
     }
 
     return {
