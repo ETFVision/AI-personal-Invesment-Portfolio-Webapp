@@ -214,12 +214,20 @@ export type GdeltArticleMetadata = {
 
 export type NewsDashboard = {
   latestNews: Array<NewsItem & { classification?: NewsClassification | null }>;
+  stats: NewsDashboardStats;
   weeklyReconciliations: WeeklyNewsReconciliation[];
   ingestionLogs: NewsIngestionLog[];
   gdeltQueryStatuses: GdeltQueryStatus[];
   latestWeeklyReconciliation: WeeklyNewsReconciliation | null;
   themeSummary: NewsThemeSummary[];
   themeIntelligence: NewsThemeIntelligence;
+};
+
+export type NewsDashboardStats = {
+  totalArticles: number;
+  classifiedArticles: number;
+  duplicateArticles: number;
+  weeklyReconciliations: number;
 };
 
 export type GdeltQueryStatus = {

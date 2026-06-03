@@ -56,6 +56,11 @@ function coverageNumber(metadata: Record<string, unknown>, key: string) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function metadataNumber(metadata: Record<string, unknown> | null | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
 function bucketCount(metadata: Record<string, unknown>, key: string) {
   const buckets = typeof metadata.bucketCounts === "object" && metadata.bucketCounts !== null
     ? metadata.bucketCounts as Record<string, unknown>
@@ -97,8 +102,6 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
     limit: 60
   });
 
-  const classifiedCount = dashboard.latestNews.filter((item) => item.classification).length;
-  const duplicateCount = dashboard.latestNews.filter((item) => item.isDuplicate).length;
   const gdeltNews = dashboard.latestNews.filter((item) => item.sourceProvider === "gdelt");
   const macroWorldNews = gdeltNews.filter((item) => {
     const theme = item.classification?.primaryTheme;
@@ -144,20 +147,20 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
 
       <section className="grid gap-4 md:grid-cols-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Latest Articles</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-semibold">{dashboard.latestNews.length}</CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Stored Articles</CardTitle></CardHeader>
+          <CardContent className="text-2xl font-semibold">{dashboard.stats.totalArticles}</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Classified</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-semibold">{classifiedCount}</CardContent>
+          <CardContent className="text-2xl font-semibold">{dashboard.stats.classifiedArticles}</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Duplicates</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-semibold">{duplicateCount}</CardContent>
+          <CardContent className="text-2xl font-semibold">{dashboard.stats.duplicateArticles}</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Weekly Reconciliations</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-semibold">{dashboard.weeklyReconciliations.length}</CardContent>
+          <CardContent className="text-2xl font-semibold">{dashboard.stats.weeklyReconciliations}</CardContent>
         </Card>
       </section>
 
@@ -233,6 +236,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                   <th className="py-2 pr-3">Status</th>
                   <th className="py-2 pr-3">Fetched</th>
                   <th className="py-2 pr-3">Saved</th>
+                  <th className="py-2 pr-3">Filtered</th>
                   <th className="py-2 pr-3">Duplicates</th>
                   <th className="py-2 pr-3">Last run</th>
                   <th className="py-2 pr-3">Next run</th>
@@ -253,6 +257,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                       <td className={`py-3 pr-3 font-medium ${statusTone(statusLabel)}`}>{statusLabel}</td>
                       <td className="py-3 pr-3">{latestLog?.articlesFetched ?? 0}</td>
                       <td className="py-3 pr-3">{latestLog?.articlesInserted ?? 0}</td>
+                      <td className="py-3 pr-3">{metadataNumber(latestLog?.metadata, "articlesFiltered")}</td>
                       <td className="py-3 pr-3">{latestLog?.duplicatesDetected ?? 0}</td>
                       <td className="py-3 pr-3 text-xs text-muted-foreground">{formatDateTime(latestLog?.completedAt ?? latestLog?.startedAt)}</td>
                       <td className="py-3 pr-3 text-xs text-muted-foreground">{formatDateTime(queryGroup.nextRunAt)}</td>

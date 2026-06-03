@@ -1,6 +1,7 @@
 import type {
   NewsClassification,
   NewsGroup,
+  NewsDashboardStats,
   NewsIngestionLog,
   NewsItem,
   NormalizedNewsArticle,
@@ -26,6 +27,7 @@ export type NewsFilters = {
 export interface NewsRepository {
   listNewsItems(filters?: NewsFilters): Promise<NewsItem[]>;
   listNewsWithClassifications(filters?: NewsFilters): Promise<Array<NewsItem & { classification?: NewsClassification | null }>>;
+  getDashboardStats(): Promise<NewsDashboardStats>;
   findCanonicalArticle(input: Pick<NormalizedNewsArticle, "sourceProvider" | "sourceId" | "url"> & { canonicalHash: string; contentHash: string }): Promise<NewsItem | null>;
   upsertNewsItems(input: UpsertNewsItemInput[]): Promise<NewsItem[]>;
   markDuplicate(newsItemId: string, duplicateOfId: string | null): Promise<void>;

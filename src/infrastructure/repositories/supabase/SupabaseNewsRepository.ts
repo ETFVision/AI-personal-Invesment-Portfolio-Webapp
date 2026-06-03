@@ -7,7 +7,7 @@ import type {
   UpsertNewsItemInput,
   UpsertWeeklyNewsReconciliationInput
 } from "@/application/ports/repositories/NewsRepository";
-import type { NewsCanonicalTheme, NewsClassification, NewsGroup, NewsIngestionLog, NewsItem, WeeklyNewsReconciliation } from "@/domain/news/types";
+import type { NewsCanonicalTheme, NewsClassification, NewsDashboardStats, NewsGroup, NewsIngestionLog, NewsItem, WeeklyNewsReconciliation } from "@/domain/news/types";
 import { canonicalNewsThemes } from "@/application/services/news/NewsClassificationService";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 import { hashText } from "@/application/services/news/newsText";
@@ -179,6 +179,24 @@ function mapGroup(row: any): NewsGroup {
 export class SupabaseNewsRepository implements NewsRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
+  private async countRows(table: string, filter?: (query: any) => any) {
+    let query = this.db.from(table).select("id", { count: "exact", head: true });
+    if (filter) query = filter(query);
+    const { count, error } = await query;
+    if (isMissingNewsTable(error)) return 0;
+    if (isJwtIssuedAtFutureError(error)) return 0;
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+
+  private async countClassifiedArticles() {
+    const { data, error } = await this.db.from("news_classifications").select("news_item_id");
+    if (isMissingNewsTable(error)) return 0;
+    if (isJwtIssuedAtFutureError(error)) return 0;
+    if (error) throw new Error(error.message);
+    return new Set((data ?? []).map((row: any) => row.news_item_id).filter(Boolean)).size;
+  }
+
   async listNewsItems(filters?: NewsFilters) {
     let query = this.db.from("news_items").select("*").order("published_at", { ascending: false }).limit(filters?.limit ?? 50);
     if (!filters?.includeDuplicates) query = query.eq("is_duplicate", false);
@@ -195,6 +213,21 @@ export class SupabaseNewsRepository implements NewsRepository {
     const items = await this.listNewsItems(filters);
     const rows = await Promise.all(items.map(async (item) => ({ ...item, classification: await this.getClassification(item.id) })));
     return filters?.classification ? rows.filter((row) => row.classification?.classification === filters.classification) : rows;
+  }
+
+  async getDashboardStats(): Promise<NewsDashboardStats> {
+    const [totalArticles, classifiedArticles, duplicateArticles, weeklyReconciliations] = await Promise.all([
+      this.countRows("news_items"),
+      this.countClassifiedArticles(),
+      this.countRows("news_items", (query) => query.eq("is_duplicate", true)),
+      this.countRows("weekly_news_reconciliations")
+    ]);
+    return {
+      totalArticles,
+      classifiedArticles,
+      duplicateArticles,
+      weeklyReconciliations
+    };
   }
 
   async findCanonicalArticle(input: { sourceProvider: string; sourceId: string | null; url: string | null; canonicalHash: string; contentHash: string }) {

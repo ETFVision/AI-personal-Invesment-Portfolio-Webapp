@@ -109,6 +109,7 @@ export class GlobalNewsIngestionService {
         let groupFetched = 0;
         let groupInserted = 0;
         let groupDuplicates = 0;
+        let groupFiltered = 0;
         try {
           const fetched = await this.provider.fetchQueryGroup({
             queryGroup: group,
@@ -122,6 +123,7 @@ export class GlobalNewsIngestionService {
           for (const article of fetched) {
             if (!this.relevanceService.isRelevant(article)) {
               articlesFiltered += 1;
+              groupFiltered += 1;
               continue;
             }
             const prepared = this.deduplicationService.prepare(article);
@@ -215,7 +217,7 @@ export class GlobalNewsIngestionService {
             articlesInserted: groupInserted,
             duplicatesDetected: groupDuplicates,
             errorMessage: null,
-            metadata: { queryKey: group.queryKey, canonicalTheme: group.canonicalTheme, category: group.category }
+            metadata: { queryKey: group.queryKey, canonicalTheme: group.canonicalTheme, category: group.category, articlesFiltered: groupFiltered }
           });
           await this.gdeltRepository.updateQueryGroupSchedule({
             id: group.id,
@@ -242,7 +244,7 @@ export class GlobalNewsIngestionService {
             articlesInserted: 0,
             duplicatesDetected: groupDuplicates,
             errorMessage,
-            metadata: { queryKey: group.queryKey, canonicalTheme: group.canonicalTheme, category: group.category, rateLimitHit }
+            metadata: { queryKey: group.queryKey, canonicalTheme: group.canonicalTheme, category: group.category, articlesFiltered: groupFiltered, rateLimitHit }
           });
           await this.gdeltRepository.updateQueryGroupSchedule({
             id: group.id,

@@ -88,8 +88,20 @@ class FakeNewsRepository implements NewsRepository {
   weekly: WeeklyNewsReconciliation[] = [];
   logs: NewsIngestionLog[] = [];
 
-  async listNewsItems() { return this.items; }
-  async listNewsWithClassifications() { return this.items.map((item) => ({ ...item, classification: this.classifications.find((row) => row.newsItemId === item.id) ?? null })); }
+  async listNewsItems(filters?: { limit?: number }) { return this.items.slice(0, filters?.limit ?? this.items.length); }
+  async listNewsWithClassifications(filters?: { limit?: number }) {
+    return this.items
+      .slice(0, filters?.limit ?? this.items.length)
+      .map((item) => ({ ...item, classification: this.classifications.find((row) => row.newsItemId === item.id) ?? null }));
+  }
+  async getDashboardStats() {
+    return {
+      totalArticles: this.items.length,
+      classifiedArticles: new Set(this.classifications.map((classification) => classification.newsItemId)).size,
+      duplicateArticles: this.items.filter((item) => item.isDuplicate).length,
+      weeklyReconciliations: this.weekly.length
+    };
+  }
   async findCanonicalArticle(input: { sourceId: string | null; url: string | null; canonicalHash: string; contentHash: string }) {
     return this.items.find((item) =>
       (!item.isDuplicate && input.sourceId && item.sourceId === input.sourceId) ||
@@ -1606,6 +1618,53 @@ test("GDELT ingestion backs off failed due groups", async () => {
   assert.match(gdeltRepository.groups[0]?.lastError ?? "", /429/);
   assert.notEqual(gdeltRepository.groups[0]?.nextRunAt, null);
   assert.match(newsRepository.logs[0]?.errorMessage ?? "", /rate limit/i);
+});
+
+test("news dashboard stats count stored records instead of the visible latest list", async () => {
+  const newsRepository = new FakeNewsRepository();
+  newsRepository.items = [
+    newsItem({ id: "news-1", isDuplicate: false }),
+    newsItem({ id: "news-2", sourceId: "source-2", isDuplicate: true, duplicateOfId: "news-1" }),
+    newsItem({ id: "news-3", sourceId: "source-3", isDuplicate: false })
+  ];
+  newsRepository.classifications = [
+    classification({ id: "classification-1", newsItemId: "news-1" }),
+    classification({ id: "classification-2", newsItemId: "news-3" })
+  ];
+  await newsRepository.upsertWeeklyReconciliation({
+    periodStart: "2026-06-01",
+    periodEnd: "2026-06-07",
+    status: "draft",
+    equitiesSummary: "Equities summary",
+    bondsSummary: null,
+    goldSummary: null,
+    cryptoSummary: null,
+    macroSummary: null,
+    ratesSummary: null,
+    inflationSummary: null,
+    currencySummary: null,
+    geopoliticalSummary: null,
+    keyRisks: [],
+    keyOpportunities: [],
+    portfolioImplications: {},
+    coverageMetadata: {},
+    modelUsed: null,
+    tokenUsage: {},
+    costEstimate: null
+  });
+
+  const dashboard = await new NewsDashboardService(
+    newsRepository,
+    new ThemeIntelligenceService(newsRepository, new FakeMacroSignalRepository([]) as unknown as MacroIndicatorRepository)
+  ).getDashboard({ limit: 1 });
+
+  assert.equal(dashboard.latestNews.length, 1);
+  assert.deepEqual(dashboard.stats, {
+    totalArticles: 3,
+    classifiedArticles: 2,
+    duplicateArticles: 1,
+    weeklyReconciliations: 1
+  });
 });
 
 test("news dashboard exposes latest status for each active GDELT query group", async () => {

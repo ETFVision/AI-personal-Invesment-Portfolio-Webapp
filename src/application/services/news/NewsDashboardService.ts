@@ -21,8 +21,9 @@ export class NewsDashboardService {
   ) {}
 
   async getDashboard(filters?: NewsFilters) {
-    const [latestNews, weeklyReconciliations, ingestionLogs, latestWeeklyReconciliation, gdeltQueryStatuses] = await Promise.all([
+    const [latestNews, stats, weeklyReconciliations, ingestionLogs, latestWeeklyReconciliation, gdeltQueryStatuses] = await Promise.all([
       this.repository.listNewsWithClassifications({ ...filters, limit: filters?.limit ?? 50 }),
+      this.repository.getDashboardStats(),
       this.repository.listWeeklyReconciliations(8),
       this.repository.listIngestionLogs(10),
       this.repository.getLatestWeeklyReconciliation(),
@@ -36,6 +37,7 @@ export class NewsDashboardService {
 
     return {
       latestNews,
+      stats,
       weeklyReconciliations,
       ingestionLogs,
       gdeltQueryStatuses,
