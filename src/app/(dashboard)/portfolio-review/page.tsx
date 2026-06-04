@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createContainer } from "@/server/container";
-import { runPortfolioReviewAction } from "@/server/actions/portfolioReviewActions";
+import { refreshEtfLookthroughExposureAction, runPortfolioReviewAction } from "@/server/actions/portfolioReviewActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -23,6 +23,18 @@ type PortfolioReviewPageProps = {
 
 function score(value: number | null | undefined) {
   return value == null ? "-" : `${Math.round(value)}/100`;
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Never";
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Singapore",
+    timeZoneName: "short"
+  }).format(new Date(value));
 }
 
 function severityTone(severity: PortfolioReviewFinding["severity"]) {
@@ -340,6 +352,7 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
   }
 
   const dashboard = await container.portfolioReviewService.getDashboard(portfolio.id);
+  const latestEtfExposureLog = (await container.etfExposureRepository.listRefreshLogs(1))[0] ?? null;
   const report = dashboard.latestReport;
 
   return (
@@ -350,10 +363,22 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
           <h1 className="text-2xl font-semibold">Portfolio Review</h1>
           <p className="mt-1 text-sm text-muted-foreground">Deterministic portfolio-level review across allocation, risk, macro, recommendations, fixed income and themes.</p>
         </div>
-        <form action={runPortfolioReviewAction}>
-          <input type="hidden" name="returnTo" value="/portfolio-review" />
-          <SubmitButton pendingLabel="Running review...">Run portfolio review</SubmitButton>
-        </form>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <div className="flex flex-wrap gap-2">
+            <form action={refreshEtfLookthroughExposureAction}>
+              <input type="hidden" name="returnTo" value="/portfolio-review" />
+              <SubmitButton variant="secondary" pendingLabel="Refreshing ETF exposure...">Refresh ETF exposure</SubmitButton>
+            </form>
+            <form action={runPortfolioReviewAction}>
+              <input type="hidden" name="returnTo" value="/portfolio-review" />
+              <SubmitButton pendingLabel="Running review...">Run portfolio review</SubmitButton>
+            </form>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            ETF exposure last run: {formatDateTime(latestEtfExposureLog?.completedAt ?? latestEtfExposureLog?.startedAt)}
+            {latestEtfExposureLog ? ` - ${latestEtfExposureLog.status} (${latestEtfExposureLog.etfsRefreshed}/${latestEtfExposureLog.etfsRequested} ETFs)` : ""}
+          </p>
+        </div>
       </div>
 
       {params?.portfolioReviewMessage ? <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{params.portfolioReviewMessage}</p> : null}

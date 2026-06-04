@@ -33,3 +33,27 @@ export async function runPortfolioReviewAction(formData?: FormData) {
 
   redirect(`${destination.startsWith("/") ? destination : "/portfolio-review"}?${params.toString()}`);
 }
+
+export async function refreshEtfLookthroughExposureAction(formData?: FormData) {
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  const destination = String(formData?.get("returnTo") ?? "/portfolio-review");
+  let target = destination.startsWith("/") ? destination : "/portfolio-review";
+
+  try {
+    const result = await container.jobs.etfLookthroughRefresh.run({ force: true });
+    revalidatePath("/portfolio-review");
+    const params = new URLSearchParams({
+      portfolioReviewMessage: `ETF exposure refresh ${result.status}: ${result.etfsRefreshed}/${result.etfsRequested} ETFs refreshed, ${result.sectorRows} sector rows, ${result.countryRows} country rows, ${result.topHoldingRows} top holding rows.`
+    });
+    if (result.message) params.set("portfolioReviewError", result.message);
+    target = `${target}?${params.toString()}`;
+  } catch (error) {
+    const params = new URLSearchParams({
+      portfolioReviewError: error instanceof Error ? error.message : "ETF exposure refresh failed."
+    });
+    target = `${target}?${params.toString()}`;
+  }
+
+  redirect(target);
+}
