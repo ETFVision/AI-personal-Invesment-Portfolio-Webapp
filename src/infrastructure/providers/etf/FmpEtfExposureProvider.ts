@@ -2,6 +2,7 @@ import type { EtfExposureProvider } from "@/application/ports/providers/EtfExpos
 import type { EtfExposureProviderSnapshot } from "@/domain/etfLookthrough/types";
 import { env } from "@/infrastructure/config/env";
 import { normalizeExposureName } from "../../../domain/etfLookthrough/exposureNormalization";
+import { seededEtfTopHoldings } from "./seededEtfHoldingsFallback";
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
 
@@ -62,6 +63,14 @@ export class FmpEtfExposureProvider implements EtfExposureProvider {
       textField(holdingsPayload[0] ?? {}, ["date", "asOfDate"]) ??
       todayIsoDate();
 
+    const topHoldings = holdingsPayload.flatMap((item) => {
+      const holdingSymbol = textField(item, ["symbol", "holdingSymbol", "asset", "ticker"]);
+      const holdingName = textField(item, ["name", "holdingName", "securityName"]);
+      const holdingWeight = normalizeWeight(numberField(item, ["weightPercentage", "weight", "percentage", "assetPercentage", "value"]));
+      if (!holdingSymbol || holdingWeight == null) return [];
+      return [{ etfSymbol: normalizedSymbol, holdingSymbol: holdingSymbol.toUpperCase(), holdingName, holdingWeight, asOfDate, providerMetadata: item }];
+    });
+
     return {
       symbol: normalizedSymbol,
       asOfDate,
@@ -77,13 +86,9 @@ export class FmpEtfExposureProvider implements EtfExposureProvider {
         if (!country || exposureWeight == null) return [];
         return [{ etfSymbol: normalizedSymbol, country, exposureWeight, asOfDate, providerMetadata: item }];
       }),
-      topHoldings: holdingsPayload.flatMap((item) => {
-        const holdingSymbol = textField(item, ["symbol", "holdingSymbol", "asset", "ticker"]);
-        const holdingName = textField(item, ["name", "holdingName", "securityName"]);
-        const holdingWeight = normalizeWeight(numberField(item, ["weightPercentage", "weight", "percentage", "assetPercentage", "value"]));
-        if (!holdingSymbol || holdingWeight == null) return [];
-        return [{ etfSymbol: normalizedSymbol, holdingSymbol: holdingSymbol.toUpperCase(), holdingName, holdingWeight, asOfDate, providerMetadata: item }];
-      })
+      topHoldings: topHoldings.length
+        ? topHoldings
+        : seededEtfTopHoldings(normalizedSymbol, asOfDate, "FMP ETF holdings endpoint returned no usable rows.")
     };
   }
 }

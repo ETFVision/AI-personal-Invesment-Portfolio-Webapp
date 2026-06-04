@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { InstrumentRiskService } from "../src/application/services/InstrumentRiskService";
 import { resolveInstrumentType } from "../src/application/services/instruments/InstrumentTypeResolver";
+import { seededEtfTopHoldings } from "../src/infrastructure/providers/etf/seededEtfHoldingsFallback";
 import type { Instrument, InstrumentPrice } from "../src/domain/universe/types";
 import type { UniverseRepository } from "../src/application/ports/repositories/UniverseRepository";
 
@@ -54,6 +55,18 @@ test("routes fixed income, gold, crypto and explicit benchmarks to their shells"
   assert.equal(resolveInstrumentType(instrument({ assetClass: "gold_etf", instrumentType: "gold_etf" })), "gold_etf");
   assert.equal(resolveInstrumentType(instrument({ assetClass: "crypto", instrumentType: "crypto" })), "crypto");
   assert.equal(resolveInstrumentType(instrument({ assetClass: "benchmark", instrumentType: "benchmark" })), "benchmark");
+});
+
+test("seeded ETF holdings fallback covers core look-through ETFs", () => {
+  const vooHoldings = seededEtfTopHoldings("VOO", "2026-06-04", "test");
+  const qqqHoldings = seededEtfTopHoldings("QQQ", "2026-06-04", "test");
+  const unknownHoldings = seededEtfTopHoldings("UNKNOWN", "2026-06-04", "test");
+
+  assert.ok(vooHoldings.length > 0);
+  assert.ok(qqqHoldings.length > 0);
+  assert.equal(unknownHoldings.length, 0);
+  assert.ok(vooHoldings.some((holding) => holding.holdingSymbol === "NVDA"));
+  assert.equal(vooHoldings[0]?.providerMetadata.isLiveProviderData, false);
 });
 
 function priceSeries(values: number[]): InstrumentPrice[] {
