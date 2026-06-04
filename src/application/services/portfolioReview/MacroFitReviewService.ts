@@ -1,4 +1,4 @@
-import { finding, section, type PortfolioReviewInputContext } from "./portfolioReviewScoring";
+import { allocationPercent, finding, isEquityAllocationLabel, section, type PortfolioReviewInputContext } from "./portfolioReviewScoring";
 
 function textIncludes(value: string | null | undefined, terms: string[]) {
   const text = (value ?? "").toLowerCase();
@@ -7,9 +7,7 @@ function textIncludes(value: string | null | undefined, terms: string[]) {
 
 export class MacroFitReviewService {
   review({ macroRegime, marketVisionReport, dashboard }: PortfolioReviewInputContext) {
-    const equityAllocation = dashboard.allocationByType
-      .filter((item) => ["stock", "etf"].some((term) => item.label.toLowerCase().includes(term)))
-      .reduce((sum, item) => sum + item.percent, 0);
+    const equityAllocation = allocationPercent(dashboard.allocationByType, isEquityAllocationLabel);
     const ratesRestrictive = textIncludes(macroRegime?.ratesRegime, ["restrictive", "rising", "high"]);
     const inflationElevated = textIncludes(macroRegime?.inflationRegime, ["elevated", "sticky", "rising"]);
     const growthWeak = textIncludes(macroRegime?.growthRegime, ["weak", "slowing", "recession"]);

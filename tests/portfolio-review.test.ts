@@ -5,6 +5,8 @@ import { PortfolioActionSuggestionService } from "../src/application/services/po
 import { AllocationReviewService } from "../src/application/services/portfolioReview/AllocationReviewService";
 import { ConcentrationReviewService } from "../src/application/services/portfolioReview/ConcentrationReviewService";
 import { PortfolioRiskReviewService } from "../src/application/services/portfolioReview/PortfolioRiskReviewService";
+import { MacroFitReviewService } from "../src/application/services/portfolioReview/MacroFitReviewService";
+import { portfolioReviewConfidenceScore } from "../src/application/services/portfolioReview/PortfolioReviewService";
 import { weightedPortfolioScore } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import type { PortfolioReviewInputContext } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import { PortfolioLookthroughExposureService } from "../src/application/services/etfLookthrough/PortfolioLookthroughExposureService";
@@ -141,6 +143,41 @@ test("allocation review flags equity-heavy and low fixed-income portfolios", () 
   assert.ok(review.findings.some((finding) => finding.title === "Limited fixed-income ballast"));
 });
 
+test("allocation and macro reviews do not treat bond and gold ETFs as equity ETFs", () => {
+  const reviewContext = context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "bond_etf", value: 60, percent: 0.6 },
+        { label: "gold_etf", value: 30, percent: 0.3 },
+        { label: "stock", value: 10, percent: 0.1 }
+      ],
+      cashPercent: 0
+    },
+    macroRegime: {
+      id: "macro-1",
+      snapshotDate: "2026-06-01",
+      ratesRegime: "restrictive",
+      inflationRegime: "stable",
+      growthRegime: "stable",
+      employmentRegime: "stable",
+      yieldCurveRegime: "normal",
+      liquidityRegime: "normal",
+      dollarRegime: "stable",
+      commoditiesRegime: "stable",
+      overallMacroSummary: "",
+      createdAt: "",
+      updatedAt: ""
+    }
+  });
+  const allocationReview = new AllocationReviewService().review(reviewContext);
+  const macroReview = new MacroFitReviewService().review(reviewContext);
+
+  assert.equal(allocationReview.metrics.equityAllocation, 0.1);
+  assert.ok(!allocationReview.findings.some((finding) => finding.title === "Equity-heavy allocation"));
+  assert.ok(!macroReview.findings.some((finding) => finding.title === "Equity exposure in restrictive rates"));
+});
+
 test("concentration review surfaces named direct and indirect top holdings", () => {
   const review = new ConcentrationReviewService().review(context({
     lookthroughReport: {
@@ -165,6 +202,44 @@ test("concentration review surfaces named direct and indirect top holdings", () 
   assert.equal(largestDirect.holdingSymbol, "VOO");
   assert.equal(largestIndirect.holdingSymbol, "MSFT");
   assert.ok(Number(largestIndirect.indirectWeight) > 0);
+});
+
+test("portfolio review data coverage falls when ETF top-holding look-through is missing", () => {
+  const fullCoverage = portfolioReviewConfidenceScore(context({
+    riskReport: { ...context().riskReport, riskContributionObservationCount: 60 } as any,
+    marketVisionReport: { id: "mv-1", reportDate: "2026-06-01" } as any,
+    themeIntelligence: { topThemesThisWeek: [{ theme: "AI" }] } as any,
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 2, etfsWithSectorExposure: 2, etfsWithCountryExposure: 2, etfsWithTopHoldings: 2, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      diagnostics: []
+    }
+  }));
+  const missingTopHoldings = portfolioReviewConfidenceScore(context({
+    riskReport: { ...context().riskReport, riskContributionObservationCount: 60 } as any,
+    marketVisionReport: { id: "mv-1", reportDate: "2026-06-01" } as any,
+    themeIntelligence: { topThemesThisWeek: [{ theme: "AI" }] } as any,
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 2, etfsWithSectorExposure: 2, etfsWithCountryExposure: 2, etfsWithTopHoldings: 0, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      diagnostics: []
+    }
+  }));
+
+  assert.equal(fullCoverage, 100);
+  assert.ok(missingTopHoldings < fullCoverage);
 });
 
 test("improvement suggestions only include approved non-reduce candidates", () => {

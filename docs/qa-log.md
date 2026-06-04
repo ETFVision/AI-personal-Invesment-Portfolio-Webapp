@@ -2202,3 +2202,58 @@ Production-readiness assessment:
 - Required env vars: `NEWSDATA_API_KEY`, `ENABLE_NEWSDATA_INGESTION=true`, `CRON_SECRET`.
 - Recommended env vars: `ENABLE_GDELT_INGESTION=true`, `NEWSDATA_MAX_QUERY_GROUPS=8`, `NEWSDATA_MAX_ARTICLES_PER_QUERY=10`, `NEWSDATA_MAX_ARTICLES_PER_DAY=80`.
 - Continue treating News Intelligence as an input layer only. It should support Market Vision and future scoring, but it does not make buy/sell decisions.
+
+## 2026-06-04 - Portfolio Review Engine V1 QA Checkpoint
+
+Scope:
+- Reviewed Portfolio Review Engine V1 before Telemetry Learning.
+- Covered allocation, concentration, ETF look-through, sector/geography/theme exposure, diversification, risk, macro fit, recommendation alignment, fixed income, portfolio suggestions, candidate ranking, data coverage, UI semantics, tests, and architecture.
+- No Telemetry, Portfolio Assistant, trade execution, position sizing, or Recommendation Engine scoring changes were made.
+
+Architecture assessment:
+- PASS: Portfolio Review uses service/repository boundaries and server actions.
+- PASS: UI does not call Supabase, FMP, FRED, NewsData, GDELT, or OpenAI directly.
+- PASS: Portfolio review generation stores deterministic snapshots in `portfolio_review_reports.inputs_snapshot`.
+- PASS: ETF look-through stores sector/country/theme/top-holding exposure separately from review reports.
+- PASS: Direct + ETF indirect underlying holdings are stored in `portfolio_lookthrough_holdings`.
+- PASS: Suggestions remain non-execution review prompts and do not generate trades, position sizes, or rebalance instructions.
+
+Calculation assessment:
+- PASS: Allocation review covers equity, bonds, gold, crypto, and cash.
+- PASS: Concentration review surfaces largest direct holding, largest indirect holding, combined top exposures, and ETF source contributors.
+- PASS: ETF look-through supports sector exposure, country exposure, theme signals, and top holdings exposure.
+- PASS: Theme signals are explicitly presented as overlapping signals, not allocations that should add to 100%.
+- PASS: Geography review uses ETF country look-through when available and direct geography fallback otherwise.
+- PASS: Risk review normalizes percent-style volatility and drawdown inputs before scoring.
+- PASS: Fixed income review uses bond analytics outputs for duration, treasury/corporate split, high-yield exposure, recession hedge exposure, and profile coverage.
+- PASS: Recommendation alignment checks current holdings against latest deterministic recommendations and surfaces weak held counts.
+- PASS: Candidate ranking prioritizes issue fit and diversification benefit over raw recommendation score.
+
+Medium-priority issues fixed during QA:
+- Fixed allocation and macro-fit logic so bond ETFs, gold ETFs, crypto, and cash-like labels are not counted as equity ETF exposure.
+- Updated Data Coverage so it no longer reaches 100% when a portfolio contains ETFs but ETF top-holding look-through is unavailable.
+- Added data limitations for missing ETF sector and country look-through.
+- Added tests for non-equity ETF allocation handling and ETF top-holding coverage impact.
+
+Low-priority improvements for later:
+- Add a dedicated table or chart showing top 3/top 5 combined concentration percentages explicitly.
+- Add a scenario fixture suite for 100% cash, 100% bonds, 100% crypto, 100% gold, and 100% VOO portfolios.
+- Add provider-quality badges for ETF look-through rows that distinguish live FMP rows from seeded fallback rows.
+- Add stale-age indicators for ETF exposure snapshots inside Portfolio Review.
+- Consider giving Geography a non-zero weight once look-through geography has more production history.
+- Add deeper macro-fit differentiation by sector once Recommendation Engine macro scoring is further calibrated.
+
+Tests added/updated:
+- Allocation and macro reviews do not treat bond/gold ETFs as equity ETFs.
+- Portfolio review data coverage falls when ETF top-holding look-through is missing.
+- Existing portfolio review tests continue to cover indirect holding exposure, issue-to-candidate mapping, candidate ranking signals, potential actions without trade amounts, and risk drawdown normalization.
+
+Validation performed:
+- `npm.cmd test` passed: 169 tests.
+- `npm.cmd run typecheck` passed after rerunning sequentially.
+- `npm.cmd run lint` passed.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY FOR TELEMETRY as a deterministic review layer.
+- Portfolio Review V1 is suitable as an input to Telemetry Learning, provided Telemetry remains observational and does not auto-change scoring weights without review.

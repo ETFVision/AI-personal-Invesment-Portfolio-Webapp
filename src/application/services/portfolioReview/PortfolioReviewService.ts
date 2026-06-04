@@ -41,8 +41,8 @@ function scoreComponent(key: PortfolioReviewScoreComponent["key"], label: string
   };
 }
 
-function confidenceScore(context: PortfolioReviewInputContext) {
-  let score = 45;
+export function portfolioReviewConfidenceScore(context: PortfolioReviewInputContext) {
+  let score = 40;
   if (context.dashboard.holdings.length > 0) score += 10;
   if (context.dashboard.latestPriceDate) score += 8;
   if (context.riskReport.riskContributionObservationCount >= 30) score += 10;
@@ -50,6 +50,11 @@ function confidenceScore(context: PortfolioReviewInputContext) {
   if (context.marketVisionReport) score += 7;
   if (context.macroRegime) score += 5;
   if (context.themeIntelligence?.topThemesThisWeek.length) score += 5;
+  if (!context.lookthroughReport?.coverage.etfCount || (
+    context.lookthroughReport.coverage.etfsWithSectorExposure > 0 &&
+    context.lookthroughReport.coverage.etfsWithCountryExposure > 0 &&
+    context.lookthroughReport.coverage.etfsWithTopHoldings > 0
+  )) score += 5;
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
@@ -63,7 +68,13 @@ function dataLimitations(context: PortfolioReviewInputContext) {
     !context.macroRegime ? "FRED macro regime snapshot is unavailable." : null,
     !context.themeIntelligence?.topThemesThisWeek.length ? "Theme intelligence summary is unavailable or empty." : null,
     context.lookthroughReport && context.lookthroughReport.coverage.etfCount > 0 && context.lookthroughReport.coverage.etfsWithTopHoldings === 0
-      ? "Indirect ETF holding exposure is unavailable because no ETF top-holding data is cached."
+        ? "Indirect ETF holding exposure is unavailable because no ETF top-holding data is cached."
+        : null,
+    context.lookthroughReport && context.lookthroughReport.coverage.etfCount > 0 && context.lookthroughReport.coverage.etfsWithSectorExposure === 0
+      ? "ETF sector look-through exposure is unavailable; sector review may use direct taxonomy fallback."
+      : null,
+    context.lookthroughReport && context.lookthroughReport.coverage.etfCount > 0 && context.lookthroughReport.coverage.etfsWithCountryExposure === 0
+      ? "ETF country look-through exposure is unavailable; geography review may use direct geography fallback."
       : null
   ].filter((item): item is string => Boolean(item));
 }
@@ -161,7 +172,7 @@ export class PortfolioReviewService {
       potentialActions,
       dataLimitations: limitations,
       overallPortfolioScore: overallScore,
-      confidenceScore: confidenceScore(context),
+      confidenceScore: portfolioReviewConfidenceScore(context),
       inputsSnapshot: {
         generatedAt: new Date().toISOString(),
         scoreComponents: components,

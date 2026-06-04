@@ -48,6 +48,28 @@ export function allocationPercent(items: AllocationItem[], labelMatch: (label: s
     .reduce((sum, item) => sum + item.percent, 0);
 }
 
+export function isEquityAllocationLabel(label: string) {
+  const normalized = label.toLowerCase();
+  if (["bond", "fixed", "treasury", "credit", "gold", "commodity", "crypto", "cash"].some((term) => normalized.includes(term))) {
+    return false;
+  }
+  return ["stock", "equity", "etf"].some((term) => normalized.includes(term));
+}
+
+export function isBondAllocationLabel(label: string) {
+  const normalized = label.toLowerCase();
+  return ["bond", "fixed", "treasury", "credit"].some((term) => normalized.includes(term));
+}
+
+export function isGoldAllocationLabel(label: string) {
+  const normalized = label.toLowerCase();
+  return ["gold", "commodity"].some((term) => normalized.includes(term));
+}
+
+export function isCryptoAllocationLabel(label: string) {
+  return label.toLowerCase().includes("crypto");
+}
+
 export function finding(severity: PortfolioReviewFinding["severity"], title: string, detail: string): PortfolioReviewFinding {
   return { severity, title, detail };
 }
