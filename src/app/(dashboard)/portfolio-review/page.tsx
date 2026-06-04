@@ -335,15 +335,27 @@ function lookthroughReport(report: PortfolioReviewReport): PortfolioLookthroughR
   };
 }
 
-function ExposureTable({ title, description, rows }: { title: string; description: string; rows: PortfolioLookthroughExposure[] }) {
+function ExposureTable({
+  title,
+  description,
+  rows,
+  mode = "allocation"
+}: {
+  title: string;
+  description: string;
+  rows: PortfolioLookthroughExposure[];
+  mode?: "allocation" | "overlap";
+}) {
   const totalExposure = rows.reduce((sum, row) => sum + row.exposureWeight, 0);
   const shownRows = rows.slice(0, 10);
+  const remainingTotal = rows.slice(shownRows.length).reduce((sum, row) => sum + row.exposureWeight, 0);
   return (
     <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>
-          {description} {rows.length > 0 ? `Total across ${rows.length} rows: ${formatPercent(totalExposure)}.` : ""}
+          {description} {rows.length > 0 && mode === "allocation" ? `Allocation total across ${rows.length} rows: ${formatPercent(totalExposure)}.` : ""}
+          {rows.length > 0 && mode === "overlap" ? " Theme signal weights can overlap and are not expected to add to 100%." : ""}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -356,7 +368,7 @@ function ExposureTable({ title, description, rows }: { title: string; descriptio
                 <div>
                   <p className="font-medium">{row.exposureName}</p>
                   <p className="text-xs text-muted-foreground">
-                    Direct {formatPercent(row.directWeight)} - ETF look-through {formatPercent(row.etfLookthroughWeight)}
+                    {mode === "overlap" ? "Direct signal" : "Direct"} {formatPercent(row.directWeight)} - ETF look-through {formatPercent(row.etfLookthroughWeight)}
                   </p>
                 </div>
                 <span className="font-medium">{formatPercent(row.exposureWeight)}</span>
@@ -364,7 +376,12 @@ function ExposureTable({ title, description, rows }: { title: string; descriptio
             ))}
             {rows.length > shownRows.length ? (
               <p className="text-xs text-muted-foreground">
-                Showing top {shownRows.length}; remaining rows total {formatPercent(rows.slice(shownRows.length).reduce((sum, row) => sum + row.exposureWeight, 0))}.
+                Showing top {shownRows.length}; remaining rows {mode === "overlap" ? "signal weight" : "total"} {formatPercent(remainingTotal)}.
+              </p>
+            ) : null}
+            {mode === "allocation" && totalExposure > 1.05 ? (
+              <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                Allocation total is above 100%, which usually means source classifications overlap. Review this table before treating it as a strict allocation split.
               </p>
             ) : null}
           </div>
@@ -380,7 +397,7 @@ function HoldingExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] })
     <Card>
       <CardHeader>
         <CardTitle>Combined Holding Exposure</CardTitle>
-        <CardDescription>Direct holdings plus ETF underlying look-through exposure. ETF tickers are not treated as indirect holdings.</CardDescription>
+        <CardDescription>Direct holdings plus ETF underlying look-through exposure, sorted by total concentration. Top rows are concentration checks and are not expected to add to 100%.</CardDescription>
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
@@ -421,7 +438,7 @@ function IndirectHoldingExposureTable({ rows }: { rows: PortfolioLookthroughHold
     <Card>
       <CardHeader>
         <CardTitle>Top 10 Indirect Holdings</CardTitle>
-        <CardDescription>Largest underlying stock exposures coming only from ETFs. This highlights hidden overlap across broad-market, sector and thematic ETFs.</CardDescription>
+        <CardDescription>Largest underlying stock exposures coming only from ETFs, sorted by ETF look-through weight. Top rows are hidden-overlap checks and are not expected to add to 100%.</CardDescription>
       </CardHeader>
       <CardContent>
         {shownRows.length === 0 ? (
@@ -593,7 +610,12 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
                 <ExposureTable title="Look-Through Country Exposure" description="Country exposure from ETF allocations and direct holdings." rows={lookthroughReport(report)?.countryExposures ?? []} />
                 <HoldingExposureTable rows={lookthroughReport(report)?.holdingExposures ?? []} />
                 <IndirectHoldingExposureTable rows={lookthroughReport(report)?.holdingExposures ?? []} />
-                <ExposureTable title="Look-Through Theme Exposure" description="Canonical themes derived from ETF sectors and instrument taxonomy." rows={lookthroughReport(report)?.themeExposures ?? []} />
+                <ExposureTable
+                  title="Look-Through Theme Signals"
+                  description="Canonical themes derived from ETF sectors and instrument taxonomy."
+                  rows={lookthroughReport(report)?.themeExposures ?? []}
+                  mode="overlap"
+                />
               </div>
             </section>
           ) : null}
