@@ -8,6 +8,7 @@ import { weightedPortfolioScore } from "../src/application/services/portfolioRev
 import type { PortfolioReviewInputContext } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import { PortfolioLookthroughExposureService } from "../src/application/services/etfLookthrough/PortfolioLookthroughExposureService";
 import type { EtfExposureRepository } from "../src/application/ports/repositories/EtfExposureRepository";
+import type { Instrument } from "../src/domain/universe/types";
 
 function context(overrides: Partial<PortfolioReviewInputContext> = {}): PortfolioReviewInputContext {
   return {
@@ -90,6 +91,41 @@ function context(overrides: Partial<PortfolioReviewInputContext> = {}): Portfoli
   };
 }
 
+function instrument(input: Partial<Instrument> & Pick<Instrument, "id" | "symbol" | "name" | "assetClass" | "instrumentType">): Instrument {
+  return {
+    sector: null,
+    industry: null,
+    canonicalSector: null,
+    canonicalThemes: [],
+    taxonomyIsManualOverride: false,
+    taxonomyReviewStatus: "mapped",
+    geography: "US",
+    currency: "USD",
+    exchange: "NYSE",
+    watchlistTier: null,
+    benchmarkTags: [],
+    thematicTags: [],
+    riskCategory: null,
+    volatilityBucket: null,
+    durationCategory: null,
+    treasuryClassification: null,
+    inflationLinked: null,
+    creditQuality: null,
+    geoExposure: "United States",
+    rateSensitivity: null,
+    inflationSensitivity: null,
+    recessionSensitivity: null,
+    liquidityRole: null,
+    cryptoClassification: null,
+    metadataLastRefreshedAt: null,
+    providerPrimary: null,
+    providerMetadata: {},
+    sourceType: "seeded",
+    isActive: true,
+    ...input
+  };
+}
+
 test("portfolio review weights calculate a deterministic overall score", () => {
   const score = weightedPortfolioScore([
     { key: "allocation", label: "Allocation", score: 80, weight: 0.5, reason: "" },
@@ -109,6 +145,74 @@ test("improvement suggestions only include approved non-reduce candidates", () =
   const candidates = suggestions.flatMap((suggestion) => suggestion.candidateInstruments);
   assert.ok(candidates.some((candidate) => candidate.symbol === "BND"));
   assert.ok(!candidates.some((candidate) => candidate.symbol === "HYG"));
+});
+
+test("improvement suggestions map concentration issues to diversifying candidates", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationBySector: [
+        { label: "Technology", value: 30.58, percent: 0.3058 },
+        { label: "Healthcare", value: 5.87, percent: 0.0587 }
+      ],
+      allocationByGeography: [
+        { label: "United States", value: 72.93, percent: 0.7293 },
+        { label: "International", value: 27.07, percent: 0.2707 }
+      ],
+      allocationByType: [
+        { label: "stock", value: 90, percent: 0.9 },
+        { label: "bond_etf", value: 0, percent: 0 },
+        { label: "gold_etf", value: 0, percent: 0 }
+      ]
+    },
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 2, etfsWithSectorExposure: 2, etfsWithCountryExposure: 2, etfsWithTopHoldings: 2, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.3058, directWeight: 0.2, etfLookthroughWeight: 0.1058, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.0587, directWeight: 0, etfLookthroughWeight: 0.0587, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.7293, directWeight: 0.6, etfLookthroughWeight: 0.1293, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "International", exposureWeight: 0.2707, directWeight: 0, etfLookthroughWeight: 0.2707, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    instruments: [
+      instrument({ id: "xlk", symbol: "XLK", name: "Technology Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Technology", canonicalThemes: ["Cloud / Software"] }),
+      instrument({ id: "vgt", symbol: "VGT", name: "Vanguard Information Technology ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Technology", canonicalThemes: ["Cloud / Software"] }),
+      instrument({ id: "vxus", symbol: "VXUS", name: "Vanguard Total International Stock ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification"], geography: "International", geoExposure: "International" }),
+      instrument({ id: "xlv", symbol: "XLV", name: "Health Care Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation", "Quality"] }),
+      instrument({ id: "bnd", symbol: "BND", name: "Vanguard Total Bond Market ETF", assetClass: "bond_etf", instrumentType: "bond_etf", canonicalSector: "Bonds / Fixed Income", canonicalThemes: ["Treasury Bonds"] }),
+      instrument({ id: "gld", symbol: "GLD", name: "SPDR Gold Shares", assetClass: "gold_etf", instrumentType: "etf", canonicalSector: "Commodities / Gold", canonicalThemes: ["Inflation Hedge"] })
+    ],
+    recommendations: [
+      { id: "r-xlk", recommendationRunId: "run-1", instrumentId: "xlk", symbol: "XLK", instrumentType: "ETF", recommendationLabel: "Buy", overallScore: 80, confidenceScore: 80, riskLevel: "medium", timeHorizon: "medium_term", recommendationReasoningSummary: "", positiveDrivers: [], negativeDrivers: [], guardrailsApplied: [], dataLimitations: [], recommendationChangeTriggers: { upgrade: [], downgrade: [] }, inputsSnapshot: {}, scoringBreakdown: {}, createdAt: "", updatedAt: "" },
+      { id: "r-vgt", recommendationRunId: "run-1", instrumentId: "vgt", symbol: "VGT", instrumentType: "ETF", recommendationLabel: "Buy", overallScore: 80, confidenceScore: 80, riskLevel: "medium", timeHorizon: "medium_term", recommendationReasoningSummary: "", positiveDrivers: [], negativeDrivers: [], guardrailsApplied: [], dataLimitations: [], recommendationChangeTriggers: { upgrade: [], downgrade: [] }, inputsSnapshot: {}, scoringBreakdown: {}, createdAt: "", updatedAt: "" },
+      { id: "r-vxus", recommendationRunId: "run-1", instrumentId: "vxus", symbol: "VXUS", instrumentType: "ETF", recommendationLabel: "Hold", overallScore: 62, confidenceScore: 70, riskLevel: "medium", timeHorizon: "medium_term", recommendationReasoningSummary: "", positiveDrivers: [], negativeDrivers: [], guardrailsApplied: [], dataLimitations: [], recommendationChangeTriggers: { upgrade: [], downgrade: [] }, inputsSnapshot: {}, scoringBreakdown: {}, createdAt: "", updatedAt: "" },
+      { id: "r-xlv", recommendationRunId: "run-1", instrumentId: "xlv", symbol: "XLV", instrumentType: "ETF", recommendationLabel: "Hold", overallScore: 61, confidenceScore: 70, riskLevel: "medium", timeHorizon: "medium_term", recommendationReasoningSummary: "", positiveDrivers: [], negativeDrivers: [], guardrailsApplied: [], dataLimitations: [], recommendationChangeTriggers: { upgrade: [], downgrade: [] }, inputsSnapshot: {}, scoringBreakdown: {}, createdAt: "", updatedAt: "" },
+      { id: "r-bnd", recommendationRunId: "run-1", instrumentId: "bnd", symbol: "BND", instrumentType: "Bond ETF", recommendationLabel: "Hold", overallScore: 60, confidenceScore: 70, riskLevel: "medium", timeHorizon: "medium_term", recommendationReasoningSummary: "", positiveDrivers: [], negativeDrivers: [], guardrailsApplied: [], dataLimitations: [], recommendationChangeTriggers: { upgrade: [], downgrade: [] }, inputsSnapshot: {}, scoringBreakdown: {}, createdAt: "", updatedAt: "" },
+      { id: "r-gld", recommendationRunId: "run-1", instrumentId: "gld", symbol: "GLD", instrumentType: "Gold ETF", recommendationLabel: "Hold", overallScore: 60, confidenceScore: 70, riskLevel: "medium", timeHorizon: "medium_term", recommendationReasoningSummary: "", positiveDrivers: [], negativeDrivers: [], guardrailsApplied: [], dataLimitations: [], recommendationChangeTriggers: { upgrade: [], downgrade: [] }, inputsSnapshot: {}, scoringBreakdown: {}, createdAt: "", updatedAt: "" }
+    ]
+  }));
+
+  const sectorSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "sector_concentration");
+  const internationalSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_international_exposure");
+  const defensiveSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure");
+  const fixedIncomeSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_fixed_income");
+  const inflationHedgeSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_inflation_hedge");
+
+  assert.ok(sectorSuggestion);
+  assert.ok(!sectorSuggestion.candidateInstruments.some((candidate) => ["XLK", "VGT"].includes(candidate.symbol)));
+  assert.ok(sectorSuggestion.candidateInstruments.some((candidate) => ["VXUS", "XLV", "BND", "GLD"].includes(candidate.symbol)));
+  assert.ok(internationalSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "VXUS"));
+  assert.ok(defensiveSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "XLV"));
+  assert.ok(fixedIncomeSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "BND"));
+  assert.ok(inflationHedgeSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "GLD"));
+  assert.ok(sectorSuggestion.candidateInstruments.every((candidate) => typeof candidate.relevanceScore === "number" && typeof candidate.diversificationBenefitScore === "number"));
 });
 
 test("portfolio look-through combines direct stock and ETF underlying exposures", async () => {

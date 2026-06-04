@@ -40,6 +40,8 @@ export type PortfolioReviewCandidate = {
   candidateType?: string;
   recommendationScore?: number | null;
   confidenceScore?: number | null;
+  relevanceScore?: number | null;
+  diversificationBenefitScore?: number | null;
   whyThisCandidate?: string;
   expectedPortfolioBenefit?: string;
   potentialTradeOff?: string;

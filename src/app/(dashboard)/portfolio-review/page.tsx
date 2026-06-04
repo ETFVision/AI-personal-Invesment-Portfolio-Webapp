@@ -236,6 +236,8 @@ function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggest
                       <span>{candidate.recommendationLabel}</span>
                       <span>{score(candidate.recommendationScore ?? candidate.score)}</span>
                       {candidate.confidenceScore != null ? <span>Conf {formatPercent(candidate.confidenceScore / 100)}</span> : null}
+                      {candidate.relevanceScore != null ? <span>Rel {score(candidate.relevanceScore)}</span> : null}
+                      {candidate.diversificationBenefitScore != null ? <span>Diversification {score(candidate.diversificationBenefitScore)}</span> : null}
                     </div>
                     <p className="mt-1 text-muted-foreground">{candidate.whyThisCandidate ?? candidate.reason}</p>
                     {candidate.expectedPortfolioBenefit ? <p className="mt-1">Benefit: {candidate.expectedPortfolioBenefit}</p> : null}
