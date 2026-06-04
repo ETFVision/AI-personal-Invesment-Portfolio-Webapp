@@ -412,6 +412,48 @@ function HoldingExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] })
   );
 }
 
+function IndirectHoldingExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] }) {
+  const shownRows = rows
+    .filter((row) => row.indirectWeight > 0)
+    .sort((a, b) => b.indirectWeight - a.indirectWeight)
+    .slice(0, 10);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Top 10 Indirect Holdings</CardTitle>
+        <CardDescription>Largest underlying stock exposures coming only from ETFs. This highlights hidden overlap across broad-market, sector and thematic ETFs.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {shownRows.length === 0 ? (
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No indirect ETF holding exposure available yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {shownRows.map((row) => (
+              <div key={`indirect-${row.holdingSymbol}`} className="rounded-md border p-3 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{row.holdingSymbol}{row.holdingName ? ` - ${row.holdingName}` : ""}</p>
+                    <p className="text-xs text-muted-foreground">
+                      ETF look-through {formatPercent(row.indirectWeight)}
+                      {row.directWeight > 0 ? ` - total with direct holding ${formatPercent(row.totalWeight)}` : ""}
+                    </p>
+                    {row.sourceEtfs.length > 0 ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Source ETFs: {row.sourceEtfs.map((item) => `${item.symbol} ${formatPercent(item.weight)}`).join(", ")}
+                      </p>
+                    ) : null}
+                  </div>
+                  <span className="font-medium">{formatPercent(row.indirectWeight)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function Actions({ actions }: { actions: PortfolioPotentialAction[] }) {
   const safeActions = Array.isArray(actions) ? actions : [];
   return (
@@ -550,6 +592,7 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
                 <ExposureTable title="Look-Through Sector Exposure" description="Actual sector exposure after decomposing equity ETFs." rows={lookthroughReport(report)?.sectorExposures ?? []} />
                 <ExposureTable title="Look-Through Country Exposure" description="Country exposure from ETF allocations and direct holdings." rows={lookthroughReport(report)?.countryExposures ?? []} />
                 <HoldingExposureTable rows={lookthroughReport(report)?.holdingExposures ?? []} />
+                <IndirectHoldingExposureTable rows={lookthroughReport(report)?.holdingExposures ?? []} />
                 <ExposureTable title="Look-Through Theme Exposure" description="Canonical themes derived from ETF sectors and instrument taxonomy." rows={lookthroughReport(report)?.themeExposures ?? []} />
               </div>
             </section>
