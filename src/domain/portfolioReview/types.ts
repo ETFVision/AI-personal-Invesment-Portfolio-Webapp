@@ -42,7 +42,13 @@ export type PortfolioReviewCandidate = {
   confidenceScore?: number | null;
   relevanceScore?: number | null;
   diversificationBenefitScore?: number | null;
+  macroFitScore?: number | null;
   diversificationType?: string | null;
+  issueFitScore?: number | null;
+  overlapPenalty?: number | null;
+  primaryReason?: string;
+  secondaryBenefit?: string;
+  overlapWarning?: string | null;
   whyThisCandidate?: string;
   expectedPortfolioBenefit?: string;
   potentialTradeOff?: string;

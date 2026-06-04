@@ -12,7 +12,7 @@ import type {
   PortfolioReviewReport,
   PortfolioReviewSection
 } from "@/domain/portfolioReview/types";
-import type { PortfolioLookthroughExposure, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
+import type { PortfolioLookthroughExposure, PortfolioLookthroughHolding, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
 
 type PortfolioReviewPageProps = {
@@ -79,6 +79,21 @@ function metricValue(key: string, value: unknown): string {
   if (typeof value === "string") return value;
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (Array.isArray(value)) {
+    const holdingItems = value
+      .map((item) => item && typeof item === "object" ? item as Record<string, unknown> : null)
+      .filter((item): item is Record<string, unknown> => item !== null && typeof item.holdingSymbol === "string" && typeof item.totalWeight === "number");
+    if (holdingItems.length > 0) {
+      return holdingItems
+        .slice(0, 5)
+        .map((item) => {
+          const symbol = String(item.holdingSymbol);
+          const total = formatPercent(normalizeDisplayRatio(Number(item.totalWeight)));
+          const direct = typeof item.directWeight === "number" ? formatPercent(normalizeDisplayRatio(item.directWeight)) : "0%";
+          const indirect = typeof item.indirectWeight === "number" ? formatPercent(normalizeDisplayRatio(item.indirectWeight)) : "0%";
+          return `${symbol} ${total} (direct ${direct}, indirect ${indirect})`;
+        })
+        .join("; ");
+    }
     const exposureItems = value
       .map((item) => item && typeof item === "object" ? item as Record<string, unknown> : null)
       .filter((item): item is Record<string, unknown> => item !== null && typeof item.exposureName === "string" && typeof item.exposureWeight === "number");
@@ -98,6 +113,13 @@ function metricValue(key: string, value: unknown): string {
   }
   if (typeof value === "object") {
     const objectValue = value as Record<string, unknown>;
+    const holdingSymbol = typeof objectValue.holdingSymbol === "string" ? objectValue.holdingSymbol : null;
+    const totalWeight = typeof objectValue.totalWeight === "number" ? objectValue.totalWeight : null;
+    if (holdingSymbol && totalWeight != null) {
+      const directWeight = typeof objectValue.directWeight === "number" ? objectValue.directWeight : 0;
+      const indirectWeight = typeof objectValue.indirectWeight === "number" ? objectValue.indirectWeight : 0;
+      return `${holdingSymbol} - ${formatPercent(normalizeDisplayRatio(totalWeight))}, direct ${formatPercent(normalizeDisplayRatio(directWeight))}, indirect ${formatPercent(normalizeDisplayRatio(indirectWeight))}`;
+    }
     const exposureName = typeof objectValue.exposureName === "string" ? objectValue.exposureName : null;
     const exposureWeight = typeof objectValue.exposureWeight === "number" ? objectValue.exposureWeight : null;
     const directWeight = typeof objectValue.directWeight === "number" ? objectValue.directWeight : null;
@@ -279,10 +301,12 @@ function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggest
                       {candidate.confidenceScore != null ? <span>Conf {formatPercent(candidate.confidenceScore / 100)}</span> : null}
                       {candidate.relevanceScore != null ? <span>Rel {score(candidate.relevanceScore)}</span> : null}
                       {candidate.diversificationBenefitScore != null ? <span>Diversification {score(candidate.diversificationBenefitScore)}</span> : null}
+                      {candidate.overlapPenalty != null && candidate.overlapPenalty > 0 ? <span>Overlap penalty {score(candidate.overlapPenalty)}</span> : null}
                       {candidate.diversificationType ? <span>{candidate.diversificationType}</span> : null}
                     </div>
-                    <p className="mt-1 text-muted-foreground">{candidate.whyThisCandidate ?? candidate.reason}</p>
-                    {candidate.expectedPortfolioBenefit ? <p className="mt-1">Benefit: {candidate.expectedPortfolioBenefit}</p> : null}
+                    <p className="mt-1 text-muted-foreground">{candidate.primaryReason ?? candidate.whyThisCandidate ?? candidate.reason}</p>
+                    {candidate.secondaryBenefit ? <p className="mt-1">Benefit: {candidate.secondaryBenefit}</p> : candidate.expectedPortfolioBenefit ? <p className="mt-1">Benefit: {candidate.expectedPortfolioBenefit}</p> : null}
+                    {candidate.overlapWarning ? <p className="mt-1 text-muted-foreground">Overlap: {candidate.overlapWarning}</p> : null}
                     {candidate.potentialTradeOff ? <p className="mt-1 text-muted-foreground">Trade-off: {candidate.potentialTradeOff}</p> : null}
                   </Link>
                 ))}
@@ -306,7 +330,8 @@ function lookthroughReport(report: PortfolioReviewReport): PortfolioLookthroughR
     countryExposures: consolidatePortfolioLookthroughExposures(typed.countryExposures ?? []),
     currencyExposures: consolidatePortfolioLookthroughExposures(typed.currencyExposures ?? []),
     themeExposures: consolidatePortfolioLookthroughExposures(typed.themeExposures ?? []),
-    topHoldingExposures: consolidatePortfolioLookthroughExposures(typed.topHoldingExposures ?? [])
+    topHoldingExposures: consolidatePortfolioLookthroughExposures(typed.topHoldingExposures ?? []),
+    holdingExposures: typed.holdingExposures ?? []
   };
 }
 
@@ -342,6 +367,44 @@ function ExposureTable({ title, description, rows }: { title: string; descriptio
                 Showing top {shownRows.length}; remaining rows total {formatPercent(rows.slice(shownRows.length).reduce((sum, row) => sum + row.exposureWeight, 0))}.
               </p>
             ) : null}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function HoldingExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] }) {
+  const shownRows = rows.slice(0, 10);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Combined Holding Exposure</CardTitle>
+        <CardDescription>Direct holdings plus ETF underlying look-through exposure. ETF tickers are not treated as indirect holdings.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Indirect holding exposure unavailable.</p>
+        ) : (
+          <div className="space-y-2">
+            {shownRows.map((row) => (
+              <div key={row.holdingSymbol} className="rounded-md border p-3 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{row.holdingSymbol}{row.holdingName ? ` - ${row.holdingName}` : ""}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Direct {formatPercent(row.directWeight)} - ETF look-through {formatPercent(row.indirectWeight)}
+                    </p>
+                    {row.sourceEtfs.length > 0 ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Source ETFs: {row.sourceEtfs.map((item) => `${item.symbol} ${formatPercent(item.weight)}`).join(", ")}
+                      </p>
+                    ) : null}
+                  </div>
+                  <span className="font-medium">{formatPercent(row.totalWeight)}</span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>
@@ -486,7 +549,7 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
               <div className="grid gap-4 lg:grid-cols-2">
                 <ExposureTable title="Look-Through Sector Exposure" description="Actual sector exposure after decomposing equity ETFs." rows={lookthroughReport(report)?.sectorExposures ?? []} />
                 <ExposureTable title="Look-Through Country Exposure" description="Country exposure from ETF allocations and direct holdings." rows={lookthroughReport(report)?.countryExposures ?? []} />
-                <ExposureTable title="Look-Through Top Holdings" description="Direct holdings plus ETF top holdings exposure." rows={lookthroughReport(report)?.topHoldingExposures ?? []} />
+                <HoldingExposureTable rows={lookthroughReport(report)?.holdingExposures ?? []} />
                 <ExposureTable title="Look-Through Theme Exposure" description="Canonical themes derived from ETF sectors and instrument taxonomy." rows={lookthroughReport(report)?.themeExposures ?? []} />
               </div>
             </section>

@@ -61,7 +61,10 @@ function dataLimitations(context: PortfolioReviewInputContext) {
     context.recommendations.length === 0 ? "Recommendation alignment is limited because no latest recommendations were found." : null,
     !context.marketVisionReport ? "Market Vision context is unavailable." : null,
     !context.macroRegime ? "FRED macro regime snapshot is unavailable." : null,
-    !context.themeIntelligence?.topThemesThisWeek.length ? "Theme intelligence summary is unavailable or empty." : null
+    !context.themeIntelligence?.topThemesThisWeek.length ? "Theme intelligence summary is unavailable or empty." : null,
+    context.lookthroughReport && context.lookthroughReport.coverage.etfCount > 0 && context.lookthroughReport.coverage.etfsWithTopHoldings === 0
+      ? "Indirect ETF holding exposure is unavailable because no ETF top-holding data is cached."
+      : null
   ].filter((item): item is string => Boolean(item));
 }
 

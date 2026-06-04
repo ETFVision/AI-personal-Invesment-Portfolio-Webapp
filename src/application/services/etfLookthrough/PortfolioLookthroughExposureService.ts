@@ -1,6 +1,6 @@
 import type { EtfExposureRepository } from "@/application/ports/repositories/EtfExposureRepository";
 import type { PortfolioDashboard } from "@/domain/portfolio/types";
-import type { PortfolioLookthroughExposure, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
+import type { PortfolioLookthroughExposure, PortfolioLookthroughHolding, PortfolioLookthroughReport, PortfolioLookthroughHoldingSourceEtf } from "@/domain/etfLookthrough/types";
 import type { Instrument } from "@/domain/universe/types";
 import { normalizeExposureName } from "../../../domain/etfLookthrough/exposureNormalization";
 
@@ -8,6 +8,13 @@ type ExposureAccumulator = {
   exposureWeight: number;
   directWeight: number;
   etfLookthroughWeight: number;
+};
+
+type HoldingAccumulator = {
+  holdingName: string | null;
+  directWeight: number;
+  indirectWeight: number;
+  sourceEtfs: PortfolioLookthroughHoldingSourceEtf[];
 };
 
 function today() {
@@ -58,6 +65,61 @@ function rows(portfolioId: string, asOfDate: string, exposureType: PortfolioLook
     .sort((a, b) => b.exposureWeight - a.exposureWeight);
 }
 
+function addHolding(
+  map: Map<string, HoldingAccumulator>,
+  symbol: string | null | undefined,
+  name: string | null | undefined,
+  weight: number,
+  source: "direct" | "indirect",
+  sourceEtf?: string | null
+) {
+  const key = symbol?.trim().toUpperCase();
+  if (!key || !Number.isFinite(weight) || weight <= 0) return;
+  const current = map.get(key) ?? { holdingName: name?.trim() || null, directWeight: 0, indirectWeight: 0, sourceEtfs: [] };
+  if (!current.holdingName && name?.trim()) current.holdingName = name.trim();
+  if (source === "direct") {
+    current.directWeight += weight;
+  } else {
+    current.indirectWeight += weight;
+    if (sourceEtf) {
+      const existing = current.sourceEtfs.find((item) => item.symbol === sourceEtf);
+      if (existing) existing.weight += weight;
+      else current.sourceEtfs.push({ symbol: sourceEtf, weight });
+    }
+  }
+  map.set(key, current);
+}
+
+function holdingRows(portfolioId: string, asOfDate: string, map: Map<string, HoldingAccumulator>): PortfolioLookthroughHolding[] {
+  return Array.from(map.entries())
+    .map(([holdingSymbol, value]) => ({
+      portfolioId,
+      asOfDate,
+      holdingSymbol,
+      holdingName: value.holdingName,
+      directWeight: value.directWeight,
+      indirectWeight: value.indirectWeight,
+      totalWeight: value.directWeight + value.indirectWeight,
+      sourceEtfs: value.sourceEtfs.sort((a, b) => b.weight - a.weight),
+      inputsSnapshot: {
+        source: "portfolio_lookthrough_exposure_service"
+      }
+    }))
+    .sort((a, b) => b.totalWeight - a.totalWeight);
+}
+
+function topHoldingExposureRows(portfolioId: string, asOfDate: string, holdings: PortfolioLookthroughHolding[]): PortfolioLookthroughExposure[] {
+  return holdings.map((holding) => ({
+    portfolioId,
+    exposureType: "top_holding",
+    exposureName: holding.holdingSymbol,
+    exposureWeight: holding.totalWeight,
+    directWeight: holding.directWeight,
+    etfLookthroughWeight: holding.indirectWeight,
+    asOfDate
+  }));
+}
+
 function groupByInstrument<T extends { etfInstrumentId: string }>(items: T[]) {
   const grouped = new Map<string, T[]>();
   for (const item of items) {
@@ -101,7 +163,7 @@ export class PortfolioLookthroughExposureService {
     const countries = new Map<string, ExposureAccumulator>();
     const currencies = new Map<string, ExposureAccumulator>();
     const themes = new Map<string, ExposureAccumulator>();
-    const topHoldings = new Map<string, ExposureAccumulator>();
+    const holdings = new Map<string, HoldingAccumulator>();
     const diagnostics: string[] = [];
     let etfCount = 0;
     let etfsWithSectorExposure = 0;
@@ -118,12 +180,13 @@ export class PortfolioLookthroughExposureService {
         add(sectors, valuation.holding.sector ?? valuation.holding.assetType, portfolioWeight, "direct", "sector");
         add(countries, valuation.holding.country ?? valuation.holding.region, portfolioWeight, "direct", "country");
         add(currencies, valuation.valueCurrency, portfolioWeight, "direct", "currency");
-        add(topHoldings, symbol ?? valuation.holding.assetName, portfolioWeight, "direct", "top_holding");
+        addHolding(holdings, symbol ?? valuation.holding.assetName, valuation.holding.assetName, portfolioWeight, "direct");
         fallbackWeight += portfolioWeight;
         continue;
       }
 
       add(currencies, instrument.currency ?? valuation.valueCurrency, portfolioWeight, "direct", "currency");
+      addHolding(holdings, instrument.symbol ?? symbol ?? valuation.holding.assetName, valuation.holding.assetName ?? instrument.name, portfolioWeight, "direct");
       const shouldLookthrough = hasEquityLookthrough(instrument);
       if (shouldLookthrough) {
         etfCount += 1;
@@ -157,9 +220,11 @@ export class PortfolioLookthroughExposureService {
 
         if (etfHoldings.length) {
           etfsWithTopHoldings += 1;
-          for (const holding of etfHoldings) add(topHoldings, holding.holdingSymbol, portfolioWeight * normalizeWeight(holding.holdingWeight), "etf", "top_holding");
+          for (const holding of etfHoldings) {
+            addHolding(holdings, holding.holdingSymbol, holding.holdingName, portfolioWeight * normalizeWeight(holding.holdingWeight), "indirect", instrument.symbol);
+          }
         } else {
-          add(topHoldings, instrument.symbol ?? instrument.name, portfolioWeight, "direct", "top_holding");
+          diagnostics.push(`${instrument.symbol ?? instrument.name} has no cached top-holding look-through exposure.`);
         }
         continue;
       }
@@ -167,16 +232,17 @@ export class PortfolioLookthroughExposureService {
       add(sectors, instrumentSector(instrument, valuation.holding.sector), portfolioWeight, "direct", "sector");
       add(countries, instrumentCountry(instrument, valuation.holding.country), portfolioWeight, "direct", "country");
       for (const theme of instrument.canonicalThemes) add(themes, theme, portfolioWeight, "direct", "theme");
-      add(topHoldings, instrument.symbol ?? instrument.name, portfolioWeight, "direct", "top_holding");
     }
 
+    const holdingExposures = holdingRows(portfolioId, asOfDate, holdings);
     const report: PortfolioLookthroughReport = {
       asOfDate,
       sectorExposures: rows(portfolioId, asOfDate, "sector", sectors),
       countryExposures: rows(portfolioId, asOfDate, "country", countries),
       currencyExposures: rows(portfolioId, asOfDate, "currency", currencies),
       themeExposures: rows(portfolioId, asOfDate, "theme", themes),
-      topHoldingExposures: rows(portfolioId, asOfDate, "top_holding", topHoldings),
+      topHoldingExposures: topHoldingExposureRows(portfolioId, asOfDate, holdingExposures),
+      holdingExposures,
       coverage: { etfCount, etfsWithSectorExposure, etfsWithCountryExposure, etfsWithTopHoldings, lookthroughWeight, fallbackWeight },
       diagnostics
     };
@@ -188,6 +254,7 @@ export class PortfolioLookthroughExposureService {
       ...report.themeExposures,
       ...report.topHoldingExposures
     ]);
+    await this.repository.upsertPortfolioLookthroughHoldings(report.holdingExposures);
     return report;
   }
 }

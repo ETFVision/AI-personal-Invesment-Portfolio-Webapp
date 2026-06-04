@@ -1,6 +1,7 @@
 import type { PortfolioImprovementIssueCategory, PortfolioImprovementSuggestion, PortfolioReviewCandidate } from "@/domain/portfolioReview/types";
 import type { InstrumentRecommendation } from "@/domain/recommendations/types";
 import type { Instrument } from "@/domain/universe/types";
+import { DiversificationBenefitService } from "./DiversificationBenefitService";
 import { type PortfolioReviewInputContext } from "./portfolioReviewScoring";
 
 const blockedLabels = new Set(["Reduce", "Sell", "Insufficient Data", "Not Applicable"]);
@@ -192,19 +193,6 @@ function relevanceScore(fit: number) {
   return Math.max(0, Math.min(100, Math.round((fit / 35) * 100)));
 }
 
-function diversificationBenefit(instrument: Instrument, issueCategory: PortfolioImprovementIssueCategory, context: SuggestionContext) {
-  let score = 45;
-  if (instrumentIsInternationalDiversifier(instrument) && context.usExposure > 0.7) score += 30;
-  if (instrumentIsDefensiveDiversifier(instrument) && context.technologyWeight > 0.3) score += 28;
-  if (instrument.assetClass === "bond_etf" && context.bondAllocation < 0.1) score += 26;
-  if (instrument.assetClass === "gold_etf" && context.goldAllocation < 0.05) score += 24;
-  if (instrument.assetClass === "cash_proxy") score += 16;
-  if (instrumentIsSameDominantSector(instrument, context)) score -= 45;
-  if (context.heldSymbols.has(instrument.symbol?.toUpperCase() ?? "")) score -= 8;
-  if (issueCategory === "insufficient_defensive_exposure" && normalizedSector(instrument) === "healthcare" && context.healthcareWeight < 0.08) score += 18;
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-
 function pct(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
@@ -279,6 +267,32 @@ function potentialTradeOff(instrument: Instrument) {
   return "May overlap with existing holdings and should be reviewed for duplication.";
 }
 
+function recommendationComponentScore(recommendation: InstrumentRecommendation | undefined, keys: string[], fallback = 50) {
+  const components = recommendation?.scoringBreakdown?.components;
+  if (!Array.isArray(components)) return fallback;
+  const match = components.find((component) => {
+    if (!component || typeof component !== "object") return false;
+    const key = "key" in component ? String(component.key) : "";
+    return keys.includes(key);
+  });
+  if (!match || typeof match !== "object" || !("score" in match)) return fallback;
+  const score = Number(match.score);
+  return Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : fallback;
+}
+
+function candidateRankScore(candidate: PortfolioReviewCandidate) {
+  return (
+    (candidate.issueFitScore ?? candidate.relevanceScore ?? 0) * 0.35 +
+    (candidate.diversificationBenefitScore ?? 0) * 0.3 +
+    (candidate.recommendationScore ?? 0) * 0.15 +
+    (candidate.confidenceScore ?? 0) * 0.1 +
+    (candidate.macroFitScore ?? 50) * 0.05 -
+    (candidate.overlapPenalty ?? 0) * 0.05
+  );
+}
+
+const diversificationBenefitService = new DiversificationBenefitService();
+
 function candidate(
   instrument: Instrument,
   recommendation: InstrumentRecommendation | undefined,
@@ -292,9 +306,25 @@ function candidate(
   const recommendationScore = recommendation?.overallScore ?? 55;
   const confidenceScore = recommendation?.confidenceScore ?? 50;
   const candidateRelevanceScore = relevanceScore(fit);
-  const diversificationBenefitScore = diversificationBenefit(instrument, issueCategory, context);
-  const explanation = roleExplanation(instrument, issueCategory, context);
   const type = diversificationType(instrument);
+  const benefit = diversificationBenefitService.evaluate({
+    roleLabel: type,
+    issueCategory,
+    issueFitScore: candidateRelevanceScore,
+    dominantSector: context.dominantSector,
+    dominantSectorWeight: context.dominantSectorWeight,
+    candidateSector: instrument.canonicalSector ?? instrument.sector,
+    technologyWeight: context.technologyWeight,
+    healthcareWeight: context.healthcareWeight,
+    usExposure: context.usExposure,
+    internationalExposure: context.internationalExposure,
+    bondAllocation: context.bondAllocation,
+    goldAllocation: context.goldAllocation,
+    heldSymbols: context.heldSymbols,
+    symbol: instrument.symbol
+  });
+  const explanation = benefit.primaryReason || roleExplanation(instrument, issueCategory, context);
+  const macroFitScore = recommendationComponentScore(recommendation, ["macro_fit", "market_vision_alignment", "theme_alignment"]);
   return {
     instrumentId: instrument.id,
     symbol: instrument.symbol,
@@ -305,12 +335,18 @@ function candidate(
     recommendationScore,
     confidenceScore,
     relevanceScore: candidateRelevanceScore,
-    diversificationBenefitScore,
+    issueFitScore: candidateRelevanceScore,
+    diversificationBenefitScore: benefit.score,
+    macroFitScore,
+    overlapPenalty: benefit.overlapPenalty,
+    primaryReason: benefit.primaryReason,
+    secondaryBenefit: benefit.secondaryBenefit,
+    overlapWarning: benefit.overlapWarning,
     diversificationType: type,
     candidateType: instrument.assetClass,
-    reason: `${explanation} Relevance ${candidateRelevanceScore}/100; diversification benefit ${diversificationBenefitScore}/100.`,
-    whyThisCandidate: `${explanation} Relevance ${candidateRelevanceScore}/100; diversification benefit ${diversificationBenefitScore}/100.`,
-    expectedPortfolioBenefit: expectedBenefit(instrument, issueCategory),
+    reason: `${explanation} Issue fit ${candidateRelevanceScore}/100; diversification benefit ${benefit.score}/100; overlap penalty ${benefit.overlapPenalty}/100.`,
+    whyThisCandidate: `${explanation} Issue fit ${candidateRelevanceScore}/100; diversification benefit ${benefit.score}/100; overlap penalty ${benefit.overlapPenalty}/100.`,
+    expectedPortfolioBenefit: benefit.secondaryBenefit || expectedBenefit(instrument, issueCategory),
     potentialTradeOff: potentialTradeOff(instrument),
     keyRisks: recommendation?.negativeDrivers?.slice(0, 3) ?? [],
     dataLimitations: recommendation?.dataLimitations?.slice(0, 3) ?? [],
@@ -324,9 +360,7 @@ function rankedCandidates(context: PortfolioReviewInputContext, issueContext: Su
     .map((instrument) => candidate(instrument, recs.get(instrument.id), issueCategory, issueContext))
     .filter((item): item is PortfolioReviewCandidate => Boolean(item))
     .sort((a, b) => {
-      const scoreA = (a.relevanceScore ?? 0) * 0.4 + (a.diversificationBenefitScore ?? 0) * 0.3 + (a.recommendationScore ?? 0) * 0.2 + (a.confidenceScore ?? 0) * 0.1;
-      const scoreB = (b.relevanceScore ?? 0) * 0.4 + (b.diversificationBenefitScore ?? 0) * 0.3 + (b.recommendationScore ?? 0) * 0.2 + (b.confidenceScore ?? 0) * 0.1;
-      return scoreB - scoreA;
+      return candidateRankScore(b) - candidateRankScore(a);
     })
     .slice(0, limit);
 }

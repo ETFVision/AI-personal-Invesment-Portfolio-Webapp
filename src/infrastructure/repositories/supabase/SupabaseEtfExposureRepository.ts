@@ -4,7 +4,8 @@ import type {
   EtfSectorExposure,
   EtfThemeExposure,
   EtfTopHolding,
-  PortfolioLookthroughExposure
+  PortfolioLookthroughExposure,
+  PortfolioLookthroughHolding
 } from "@/domain/etfLookthrough/types";
 import type { EtfExposureRepository, InsertEtfExposureRefreshLogInput } from "@/application/ports/repositories/EtfExposureRepository";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
@@ -81,6 +82,32 @@ function exposure(row: any): PortfolioLookthroughExposure {
     directWeight: Number(row.direct_weight ?? 0),
     etfLookthroughWeight: Number(row.etf_lookthrough_weight ?? 0),
     asOfDate: row.as_of_date
+  };
+}
+
+function sourceEtfs(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const typed = item as Record<string, unknown>;
+    const symbol = typeof typed.symbol === "string" ? typed.symbol : null;
+    const weight = typeof typed.weight === "number" ? typed.weight : Number(typed.weight ?? 0);
+    if (!symbol || !Number.isFinite(weight)) return [];
+    return [{ symbol, weight }];
+  });
+}
+
+function holdingExposure(row: any): PortfolioLookthroughHolding {
+  return {
+    portfolioId: row.portfolio_id,
+    asOfDate: row.as_of_date,
+    holdingSymbol: row.holding_symbol,
+    holdingName: row.holding_name,
+    directWeight: Number(row.direct_weight ?? 0),
+    indirectWeight: Number(row.indirect_weight ?? 0),
+    totalWeight: Number(row.total_weight ?? 0),
+    sourceEtfs: sourceEtfs(row.source_etfs),
+    inputsSnapshot: json(row.inputs_snapshot)
   };
 }
 
@@ -212,6 +239,23 @@ export class SupabaseEtfExposureRepository implements EtfExposureRepository {
     if (error) throw new Error(error.message);
   }
 
+  async upsertPortfolioLookthroughHoldings(input: PortfolioLookthroughHolding[]) {
+    if (!input.length) return;
+    const { error } = await this.db.from("portfolio_lookthrough_holdings").upsert(input.map((item) => ({
+      portfolio_id: item.portfolioId,
+      as_of_date: item.asOfDate,
+      holding_symbol: item.holdingSymbol,
+      holding_name: item.holdingName,
+      direct_weight: item.directWeight,
+      indirect_weight: item.indirectWeight,
+      total_weight: item.totalWeight,
+      source_etfs: item.sourceEtfs,
+      inputs_snapshot: item.inputsSnapshot
+    })), { onConflict: "portfolio_id,holding_symbol,as_of_date" });
+    if (error?.code === "42P01") return;
+    if (error) throw new Error(error.message);
+  }
+
   async listPortfolioLookthroughExposures(portfolioId: string, asOfDate?: string) {
     let query = this.db.from("portfolio_lookthrough_exposures").select("*").eq("portfolio_id", portfolioId).order("as_of_date", { ascending: false }).limit(1000);
     if (asOfDate) query = query.eq("as_of_date", asOfDate);
@@ -219,6 +263,18 @@ export class SupabaseEtfExposureRepository implements EtfExposureRepository {
     if (error?.code === "42P01") return [];
     if (error) throw new Error(error.message);
     const rows = (data ?? []).map(exposure);
+    if (asOfDate || rows.length === 0) return rows;
+    const latestDate = rows[0]?.asOfDate;
+    return rows.filter((row) => row.asOfDate === latestDate);
+  }
+
+  async listPortfolioLookthroughHoldings(portfolioId: string, asOfDate?: string) {
+    let query = this.db.from("portfolio_lookthrough_holdings").select("*").eq("portfolio_id", portfolioId).order("as_of_date", { ascending: false }).limit(1000);
+    if (asOfDate) query = query.eq("as_of_date", asOfDate);
+    const { data, error } = await query;
+    if (error?.code === "42P01") return [];
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []).map(holdingExposure);
     if (asOfDate || rows.length === 0) return rows;
     const latestDate = rows[0]?.asOfDate;
     return rows.filter((row) => row.asOfDate === latestDate);

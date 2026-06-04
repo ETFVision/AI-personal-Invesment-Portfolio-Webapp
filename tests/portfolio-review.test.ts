@@ -153,14 +153,18 @@ test("concentration review surfaces named direct and indirect top holdings", () 
       topHoldingExposures: [
         { portfolioId: "portfolio-1", exposureType: "top_holding", exposureName: "MSFT", exposureWeight: 0.42, directWeight: 0.35, etfLookthroughWeight: 0.07, asOfDate: "2026-06-01" }
       ],
+      holdingExposures: [
+        { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "VOO", holdingName: "Vanguard S&P 500 ETF", directWeight: 0.35, indirectWeight: 0, totalWeight: 0.35, sourceEtfs: [], inputsSnapshot: {} },
+        { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "MSFT", holdingName: "Microsoft", directWeight: 0.35, indirectWeight: 0.07, totalWeight: 0.42, sourceEtfs: [{ symbol: "VOO", weight: 0.07 }], inputsSnapshot: {} }
+      ],
       diagnostics: []
     }
   }));
-  const largestDirect = review.metrics.largestDirectHolding as { exposureName?: string; exposureWeight?: number };
-  const largestIndirect = review.metrics.largestIndirectHolding as { exposureName?: string; exposureWeight?: number };
-  assert.equal(largestDirect.exposureName, "MSFT");
-  assert.equal(largestIndirect.exposureName, "MSFT");
-  assert.ok(Number(largestIndirect.exposureWeight) > 0);
+  const largestDirect = review.metrics.largestDirectHolding as { holdingSymbol?: string; totalWeight?: number };
+  const largestIndirect = review.metrics.largestIndirectHolding as { holdingSymbol?: string; indirectWeight?: number };
+  assert.equal(largestDirect.holdingSymbol, "VOO");
+  assert.equal(largestIndirect.holdingSymbol, "MSFT");
+  assert.ok(Number(largestIndirect.indirectWeight) > 0);
 });
 
 test("improvement suggestions only include approved non-reduce candidates", () => {
@@ -200,6 +204,7 @@ test("improvement suggestions map concentration issues to diversifying candidate
         { portfolioId: "portfolio-1", exposureType: "country", exposureName: "International", exposureWeight: 0.2707, directWeight: 0, etfLookthroughWeight: 0.2707, asOfDate: "2026-06-01" }
       ],
       topHoldingExposures: [],
+      holdingExposures: [],
       currencyExposures: [],
       themeExposures: [],
       diagnostics: []
@@ -245,20 +250,23 @@ test("improvement suggestions map concentration issues to diversifying candidate
   assert.ok(fixedIncomeSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "BNDX"));
   assert.ok(inflationHedgeSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "GLD"));
   assert.ok(sectorSuggestion.candidateInstruments.every((candidate) => typeof candidate.relevanceScore === "number" && typeof candidate.diversificationBenefitScore === "number"));
-  assert.match(internationalSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "VXUS")?.whyThisCandidate ?? "", /72\.9% US look-through exposure/);
+  assert.match(internationalSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "VXUS")?.whyThisCandidate ?? "", /US look-through exposure is 72\.9%/);
   assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.whyThisCandidate ?? "", /Technology at 30\.6%/);
-  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.whyThisCandidate ?? "", /pharma, services and medical devices/);
-  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLU")?.whyThisCandidate ?? "", /regulated utility exposure/);
-  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLP")?.whyThisCandidate ?? "", /essential-consumption businesses/);
-  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLP")?.expectedPortfolioBenefit ?? "", /defensive earnings drivers/);
+  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.secondaryBenefit ?? "", /pharma, services, devices and care delivery/);
+  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLU")?.secondaryBenefit ?? "", /regulated demand exposure/);
+  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLP")?.secondaryBenefit ?? "", /essential-consumption exposure/);
+  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLP")?.expectedPortfolioBenefit ?? "", /essential-consumption exposure/);
   assert.equal(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BNDX")?.diversificationType, "International fixed income");
-  assert.match(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BNDX")?.whyThisCandidate ?? "", /Compared with BND/);
-  assert.match(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BNDX")?.expectedPortfolioBenefit ?? "", /rate, currency and issuer exposure/);
+  assert.match(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BNDX")?.secondaryBenefit ?? "", /rate, currency and issuer exposure/);
   assert.match(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BNDX")?.potentialTradeOff ?? "", /currency and non-US rate-cycle exposure/);
+  assert.ok((defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.diversificationBenefitScore ?? 0) > 60);
+  assert.ok(sectorSuggestion.candidateInstruments.every((candidate) => typeof candidate.issueFitScore === "number" && typeof candidate.overlapPenalty === "number"));
+  assert.ok(new Set(sectorSuggestion.candidateInstruments.map((candidate) => candidate.diversificationBenefitScore)).size > 1);
 });
 
 test("portfolio look-through combines direct stock and ETF underlying exposures", async () => {
   const stored: unknown[] = [];
+  const storedHoldings: unknown[] = [];
   const repository = {
     listLatestSectorExposures: async () => [
       { etfInstrumentId: "etf-1", etfSymbol: "VOO", sector: "Technology", exposureWeight: 0.2, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} },
@@ -275,12 +283,14 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
       { etfInstrumentId: "etf-1", etfSymbol: "VOO", theme: "Quality", exposureWeight: 0.4, confidenceScore: 72, derivationMethod: "test", asOfDate: "2026-06-01" }
     ],
     upsertPortfolioLookthroughExposures: async (input: unknown[]) => { stored.push(...input); },
+    upsertPortfolioLookthroughHoldings: async (input: unknown[]) => { storedHoldings.push(...input); },
     getLatestExposureDateForEtf: async () => null,
     upsertSectorExposures: async () => undefined,
     upsertCountryExposures: async () => undefined,
     upsertTopHoldings: async () => undefined,
     upsertThemeExposures: async () => undefined,
     listPortfolioLookthroughExposures: async () => [],
+    listPortfolioLookthroughHoldings: async () => [],
     insertRefreshLog: async () => undefined,
     listRefreshLogs: async () => []
   } as Partial<EtfExposureRepository> as EtfExposureRepository;
@@ -317,6 +327,8 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
   const unitedStates = report.countryExposures.find((item) => item.exposureName === "United States");
   const duplicateUs = report.countryExposures.find((item) => item.exposureName === "US");
   const msft = report.topHoldingExposures.find((item) => item.exposureName === "MSFT");
+  const msftHolding = report.holdingExposures.find((item) => item.holdingSymbol === "MSFT");
+  const vooHolding = report.holdingExposures.find((item) => item.holdingSymbol === "VOO");
   assert.ok(technology);
   assert.ok(Math.abs(technology.exposureWeight - 0.85) < 0.000001);
   assert.ok(healthcare);
@@ -329,7 +341,14 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
   assert.ok(Math.abs(unitedStates.exposureWeight - 1) < 0.000001);
   assert.ok(msft);
   assert.ok(Math.abs(msft.exposureWeight - 0.535) < 0.000001);
+  assert.ok(msftHolding);
+  assert.ok(Math.abs(msftHolding.directWeight - 0.5) < 0.000001);
+  assert.ok(Math.abs(msftHolding.indirectWeight - 0.035) < 0.000001);
+  assert.deepEqual(msftHolding.sourceEtfs.map((item) => item.symbol), ["VOO"]);
+  assert.ok(vooHolding);
+  assert.equal(vooHolding.indirectWeight, 0);
   assert.ok(stored.length > 0);
+  assert.ok(storedHoldings.length > 0);
 });
 
 test("potential actions do not include exact trade amounts or position sizes", () => {

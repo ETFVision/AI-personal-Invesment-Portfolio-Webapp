@@ -49,6 +49,23 @@ export type PortfolioLookthroughExposure = {
   asOfDate: string;
 };
 
+export type PortfolioLookthroughHoldingSourceEtf = {
+  symbol: string;
+  weight: number;
+};
+
+export type PortfolioLookthroughHolding = {
+  portfolioId: string;
+  asOfDate: string;
+  holdingSymbol: string;
+  holdingName: string | null;
+  directWeight: number;
+  indirectWeight: number;
+  totalWeight: number;
+  sourceEtfs: PortfolioLookthroughHoldingSourceEtf[];
+  inputsSnapshot: Record<string, unknown>;
+};
+
 export type EtfExposureRefreshLog = {
   id: string;
   jobName: string;
@@ -80,6 +97,7 @@ export type PortfolioLookthroughReport = {
   currencyExposures: PortfolioLookthroughExposure[];
   themeExposures: PortfolioLookthroughExposure[];
   topHoldingExposures: PortfolioLookthroughExposure[];
+  holdingExposures: PortfolioLookthroughHolding[];
   coverage: {
     etfCount: number;
     etfsWithSectorExposure: number;

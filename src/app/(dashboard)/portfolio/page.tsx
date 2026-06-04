@@ -38,7 +38,8 @@ function lookthroughReportFromSnapshot(value: unknown): PortfolioLookthroughRepo
     countryExposures: consolidatePortfolioLookthroughExposures(typed.countryExposures),
     currencyExposures: consolidatePortfolioLookthroughExposures(typed.currencyExposures ?? []),
     themeExposures: consolidatePortfolioLookthroughExposures(typed.themeExposures ?? []),
-    topHoldingExposures: consolidatePortfolioLookthroughExposures(typed.topHoldingExposures ?? [])
+    topHoldingExposures: consolidatePortfolioLookthroughExposures(typed.topHoldingExposures ?? []),
+    holdingExposures: typed.holdingExposures ?? []
   };
 }
 
