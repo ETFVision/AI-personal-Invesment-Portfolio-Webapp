@@ -190,7 +190,7 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
                 <p className="text-xl font-semibold">{latestPortfolioReview.overallPortfolioScore == null ? "-" : `${Math.round(latestPortfolioReview.overallPortfolioScore)}/100`}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Confidence</p>
+                <p className="text-xs text-muted-foreground">Data Coverage</p>
                 <p className="text-xl font-semibold">{formatPercent(latestPortfolioReview.confidenceScore / 100)}</p>
               </div>
               <div>

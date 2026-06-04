@@ -94,6 +94,37 @@ function diversificationBenefit(instrument: Instrument, issueCategory: Portfolio
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
+function pct(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function candidateExplanation(instrument: Instrument, issueCategory: PortfolioImprovementIssueCategory, fallback: string, context: SuggestionContext) {
+  const symbol = instrument.symbol ?? instrument.name;
+  if (issueCategory === "insufficient_international_exposure") {
+    return `${symbol} adds non-US/global exposure to offset ${pct(context.usExposure)} US look-through exposure.`;
+  }
+  if (issueCategory === "insufficient_defensive_exposure") {
+    const sector = instrument.canonicalSector ?? instrument.sector ?? "defensive";
+    return `${symbol} adds ${sector} exposure where Healthcare/defensive exposure is modest versus Technology at ${pct(context.technologyWeight)}.`;
+  }
+  if (issueCategory === "sector_concentration" || issueCategory === "theme_concentration") {
+    return `${symbol} broadens away from ${context.dominantSector ?? "the dominant sector"}, currently ${pct(context.dominantSectorWeight)} of look-through sector exposure.`;
+  }
+  if (issueCategory === "concentration_risk") {
+    return `${symbol} can lower reliance on the current largest direct and ETF look-through exposures.`;
+  }
+  if (issueCategory === "insufficient_fixed_income") {
+    return `${symbol} adds fixed-income ballast where current bond allocation is ${pct(context.bondAllocation)}.`;
+  }
+  if (issueCategory === "insufficient_cash_like_exposure") {
+    return `${symbol} adds cash-like or short-duration ballast.`;
+  }
+  if (issueCategory === "insufficient_inflation_hedge" || issueCategory === "insufficient_geopolitical_hedge") {
+    return `${symbol} adds hedge exposure where gold allocation is ${pct(context.goldAllocation)}.`;
+  }
+  return fallback;
+}
+
 function candidate(
   instrument: Instrument,
   recommendation: InstrumentRecommendation | undefined,
@@ -109,6 +140,7 @@ function candidate(
   const confidenceScore = recommendation?.confidenceScore ?? 50;
   const candidateRelevanceScore = relevanceScore(fit);
   const diversificationBenefitScore = diversificationBenefit(instrument, issueCategory, context);
+  const explanation = candidateExplanation(instrument, issueCategory, why, context);
   return {
     instrumentId: instrument.id,
     symbol: instrument.symbol,
@@ -121,8 +153,8 @@ function candidate(
     relevanceScore: candidateRelevanceScore,
     diversificationBenefitScore,
     candidateType: instrument.assetClass,
-    reason: `${why} Relevance ${candidateRelevanceScore}/100; diversification benefit ${diversificationBenefitScore}/100.`,
-    whyThisCandidate: `${why} Relevance ${candidateRelevanceScore}/100; diversification benefit ${diversificationBenefitScore}/100.`,
+    reason: `${explanation} Relevance ${candidateRelevanceScore}/100; diversification benefit ${diversificationBenefitScore}/100.`,
+    whyThisCandidate: `${explanation} Relevance ${candidateRelevanceScore}/100; diversification benefit ${diversificationBenefitScore}/100.`,
     expectedPortfolioBenefit:
       issueCategory.includes("international") ? "Adds non-US exposure and reduces geography dependence." :
       issueCategory.includes("fixed_income") || issueCategory.includes("cash_like") ? "Adds portfolio ballast and may reduce equity volatility." :

@@ -1,9 +1,22 @@
 import { finding, section, type PortfolioReviewInputContext } from "./portfolioReviewScoring";
 
 export class ConcentrationReviewService {
-  review({ riskReport, lookthroughReport }: PortfolioReviewInputContext) {
+  review({ riskReport, lookthroughReport, dashboard }: PortfolioReviewInputContext) {
     const topHolding = riskReport.concentration.topHoldingConcentration;
     const topFive = riskReport.concentration.topFiveConcentration;
+    const totalValue = dashboard.totalValueEstimate;
+    const topDirectHolding = dashboard.holdingValuations
+      .filter((valuation) => valuation.value > 0)
+      .map((valuation) => ({
+        portfolioId: dashboard.portfolio.id,
+        exposureType: "top_holding" as const,
+        exposureName: valuation.holding.ticker ?? valuation.holding.assetName,
+        exposureWeight: totalValue > 0 ? valuation.value / totalValue : 0,
+        directWeight: totalValue > 0 ? valuation.value / totalValue : 0,
+        etfLookthroughWeight: 0,
+        asOfDate: dashboard.latestPriceDate ?? ""
+      }))
+      .sort((a, b) => b.exposureWeight - a.exposureWeight)[0] ?? null;
     const topIndirectHolding = lookthroughReport?.topHoldingExposures[0] ?? null;
     const topCombinedFive = lookthroughReport?.topHoldingExposures.slice(0, 5).reduce((sum, item) => sum + item.exposureWeight, 0) ?? topFive;
     const sectorTop = lookthroughReport?.sectorExposures[0]?.exposureWeight ?? riskReport.concentration.bySector[0]?.percent ?? 0;
@@ -16,7 +29,7 @@ export class ConcentrationReviewService {
     return section(score, "Concentration is assessed from direct holdings plus ETF look-through top holding and sector exposure.", findings, {
       topHoldingConcentration: topHolding,
       topFiveConcentration: topCombinedFive,
-      largestDirectHolding: riskReport.concentration.topHoldingConcentration,
+      largestDirectHolding: topDirectHolding,
       largestIndirectHolding: topIndirectHolding,
       largestSector: lookthroughReport?.sectorExposures[0] ?? riskReport.concentration.bySector[0] ?? null,
       combinedTopExposures: lookthroughReport?.topHoldingExposures.slice(0, 10) ?? []

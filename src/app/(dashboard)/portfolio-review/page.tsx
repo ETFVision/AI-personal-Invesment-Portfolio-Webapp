@@ -77,7 +77,24 @@ function metricValue(key: string, value: unknown): string {
   }
   if (typeof value === "string") return value;
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? "" : "s"}`;
+  if (Array.isArray(value)) {
+    const exposureItems = value
+      .map((item) => item && typeof item === "object" ? item as Record<string, unknown> : null)
+      .filter((item): item is Record<string, unknown> => item !== null && typeof item.exposureName === "string" && typeof item.exposureWeight === "number");
+    if (exposureItems.length > 0) {
+      return exposureItems
+        .slice(0, 5)
+        .map((item) => {
+          const name = String(item.exposureName);
+          const total = formatPercent(normalizeDisplayRatio(Number(item.exposureWeight)));
+          const direct = typeof item.directWeight === "number" ? formatPercent(normalizeDisplayRatio(item.directWeight)) : null;
+          const etf = typeof item.etfLookthroughWeight === "number" ? formatPercent(normalizeDisplayRatio(item.etfLookthroughWeight)) : null;
+          return direct || etf ? `${name} ${total} (direct ${direct ?? "0%"}, ETF ${etf ?? "0%"})` : `${name} ${total}`;
+        })
+        .join("; ");
+    }
+    return `${value.length} item${value.length === 1 ? "" : "s"}`;
+  }
   if (typeof value === "object") {
     const objectValue = value as Record<string, unknown>;
     const exposureName = typeof objectValue.exposureName === "string" ? objectValue.exposureName : null;
@@ -354,7 +371,7 @@ function SummaryCards({ report }: { report: PortfolioReviewReport }) {
         <CardContent><p className="text-2xl font-semibold">{score(report.overallPortfolioScore)}</p><p className="text-xs text-muted-foreground">Weighted deterministic review</p></CardContent>
       </Card>
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Confidence</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Data Coverage</CardTitle></CardHeader>
         <CardContent><p className="text-2xl font-semibold">{formatPercent(report.confidenceScore / 100)}</p><p className="text-xs text-muted-foreground">Input coverage and freshness</p></CardContent>
       </Card>
       <Card>

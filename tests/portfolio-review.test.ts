@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { PortfolioImprovementSuggestionService } from "../src/application/services/portfolioReview/PortfolioImprovementSuggestionService";
 import { PortfolioActionSuggestionService } from "../src/application/services/portfolioReview/PortfolioActionSuggestionService";
 import { AllocationReviewService } from "../src/application/services/portfolioReview/AllocationReviewService";
+import { ConcentrationReviewService } from "../src/application/services/portfolioReview/ConcentrationReviewService";
 import { PortfolioRiskReviewService } from "../src/application/services/portfolioReview/PortfolioRiskReviewService";
 import { weightedPortfolioScore } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import type { PortfolioReviewInputContext } from "../src/application/services/portfolioReview/portfolioReviewScoring";
@@ -140,6 +141,28 @@ test("allocation review flags equity-heavy and low fixed-income portfolios", () 
   assert.ok(review.findings.some((finding) => finding.title === "Limited fixed-income ballast"));
 });
 
+test("concentration review surfaces named direct and indirect top holdings", () => {
+  const review = new ConcentrationReviewService().review(context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 0.5, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      topHoldingExposures: [
+        { portfolioId: "portfolio-1", exposureType: "top_holding", exposureName: "MSFT", exposureWeight: 0.42, directWeight: 0.35, etfLookthroughWeight: 0.07, asOfDate: "2026-06-01" }
+      ],
+      diagnostics: []
+    }
+  }));
+  const largestDirect = review.metrics.largestDirectHolding as { exposureName?: string; exposureWeight?: number };
+  const largestIndirect = review.metrics.largestIndirectHolding as { exposureName?: string; exposureWeight?: number };
+  assert.equal(largestDirect.exposureName, "MSFT");
+  assert.equal(largestIndirect.exposureName, "MSFT");
+  assert.ok(Number(largestIndirect.exposureWeight) > 0);
+});
+
 test("improvement suggestions only include approved non-reduce candidates", () => {
   const suggestions = new PortfolioImprovementSuggestionService().build(context());
   const candidates = suggestions.flatMap((suggestion) => suggestion.candidateInstruments);
@@ -213,6 +236,8 @@ test("improvement suggestions map concentration issues to diversifying candidate
   assert.ok(fixedIncomeSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "BND"));
   assert.ok(inflationHedgeSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "GLD"));
   assert.ok(sectorSuggestion.candidateInstruments.every((candidate) => typeof candidate.relevanceScore === "number" && typeof candidate.diversificationBenefitScore === "number"));
+  assert.match(internationalSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "VXUS")?.whyThisCandidate ?? "", /72\.9% US look-through exposure/);
+  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.whyThisCandidate ?? "", /Technology at 30\.6%/);
 });
 
 test("portfolio look-through combines direct stock and ETF underlying exposures", async () => {
