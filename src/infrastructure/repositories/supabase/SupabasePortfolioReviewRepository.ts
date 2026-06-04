@@ -27,7 +27,13 @@ const emptySection: PortfolioReviewSection = {
 
 function section(value: unknown): PortfolioReviewSection {
   if (!value || typeof value !== "object") return emptySection;
-  return value as PortfolioReviewSection;
+  const row = value as Partial<PortfolioReviewSection>;
+  return {
+    score: typeof row.score === "number" ? row.score : 0,
+    summary: typeof row.summary === "string" ? row.summary : "",
+    findings: Array.isArray(row.findings) ? row.findings : [],
+    metrics: row.metrics && typeof row.metrics === "object" && !Array.isArray(row.metrics) ? row.metrics : {}
+  };
 }
 
 function arrayValue<T>(value: unknown): T[] {

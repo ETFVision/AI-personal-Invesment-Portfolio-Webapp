@@ -79,8 +79,15 @@ function metricValue(key: string, value: unknown): string {
   return String(value);
 }
 
-function SectionMetrics({ metrics }: { metrics: Record<string, unknown> }) {
-  const entries = Object.entries(metrics).filter(([, value]) => value != null);
+const fallbackSection: PortfolioReviewSection = {
+  score: 0,
+  summary: "This section is unavailable for the saved report. Run a new portfolio review to refresh it.",
+  findings: [],
+  metrics: {}
+};
+
+function SectionMetrics({ metrics }: { metrics: Record<string, unknown> | undefined }) {
+  const entries = Object.entries(metrics ?? {}).filter(([, value]) => value != null);
   if (entries.length === 0) {
     return <p className="mt-3 text-sm text-muted-foreground">No metrics available for this section.</p>;
   }
@@ -97,16 +104,22 @@ function SectionMetrics({ metrics }: { metrics: Record<string, unknown> }) {
   );
 }
 
-function normalizedSectionForDisplay(title: string, section: PortfolioReviewSection): PortfolioReviewSection {
-  if (title !== "Risk Review" || section.score > 0) return section;
-  const volatility = typeof section.metrics.annualizedVolatility === "number"
-    ? normalizeDisplayRatio(section.metrics.annualizedVolatility)
+function normalizedSectionForDisplay(title: string, section: PortfolioReviewSection | undefined): PortfolioReviewSection {
+  if (!section) return fallbackSection;
+  const safeSection = {
+    ...section,
+    findings: Array.isArray(section.findings) ? section.findings : [],
+    metrics: section.metrics ?? {}
+  };
+  if (title !== "Risk Review" || safeSection.score > 0) return safeSection;
+  const volatility = typeof safeSection.metrics.annualizedVolatility === "number"
+    ? normalizeDisplayRatio(safeSection.metrics.annualizedVolatility)
     : 0.12;
-  const maxDrawdown = typeof section.metrics.maxDrawdown === "number"
-    ? normalizeDisplayRatio(section.metrics.maxDrawdown)
+  const maxDrawdown = typeof safeSection.metrics.maxDrawdown === "number"
+    ? normalizeDisplayRatio(safeSection.metrics.maxDrawdown)
     : 0;
-  const currentDrawdown = typeof section.metrics.currentDrawdown === "number"
-    ? normalizeDisplayRatio(section.metrics.currentDrawdown)
+  const currentDrawdown = typeof safeSection.metrics.currentDrawdown === "number"
+    ? normalizeDisplayRatio(safeSection.metrics.currentDrawdown)
     : 0;
   const correctedScore = Math.max(0, Math.min(100, Math.round(
     88
@@ -116,10 +129,10 @@ function normalizedSectionForDisplay(title: string, section: PortfolioReviewSect
   )));
 
   return {
-    ...section,
+    ...safeSection,
     score: correctedScore,
     metrics: {
-      ...section.metrics,
+      ...safeSection.metrics,
       annualizedVolatility: volatility,
       currentDrawdown,
       maxDrawdown
@@ -127,7 +140,7 @@ function normalizedSectionForDisplay(title: string, section: PortfolioReviewSect
   };
 }
 
-function SectionCard({ title, section }: { title: string; section: PortfolioReviewSection }) {
+function SectionCard({ title, section }: { title: string; section: PortfolioReviewSection | undefined }) {
   const displaySection = normalizedSectionForDisplay(title, section);
   return (
     <Card>
@@ -163,6 +176,7 @@ function SectionCard({ title, section }: { title: string; section: PortfolioRevi
 }
 
 function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggestion[] }) {
+  const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
   return (
     <Card>
       <CardHeader>
@@ -170,10 +184,11 @@ function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggest
         <CardDescription>Review prompts only. Candidate instruments are filtered to approved active universe items and exclude Reduce/Sell labels.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {suggestions.length === 0 ? (
+        {safeSuggestions.length === 0 ? (
           <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No improvement suggestion generated for the latest review.</p>
-        ) : suggestions.map((suggestion) => (
-          <div key={`${suggestion.category}-${suggestion.title}`} className="rounded-md border p-4">
+        ) : safeSuggestions.map((suggestion) => {
+          const candidates = Array.isArray(suggestion.candidateInstruments) ? suggestion.candidateInstruments : [];
+          return <div key={`${suggestion.category}-${suggestion.title}`} className="rounded-md border p-4">
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-medium">{suggestion.title}</p>
               <span className="rounded-md bg-muted px-2 py-1 text-xs capitalize">{suggestion.priority}</span>
@@ -196,9 +211,9 @@ function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggest
                 ) : null}
               </div>
             ) : null}
-            {suggestion.candidateInstruments.length > 0 ? (
+            {candidates.length > 0 ? (
               <div className="mt-3 grid gap-2">
-                {suggestion.candidateInstruments.map((candidate) => (
+                {candidates.map((candidate) => (
                   <Link
                     key={`${suggestion.title}-${candidate.instrumentId}`}
                     href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
@@ -217,15 +232,15 @@ function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggest
                 ))}
               </div>
             ) : null}
-          </div>
-        ))}
+          </div>;
+        })}
       </CardContent>
     </Card>
   );
 }
 
 function lookthroughReport(report: PortfolioReviewReport): PortfolioLookthroughReport | null {
-  const value = report.inputsSnapshot.lookthroughExposure;
+  const value = report.inputsSnapshot?.lookthroughExposure;
   if (!value || typeof value !== "object") return null;
   const typed = value as PortfolioLookthroughReport;
   if (!Array.isArray(typed.sectorExposures)) return null;
@@ -263,6 +278,7 @@ function ExposureTable({ title, description, rows }: { title: string; descriptio
 }
 
 function Actions({ actions }: { actions: PortfolioPotentialAction[] }) {
+  const safeActions = Array.isArray(actions) ? actions : [];
   return (
     <Card>
       <CardHeader>
@@ -270,9 +286,9 @@ function Actions({ actions }: { actions: PortfolioPotentialAction[] }) {
         <CardDescription>Non-trading review actions. No exact amounts, shares or order instructions are generated.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        {actions.length === 0 ? (
+        {safeActions.length === 0 ? (
           <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No review action generated.</p>
-        ) : actions.map((action) => (
+        ) : safeActions.map((action) => (
           <div key={`${action.actionType}-${action.title}`} className="rounded-md border p-3 text-sm">
             <p className="font-medium">{action.title}</p>
             <p className="mt-1 text-muted-foreground">{action.detail}</p>
@@ -284,6 +300,7 @@ function Actions({ actions }: { actions: PortfolioPotentialAction[] }) {
 }
 
 function SummaryCards({ report }: { report: PortfolioReviewReport }) {
+  const watchAreas = Array.isArray(report.watchAreas) ? report.watchAreas : [];
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <Card>
@@ -296,7 +313,7 @@ function SummaryCards({ report }: { report: PortfolioReviewReport }) {
       </Card>
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm">Watch areas</CardTitle></CardHeader>
-        <CardContent><p className="text-2xl font-semibold">{report.watchAreas.length}</p><p className="text-xs text-muted-foreground">Attention or watch findings</p></CardContent>
+        <CardContent><p className="text-2xl font-semibold">{watchAreas.length}</p><p className="text-xs text-muted-foreground">Attention or watch findings</p></CardContent>
       </Card>
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm">Review date</CardTitle></CardHeader>
@@ -400,11 +417,11 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
                 <CardDescription>Limitations are carried forward for QA and later assistant workflows.</CardDescription>
               </CardHeader>
               <CardContent>
-                {report.dataLimitations.length === 0 ? (
+                {(report.dataLimitations ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground">No material data limitation recorded.</p>
                 ) : (
                   <ul className="space-y-2 text-sm text-muted-foreground">
-                    {report.dataLimitations.map((item) => <li key={item}>- {item}</li>)}
+                    {(report.dataLimitations ?? []).map((item) => <li key={item}>- {item}</li>)}
                   </ul>
                 )}
               </CardContent>
