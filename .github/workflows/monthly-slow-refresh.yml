@@ -19,7 +19,7 @@ jobs:
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
       - name: Check out workflow helper
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Fundamentals refresh
         run: bash scripts/call-job-endpoint.sh /api/jobs/fundamentals-refresh
