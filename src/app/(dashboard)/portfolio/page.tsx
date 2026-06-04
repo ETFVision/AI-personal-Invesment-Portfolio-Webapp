@@ -15,6 +15,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import type { AllocationItem } from "@/domain/portfolio/types";
 import type { PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
+import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
 
 type PortfolioPageProps = {
   searchParams?: Promise<{
@@ -31,7 +32,14 @@ function lookthroughReportFromSnapshot(value: unknown): PortfolioLookthroughRepo
   if (!value || typeof value !== "object") return null;
   const typed = value as PortfolioLookthroughReport;
   if (!Array.isArray(typed.sectorExposures) || !Array.isArray(typed.countryExposures)) return null;
-  return typed;
+  return {
+    ...typed,
+    sectorExposures: consolidatePortfolioLookthroughExposures(typed.sectorExposures),
+    countryExposures: consolidatePortfolioLookthroughExposures(typed.countryExposures),
+    currencyExposures: consolidatePortfolioLookthroughExposures(typed.currencyExposures ?? []),
+    themeExposures: consolidatePortfolioLookthroughExposures(typed.themeExposures ?? []),
+    topHoldingExposures: consolidatePortfolioLookthroughExposures(typed.topHoldingExposures ?? [])
+  };
 }
 
 function allocationFromLookthrough(rows: PortfolioLookthroughReport["sectorExposures"]): AllocationItem[] {

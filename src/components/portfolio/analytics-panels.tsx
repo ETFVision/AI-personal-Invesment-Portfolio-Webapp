@@ -3,6 +3,20 @@ import { formatAssetTypeLabel, formatCurrencyWithCode, formatPercent } from "@/l
 
 const chartColors = ["#2563eb", "#059669", "#d97706", "#7c3aed", "#dc2626", "#0891b2", "#4b5563"];
 
+function groupAllocationForDisplay(items: AllocationItem[], maxItems = 6) {
+  if (items.length <= maxItems) return items;
+  const visible = items.slice(0, maxItems - 1);
+  const remaining = items.slice(maxItems - 1);
+  const other = remaining.reduce(
+    (sum, item) => ({
+      value: sum.value + item.value,
+      percent: sum.percent + item.percent
+    }),
+    { value: 0, percent: 0 }
+  );
+  return [...visible, { label: "Other", value: other.value, percent: other.percent }];
+}
+
 function ExposureBar({ label, value, percent }: { label: string; value: string; percent: number }) {
   return (
     <div>
@@ -66,8 +80,9 @@ export function AllocationDonutPanel({
     return <p className="text-sm text-muted-foreground">No allocation data yet.</p>;
   }
 
+  const displayItems = groupAllocationForDisplay(items);
   let cursor = 0;
-  const segments = items.map((item, index) => {
+  const segments = displayItems.map((item, index) => {
     const start = cursor;
     const end = cursor + item.percent * 100;
     cursor = end;
@@ -82,7 +97,7 @@ export function AllocationDonutPanel({
         style={{ background: `conic-gradient(${segments.join(", ")})` }}
       />
       <div className="space-y-2">
-        {items.slice(0, 6).map((item, index) => (
+        {displayItems.map((item, index) => (
           <div key={item.label} className="flex items-center justify-between gap-3 text-sm">
             <span className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: chartColors[index % chartColors.length] }} />

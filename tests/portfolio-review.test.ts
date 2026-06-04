@@ -261,8 +261,9 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
   const stored: unknown[] = [];
   const repository = {
     listLatestSectorExposures: async () => [
-      { etfInstrumentId: "etf-1", etfSymbol: "VOO", sector: "Technology", exposureWeight: 0.35, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} },
-      { etfInstrumentId: "etf-1", etfSymbol: "VOO", sector: "Healthcare", exposureWeight: 0.15, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} }
+      { etfInstrumentId: "etf-1", etfSymbol: "VOO", sector: "Technology", exposureWeight: 0.2, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} },
+      { etfInstrumentId: "etf-1", etfSymbol: "VOO", sector: "Information Technology", exposureWeight: 0.15, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} },
+      { etfInstrumentId: "etf-1", etfSymbol: "VOO", sector: "Health Care", exposureWeight: 0.15, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} }
     ],
     listLatestCountryExposures: async () => [
       { etfInstrumentId: "etf-1", etfSymbol: "VOO", country: "United States", exposureWeight: 1, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} }
@@ -309,11 +310,20 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
   ]));
 
   const technology = report.sectorExposures.find((item) => item.exposureName === "Technology");
+  const healthcare = report.sectorExposures.find((item) => item.exposureName === "Healthcare");
+  const informationTechnology = report.sectorExposures.find((item) => item.exposureName === "Information Technology");
+  const healthCare = report.sectorExposures.find((item) => item.exposureName === "Health Care");
+  const aiSector = report.sectorExposures.find((item) => item.exposureName === "AI");
   const unitedStates = report.countryExposures.find((item) => item.exposureName === "United States");
   const duplicateUs = report.countryExposures.find((item) => item.exposureName === "US");
   const msft = report.topHoldingExposures.find((item) => item.exposureName === "MSFT");
   assert.ok(technology);
   assert.ok(Math.abs(technology.exposureWeight - 0.85) < 0.000001);
+  assert.ok(healthcare);
+  assert.ok(Math.abs(healthcare.exposureWeight - 0.15) < 0.000001);
+  assert.equal(informationTechnology, undefined);
+  assert.equal(healthCare, undefined);
+  assert.equal(aiSector, undefined);
   assert.ok(unitedStates);
   assert.equal(duplicateUs, undefined);
   assert.ok(Math.abs(unitedStates.exposureWeight - 1) < 0.000001);

@@ -1,6 +1,7 @@
 import type { EtfExposureProvider } from "@/application/ports/providers/EtfExposureProvider";
 import type { EtfExposureProviderSnapshot } from "@/domain/etfLookthrough/types";
 import { env } from "@/infrastructure/config/env";
+import { normalizeExposureName } from "../../../domain/etfLookthrough/exposureNormalization";
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
 
@@ -65,13 +66,13 @@ export class FmpEtfExposureProvider implements EtfExposureProvider {
       symbol: normalizedSymbol,
       asOfDate,
       sectorExposures: sectorPayload.flatMap((item) => {
-        const sector = textField(item, ["sector", "sectorName", "name"]);
+        const sector = normalizeExposureName("sector", textField(item, ["sector", "sectorName", "name"]));
         const exposureWeight = normalizeWeight(numberField(item, ["weightPercentage", "weight", "percentage", "assetPercentage", "value"]));
         if (!sector || exposureWeight == null) return [];
         return [{ etfSymbol: normalizedSymbol, sector, exposureWeight, asOfDate, providerMetadata: item }];
       }),
       countryExposures: countryPayload.flatMap((item) => {
-        const country = textField(item, ["country", "countryName", "name"]);
+        const country = normalizeExposureName("country", textField(item, ["country", "countryName", "name"]));
         const exposureWeight = normalizeWeight(numberField(item, ["weightPercentage", "weight", "percentage", "assetPercentage", "value"]));
         if (!country || exposureWeight == null) return [];
         return [{ etfSymbol: normalizedSymbol, country, exposureWeight, asOfDate, providerMetadata: item }];

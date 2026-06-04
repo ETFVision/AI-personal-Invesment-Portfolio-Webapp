@@ -13,6 +13,7 @@ import type {
   PortfolioReviewSection
 } from "@/domain/portfolioReview/types";
 import type { PortfolioLookthroughExposure, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
+import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
 
 type PortfolioReviewPageProps = {
   searchParams?: Promise<{
@@ -299,7 +300,14 @@ function lookthroughReport(report: PortfolioReviewReport): PortfolioLookthroughR
   if (!value || typeof value !== "object") return null;
   const typed = value as PortfolioLookthroughReport;
   if (!Array.isArray(typed.sectorExposures)) return null;
-  return typed;
+  return {
+    ...typed,
+    sectorExposures: consolidatePortfolioLookthroughExposures(typed.sectorExposures),
+    countryExposures: consolidatePortfolioLookthroughExposures(typed.countryExposures ?? []),
+    currencyExposures: consolidatePortfolioLookthroughExposures(typed.currencyExposures ?? []),
+    themeExposures: consolidatePortfolioLookthroughExposures(typed.themeExposures ?? []),
+    topHoldingExposures: consolidatePortfolioLookthroughExposures(typed.topHoldingExposures ?? [])
+  };
 }
 
 function ExposureTable({ title, description, rows }: { title: string; description: string; rows: PortfolioLookthroughExposure[] }) {
@@ -323,7 +331,7 @@ function ExposureTable({ title, description, rows }: { title: string; descriptio
                 <div>
                   <p className="font-medium">{row.exposureName}</p>
                   <p className="text-xs text-muted-foreground">
-                    Direct {formatPercent(row.directWeight)} · ETF look-through {formatPercent(row.etfLookthroughWeight)}
+                    Direct {formatPercent(row.directWeight)} - ETF look-through {formatPercent(row.etfLookthroughWeight)}
                   </p>
                 </div>
                 <span className="font-medium">{formatPercent(row.exposureWeight)}</span>

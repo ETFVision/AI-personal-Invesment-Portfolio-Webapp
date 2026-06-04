@@ -2,6 +2,7 @@ import type { EtfExposureRepository } from "@/application/ports/repositories/Etf
 import type { PortfolioDashboard } from "@/domain/portfolio/types";
 import type { PortfolioLookthroughExposure, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import type { Instrument } from "@/domain/universe/types";
+import { normalizeExposureName } from "../../../domain/etfLookthrough/exposureNormalization";
 
 type ExposureAccumulator = {
   exposureWeight: number;
@@ -15,20 +16,6 @@ function today() {
 
 function normalizeWeight(value: number) {
   return value > 1 ? value / 100 : value;
-}
-
-function canonicalCountryName(name: string | null | undefined) {
-  const normalized = name?.trim();
-  if (!normalized) return normalized;
-  const key = normalized.toLowerCase();
-  if (["us", "usa", "u.s.", "u.s.a.", "united states of america", "united states"].includes(key)) return "United States";
-  if (["uk", "u.k.", "great britain", "britain"].includes(key)) return "United Kingdom";
-  return normalized;
-}
-
-function canonicalExposureName(exposureType: PortfolioLookthroughExposure["exposureType"], name: string | null | undefined) {
-  if (exposureType === "country") return canonicalCountryName(name);
-  return name?.trim();
 }
 
 function normalizedDistribution<T>(items: T[], weightOf: (item: T) => number) {
@@ -48,7 +35,7 @@ function add(
   exposureType: PortfolioLookthroughExposure["exposureType"]
 ) {
   if (!name || !Number.isFinite(totalWeight) || totalWeight <= 0) return;
-  const key = canonicalExposureName(exposureType, name);
+  const key = normalizeExposureName(exposureType, name);
   if (!key) return;
   const current = map.get(key) ?? { exposureWeight: 0, directWeight: 0, etfLookthroughWeight: 0 };
   current.exposureWeight += totalWeight;
