@@ -6,6 +6,8 @@ import { AllocationReviewService } from "../src/application/services/portfolioRe
 import { PortfolioRiskReviewService } from "../src/application/services/portfolioReview/PortfolioRiskReviewService";
 import { weightedPortfolioScore } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import type { PortfolioReviewInputContext } from "../src/application/services/portfolioReview/portfolioReviewScoring";
+import { PortfolioLookthroughExposureService } from "../src/application/services/etfLookthrough/PortfolioLookthroughExposureService";
+import type { EtfExposureRepository } from "../src/application/ports/repositories/EtfExposureRepository";
 
 function context(overrides: Partial<PortfolioReviewInputContext> = {}): PortfolioReviewInputContext {
   return {
@@ -15,7 +17,9 @@ function context(overrides: Partial<PortfolioReviewInputContext> = {}): Portfoli
       holdings: [
         { id: "h1", portfolioId: "portfolio-1", assetId: "a1", assetType: "stock", ticker: "MSFT", assetName: "Microsoft", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Technology" }
       ],
-      holdingValuations: [],
+      holdingValuations: [
+        { holding: { id: "h1", portfolioId: "portfolio-1", assetId: "a1", assetType: "stock", ticker: "MSFT", assetName: "Microsoft", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Technology" }, unitPrice: 100, value: 100, valueCurrency: "USD", priceDate: "2026-06-01", priceProvider: "test", valuationSource: "market_price" }
+      ],
       totalCash: 0,
       totalHoldingsCost: 100,
       totalHoldingsMarketValue: 100,
@@ -81,6 +85,7 @@ function context(overrides: Partial<PortfolioReviewInputContext> = {}): Portfoli
     marketVisionReport: null,
     macroRegime: { id: "macro-1", snapshotDate: "2026-06-01", ratesRegime: "stable", inflationRegime: "elevated", growthRegime: "stable", employmentRegime: "stable", yieldCurveRegime: "normal", liquidityRegime: "normal", dollarRegime: "stable", commoditiesRegime: "firm", overallMacroSummary: "", createdAt: "", updatedAt: "" },
     themeIntelligence: null,
+    lookthroughReport: null,
     ...overrides
   };
 }
@@ -104,6 +109,66 @@ test("improvement suggestions only include approved non-reduce candidates", () =
   const candidates = suggestions.flatMap((suggestion) => suggestion.candidateInstruments);
   assert.ok(candidates.some((candidate) => candidate.symbol === "BND"));
   assert.ok(!candidates.some((candidate) => candidate.symbol === "HYG"));
+});
+
+test("portfolio look-through combines direct stock and ETF underlying exposures", async () => {
+  const stored: unknown[] = [];
+  const repository = {
+    listLatestSectorExposures: async () => [
+      { etfInstrumentId: "etf-1", etfSymbol: "VOO", sector: "Technology", exposureWeight: 0.35, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} },
+      { etfInstrumentId: "etf-1", etfSymbol: "VOO", sector: "Healthcare", exposureWeight: 0.15, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} }
+    ],
+    listLatestCountryExposures: async () => [
+      { etfInstrumentId: "etf-1", etfSymbol: "VOO", country: "United States", exposureWeight: 1, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} }
+    ],
+    listLatestTopHoldings: async () => [
+      { etfInstrumentId: "etf-1", etfSymbol: "VOO", holdingSymbol: "MSFT", holdingName: "Microsoft", holdingWeight: 0.07, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} }
+    ],
+    listLatestThemeExposures: async () => [
+      { etfInstrumentId: "etf-1", etfSymbol: "VOO", theme: "Quality", exposureWeight: 0.4, confidenceScore: 72, derivationMethod: "test", asOfDate: "2026-06-01" }
+    ],
+    upsertPortfolioLookthroughExposures: async (input: unknown[]) => { stored.push(...input); },
+    getLatestExposureDateForEtf: async () => null,
+    upsertSectorExposures: async () => undefined,
+    upsertCountryExposures: async () => undefined,
+    upsertTopHoldings: async () => undefined,
+    upsertThemeExposures: async () => undefined,
+    listPortfolioLookthroughExposures: async () => [],
+    insertRefreshLog: async () => undefined,
+    listRefreshLogs: async () => []
+  } as Partial<EtfExposureRepository> as EtfExposureRepository;
+  const dashboard = context({
+    dashboard: {
+      ...context().dashboard,
+      holdings: [
+        { id: "h1", portfolioId: "portfolio-1", assetId: "a1", assetType: "stock", ticker: "MSFT", assetName: "Microsoft", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Technology" },
+        { id: "h2", portfolioId: "portfolio-1", assetId: "a2", assetType: "etf", ticker: "VOO", assetName: "Vanguard S&P 500 ETF", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Multi-Asset / Broad Market" }
+      ],
+      holdingValuations: [
+        { holding: { id: "h1", portfolioId: "portfolio-1", assetId: "a1", assetType: "stock", ticker: "MSFT", assetName: "Microsoft", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Technology" }, unitPrice: 50, value: 50, valueCurrency: "USD", priceDate: "2026-06-01", priceProvider: "test", valuationSource: "market_price" },
+        { holding: { id: "h2", portfolioId: "portfolio-1", assetId: "a2", assetType: "etf", ticker: "VOO", assetName: "Vanguard S&P 500 ETF", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Multi-Asset / Broad Market" }, unitPrice: 50, value: 50, valueCurrency: "USD", priceDate: "2026-06-01", priceProvider: "test", valuationSource: "market_price" }
+      ],
+      totalValueEstimate: 100
+    },
+    instruments: [
+      ...context().instruments,
+      { id: "stock-1", symbol: "MSFT", name: "Microsoft", assetClass: "stock", instrumentType: "stock", sector: "Technology", industry: null, canonicalSector: "Technology", canonicalThemes: ["Technology"], taxonomyIsManualOverride: false, taxonomyReviewStatus: "mapped", geography: "US", currency: "USD", exchange: "NASDAQ", watchlistTier: null, benchmarkTags: [], thematicTags: [], riskCategory: null, volatilityBucket: null, durationCategory: null, treasuryClassification: null, inflationLinked: null, creditQuality: null, geoExposure: "United States", rateSensitivity: null, inflationSensitivity: null, recessionSensitivity: null, liquidityRole: null, cryptoClassification: null, metadataLastRefreshedAt: null, providerPrimary: null, providerMetadata: {}, sourceType: "seeded", isActive: true },
+      { id: "etf-1", symbol: "VOO", name: "Vanguard S&P 500 ETF", assetClass: "etf", instrumentType: "etf", sector: null, industry: null, canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification"], taxonomyIsManualOverride: false, taxonomyReviewStatus: "mapped", geography: "US", currency: "USD", exchange: "NYSE", watchlistTier: null, benchmarkTags: [], thematicTags: [], riskCategory: null, volatilityBucket: null, durationCategory: null, treasuryClassification: null, inflationLinked: null, creditQuality: null, geoExposure: "United States", rateSensitivity: null, inflationSensitivity: null, recessionSensitivity: null, liquidityRole: null, cryptoClassification: null, metadataLastRefreshedAt: null, providerPrimary: null, providerMetadata: {}, sourceType: "seeded", isActive: true }
+    ]
+  }).dashboard;
+  const service = new PortfolioLookthroughExposureService(repository);
+  const report = await service.calculateAndStore("portfolio-1", dashboard, context().instruments.concat([
+    { id: "stock-1", symbol: "MSFT", name: "Microsoft", assetClass: "stock", instrumentType: "stock", sector: "Technology", industry: null, canonicalSector: "Technology", canonicalThemes: ["Technology"], taxonomyIsManualOverride: false, taxonomyReviewStatus: "mapped", geography: "US", currency: "USD", exchange: "NASDAQ", watchlistTier: null, benchmarkTags: [], thematicTags: [], riskCategory: null, volatilityBucket: null, durationCategory: null, treasuryClassification: null, inflationLinked: null, creditQuality: null, geoExposure: "United States", rateSensitivity: null, inflationSensitivity: null, recessionSensitivity: null, liquidityRole: null, cryptoClassification: null, metadataLastRefreshedAt: null, providerPrimary: null, providerMetadata: {}, sourceType: "seeded", isActive: true },
+    { id: "etf-1", symbol: "VOO", name: "Vanguard S&P 500 ETF", assetClass: "etf", instrumentType: "etf", sector: null, industry: null, canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification"], taxonomyIsManualOverride: false, taxonomyReviewStatus: "mapped", geography: "US", currency: "USD", exchange: "NYSE", watchlistTier: null, benchmarkTags: [], thematicTags: [], riskCategory: null, volatilityBucket: null, durationCategory: null, treasuryClassification: null, inflationLinked: null, creditQuality: null, geoExposure: "United States", rateSensitivity: null, inflationSensitivity: null, recessionSensitivity: null, liquidityRole: null, cryptoClassification: null, metadataLastRefreshedAt: null, providerPrimary: null, providerMetadata: {}, sourceType: "seeded", isActive: true }
+  ]));
+
+  const technology = report.sectorExposures.find((item) => item.exposureName === "Technology");
+  const msft = report.topHoldingExposures.find((item) => item.exposureName === "MSFT");
+  assert.ok(technology);
+  assert.ok(Math.abs(technology.exposureWeight - 0.675) < 0.000001);
+  assert.ok(msft);
+  assert.ok(Math.abs(msft.exposureWeight - 0.535) < 0.000001);
+  assert.ok(stored.length > 0);
 });
 
 test("potential actions do not include exact trade amounts or position sizes", () => {

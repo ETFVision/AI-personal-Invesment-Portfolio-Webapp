@@ -9,6 +9,7 @@ import { GenerateMarketVisionReportJob } from "@/application/jobs/GenerateMarket
 import { FundamentalsRefreshJob } from "@/application/jobs/FundamentalsRefreshJob";
 import { RecommendationRunJob } from "@/application/jobs/RecommendationRunJob";
 import { PortfolioReviewRunJob } from "@/application/jobs/PortfolioReviewRunJob";
+import { EtfLookthroughRefreshJob } from "@/application/jobs/EtfLookthroughRefreshJob";
 import { BenchmarkComparisonService } from "@/application/services/BenchmarkComparisonService";
 import { BenchmarkService } from "@/application/services/BenchmarkService";
 import { AllocationService } from "@/application/services/AllocationService";
@@ -46,6 +47,10 @@ import { FundamentalsRefreshService } from "@/application/services/fundamentals/
 import { RecommendationService } from "@/application/services/recommendations/RecommendationService";
 import { PortfolioReviewService } from "@/application/services/portfolioReview/PortfolioReviewService";
 import { PortfolioReviewRunService } from "@/application/services/portfolioReview/PortfolioReviewRunService";
+import { EtfExposureProviderService } from "@/application/services/etfLookthrough/EtfExposureProviderService";
+import { EtfLookthroughRefreshService } from "@/application/services/etfLookthrough/EtfLookthroughRefreshService";
+import { EtfLookthroughService } from "@/application/services/etfLookthrough/EtfLookthroughService";
+import { PortfolioLookthroughExposureService } from "@/application/services/etfLookthrough/PortfolioLookthroughExposureService";
 import { PerformanceService } from "@/application/services/PerformanceService";
 import { BondService } from "@/application/services/bonds/BondService";
 import { RiskAnalyticsService } from "@/application/services/risk/RiskAnalyticsService";
@@ -60,6 +65,7 @@ import { OpenAiNewsProvider } from "@/infrastructure/providers/ai/OpenAiNewsProv
 import { OpenAiMarketVisionProvider } from "@/infrastructure/providers/ai/OpenAiMarketVisionProvider";
 import { FmpNewsProvider } from "@/infrastructure/providers/news/FmpNewsProvider";
 import { FmpFundamentalsProvider } from "@/infrastructure/providers/fundamentals/FmpFundamentalsProvider";
+import { FmpEtfExposureProvider } from "@/infrastructure/providers/etf/FmpEtfExposureProvider";
 import { GdeltNewsProvider } from "@/infrastructure/providers/news/GdeltNewsProvider";
 import { NewsDataNewsProvider } from "@/infrastructure/providers/news/NewsDataNewsProvider";
 import { FredMacroDataProvider } from "@/infrastructure/providers/macro/FredMacroDataProvider";
@@ -77,6 +83,7 @@ import { SupabaseUniverseRepository } from "@/infrastructure/repositories/supaba
 import { SupabaseFundamentalsRepository } from "@/infrastructure/repositories/supabase/SupabaseFundamentalsRepository";
 import { SupabaseRecommendationRepository } from "@/infrastructure/repositories/supabase/SupabaseRecommendationRepository";
 import { SupabasePortfolioReviewRepository } from "@/infrastructure/repositories/supabase/SupabasePortfolioReviewRepository";
+import { SupabaseEtfExposureRepository } from "@/infrastructure/repositories/supabase/SupabaseEtfExposureRepository";
 import { env } from "@/infrastructure/config/env";
 
 export function createContainer() {
@@ -94,6 +101,7 @@ export function createContainer() {
   const fundamentalsRepository = new SupabaseFundamentalsRepository();
   const recommendationRepository = new SupabaseRecommendationRepository();
   const portfolioReviewRepository = new SupabasePortfolioReviewRepository();
+  const etfExposureRepository = new SupabaseEtfExposureRepository();
   const marketDataProvider = new FmpMarketDataProvider();
   const assetMetadataProvider = new FmpAssetMetadataProvider();
   const newsProvider = new FmpNewsProvider();
@@ -103,6 +111,7 @@ export function createContainer() {
   const newsAiProvider = new OpenAiNewsProvider();
   const marketVisionAiProvider = new OpenAiMarketVisionProvider();
   const fundamentalsProvider = new FmpFundamentalsProvider();
+  const etfExposureProvider = new FmpEtfExposureProvider();
   const marketDataService = new MarketDataService(marketDataRepository, marketDataProvider);
   const benchmarkService = new BenchmarkService(benchmarkRepository, marketDataProvider);
   const benchmarkComparisonService = new BenchmarkComparisonService();
@@ -187,6 +196,21 @@ export function createContainer() {
   }, undefined, undefined, macroIndicatorRepository);
   const themeIntelligenceService = new ThemeIntelligenceService(newsRepository, macroIndicatorRepository);
   const newsDashboardService = new NewsDashboardService(newsRepository, themeIntelligenceService, gdeltRepository, newsDataRepository);
+  const etfLookthroughService = new EtfLookthroughService();
+  const etfExposureProviderService = new EtfExposureProviderService(etfExposureProvider);
+  const portfolioLookthroughExposureService = new PortfolioLookthroughExposureService(etfExposureRepository);
+  const etfLookthroughRefreshService = new EtfLookthroughRefreshService(
+    etfExposureRepository,
+    universeRepository,
+    etfExposureProviderService,
+    etfLookthroughService,
+    {
+      enabled: env.ENABLE_ETF_LOOKTHROUGH_REFRESH,
+      refreshFrequencyDays: env.ETF_LOOKTHROUGH_REFRESH_FREQUENCY_DAYS,
+      maxEtfsPerRun: env.ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN,
+      staleAfterDays: env.ETF_LOOKTHROUGH_STALE_AFTER_DAYS
+    }
+  );
   const fundamentalScoringService = new FundamentalScoringService();
   const fundamentalTrendCalculationService = new FundamentalTrendCalculationService();
   const fundamentalsRefreshService = new FundamentalsRefreshService(
@@ -253,7 +277,8 @@ export function createContainer() {
     universeRepository,
     marketVisionRepository,
     macroIndicatorRepository,
-    themeIntelligenceService
+    themeIntelligenceService,
+    portfolioLookthroughExposureService
   );
   const portfolioReviewRunService = new PortfolioReviewRunService(portfolioReviewRepository, portfolioReviewService);
   return {
@@ -303,6 +328,11 @@ export function createContainer() {
     recommendationRepository,
     recommendationService,
     portfolioReviewRepository,
+    etfExposureRepository,
+    etfLookthroughService,
+    etfExposureProviderService,
+    portfolioLookthroughExposureService,
+    etfLookthroughRefreshService,
     portfolioReviewService,
     portfolioReviewRunService,
     fundamentalsProvider,
@@ -333,7 +363,8 @@ export function createContainer() {
       weeklyMarketVision: new GenerateMarketVisionReportJob(marketVisionGenerationService),
       fundamentalsRefresh: new FundamentalsRefreshJob(fundamentalsRefreshService),
       recommendationRun: new RecommendationRunJob(recommendationService),
-      portfolioReviewRun: new PortfolioReviewRunJob(portfolioReviewRunService)
+      portfolioReviewRun: new PortfolioReviewRunJob(portfolioReviewRunService),
+      etfLookthroughRefresh: new EtfLookthroughRefreshJob(etfLookthroughRefreshService)
     }
   };
 }

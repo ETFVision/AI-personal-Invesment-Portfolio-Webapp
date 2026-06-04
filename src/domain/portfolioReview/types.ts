@@ -12,7 +12,8 @@ export type PortfolioReviewScoreKey =
   | "macroFit"
   | "recommendationAlignment"
   | "fixedIncome"
-  | "themeExposure";
+  | "themeExposure"
+  | "geography";
 
 export type PortfolioReviewScoreComponent = {
   key: PortfolioReviewScoreKey;
@@ -36,7 +37,33 @@ export type PortfolioReviewCandidate = {
   recommendationLabel: RecommendationLabel | string;
   score: number | null;
   reason: string;
+  candidateType?: string;
+  recommendationScore?: number | null;
+  confidenceScore?: number | null;
+  whyThisCandidate?: string;
+  expectedPortfolioBenefit?: string;
+  potentialTradeOff?: string;
+  keyRisks?: string[];
+  dataLimitations?: string[];
+  source?: "recommendation_engine" | "seeded_universe" | "portfolio_review";
 };
+
+export type PortfolioImprovementIssueCategory =
+  | "concentration_risk"
+  | "sector_concentration"
+  | "theme_concentration"
+  | "insufficient_fixed_income"
+  | "excessive_duration_risk"
+  | "insufficient_cash_like_exposure"
+  | "insufficient_inflation_hedge"
+  | "insufficient_geopolitical_hedge"
+  | "insufficient_international_exposure"
+  | "insufficient_defensive_exposure"
+  | "excessive_crypto_risk"
+  | "high_correlation"
+  | "weak_recommendation_alignment"
+  | "macro_vulnerability"
+  | "data_quality";
 
 export type PortfolioImprovementSuggestion = {
   category:
@@ -52,6 +79,13 @@ export type PortfolioImprovementSuggestion = {
   title: string;
   rationale: string;
   candidateInstruments: PortfolioReviewCandidate[];
+  issueAddressed?: string;
+  issueCategory?: PortfolioImprovementIssueCategory;
+  expectedPortfolioBenefit?: string;
+  potentialTradeOff?: string;
+  keyRisks?: string[];
+  dataLimitations?: string[];
+  source?: "deterministic_portfolio_review";
 };
 
 export type PortfolioPotentialAction = {
@@ -85,6 +119,7 @@ export type PortfolioReviewReport = {
   recommendationAlignmentReview: PortfolioReviewSection;
   fixedIncomeReview: PortfolioReviewSection;
   themeExposureReview: PortfolioReviewSection;
+  geographyReview: PortfolioReviewSection;
   watchAreas: PortfolioReviewFinding[];
   portfolioImprovementSuggestions: PortfolioImprovementSuggestion[];
   potentialActions: PortfolioPotentialAction[];

@@ -12,6 +12,7 @@ import type { RiskAnalyticsReport } from "@/application/services/risk/RiskAnalyt
 import type { NewsThemeIntelligence } from "@/domain/news/types";
 import type { MarketVisionReport } from "@/domain/marketVision/types";
 import type { MacroRegimeSnapshot } from "@/domain/macro/types";
+import type { PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 
 export const portfolioReviewWeights = {
   allocation: 0.15,
@@ -21,7 +22,8 @@ export const portfolioReviewWeights = {
   macroFit: 0.15,
   recommendationAlignment: 0.1,
   fixedIncome: 0.1,
-  themeExposure: 0.05
+  themeExposure: 0.05,
+  geography: 0
 } as const;
 
 export type PortfolioReviewInputContext = {
@@ -33,6 +35,7 @@ export type PortfolioReviewInputContext = {
   marketVisionReport: MarketVisionReport | null;
   macroRegime: MacroRegimeSnapshot | null;
   themeIntelligence: NewsThemeIntelligence | null;
+  lookthroughReport: PortfolioLookthroughReport | null;
 };
 
 export function clampScore(value: number) {
@@ -78,7 +81,12 @@ export function recommendationCandidate(
     assetClass: instrument.assetClass,
     recommendationLabel: recommendation.recommendationLabel,
     score: recommendation.overallScore,
-    reason
+    recommendationScore: recommendation.overallScore,
+    confidenceScore: recommendation.confidenceScore,
+    candidateType: instrument.assetClass,
+    reason,
+    whyThisCandidate: reason,
+    source: "recommendation_engine"
   };
 }
 

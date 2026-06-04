@@ -12,6 +12,7 @@ import type {
   PortfolioReviewReport,
   PortfolioReviewSection
 } from "@/domain/portfolioReview/types";
+import type { PortfolioLookthroughExposure, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 
 type PortfolioReviewPageProps = {
   searchParams?: Promise<{
@@ -179,21 +180,83 @@ function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggest
               <span className="rounded-md bg-muted px-2 py-1 text-xs">{suggestion.category.replaceAll("_", " ")}</span>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">{suggestion.rationale}</p>
+            {suggestion.expectedPortfolioBenefit || suggestion.potentialTradeOff ? (
+              <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+                {suggestion.expectedPortfolioBenefit ? (
+                  <div className="rounded-md bg-emerald-50 p-3 text-emerald-900">
+                    <p className="text-xs font-medium uppercase">Expected benefit</p>
+                    <p className="mt-1">{suggestion.expectedPortfolioBenefit}</p>
+                  </div>
+                ) : null}
+                {suggestion.potentialTradeOff ? (
+                  <div className="rounded-md bg-amber-50 p-3 text-amber-900">
+                    <p className="text-xs font-medium uppercase">Trade-off</p>
+                    <p className="mt-1">{suggestion.potentialTradeOff}</p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {suggestion.candidateInstruments.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-3 grid gap-2">
                 {suggestion.candidateInstruments.map((candidate) => (
                   <Link
                     key={`${suggestion.title}-${candidate.instrumentId}`}
                     href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
-                    className="rounded-md border px-2 py-1 text-xs hover:bg-muted"
+                    className="rounded-md border p-3 text-xs hover:bg-muted"
                   >
-                    {candidate.symbol} - {candidate.recommendationLabel} - {score(candidate.score)}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{candidate.symbol}</span>
+                      <span>{candidate.recommendationLabel}</span>
+                      <span>{score(candidate.recommendationScore ?? candidate.score)}</span>
+                      {candidate.confidenceScore != null ? <span>Conf {formatPercent(candidate.confidenceScore / 100)}</span> : null}
+                    </div>
+                    <p className="mt-1 text-muted-foreground">{candidate.whyThisCandidate ?? candidate.reason}</p>
+                    {candidate.expectedPortfolioBenefit ? <p className="mt-1">Benefit: {candidate.expectedPortfolioBenefit}</p> : null}
+                    {candidate.potentialTradeOff ? <p className="mt-1 text-muted-foreground">Trade-off: {candidate.potentialTradeOff}</p> : null}
                   </Link>
                 ))}
               </div>
             ) : null}
           </div>
         ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function lookthroughReport(report: PortfolioReviewReport): PortfolioLookthroughReport | null {
+  const value = report.inputsSnapshot.lookthroughExposure;
+  if (!value || typeof value !== "object") return null;
+  const typed = value as PortfolioLookthroughReport;
+  if (!Array.isArray(typed.sectorExposures)) return null;
+  return typed;
+}
+
+function ExposureTable({ title, description, rows }: { title: string; description: string; rows: PortfolioLookthroughExposure[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No look-through exposure available yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {rows.slice(0, 10).map((row) => (
+              <div key={`${row.exposureType}-${row.exposureName}`} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-md border p-3 text-sm">
+                <div>
+                  <p className="font-medium">{row.exposureName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Direct {formatPercent(row.directWeight)} · ETF look-through {formatPercent(row.etfLookthroughWeight)}
+                  </p>
+                </div>
+                <span className="font-medium">{formatPercent(row.exposureWeight)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -309,7 +372,23 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
             <SectionCard title="Recommendation Alignment Review" section={report.recommendationAlignmentReview} />
             <SectionCard title="Fixed Income Review" section={report.fixedIncomeReview} />
             <SectionCard title="Theme Exposure Review" section={report.themeExposureReview} />
+            <SectionCard title="Geography Review" section={report.geographyReview} />
           </div>
+
+          {lookthroughReport(report) ? (
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-xl font-semibold">ETF Look-Through Exposure</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Provider ETF allocations are used where cached; direct instrument taxonomy is used as fallback.</p>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ExposureTable title="Look-Through Sector Exposure" description="Actual sector exposure after decomposing equity ETFs." rows={lookthroughReport(report)?.sectorExposures ?? []} />
+                <ExposureTable title="Look-Through Country Exposure" description="Country exposure from ETF allocations and direct holdings." rows={lookthroughReport(report)?.countryExposures ?? []} />
+                <ExposureTable title="Look-Through Top Holdings" description="Direct holdings plus ETF top holdings exposure." rows={lookthroughReport(report)?.topHoldingExposures ?? []} />
+                <ExposureTable title="Look-Through Theme Exposure" description="Canonical themes derived from ETF sectors and instrument taxonomy." rows={lookthroughReport(report)?.themeExposures ?? []} />
+              </div>
+            </section>
+          ) : null}
 
           <Suggestions suggestions={report.portfolioImprovementSuggestions} />
           <Actions actions={report.potentialActions} />

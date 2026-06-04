@@ -7,11 +7,13 @@ import type { PortfolioService } from "@/application/services/PortfolioService";
 import type { BondService } from "@/application/services/bonds/BondService";
 import type { RiskAnalyticsDataService } from "@/application/services/risk/RiskAnalyticsDataService";
 import type { ThemeIntelligenceService } from "@/application/services/news/ThemeIntelligenceService";
+import type { PortfolioLookthroughExposureService } from "@/application/services/etfLookthrough/PortfolioLookthroughExposureService";
 import type { PortfolioReviewDashboard, PortfolioReviewReport, PortfolioReviewScoreComponent } from "@/domain/portfolioReview/types";
 import { AllocationReviewService } from "./AllocationReviewService";
 import { ConcentrationReviewService } from "./ConcentrationReviewService";
 import { DiversificationReviewService } from "./DiversificationReviewService";
 import { FixedIncomeReviewService } from "./FixedIncomeReviewService";
+import { GeographyReviewService } from "./GeographyReviewService";
 import { MacroFitReviewService } from "./MacroFitReviewService";
 import { PortfolioActionSuggestionService } from "./PortfolioActionSuggestionService";
 import { PortfolioImprovementSuggestionService } from "./PortfolioImprovementSuggestionService";
@@ -74,6 +76,7 @@ export class PortfolioReviewService {
     private readonly marketVisionRepository: MarketVisionRepository,
     private readonly macroIndicatorRepository: MacroIndicatorRepository,
     private readonly themeIntelligenceService: ThemeIntelligenceService,
+    private readonly portfolioLookthroughExposureService: PortfolioLookthroughExposureService,
     private readonly allocationReviewService = new AllocationReviewService(),
     private readonly concentrationReviewService = new ConcentrationReviewService(),
     private readonly diversificationReviewService = new DiversificationReviewService(),
@@ -82,6 +85,7 @@ export class PortfolioReviewService {
     private readonly recommendationAlignmentReviewService = new RecommendationAlignmentReviewService(),
     private readonly fixedIncomeReviewService = new FixedIncomeReviewService(),
     private readonly themeExposureReviewService = new ThemeExposureReviewService(),
+    private readonly geographyReviewService = new GeographyReviewService(),
     private readonly improvementSuggestionService = new PortfolioImprovementSuggestionService(),
     private readonly actionSuggestionService = new PortfolioActionSuggestionService()
   ) {}
@@ -108,6 +112,7 @@ export class PortfolioReviewService {
     const recommendationAlignmentReview = this.recommendationAlignmentReviewService.review(context);
     const fixedIncomeReview = this.fixedIncomeReviewService.review(context);
     const themeExposureReview = this.themeExposureReviewService.review(context);
+    const geographyReview = this.geographyReviewService.review(context);
     const components = [
       scoreComponent("allocation", "Allocation", allocationReview.score, allocationReview.summary),
       scoreComponent("concentration", "Concentration", concentrationReview.score, concentrationReview.summary),
@@ -116,7 +121,8 @@ export class PortfolioReviewService {
       scoreComponent("macroFit", "Macro Fit", macroFitReview.score, macroFitReview.summary),
       scoreComponent("recommendationAlignment", "Recommendation Alignment", recommendationAlignmentReview.score, recommendationAlignmentReview.summary),
       scoreComponent("fixedIncome", "Fixed Income", fixedIncomeReview.score, fixedIncomeReview.summary),
-      scoreComponent("themeExposure", "Theme Exposure", themeExposureReview.score, themeExposureReview.summary)
+      scoreComponent("themeExposure", "Theme Exposure", themeExposureReview.score, themeExposureReview.summary),
+      scoreComponent("geography", "Geography", geographyReview.score, geographyReview.summary)
     ];
     const overallScore = weightedPortfolioScore(components);
     const suggestions = this.improvementSuggestionService.build(context);
@@ -146,6 +152,7 @@ export class PortfolioReviewService {
       recommendationAlignmentReview,
       fixedIncomeReview,
       themeExposureReview,
+      geographyReview,
       watchAreas,
       portfolioImprovementSuggestions: suggestions,
       potentialActions,
@@ -167,7 +174,8 @@ export class PortfolioReviewService {
         recommendationCount: context.recommendations.length,
         marketVisionReportId: context.marketVisionReport?.id ?? null,
         macroRegimeId: context.macroRegime?.id ?? null,
-        topThemes: context.themeIntelligence?.topThemesThisWeek.slice(0, 8) ?? []
+        topThemes: context.themeIntelligence?.topThemesThisWeek.slice(0, 8) ?? [],
+        lookthroughExposure: context.lookthroughReport
       }
     });
   }
@@ -186,6 +194,7 @@ export class PortfolioReviewService {
     const periodStartDate = new Date(`${periodEnd}T00:00:00.000Z`);
     periodStartDate.setUTCDate(periodStartDate.getUTCDate() - 6);
     const themeIntelligence = await this.themeIntelligenceService.getThemeIntelligence(periodStartDate.toISOString().slice(0, 10), periodEnd);
+    const lookthroughReport = await this.portfolioLookthroughExposureService.calculateAndStore(portfolioId, dashboard, instruments);
     return {
       dashboard,
       riskReport,
@@ -194,7 +203,8 @@ export class PortfolioReviewService {
       instruments,
       marketVisionReport,
       macroRegime,
-      themeIntelligence
+      themeIntelligence,
+      lookthroughReport
     };
   }
 
