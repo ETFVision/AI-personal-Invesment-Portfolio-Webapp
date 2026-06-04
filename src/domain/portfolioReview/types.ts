@@ -42,6 +42,7 @@ export type PortfolioReviewCandidate = {
   confidenceScore?: number | null;
   relevanceScore?: number | null;
   diversificationBenefitScore?: number | null;
+  diversificationType?: string | null;
   whyThisCandidate?: string;
   expectedPortfolioBenefit?: string;
   potentialTradeOff?: string;

@@ -98,22 +98,62 @@ function pct(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function diversificationType(instrument: Instrument) {
+  const symbol = instrument.symbol?.toUpperCase() ?? "";
+  const sector = normalizedSector(instrument);
+  if (symbol === "BNDX") return "International fixed income";
+  if (["BND", "AGG"].includes(symbol)) return "Core US bond ballast";
+  if (["IEF", "SHY", "SGOV", "BIL"].includes(symbol)) return "Treasury ballast";
+  if (symbol === "TLT") return "Long-duration recession hedge";
+  if (["GLD", "IAU"].includes(symbol)) return "Gold / inflation hedge";
+  if (["VXUS", "VEA", "VWO", "IEMG"].includes(symbol)) return "International equity";
+  if (["VT", "ACWI"].includes(symbol)) return "Global equity";
+  if (sector === "healthcare") return "Healthcare sector";
+  if (sector === "utilities") return "Defensive utilities";
+  if (sector === "consumer staples") return "Defensive consumer staples";
+  if (instrument.assetClass === "bond_etf") return "Fixed income";
+  if (instrument.assetClass === "gold_etf") return "Hedge asset";
+  if (instrumentIsInternationalDiversifier(instrument)) return "Global diversification";
+  if (instrumentIsDefensiveDiversifier(instrument)) return "Defensive sector";
+  return "Diversifying exposure";
+}
+
 function candidateExplanation(instrument: Instrument, issueCategory: PortfolioImprovementIssueCategory, fallback: string, context: SuggestionContext) {
   const symbol = instrument.symbol ?? instrument.name;
+  const upperSymbol = instrument.symbol?.toUpperCase() ?? "";
   if (issueCategory === "insufficient_international_exposure") {
+    if (upperSymbol === "VEA") return `${symbol} adds developed-market non-US equity exposure to offset ${pct(context.usExposure)} US look-through exposure.`;
+    if (upperSymbol === "VWO" || upperSymbol === "IEMG") return `${symbol} adds emerging-market equity exposure, which diversifies geography and growth drivers away from the US.`;
+    if (upperSymbol === "VT" || upperSymbol === "ACWI") return `${symbol} adds global equity exposure, but should be checked for US overlap because current US exposure is ${pct(context.usExposure)}.`;
     return `${symbol} adds non-US/global exposure to offset ${pct(context.usExposure)} US look-through exposure.`;
   }
   if (issueCategory === "insufficient_defensive_exposure") {
     const sector = instrument.canonicalSector ?? instrument.sector ?? "defensive";
+    if (sector === "Healthcare") return `${symbol} adds Healthcare exposure where current Healthcare weight is ${pct(context.healthcareWeight)} versus Technology at ${pct(context.technologyWeight)}.`;
+    if (sector === "Utilities") return `${symbol} adds Utilities exposure, a defensive sector that can reduce dependence on technology-led market performance.`;
+    if (sector === "Consumer Staples") return `${symbol} adds Consumer Staples exposure, which can be more defensive in slower-growth environments.`;
     return `${symbol} adds ${sector} exposure where Healthcare/defensive exposure is modest versus Technology at ${pct(context.technologyWeight)}.`;
   }
   if (issueCategory === "sector_concentration" || issueCategory === "theme_concentration") {
+    if (upperSymbol === "BNDX") return `${symbol} adds international investment-grade bond exposure, diversifying both asset class and geography away from ${context.dominantSector ?? "the dominant sector"}.`;
+    if (["BND", "AGG"].includes(upperSymbol)) return `${symbol} adds core US aggregate bond exposure, diversifying away from equity sector concentration.`;
+    if (["GLD", "IAU"].includes(upperSymbol)) return `${symbol} adds gold exposure, which can diversify inflation and geopolitical risk away from equity sectors.`;
     return `${symbol} broadens away from ${context.dominantSector ?? "the dominant sector"}, currently ${pct(context.dominantSectorWeight)} of look-through sector exposure.`;
   }
   if (issueCategory === "concentration_risk") {
+    if (upperSymbol === "BNDX") return `${symbol} adds international investment-grade bonds. Compared with BND, it adds non-US fixed-income diversification rather than only US aggregate bond ballast.`;
+    if (["BND", "AGG"].includes(upperSymbol)) return `${symbol} adds core US aggregate bond ballast to reduce reliance on the largest equity and ETF look-through exposures.`;
+    if (upperSymbol === "IEF") return `${symbol} adds intermediate Treasury duration, which can help diversify equity risk without the long-duration sensitivity of TLT.`;
+    if (upperSymbol === "TLT") return `${symbol} adds long-duration Treasury exposure with stronger recession-hedge potential, but higher rate sensitivity.`;
+    if (["GLD", "IAU"].includes(upperSymbol)) return `${symbol} adds gold exposure, a hedge sleeve that can behave differently from equity and bond holdings.`;
+    if (["VXUS", "VEA", "VWO", "IEMG"].includes(upperSymbol)) return `${symbol} adds non-US equity exposure to reduce portfolio dependence on US-listed holdings.`;
     return `${symbol} can lower reliance on the current largest direct and ETF look-through exposures.`;
   }
   if (issueCategory === "insufficient_fixed_income") {
+    if (upperSymbol === "BNDX") return `${symbol} adds international investment-grade bond exposure, unlike BND which mainly adds US aggregate bond exposure.`;
+    if (["BND", "AGG"].includes(upperSymbol)) return `${symbol} adds core US aggregate bond ballast where current bond allocation is ${pct(context.bondAllocation)}.`;
+    if (upperSymbol === "IEF") return `${symbol} adds intermediate Treasury exposure for rate-sensitive defensive ballast.`;
+    if (upperSymbol === "TLT") return `${symbol} adds long-duration Treasury exposure, which is more defensive in recessions but more sensitive to interest rates.`;
     return `${symbol} adds fixed-income ballast where current bond allocation is ${pct(context.bondAllocation)}.`;
   }
   if (issueCategory === "insufficient_cash_like_exposure") {
@@ -141,6 +181,7 @@ function candidate(
   const candidateRelevanceScore = relevanceScore(fit);
   const diversificationBenefitScore = diversificationBenefit(instrument, issueCategory, context);
   const explanation = candidateExplanation(instrument, issueCategory, why, context);
+  const type = diversificationType(instrument);
   return {
     instrumentId: instrument.id,
     symbol: instrument.symbol,
@@ -152,6 +193,7 @@ function candidate(
     confidenceScore,
     relevanceScore: candidateRelevanceScore,
     diversificationBenefitScore,
+    diversificationType: type,
     candidateType: instrument.assetClass,
     reason: `${explanation} Relevance ${candidateRelevanceScore}/100; diversification benefit ${diversificationBenefitScore}/100.`,
     whyThisCandidate: `${explanation} Relevance ${candidateRelevanceScore}/100; diversification benefit ${diversificationBenefitScore}/100.`,

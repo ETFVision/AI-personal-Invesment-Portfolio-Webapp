@@ -13,6 +13,8 @@ import {
 import { formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
+import type { AllocationItem } from "@/domain/portfolio/types";
+import type { PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 
 type PortfolioPageProps = {
   searchParams?: Promise<{
@@ -24,6 +26,21 @@ type PortfolioPageProps = {
     refreshError?: string;
   }>;
 };
+
+function lookthroughReportFromSnapshot(value: unknown): PortfolioLookthroughReport | null {
+  if (!value || typeof value !== "object") return null;
+  const typed = value as PortfolioLookthroughReport;
+  if (!Array.isArray(typed.sectorExposures) || !Array.isArray(typed.countryExposures)) return null;
+  return typed;
+}
+
+function allocationFromLookthrough(rows: PortfolioLookthroughReport["sectorExposures"]): AllocationItem[] {
+  return rows.map((row) => ({
+    label: row.exposureName,
+    value: row.exposureWeight,
+    percent: row.exposureWeight
+  }));
+}
 
 export default async function PortfolioPage({ searchParams }: PortfolioPageProps) {
   const resolvedSearchParams = await searchParams;
@@ -44,6 +61,13 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
   const dashboard = await container.portfolioService.getDashboard(portfolio.id);
   const portfolioReviewDashboard = await container.portfolioReviewService.getDashboard(portfolio.id);
   const latestPortfolioReview = portfolioReviewDashboard.latestReport;
+  const lookthroughReport = lookthroughReportFromSnapshot(latestPortfolioReview?.inputsSnapshot?.lookthroughExposure);
+  const sectorAllocation = lookthroughReport?.sectorExposures.length
+    ? allocationFromLookthrough(lookthroughReport.sectorExposures)
+    : dashboard.allocationBySector;
+  const geographyAllocation = lookthroughReport?.countryExposures.length
+    ? allocationFromLookthrough(lookthroughReport.countryExposures)
+    : dashboard.allocationByGeography;
   const cashCurrencies = new Set(dashboard.cashBalances.map((cash) => cash.currency));
   const holdingCurrencies = new Set(dashboard.holdingValuations.map((valuation) => valuation.valueCurrency));
   const allCurrencies = new Set([...cashCurrencies, ...holdingCurrencies]);
@@ -259,19 +283,23 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         <Card>
           <CardHeader>
             <CardTitle>Sector allocation</CardTitle>
-            <CardDescription>Depends on asset metadata; unknown until enrichment is added.</CardDescription>
+            <CardDescription>
+              {lookthroughReport ? "ETF look-through sector exposure from the latest Portfolio Review." : "Direct sector metadata; run Portfolio Review for ETF look-through exposure."}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <AllocationDonutPanel title="Sector allocation" items={dashboard.allocationBySector} />
+            <AllocationDonutPanel title="Sector allocation" items={sectorAllocation} />
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle>Geography allocation</CardTitle>
-            <CardDescription>Uses region/country metadata when available.</CardDescription>
+            <CardDescription>
+              {lookthroughReport ? "ETF look-through country exposure from the latest Portfolio Review." : "Direct geography metadata; run Portfolio Review for ETF look-through exposure."}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <AllocationDonutPanel title="Geography allocation" items={dashboard.allocationByGeography} />
+            <AllocationDonutPanel title="Geography allocation" items={geographyAllocation} />
           </CardContent>
         </Card>
         <Card>
