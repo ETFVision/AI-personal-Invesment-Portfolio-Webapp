@@ -384,7 +384,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
 
     const { error } = await this.db.from("instruments").upsert(
       input.map((item) => omitUndefined({
-        id: item.id,
+        id: item.id || undefined,
         symbol: item.symbol,
         name: item.name,
         asset_class: item.assetClass,

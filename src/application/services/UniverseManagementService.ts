@@ -583,7 +583,7 @@ export class UniverseManagementService {
         ...profile,
         instrumentId: instrumentBySymbol.get(profile.symbol ?? "")?.id ?? profile.instrumentId,
         symbol: profile.symbol ?? null
-      }))
+      })).filter((profile) => Boolean(profile.instrumentId))
     );
 
     await this.repository.upsertCryptoProfiles(
@@ -591,7 +591,7 @@ export class UniverseManagementService {
         ...profile,
         instrumentId: instrumentBySymbol.get(profile.symbol ?? "")?.id ?? profile.instrumentId,
         symbol: profile.symbol ?? null
-      }))
+      })).filter((profile) => Boolean(profile.instrumentId))
     );
 
     return {
