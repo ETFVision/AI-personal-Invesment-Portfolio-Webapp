@@ -535,7 +535,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             <div key={log.id} className="rounded-md border p-3">
               <div className="font-medium">{log.periodStart ?? "-"} to {log.periodEnd ?? "-"} - {log.status}</div>
               <div className="text-muted-foreground">
-                {log.modelUsed ?? "No model"} - {log.promptVersion ?? "No prompt"} - {log.costEstimate == null ? "Cost not configured" : `$${log.costEstimate.toFixed(6)}`}
+                {log.modelUsed ?? "No model"} - {log.promptVersion ?? "No prompt"} - {log.status === "skipped" ? "No new AI call" : log.costEstimate == null ? "Cost not configured" : `$${log.costEstimate.toFixed(6)}`}
               </div>
               {log.errorMessage ? <div className="mt-1 text-destructive">{log.errorMessage}</div> : null}
             </div>
