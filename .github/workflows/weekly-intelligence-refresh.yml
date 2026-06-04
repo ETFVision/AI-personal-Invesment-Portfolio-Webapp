@@ -1,0 +1,34 @@
+name: Weekly Intelligence Refresh
+
+on:
+  schedule:
+    # Monday 8:00 AM Singapore time, GitHub Actions cron is UTC.
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: weekly-intelligence-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APP_URL: ${{ secrets.APP_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Check out workflow helper
+        uses: actions/checkout@v4
+
+      - name: Weekly news reconciliation
+        run: bash scripts/call-job-endpoint.sh /api/jobs/weekly-news-reconciliation
+
+      - name: Market Vision run
+        run: bash scripts/call-job-endpoint.sh /api/jobs/weekly-market-vision
+
+      - name: Recommendation run
+        run: bash scripts/call-job-endpoint.sh /api/jobs/recommendation-run
+
+      - name: Portfolio Review run
+        run: bash scripts/call-job-endpoint.sh /api/jobs/portfolio-review-run

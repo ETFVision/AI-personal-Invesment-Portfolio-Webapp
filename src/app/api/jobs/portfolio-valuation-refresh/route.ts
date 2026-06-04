@@ -5,24 +5,19 @@ import { runCronJob } from "@/server/jobs/runCronJob";
 
 export async function POST(request: NextRequest) {
   const portfolioId = request.nextUrl.searchParams.get("portfolioId") ?? env.SCHEDULED_PORTFOLIO_ID;
-  return runCronJob(request, { jobName: "portfolio-review-run", lockTtlSeconds: 25 * 60 }, async () => {
+  return runCronJob(request, { jobName: "portfolio-valuation-refresh", lockTtlSeconds: 20 * 60 }, async () => {
     if (!portfolioId) {
       return {
         status: "failed",
-        message: "portfolio-review-run requires SCHEDULED_PORTFOLIO_ID or portfolioId query parameter.",
+        message: "portfolio-valuation-refresh requires SCHEDULED_PORTFOLIO_ID or portfolioId query parameter.",
         errors: ["Missing portfolioId."]
       };
     }
-    const result = await createContainer().jobs.portfolioReviewRun.run({
-      portfolioId,
-      runType: "scheduled"
-    });
+    await createContainer().portfolioService.createAnalyticsSnapshot(portfolioId);
     return {
       status: "success",
-      runId: result.run.id,
-      reportId: result.report?.id ?? null,
-      overallPortfolioScore: result.report?.overallPortfolioScore ?? null,
-      run: result.run
+      message: "Portfolio valuation snapshot refreshed.",
+      portfolioId
     };
   });
 }

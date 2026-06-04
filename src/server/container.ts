@@ -19,6 +19,7 @@ import { InstrumentMarketService } from "@/application/services/InstrumentMarket
 import { InstrumentRiskService } from "@/application/services/InstrumentRiskService";
 import { InstrumentService } from "@/application/services/InstrumentService";
 import { PortfolioService } from "@/application/services/PortfolioService";
+import { JobRunService } from "@/application/services/JobRunService";
 import { MarketDataService } from "@/application/services/MarketDataService";
 import { NewsClassificationService } from "@/application/services/news/NewsClassificationService";
 import { NewsDashboardService } from "@/application/services/news/NewsDashboardService";
@@ -84,6 +85,7 @@ import { SupabaseFundamentalsRepository } from "@/infrastructure/repositories/su
 import { SupabaseRecommendationRepository } from "@/infrastructure/repositories/supabase/SupabaseRecommendationRepository";
 import { SupabasePortfolioReviewRepository } from "@/infrastructure/repositories/supabase/SupabasePortfolioReviewRepository";
 import { SupabaseEtfExposureRepository } from "@/infrastructure/repositories/supabase/SupabaseEtfExposureRepository";
+import { SupabaseJobRunRepository } from "@/infrastructure/repositories/supabase/SupabaseJobRunRepository";
 import { env } from "@/infrastructure/config/env";
 
 export function createContainer() {
@@ -102,6 +104,7 @@ export function createContainer() {
   const recommendationRepository = new SupabaseRecommendationRepository();
   const portfolioReviewRepository = new SupabasePortfolioReviewRepository();
   const etfExposureRepository = new SupabaseEtfExposureRepository();
+  const jobRunRepository = new SupabaseJobRunRepository();
   const marketDataProvider = new FmpMarketDataProvider();
   const assetMetadataProvider = new FmpAssetMetadataProvider();
   const newsProvider = new FmpNewsProvider();
@@ -113,6 +116,7 @@ export function createContainer() {
   const fundamentalsProvider = new FmpFundamentalsProvider();
   const etfExposureProvider = new FmpEtfExposureProvider();
   const marketDataService = new MarketDataService(marketDataRepository, marketDataProvider);
+  const jobRunService = new JobRunService(jobRunRepository);
   const benchmarkService = new BenchmarkService(benchmarkRepository, marketDataProvider);
   const benchmarkComparisonService = new BenchmarkComparisonService();
   const assetMetadataService = new AssetMetadataService(marketDataRepository, assetMetadataProvider);
@@ -290,6 +294,7 @@ export function createContainer() {
     riskAnalyticsRepository,
     universeRepository,
     marketDataProvider,
+    jobRunService,
     assetMetadataProvider,
     instrumentService,
     bondService,

@@ -1,0 +1,34 @@
+name: Monthly Slow Refresh
+
+on:
+  schedule:
+    # First day of month, 8:30 AM Singapore time.
+    - cron: "30 0 1 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: monthly-slow-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APP_URL: ${{ secrets.APP_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Check out workflow helper
+        uses: actions/checkout@v4
+
+      - name: Fundamentals refresh
+        run: bash scripts/call-job-endpoint.sh /api/jobs/fundamentals-refresh
+
+      - name: ETF look-through refresh
+        run: bash scripts/call-job-endpoint.sh /api/jobs/etf-lookthrough-refresh
+
+      - name: Benchmark refresh
+        run: bash scripts/call-job-endpoint.sh /api/jobs/benchmark-refresh
+
+      - name: Universe validation
+        run: bash scripts/call-job-endpoint.sh /api/jobs/universe-validation

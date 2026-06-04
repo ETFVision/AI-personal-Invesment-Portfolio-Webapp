@@ -1,17 +1,20 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createContainer } from "@/server/container";
-import { assertCronAuthorized } from "@/server/jobs/cronAuth";
+import { env } from "@/infrastructure/config/env";
+import { runCronJob } from "@/server/jobs/runCronJob";
 
 export async function POST(request: NextRequest) {
-  const unauthorized = assertCronAuthorized(request);
-  if (unauthorized) return unauthorized;
   const symbol = request.nextUrl.searchParams.get("symbol") ?? undefined;
-  const portfolioId = request.nextUrl.searchParams.get("portfolioId") ?? null;
+  const portfolioId = request.nextUrl.searchParams.get("portfolioId") ?? env.SCHEDULED_PORTFOLIO_ID ?? null;
   const runType = request.nextUrl.searchParams.get("runType") ?? "scheduled";
-  const result = await createContainer().jobs.recommendationRun.run({ symbol, portfolioId, runType });
-  return NextResponse.json({
-    run: result.run,
-    recommendationsCreated: result.recommendations.length
+  return runCronJob(request, { jobName: "recommendation-run", lockTtlSeconds: 25 * 60 }, async () => {
+    const result = await createContainer().jobs.recommendationRun.run({ symbol, portfolioId, runType });
+    return {
+      status: "success",
+      runId: result.run.id,
+      recommendationsCreated: result.recommendations.length,
+      run: result.run
+    };
   });
 }
 

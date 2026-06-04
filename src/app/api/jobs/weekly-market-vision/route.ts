@@ -1,12 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createContainer } from "@/server/container";
-import { assertCronAuthorized } from "@/server/jobs/cronAuth";
+import { runCronJob } from "@/server/jobs/runCronJob";
 
 export async function POST(request: NextRequest) {
-  const unauthorized = assertCronAuthorized(request);
-  if (unauthorized) return unauthorized;
-  const result = await createContainer().jobs.weeklyMarketVision.run();
-  return NextResponse.json(result);
+  return runCronJob(request, { jobName: "market-vision-run" }, () => createContainer().jobs.weeklyMarketVision.run());
 }
 
 export async function GET(request: NextRequest) {

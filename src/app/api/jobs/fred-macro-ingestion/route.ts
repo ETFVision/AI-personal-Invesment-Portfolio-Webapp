@@ -1,13 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createContainer } from "@/server/container";
-import { assertCronAuthorized } from "@/server/jobs/cronAuth";
+import { runCronJob } from "@/server/jobs/runCronJob";
 
 export async function POST(request: NextRequest) {
-  const unauthorized = assertCronAuthorized(request);
-  if (unauthorized) return unauthorized;
   const backfill = request.nextUrl.searchParams.get("backfill") === "true";
-  const result = await createContainer().jobs.fredMacroIngestion.run({ backfill });
-  return NextResponse.json(result);
+  return runCronJob(request, { jobName: "fred-refresh" }, () => createContainer().jobs.fredMacroIngestion.run({ backfill }));
 }
 
 export async function GET(request: NextRequest) {

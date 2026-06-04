@@ -1,0 +1,37 @@
+name: Daily Data Refresh
+
+on:
+  schedule:
+    # 6:30 AM Singapore time, GitHub Actions cron is UTC.
+    - cron: "30 22 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: daily-data-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      APP_URL: ${{ secrets.APP_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Check out workflow helper
+        uses: actions/checkout@v4
+
+      - name: Price refresh
+        run: bash scripts/call-job-endpoint.sh /api/jobs/price-refresh
+
+      - name: Portfolio valuation refresh
+        run: bash scripts/call-job-endpoint.sh /api/jobs/portfolio-valuation-refresh
+
+      - name: FRED macro refresh
+        run: bash scripts/call-job-endpoint.sh /api/jobs/fred-macro-ingestion
+
+      - name: FMP news refresh and classification
+        run: bash scripts/call-job-endpoint.sh /api/jobs/daily-news-ingestion
+
+      - name: NewsData.io refresh
+        run: bash scripts/call-job-endpoint.sh /api/jobs/newsdata-news-ingestion
