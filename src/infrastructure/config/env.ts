@@ -37,7 +37,7 @@ const envSchema = z.object({
   NEWSDATA_MAX_QUERY_GROUPS: z.coerce.number().int().positive().default(8),
   NEWSDATA_MAX_ARTICLES_PER_QUERY: z.coerce.number().int().positive().default(10),
   NEWSDATA_MAX_ARTICLES_PER_DAY: z.coerce.number().int().positive().default(80),
-  NEWSDATA_RUN_FREQUENCY_DAYS: z.coerce.number().int().positive().default(3),
+  NEWSDATA_RUN_FREQUENCY_DAYS: z.coerce.number().int().positive().default(1),
   NEWSDATA_MIN_SECONDS_BETWEEN_REQUESTS: z.coerce.number().int().nonnegative().default(5),
   ENABLE_AI_NEWS_CLASSIFICATION: envBoolean.default(false),
   ENABLE_WEEKLY_NEWS_RECONCILIATION: envBoolean.default(false),

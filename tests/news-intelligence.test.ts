@@ -1821,6 +1821,63 @@ test("NewsData ingestion stores normalized news, classifications, metadata, and 
   assert.equal(newsRepository.logs.some((log) => log.jobName === "newsdata-news-ingestion"), true);
 });
 
+test("NewsData manual force runs groups that have not succeeded today even when queue date is future", async () => {
+  const newsRepository = new UpsertingFakeNewsRepository();
+  const newsDataRepository = new FakeNewsDataRepository();
+  const futureQueueDate = "2099-01-01T00:00:00.000Z";
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  newsDataRepository.groups = [
+    gdeltQueryGroup({
+      id: "newsdata-currency",
+      queryKey: "currency_usd",
+      queryName: "Currency / USD",
+      canonicalTheme: "Currency",
+      category: "currency",
+      nextRunAt: futureQueueDate,
+      lastSuccessAt: yesterday
+    }) as NewsDataQueryGroup
+  ];
+  const article = new NewsDataNormalizationService().normalize({
+    article_id: "article-force-1",
+    title: "US dollar weakens as currency markets await Fed decision",
+    description: "The dollar index edged lower before policy comments.",
+    link: "https://example.com/dollar-force",
+    pubDate: "2026-06-03 08:30:00",
+    source_name: "Example News",
+    language: "english",
+    country: ["US"],
+    category: ["business"]
+  }, newsDataRepository.groups[0] as NewsDataQueryGroup);
+  const service = new NewsDataIngestionService(
+    newsRepository,
+    newsDataRepository,
+    new FakeNewsDataProvider([article as NewsDataProviderArticle]),
+    undefined,
+    undefined,
+    undefined,
+    {
+      enabled: true,
+      maxQueryGroups: 1,
+      maxArticlesPerQuery: 10,
+      maxArticlesPerDay: 20,
+      runFrequencyDays: 3,
+      minSecondsBetweenRequests: 0,
+      rateLimitBackoffMinutes: 1440,
+      failureBackoffMinutes: 120
+    }
+  );
+
+  const forcedResult = await service.ingestNewsData({ force: true });
+  assert.equal(forcedResult.skipped, false);
+  assert.equal(forcedResult.articlesFetched, 1);
+  assert.equal(forcedResult.articlesInserted, 1);
+  assert.equal(newsRepository.logs[0]?.metadata.manualForce, true);
+
+  const secondForcedResult = await service.ingestNewsData({ force: true });
+  assert.equal(secondForcedResult.skipped, true);
+  assert.equal(secondForcedResult.skippedReason, "already_refreshed_today");
+});
+
 test("NewsData ingestion logs partial success when a later query group fails", async () => {
   const newsRepository = new UpsertingFakeNewsRepository();
   const newsDataRepository = new FakeNewsDataRepository();

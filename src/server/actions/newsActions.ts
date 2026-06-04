@@ -48,9 +48,11 @@ export async function runNewsDataNewsIngestionAction() {
   await container.authProvider.requireUser();
   let target = "/news?error=NewsData%20ingestion%20failed.";
   try {
-    const result = await container.jobs.newsDataNewsIngestion.run();
+    const result = await container.jobs.newsDataNewsIngestion.run({ force: true });
     const suffix = result.skipped
-      ? result.skippedReason === "not_due"
+      ? result.skippedReason === "already_refreshed_today"
+        ? "All NewsData query groups already refreshed successfully today."
+        : result.skippedReason === "not_due"
         ? "No NewsData query group is due yet. The next scheduled batch will run later."
         : "NewsData ingestion is disabled. Set ENABLE_NEWSDATA_INGESTION=true, add NEWSDATA_API_KEY, and redeploy/restart."
       : `NewsData queued batch fetched ${result.articlesFetched}, saved ${result.articlesInserted}, filtered ${result.articlesFiltered}, duplicates ${result.duplicatesDetected}, failed query groups ${result.failedQueryGroups}${result.rateLimitHit ? ". Rate limit or quota hit; this group was backed off automatically." : "."}`;

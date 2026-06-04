@@ -5,7 +5,8 @@ import { assertCronAuthorized } from "@/server/jobs/cronAuth";
 export async function POST(request: NextRequest) {
   const unauthorized = assertCronAuthorized(request);
   if (unauthorized) return unauthorized;
-  const result = await createContainer().jobs.newsDataNewsIngestion.run();
+  const force = request.nextUrl.searchParams.get("force") === "true";
+  const result = await createContainer().jobs.newsDataNewsIngestion.run({ force });
   return NextResponse.json(result);
 }
 

@@ -20,6 +20,23 @@ function daysFromNow(days: number, now = new Date()) {
   return new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+function dateOnly(value: string | null | undefined) {
+  return value ? value.slice(0, 10) : null;
+}
+
+function singaporeDateKey(value: Date) {
+  return new Date(value.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function nextSingaporeSixAm(now = new Date()) {
+  const singaporeNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const year = singaporeNow.getUTCFullYear();
+  const month = singaporeNow.getUTCMonth();
+  const day = singaporeNow.getUTCDate();
+  const nextSixAmSingaporeAsUtc = Date.UTC(year, month, day + 1, 6 - 8, 0, 0, 0);
+  return new Date(nextSixAmSingaporeAsUtc).toISOString();
+}
+
 function sourceKey(input: { sourceProvider: string; sourceId: string | null; url: string | null; title: string; publishedAt: string | null; contentHash: string }) {
   const sourceId = input.sourceId?.trim() || input.url?.trim() || hashText(`${input.title}|${input.publishedAt ?? ""}|${input.contentHash}`);
   return `${input.sourceProvider}|${sourceId}`;
@@ -46,7 +63,7 @@ export class NewsDataIngestionService {
     private readonly sourceQualityService = new SourceQualityService()
   ) {}
 
-  async ingestNewsData(_input: { force?: boolean } = {}) {
+  async ingestNewsData(input: { force?: boolean } = {}) {
     const startedAt = new Date().toISOString();
     let queryGroupsRequested = 0;
     let articlesFetched = 0;
@@ -74,12 +91,25 @@ export class NewsDataIngestionService {
     }
 
     try {
-      const groups = await this.newsDataRepository.listDueQueryGroups({
-        now: startedAt,
-        limit: this.config.maxQueryGroups
-      });
+      const groups = input.force
+        ? (await this.newsDataRepository.listActiveQueryGroups())
+          .filter((group) => !group.lastSuccessAt || singaporeDateKey(new Date(group.lastSuccessAt)) !== singaporeDateKey(new Date(startedAt)))
+          .sort((a, b) => {
+            const aNeverSucceeded = a.lastSuccessAt ? 1 : 0;
+            const bNeverSucceeded = b.lastSuccessAt ? 1 : 0;
+            if (aNeverSucceeded !== bNeverSucceeded) return aNeverSucceeded - bNeverSucceeded;
+            return (a.lastAttemptedAt ?? "").localeCompare(b.lastAttemptedAt ?? "") || a.queryKey.localeCompare(b.queryKey);
+          })
+          .slice(0, this.config.maxQueryGroups)
+        : await this.newsDataRepository.listDueQueryGroups({
+          now: startedAt,
+          limit: this.config.maxQueryGroups
+        });
       queryGroupsRequested = groups.length;
       if (groups.length === 0) {
+        const reason = input.force
+          ? "All active NewsData query groups already succeeded today."
+          : "No NewsData query groups are due yet.";
         await this.newsRepository.insertIngestionLog({
           jobName: "newsdata-news-ingestion",
           sourceProvider: this.provider.name,
@@ -91,9 +121,20 @@ export class NewsDataIngestionService {
           articlesInserted: 0,
           duplicatesDetected: 0,
           errorMessage: null,
-          metadata: { skipped: true, reason: "No NewsData query groups are due yet." }
+          metadata: { skipped: true, reason, manualForce: Boolean(input.force) }
         });
-        return { status: "success" as const, queryGroupsRequested: 0, articlesFetched: 0, articlesInserted: 0, duplicatesDetected: 0, articlesFiltered: 0, failedQueryGroups: 0, rateLimitHit: false, skipped: true, skippedReason: "not_due" };
+        return {
+          status: "success" as const,
+          queryGroupsRequested: 0,
+          articlesFetched: 0,
+          articlesInserted: 0,
+          duplicatesDetected: 0,
+          articlesFiltered: 0,
+          failedQueryGroups: 0,
+          rateLimitHit: false,
+          skipped: true,
+          skippedReason: input.force ? "already_refreshed_today" : "not_due"
+        };
       }
 
       const rows = [];
@@ -229,7 +270,7 @@ export class NewsDataIngestionService {
             id: group.id,
             lastAttemptedAt: groupStartedAt,
             lastSuccessAt: new Date().toISOString(),
-            nextRunAt: daysFromNow(this.config.runFrequencyDays, new Date(groupStartedAt)),
+            nextRunAt: nextSingaporeSixAm(new Date(groupStartedAt)),
             failureCount: 0,
             lastError: null
           });
@@ -309,8 +350,10 @@ export class NewsDataIngestionService {
           articlesFiltered,
           rateLimitHit,
           maxQueryGroupsPerRun: this.config.maxQueryGroups,
-          runFrequencyDays: this.config.runFrequencyDays,
-          queueMode: true
+          runFrequencyDays: 1,
+          nextQueueAnchor: "06:00 Asia/Singapore",
+          queueMode: true,
+          manualForce: Boolean(input.force)
         }
       });
 
@@ -334,4 +377,4 @@ export class NewsDataIngestionService {
   }
 }
 
-export const newsDataIngestionInternals = { daysFromNow, minutesFromNow };
+export const newsDataIngestionInternals = { daysFromNow, minutesFromNow, dateOnly, nextSingaporeSixAm, singaporeDateKey };
