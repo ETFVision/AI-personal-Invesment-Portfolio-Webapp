@@ -17,9 +17,38 @@ function normalizeWeight(value: number) {
   return value > 1 ? value / 100 : value;
 }
 
-function add(map: Map<string, ExposureAccumulator>, name: string | null | undefined, totalWeight: number, source: "direct" | "etf") {
+function canonicalCountryName(name: string | null | undefined) {
+  const normalized = name?.trim();
+  if (!normalized) return normalized;
+  const key = normalized.toLowerCase();
+  if (["us", "usa", "u.s.", "u.s.a.", "united states of america", "united states"].includes(key)) return "United States";
+  if (["uk", "u.k.", "great britain", "britain"].includes(key)) return "United Kingdom";
+  return normalized;
+}
+
+function canonicalExposureName(exposureType: PortfolioLookthroughExposure["exposureType"], name: string | null | undefined) {
+  if (exposureType === "country") return canonicalCountryName(name);
+  return name?.trim();
+}
+
+function normalizedDistribution<T>(items: T[], weightOf: (item: T) => number) {
+  const weighted = items
+    .map((item) => ({ item, weight: normalizeWeight(weightOf(item)) }))
+    .filter(({ weight }) => Number.isFinite(weight) && weight > 0);
+  const total = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  if (total <= 0) return [];
+  return weighted.map(({ item, weight }) => ({ item, weight: weight / total }));
+}
+
+function add(
+  map: Map<string, ExposureAccumulator>,
+  name: string | null | undefined,
+  totalWeight: number,
+  source: "direct" | "etf",
+  exposureType: PortfolioLookthroughExposure["exposureType"]
+) {
   if (!name || !Number.isFinite(totalWeight) || totalWeight <= 0) return;
-  const key = name.trim();
+  const key = canonicalExposureName(exposureType, name);
   if (!key) return;
   const current = map.get(key) ?? { exposureWeight: 0, directWeight: 0, etfLookthroughWeight: 0 };
   current.exposureWeight += totalWeight;
@@ -99,15 +128,15 @@ export class PortfolioLookthroughExposureService {
       const instrument = symbol ? instrumentBySymbol.get(symbol) : undefined;
       const portfolioWeight = dashboard.totalValueEstimate > 0 ? valuation.value / dashboard.totalValueEstimate : 0;
       if (!instrument || portfolioWeight <= 0) {
-        add(sectors, valuation.holding.sector ?? valuation.holding.assetType, portfolioWeight, "direct");
-        add(countries, valuation.holding.country ?? valuation.holding.region, portfolioWeight, "direct");
-        add(currencies, valuation.valueCurrency, portfolioWeight, "direct");
-        add(topHoldings, symbol ?? valuation.holding.assetName, portfolioWeight, "direct");
+        add(sectors, valuation.holding.sector ?? valuation.holding.assetType, portfolioWeight, "direct", "sector");
+        add(countries, valuation.holding.country ?? valuation.holding.region, portfolioWeight, "direct", "country");
+        add(currencies, valuation.valueCurrency, portfolioWeight, "direct", "currency");
+        add(topHoldings, symbol ?? valuation.holding.assetName, portfolioWeight, "direct", "top_holding");
         fallbackWeight += portfolioWeight;
         continue;
       }
 
-      add(currencies, instrument.currency ?? valuation.valueCurrency, portfolioWeight, "direct");
+      add(currencies, instrument.currency ?? valuation.valueCurrency, portfolioWeight, "direct", "currency");
       const shouldLookthrough = hasEquityLookthrough(instrument);
       if (shouldLookthrough) {
         etfCount += 1;
@@ -119,39 +148,39 @@ export class PortfolioLookthroughExposureService {
         if (etfSectors.length) {
           etfsWithSectorExposure += 1;
           lookthroughWeight += portfolioWeight;
-          for (const exposure of etfSectors) add(sectors, exposure.sector, portfolioWeight * normalizeWeight(exposure.exposureWeight), "etf");
+          for (const exposure of normalizedDistribution(etfSectors, (item) => item.exposureWeight)) add(sectors, exposure.item.sector, portfolioWeight * exposure.weight, "etf", "sector");
         } else {
-          add(sectors, instrumentSector(instrument, valuation.holding.sector), portfolioWeight, "direct");
+          add(sectors, instrumentSector(instrument, valuation.holding.sector), portfolioWeight, "direct", "sector");
           fallbackWeight += portfolioWeight;
           diagnostics.push(`${instrument.symbol ?? instrument.name} has no cached sector look-through exposure.`);
         }
 
         if (etfCountries.length) {
           etfsWithCountryExposure += 1;
-          for (const exposure of etfCountries) add(countries, exposure.country, portfolioWeight * normalizeWeight(exposure.exposureWeight), "etf");
+          for (const exposure of normalizedDistribution(etfCountries, (item) => item.exposureWeight)) add(countries, exposure.item.country, portfolioWeight * exposure.weight, "etf", "country");
         } else {
-          add(countries, instrumentCountry(instrument, valuation.holding.country), portfolioWeight, "direct");
+          add(countries, instrumentCountry(instrument, valuation.holding.country), portfolioWeight, "direct", "country");
         }
 
         if (etfThemes.length) {
-          for (const exposure of etfThemes) add(themes, exposure.theme, portfolioWeight * normalizeWeight(exposure.exposureWeight), "etf");
+          for (const exposure of etfThemes) add(themes, exposure.theme, portfolioWeight * normalizeWeight(exposure.exposureWeight), "etf", "theme");
         } else {
-          for (const theme of instrument.canonicalThemes) add(themes, theme, portfolioWeight, "direct");
+          for (const theme of instrument.canonicalThemes) add(themes, theme, portfolioWeight, "direct", "theme");
         }
 
         if (etfHoldings.length) {
           etfsWithTopHoldings += 1;
-          for (const holding of etfHoldings) add(topHoldings, holding.holdingSymbol, portfolioWeight * normalizeWeight(holding.holdingWeight), "etf");
+          for (const holding of etfHoldings) add(topHoldings, holding.holdingSymbol, portfolioWeight * normalizeWeight(holding.holdingWeight), "etf", "top_holding");
         } else {
-          add(topHoldings, instrument.symbol ?? instrument.name, portfolioWeight, "direct");
+          add(topHoldings, instrument.symbol ?? instrument.name, portfolioWeight, "direct", "top_holding");
         }
         continue;
       }
 
-      add(sectors, instrumentSector(instrument, valuation.holding.sector), portfolioWeight, "direct");
-      add(countries, instrumentCountry(instrument, valuation.holding.country), portfolioWeight, "direct");
-      for (const theme of instrument.canonicalThemes) add(themes, theme, portfolioWeight, "direct");
-      add(topHoldings, instrument.symbol ?? instrument.name, portfolioWeight, "direct");
+      add(sectors, instrumentSector(instrument, valuation.holding.sector), portfolioWeight, "direct", "sector");
+      add(countries, instrumentCountry(instrument, valuation.holding.country), portfolioWeight, "direct", "country");
+      for (const theme of instrument.canonicalThemes) add(themes, theme, portfolioWeight, "direct", "theme");
+      add(topHoldings, instrument.symbol ?? instrument.name, portfolioWeight, "direct", "top_holding");
     }
 
     const report: PortfolioLookthroughReport = {

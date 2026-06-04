@@ -267,9 +267,14 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
   ]));
 
   const technology = report.sectorExposures.find((item) => item.exposureName === "Technology");
+  const unitedStates = report.countryExposures.find((item) => item.exposureName === "United States");
+  const duplicateUs = report.countryExposures.find((item) => item.exposureName === "US");
   const msft = report.topHoldingExposures.find((item) => item.exposureName === "MSFT");
   assert.ok(technology);
-  assert.ok(Math.abs(technology.exposureWeight - 0.675) < 0.000001);
+  assert.ok(Math.abs(technology.exposureWeight - 0.85) < 0.000001);
+  assert.ok(unitedStates);
+  assert.equal(duplicateUs, undefined);
+  assert.ok(Math.abs(unitedStates.exposureWeight - 1) < 0.000001);
   assert.ok(msft);
   assert.ok(Math.abs(msft.exposureWeight - 0.535) < 0.000001);
   assert.ok(stored.length > 0);

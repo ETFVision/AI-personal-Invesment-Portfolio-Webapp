@@ -80,6 +80,29 @@ function metricValue(key: string, value: unknown): string {
   if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? "" : "s"}`;
   if (typeof value === "object") {
     const objectValue = value as Record<string, unknown>;
+    const exposureName = typeof objectValue.exposureName === "string" ? objectValue.exposureName : null;
+    const exposureWeight = typeof objectValue.exposureWeight === "number" ? objectValue.exposureWeight : null;
+    const directWeight = typeof objectValue.directWeight === "number" ? objectValue.directWeight : null;
+    const etfLookthroughWeight = typeof objectValue.etfLookthroughWeight === "number" ? objectValue.etfLookthroughWeight : null;
+    if (exposureName && exposureWeight != null) {
+      const detail = directWeight != null || etfLookthroughWeight != null
+        ? `, direct ${formatPercent(normalizeDisplayRatio(directWeight ?? 0))}, ETF ${formatPercent(normalizeDisplayRatio(etfLookthroughWeight ?? 0))}`
+        : "";
+      return `${exposureName} - ${formatPercent(normalizeDisplayRatio(exposureWeight))}${detail}`;
+    }
+    const coverageKeys = ["etfCount", "etfsWithSectorExposure", "etfsWithCountryExposure", "etfsWithTopHoldings", "lookthroughWeight", "fallbackWeight"];
+    if (coverageKeys.some((coverageKey) => coverageKey in objectValue)) {
+      const etfCount = typeof objectValue.etfCount === "number" ? objectValue.etfCount : 0;
+      const sectorCount = typeof objectValue.etfsWithSectorExposure === "number" ? objectValue.etfsWithSectorExposure : 0;
+      const countryCount = typeof objectValue.etfsWithCountryExposure === "number" ? objectValue.etfsWithCountryExposure : 0;
+      const topHoldingCount = typeof objectValue.etfsWithTopHoldings === "number" ? objectValue.etfsWithTopHoldings : 0;
+      const lookthroughWeight = typeof objectValue.lookthroughWeight === "number" ? objectValue.lookthroughWeight : null;
+      const fallbackWeight = typeof objectValue.fallbackWeight === "number" ? objectValue.fallbackWeight : null;
+      const weights = lookthroughWeight != null || fallbackWeight != null
+        ? `, look-through ${formatPercent(normalizeDisplayRatio(lookthroughWeight ?? 0))}, fallback ${formatPercent(normalizeDisplayRatio(fallbackWeight ?? 0))}`
+        : "";
+      return `${sectorCount}/${etfCount} sector, ${countryCount}/${etfCount} country, ${topHoldingCount}/${etfCount} holdings${weights}`;
+    }
     const label = typeof objectValue.label === "string" ? objectValue.label : null;
     const percent = typeof objectValue.percent === "number" ? objectValue.percent : null;
     const itemValue = typeof objectValue.value === "number" ? objectValue.value : null;
@@ -262,18 +285,22 @@ function lookthroughReport(report: PortfolioReviewReport): PortfolioLookthroughR
 }
 
 function ExposureTable({ title, description, rows }: { title: string; description: string; rows: PortfolioLookthroughExposure[] }) {
+  const totalExposure = rows.reduce((sum, row) => sum + row.exposureWeight, 0);
+  const shownRows = rows.slice(0, 10);
   return (
     <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+        <CardDescription>
+          {description} {rows.length > 0 ? `Total across ${rows.length} rows: ${formatPercent(totalExposure)}.` : ""}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
           <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No look-through exposure available yet.</p>
         ) : (
           <div className="space-y-2">
-            {rows.slice(0, 10).map((row) => (
+            {shownRows.map((row) => (
               <div key={`${row.exposureType}-${row.exposureName}`} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-md border p-3 text-sm">
                 <div>
                   <p className="font-medium">{row.exposureName}</p>
@@ -284,6 +311,11 @@ function ExposureTable({ title, description, rows }: { title: string; descriptio
                 <span className="font-medium">{formatPercent(row.exposureWeight)}</span>
               </div>
             ))}
+            {rows.length > shownRows.length ? (
+              <p className="text-xs text-muted-foreground">
+                Showing top {shownRows.length}; remaining rows total {formatPercent(rows.slice(shownRows.length).reduce((sum, row) => sum + row.exposureWeight, 0))}.
+              </p>
+            ) : null}
           </div>
         )}
       </CardContent>
