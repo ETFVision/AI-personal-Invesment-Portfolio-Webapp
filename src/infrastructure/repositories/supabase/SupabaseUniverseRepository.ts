@@ -285,6 +285,15 @@ function omitUndefined<T extends Record<string, unknown>>(value: T) {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
 }
 
+function uuidOrUndefined(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function uuidOrNull(value: string | null | undefined) {
+  return uuidOrUndefined(value) ?? null;
+}
+
 const SUPABASE_PAGE_SIZE = 1000;
 
 export class SupabaseUniverseRepository implements UniverseRepository {
@@ -384,7 +393,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
 
     const { error } = await this.db.from("instruments").upsert(
       input.map((item) => omitUndefined({
-        id: item.id || undefined,
+        id: uuidOrUndefined(item.id),
         symbol: item.symbol,
         name: item.name,
         asset_class: item.assetClass,
@@ -430,7 +439,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
 
     const { error } = await this.db.from("instrument_prices").upsert(
       input.map((item) => ({
-        instrument_id: item.instrumentId,
+        instrument_id: uuidOrUndefined(item.instrumentId),
         provider: item.provider,
         symbol: item.symbol,
         price_date: item.priceDate,
@@ -495,7 +504,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
 
     const { error } = await this.db.from("instrument_risk_metrics").upsert(
       input.map((item) => ({
-        instrument_id: item.instrumentId,
+        instrument_id: uuidOrUndefined(item.instrumentId),
         metric_date: item.metricDate,
         volatility_30d: item.volatility30d,
         volatility_90d: item.volatility90d,
@@ -592,7 +601,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
 
       const { error: sectorError } = await this.db.from("instrument_sector_mappings").upsert(
         {
-          instrument_id: item.instrumentId,
+          instrument_id: uuidOrUndefined(item.instrumentId),
           source_provider: item.sourceProvider,
           raw_value: item.rawSector,
           canonical_value: item.canonicalSector,
@@ -615,7 +624,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
       if (item.canonicalThemes.length > 0) {
         const { error: themeError } = await this.db.from("instrument_theme_mappings").insert(
           item.canonicalThemes.map((theme) => ({
-            instrument_id: item.instrumentId,
+            instrument_id: uuidOrUndefined(item.instrumentId),
             source_provider: item.sourceProvider,
             raw_value: item.rawIndustry ?? item.rawSector,
             canonical_value: theme,
@@ -630,26 +639,26 @@ export class SupabaseUniverseRepository implements UniverseRepository {
   }
 
   async setInstrumentActive(instrumentId: string, isActive: boolean) {
-    const { error } = await this.db.from("instruments").update({ is_active: isActive }).eq("id", instrumentId);
+    const { error } = await this.db.from("instruments").update({ is_active: isActive }).eq("id", uuidOrUndefined(instrumentId));
     if (isMissingUniverseTable(error)) return;
     if (error) throw new Error(error.message);
   }
 
   async updateInstrumentTags(input: Array<{ instrumentId: string; benchmarkTags: string[]; thematicTags: string[] }>) {
-    for (const item of input) {
+    for (const item of input.filter((row) => Boolean(uuidOrUndefined(row.instrumentId)))) {
       const { error } = await this.db
         .from("instruments")
         .update({ benchmark_tags: item.benchmarkTags, thematic_tags: item.thematicTags })
-        .eq("id", item.instrumentId);
+        .eq("id", uuidOrUndefined(item.instrumentId));
       if (isMissingUniverseTable(error)) return;
       if (error) throw new Error(error.message);
 
       const tagRows = [
-        ...item.benchmarkTags.map((tag) => ({ instrument_id: item.instrumentId, tag, tag_type: "benchmark", source: "human", is_active: true })),
-        ...item.thematicTags.map((tag) => ({ instrument_id: item.instrumentId, tag, tag_type: "thematic", source: "human", is_active: true }))
+        ...item.benchmarkTags.map((tag) => ({ instrument_id: uuidOrUndefined(item.instrumentId), tag, tag_type: "benchmark", source: "human", is_active: true })),
+        ...item.thematicTags.map((tag) => ({ instrument_id: uuidOrUndefined(item.instrumentId), tag, tag_type: "thematic", source: "human", is_active: true }))
       ];
 
-      const { error: deleteError } = await this.db.from("instrument_tags").delete().eq("instrument_id", item.instrumentId);
+      const { error: deleteError } = await this.db.from("instrument_tags").delete().eq("instrument_id", uuidOrUndefined(item.instrumentId));
       if (isMissingUniverseTable(deleteError)) return;
       if (deleteError) throw new Error(deleteError.message);
 
@@ -745,7 +754,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
 
     const { error } = await this.db.from("watchlists").upsert(
       input.map((item) => omitUndefined({
-        id: item.id,
+        id: uuidOrUndefined(item.id),
         watchlist_key: item.watchlistKey,
         name: item.name,
         watchlist_tier: item.watchlistTier,
@@ -800,9 +809,9 @@ export class SupabaseUniverseRepository implements UniverseRepository {
 
     const { error } = await this.db.from("watchlist_items").upsert(
       input.map((item) => omitUndefined({
-        id: item.id,
-        watchlist_id: item.watchlistId,
-        instrument_id: item.instrumentId,
+        id: uuidOrUndefined(item.id),
+        watchlist_id: uuidOrUndefined(item.watchlistId),
+        instrument_id: uuidOrUndefined(item.instrumentId),
         item_rank: item.itemRank,
         rationale: item.rationale,
         approval_status: item.approvalStatus,
@@ -832,7 +841,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
 
     const { error } = await this.db.from("bond_profiles").upsert(
       input.map((item) => ({
-        instrument_id: item.instrumentId,
+        instrument_id: uuidOrUndefined(item.instrumentId),
         duration_category: item.durationCategory,
         treasury_classification: item.treasuryClassification,
         inflation_linked: item.inflationLinked,
@@ -879,11 +888,11 @@ export class SupabaseUniverseRepository implements UniverseRepository {
 
     const { error } = await this.db.from("benchmark_profiles").upsert(
       input.map((item) => omitUndefined({
-        id: item.id,
+        id: uuidOrUndefined(item.id),
         benchmark_key: item.benchmarkKey,
         benchmark_name: item.benchmarkName,
         benchmark_type: item.benchmarkType,
-        instrument_id: item.instrumentId,
+        instrument_id: uuidOrNull(item.instrumentId),
         instrument_symbol: item.instrumentSymbol,
         provider_symbol: item.providerSymbol,
         currency: item.currency,
@@ -916,7 +925,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
 
     const { error } = await this.db.from("crypto_profiles").upsert(
       input.map((item) => ({
-        instrument_id: item.instrumentId,
+        instrument_id: uuidOrUndefined(item.instrumentId),
         chain: item.chain,
         market_cap_bucket: item.marketCapBucket,
         custody_risk: item.custodyRisk,
