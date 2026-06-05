@@ -1,5 +1,6 @@
 import type { PortfolioReviewRepository } from "@/application/ports/repositories/PortfolioReviewRepository";
 import type { PortfolioReviewRunType } from "@/domain/portfolioReview/types";
+import type { TelemetrySnapshotService } from "@/application/services/telemetry/TelemetrySnapshotService";
 import { PortfolioReviewService } from "./PortfolioReviewService";
 
 function today() {
@@ -9,7 +10,8 @@ function today() {
 export class PortfolioReviewRunService {
   constructor(
     private readonly repository: PortfolioReviewRepository,
-    private readonly reviewService: PortfolioReviewService
+    private readonly reviewService: PortfolioReviewService,
+    private readonly telemetrySnapshotService?: TelemetrySnapshotService
   ) {}
 
   async run(input: { portfolioId: string; runType?: PortfolioReviewRunType } = { portfolioId: "" }) {
@@ -27,6 +29,11 @@ export class PortfolioReviewRunService {
         runId: run.id,
         status: "draft"
       });
+      try {
+        await this.telemetrySnapshotService?.capturePortfolioReview(report);
+      } catch {
+        // Telemetry capture is observational and should not fail portfolio review generation.
+      }
       return { run, report };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown portfolio review error";

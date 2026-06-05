@@ -16,6 +16,7 @@ import { BondEtfRecommendationService } from "./BondEtfRecommendationService";
 import { GoldRecommendationService } from "./GoldRecommendationService";
 import { CryptoRecommendationService } from "./CryptoRecommendationService";
 import type { RecommendationEvaluation } from "./recommendationScoring";
+import type { TelemetrySnapshotService } from "@/application/services/telemetry/TelemetrySnapshotService";
 
 type RecommendationServiceOptions = {
   maxInstrumentsPerRun?: number;
@@ -64,6 +65,7 @@ export class RecommendationService {
     private readonly marketVisionRepository?: MarketVisionRepository,
     private readonly portfolioRepository?: PortfolioRepository,
     private readonly portfolioService?: PortfolioService,
+    private readonly telemetrySnapshotService?: TelemetrySnapshotService,
     private readonly options: RecommendationServiceOptions = {}
   ) {}
 
@@ -117,6 +119,15 @@ export class RecommendationService {
       const rows = evaluations.map((evaluation) => mapToInput(evaluation, run.id));
       await this.recommendationRepository.upsertRecommendations(rows);
       await this.recommendationRepository.insertHistory(rows, runDate);
+      try {
+        await this.telemetrySnapshotService?.captureRecommendationRun({
+          run,
+          recommendations: evaluations,
+          portfolioId: input.portfolioId ?? null
+        });
+      } catch {
+        // Telemetry is observational and should never block recommendation generation.
+      }
       return { run, recommendations: evaluations };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown recommendation error";

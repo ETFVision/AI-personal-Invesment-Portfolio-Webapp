@@ -1,4 +1,4 @@
-import type { JobRunRepository } from "@/application/ports/repositories/JobRunRepository";
+import type { JobRunRepository, RecordJobRunInput } from "@/application/ports/repositories/JobRunRepository";
 import type { JobRun, JobRunStatus } from "@/domain/jobs/types";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 
@@ -33,5 +33,24 @@ export class SupabaseJobRunRepository implements JobRunRepository {
       throw error;
     }
     return (data ?? []).map(mapJobRun);
+  }
+
+  async record(input: RecordJobRunInput): Promise<void> {
+    const { error } = await this.db.from("job_runs").insert({
+      job_name: input.jobName,
+      run_source: input.runSource,
+      status: input.status,
+      started_at: input.startedAt,
+      completed_at: input.completedAt,
+      duration_ms: input.durationMs,
+      summary: input.summary,
+      error_message: input.errorMessage ?? null,
+      metadata: input.metadata ?? {}
+    });
+    if (error) {
+      const message = error.message ?? "";
+      if (message.includes("job_runs") || message.includes("schema cache")) return;
+      throw error;
+    }
   }
 }

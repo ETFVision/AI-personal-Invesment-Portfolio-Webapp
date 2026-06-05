@@ -2346,3 +2346,163 @@ Validation performed:
 Production-readiness assessment:
 - READY TO MERGE after Vercel preview approval.
 - Merge risk is low: the branch is one scoped commit ahead of `main`, and `main` already includes the prior performance-loading branch.
+
+## 2026-06-05 - Telemetry Learning Layer Implementation QA Checkpoint
+
+Scope:
+- Built Telemetry Learning Layer V1 on branch `codex/telemetry-learning-layer`.
+- Covered immutable recommendation snapshots, outcome evaluation, factor outcome aggregation, Market Vision snapshots, Portfolio Review snapshots, Research navigation, scheduled job route, workflow integration, tests and documentation.
+
+Architecture assessment:
+- PASS: Telemetry is observational only and does not alter Recommendation Engine scoring, Portfolio Review logic, return formulas, or Market Vision generation.
+- PASS: Snapshot capture is non-blocking; telemetry failures are swallowed so production recommendation/report jobs are not broken by telemetry writes.
+- PASS: Service/repository pattern is preserved through `TelemetryRepository`, `SupabaseTelemetryRepository`, `TelemetrySnapshotService`, `TelemetryEvaluationService`, `TelemetryAggregationService`, and `TelemetryDashboardService`.
+- PASS: UI reads through the container service and does not call Supabase directly.
+- PASS: The protected `/api/jobs/telemetry-evaluation` route uses the shared cron job wrapper and `CRON_SECRET` protection.
+- PASS: Weekly GitHub workflow now runs telemetry evaluation after Portfolio Review.
+
+Data model assessment:
+- PASS: `telemetry_recommendation_snapshots` stores immutable recommendation context, drivers, component scores, guardrails, benchmark symbol, and price at recommendation.
+- PASS: `telemetry_recommendation_outcomes` upserts one row per snapshot/horizon for `1m`, `3m`, `6m`, and `12m`.
+- PASS: `telemetry_factor_outcomes` aggregates hit rate, average asset return, average benchmark return, average excess return, and evidence bucket.
+- PASS: Market Vision and Portfolio Review snapshot tables are present for future outcome evaluation.
+- PASS: Tables use portable PostgreSQL, explicit indexes, RLS read policies, and existing `set_updated_at()` triggers where applicable.
+
+Calculation assessment:
+- PASS: Asset return uses `end_price / start_price - 1`.
+- PASS: Benchmark return uses the same formula.
+- PASS: Excess return is calculated as asset return minus benchmark return.
+- PASS: Buy/Strong Buy success requires positive excess return.
+- PASS: Reduce/Sell success requires negative excess return.
+- PASS: Hold/Watch success rules are conservative diagnostic rules and are documented.
+- PASS: Missing asset data is marked `insufficient_data`; missing benchmark data is marked `benchmark_missing`.
+- PASS: Factor evidence buckets remain conservative and sample-size aware.
+
+UX assessment:
+- PASS: `Research -> Telemetry` page added.
+- PASS: Dashboard shows overview metrics, recommendation outcome table, factor evidence cards, Market Vision snapshots, and Portfolio Review snapshots.
+- PASS: Empty states explain when data is unavailable because snapshots have not matured yet.
+- PASS: Copy clearly states telemetry is read-only evidence and does not auto-tune recommendations.
+
+Critical issues:
+- None found.
+
+Medium-priority issues:
+- None found.
+
+Low-priority improvements for later:
+- Add Market Vision outcome evaluation against proxy instruments.
+- Add Portfolio Review outcome evaluation against portfolio snapshots, drawdown changes, and diversification/concentration score changes.
+- Add manual calibration report views for recommendation guardrails and factor sensitivity.
+- Add human-approved scoring weight suggestion workflow only after enough evidence accumulates.
+- Consider a compact Admin Data Sources control to trigger telemetry evaluation manually.
+
+Validation performed:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd test` passed: 175 tests.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY for preview deployment after migration `054_telemetry_learning_layer.sql` is applied.
+- Safe rollout profile: telemetry writes are non-blocking and the dashboard handles missing tables/data with empty states.
+
+## 2026-06-05 - Telemetry V1.5 Hardening QA Checkpoint
+
+Scope:
+- Completed Telemetry V1.5 hardening on branch `codex/telemetry-learning-layer`.
+- Covered Market Vision outcome evaluation, Portfolio Review effectiveness evaluation, confidence calibration, coverage metrics, factor leaderboards, dashboard refinement, tests and documentation.
+
+Architecture assessment:
+- PASS: Telemetry remains observational and deterministic.
+- PASS: No Recommendation Engine scores, weights, guardrails, Portfolio Review logic, Market Vision logic, portfolio data or return formulas were changed.
+- PASS: Existing telemetry tables are reused where possible.
+- PASS: One small migration adds `risk_score_change` and `effectiveness_classification` to `telemetry_portfolio_review_outcomes`.
+- PASS: Evaluation is still driven through the existing `telemetry-evaluation` job and Admin Jobs manual control.
+
+Calculation assessment:
+- PASS: Market Vision outcomes calculate proxy return, benchmark return and excess return.
+- PASS: Market Vision success rules are deterministic for bullish, bearish, neutral and mixed directions.
+- PASS: Market Vision proxy mapping is centralized in `marketVisionProxyMap.ts`.
+- PASS: Portfolio Review outcomes compare prior review snapshots with later review snapshots for the same portfolio.
+- PASS: Portfolio Review effectiveness is classified as effective, neutral or deteriorated from material score changes.
+- PASS: Confidence calibration groups evaluated recommendation outcomes by 0-49, 50-59, 60-69, 70-79, 80-89 and 90+ buckets.
+- PASS: Coverage metrics compare evaluated observations against matured snapshot-horizons.
+- PASS: Factor best/worst leaderboards require at least early evidence before ranking.
+
+UX assessment:
+- PASS: `/telemetry` now shows coverage, recommendation accuracy, confidence calibration, factor intelligence, Market Vision accuracy and Portfolio Review effectiveness.
+- PASS: Empty states explain when no matured/evaluated data exists yet.
+- PASS: Dashboard copy continues to avoid investment advice or certainty from small samples.
+
+Critical issues:
+- None found in implementation review.
+
+Medium-priority issues:
+- None found in implementation review.
+
+Low-priority improvements for later:
+- Add user-action tracking so Portfolio Review effectiveness can distinguish acted-on suggestions from passive market movement.
+- Add richer Market Vision proxy mappings from canonical themes if the theme taxonomy expands.
+- Add human-reviewed telemetry-based weight suggestion workflow only after enough evidence accumulates.
+- Add per-instrument recommendation calibration drilldowns.
+
+Validation performed:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd test` passed: 178 tests.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY for preview deployment after migrations `054_telemetry_learning_layer.sql` and `055_telemetry_v1_5_hardening.sql` are applied.
+
+## 2026-06-05 - Telemetry UX Hardening Pre-Merge QA Checkpoint
+
+Scope:
+- Reviewed branch `codex/telemetry-learning-layer` before merge to `main`.
+- Covered full telemetry branch contents plus the final Telemetry UX hardening commit `eaf88ce`.
+- Focused on confirming UX-only hardening did not alter telemetry calculations, recommendation logic, Portfolio Review logic, Market Vision logic, scheduled rules, or schema.
+
+Architecture assessment:
+- PASS: Telemetry page reads through `TelemetryDashboardService` and `TelemetryRepository`; no direct Supabase calls were added to UI.
+- PASS: Latest UX hardening changed only `src/app/(dashboard)/telemetry/page.tsx`.
+- PASS: Telemetry remains observational only.
+- PASS: Existing service/repository pattern remains intact.
+- PASS: Admin Jobs manual telemetry evaluation and weekly workflow telemetry evaluation remain wired through the shared cron job wrapper.
+
+UX assessment:
+- PASS: Telemetry first viewport now presents status-oriented cards instead of large empty zeroes.
+- PASS: Lifecycle panel explains Capture -> Wait -> Evaluate -> Learn.
+- PASS: Readiness panel explains which telemetry pillars are collecting, awaiting evidence, active, or available.
+- PASS: Collection progress uses real snapshot counts only; no fabricated countdowns or inferred dates were introduced.
+- PASS: Coverage cards now explain awaiting maturity instead of showing technical `0 / 0` states.
+- PASS: Empty states were improved for recommendation outcomes, confidence calibration, factor intelligence, Market Vision accuracy and Portfolio Review effectiveness.
+- PASS: Copy uses learning-system language: Collecting Evidence, Waiting For Maturity, Awaiting Evidence, Building History and Learning in Progress.
+
+Calculation/data integrity assessment:
+- PASS: No telemetry return formulas were changed.
+- PASS: No recommendation scoring weights, labels or guardrails were changed.
+- PASS: No Market Vision generation logic was changed.
+- PASS: No Portfolio Review logic was changed.
+- PASS: No database migrations were added by the UX hardening commit.
+
+Critical issues:
+- None found.
+
+Medium-priority issues:
+- None found.
+
+Low-priority improvements for later:
+- The instrument detail page still has a placeholder tab label for future telemetry; this is not merge-blocking but can be updated in a later detail-page pass.
+- The telemetry evaluation job success message mentions recommendation outcomes first, while metadata includes Market Vision and Portfolio Review outcomes too; this can be made more descriptive later.
+- A visual browser QA pass in Vercel Preview is still recommended because the in-app browser tool was unavailable in this session.
+
+Validation performed:
+- `npm.cmd run lint` passed.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed: 178 tests.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY TO MERGE after Vercel Preview visual approval.
+- Merge risk is low: latest UX hardening is isolated to the Telemetry page and full validation is green.

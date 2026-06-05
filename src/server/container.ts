@@ -10,6 +10,7 @@ import { FundamentalsRefreshJob } from "@/application/jobs/FundamentalsRefreshJo
 import { RecommendationRunJob } from "@/application/jobs/RecommendationRunJob";
 import { PortfolioReviewRunJob } from "@/application/jobs/PortfolioReviewRunJob";
 import { EtfLookthroughRefreshJob } from "@/application/jobs/EtfLookthroughRefreshJob";
+import { TelemetryEvaluationJob } from "@/application/jobs/TelemetryEvaluationJob";
 import { BenchmarkComparisonService } from "@/application/services/BenchmarkComparisonService";
 import { BenchmarkService } from "@/application/services/BenchmarkService";
 import { AllocationService } from "@/application/services/AllocationService";
@@ -48,6 +49,12 @@ import { FundamentalsRefreshService } from "@/application/services/fundamentals/
 import { RecommendationService } from "@/application/services/recommendations/RecommendationService";
 import { PortfolioReviewService } from "@/application/services/portfolioReview/PortfolioReviewService";
 import { PortfolioReviewRunService } from "@/application/services/portfolioReview/PortfolioReviewRunService";
+import { TelemetryAggregationService } from "@/application/services/telemetry/TelemetryAggregationService";
+import { TelemetryDashboardService } from "@/application/services/telemetry/TelemetryDashboardService";
+import { TelemetryEvaluationService } from "@/application/services/telemetry/TelemetryEvaluationService";
+import { TelemetrySnapshotService } from "@/application/services/telemetry/TelemetrySnapshotService";
+import { MarketVisionTelemetryEvaluationService } from "@/application/services/telemetry/MarketVisionTelemetryEvaluationService";
+import { PortfolioReviewTelemetryEvaluationService } from "@/application/services/telemetry/PortfolioReviewTelemetryEvaluationService";
 import { EtfExposureProviderService } from "@/application/services/etfLookthrough/EtfExposureProviderService";
 import { EtfLookthroughRefreshService } from "@/application/services/etfLookthrough/EtfLookthroughRefreshService";
 import { EtfLookthroughService } from "@/application/services/etfLookthrough/EtfLookthroughService";
@@ -86,6 +93,7 @@ import { SupabaseRecommendationRepository } from "@/infrastructure/repositories/
 import { SupabasePortfolioReviewRepository } from "@/infrastructure/repositories/supabase/SupabasePortfolioReviewRepository";
 import { SupabaseEtfExposureRepository } from "@/infrastructure/repositories/supabase/SupabaseEtfExposureRepository";
 import { SupabaseJobRunRepository } from "@/infrastructure/repositories/supabase/SupabaseJobRunRepository";
+import { SupabaseTelemetryRepository } from "@/infrastructure/repositories/supabase/SupabaseTelemetryRepository";
 import { env } from "@/infrastructure/config/env";
 
 export function createContainer() {
@@ -105,6 +113,7 @@ export function createContainer() {
   const portfolioReviewRepository = new SupabasePortfolioReviewRepository();
   const etfExposureRepository = new SupabaseEtfExposureRepository();
   const jobRunRepository = new SupabaseJobRunRepository();
+  const telemetryRepository = new SupabaseTelemetryRepository();
   const marketDataProvider = new FmpMarketDataProvider();
   const assetMetadataProvider = new FmpAssetMetadataProvider();
   const newsProvider = new FmpNewsProvider();
@@ -263,6 +272,17 @@ export function createContainer() {
     },
     { model: env.MARKET_VISION_MODEL }
   );
+  const telemetryAggregationService = new TelemetryAggregationService(telemetryRepository);
+  const marketVisionTelemetryEvaluationService = new MarketVisionTelemetryEvaluationService(telemetryRepository);
+  const portfolioReviewTelemetryEvaluationService = new PortfolioReviewTelemetryEvaluationService(telemetryRepository);
+  const telemetryEvaluationService = new TelemetryEvaluationService(
+    telemetryRepository,
+    telemetryAggregationService,
+    marketVisionTelemetryEvaluationService,
+    portfolioReviewTelemetryEvaluationService
+  );
+  const telemetryDashboardService = new TelemetryDashboardService(telemetryRepository);
+  const telemetrySnapshotService = new TelemetrySnapshotService(telemetryRepository, universeRepository, portfolioRepository);
   const recommendationService = new RecommendationService(
     recommendationRepository,
     universeRepository,
@@ -270,7 +290,8 @@ export function createContainer() {
     macroIndicatorRepository,
     marketVisionRepository,
     portfolioRepository,
-    portfolioService
+    portfolioService,
+    telemetrySnapshotService
   );
   const portfolioReviewService = new PortfolioReviewService(
     portfolioReviewRepository,
@@ -284,7 +305,7 @@ export function createContainer() {
     themeIntelligenceService,
     portfolioLookthroughExposureService
   );
-  const portfolioReviewRunService = new PortfolioReviewRunService(portfolioReviewRepository, portfolioReviewService);
+  const portfolioReviewRunService = new PortfolioReviewRunService(portfolioReviewRepository, portfolioReviewService, telemetrySnapshotService);
   return {
     authProvider: new SupabaseAuthProvider(),
     portfolioRepository,
@@ -332,6 +353,13 @@ export function createContainer() {
     fundamentalsRepository,
     recommendationRepository,
     recommendationService,
+    telemetryRepository,
+    telemetryAggregationService,
+    marketVisionTelemetryEvaluationService,
+    portfolioReviewTelemetryEvaluationService,
+    telemetryEvaluationService,
+    telemetryDashboardService,
+    telemetrySnapshotService,
     portfolioReviewRepository,
     etfExposureRepository,
     etfLookthroughService,
@@ -365,11 +393,12 @@ export function createContainer() {
       newsDataNewsIngestion: new NewsDataNewsIngestionJob(newsDataIngestionService),
       weeklyNewsReconciliation: new WeeklyNewsReconciliationJob(weeklyNewsReconciliationService, newsClassificationService),
       fredMacroIngestion: new FredMacroIngestionJob(macroIndicatorIngestionService),
-      weeklyMarketVision: new GenerateMarketVisionReportJob(marketVisionGenerationService),
+      weeklyMarketVision: new GenerateMarketVisionReportJob(marketVisionGenerationService, telemetrySnapshotService),
       fundamentalsRefresh: new FundamentalsRefreshJob(fundamentalsRefreshService),
       recommendationRun: new RecommendationRunJob(recommendationService),
       portfolioReviewRun: new PortfolioReviewRunJob(portfolioReviewRunService),
-      etfLookthroughRefresh: new EtfLookthroughRefreshJob(etfLookthroughRefreshService)
+      etfLookthroughRefresh: new EtfLookthroughRefreshJob(etfLookthroughRefreshService),
+      telemetryEvaluation: new TelemetryEvaluationJob(telemetryEvaluationService)
     }
   };
 }

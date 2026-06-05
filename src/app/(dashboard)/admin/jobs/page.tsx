@@ -1,6 +1,15 @@
 import { createContainer } from "@/server/container";
+import { runTelemetryEvaluationAction } from "@/server/actions/jobActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
+import { SubmitButton } from "@/components/ui/submit-button";
+
+type JobsPageProps = {
+  searchParams?: Promise<{
+    jobsMessage?: string;
+    jobsError?: string;
+  }>;
+};
 
 function statusClass(status: string) {
   if (status === "success") return "bg-emerald-100 text-emerald-800";
@@ -34,10 +43,11 @@ function summarize(summary: Record<string, unknown>) {
   return entries.map(([key, value]) => `${key}: ${String(value)}`).join(" · ");
 }
 
-export default async function JobsPage() {
+export default async function JobsPage({ searchParams }: JobsPageProps) {
   const container = createContainer();
   await container.authProvider.requireUser();
   const runs = await container.jobRunService.listRecent(30);
+  const params = await searchParams;
 
   return (
     <PageContainer>
@@ -47,6 +57,35 @@ export default async function JobsPage() {
         description="Latest scheduled and manual refresh summaries from the app job endpoints."
         meta={<StatusBadge tone="info">{runs.length} recent runs</StatusBadge>}
       />
+      {params?.jobsMessage ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
+          {params.jobsMessage}
+        </div>
+      ) : null}
+      {params?.jobsError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
+          {params.jobsError}
+        </div>
+      ) : null}
+      <Card>
+        <CardHeader>
+          <CardTitle>Manual evaluation controls</CardTitle>
+          <CardDescription>
+            Operational controls for admin-only catch-up runs. Scheduled workflows remain the normal automation path.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-950">Telemetry evaluation</p>
+            <p className="mt-1 max-w-3xl text-sm text-slate-500">
+              Checks matured telemetry snapshots, evaluates ready horizons and refreshes factor evidence. This does not change recommendations or portfolio review logic.
+            </p>
+          </div>
+          <form action={runTelemetryEvaluationAction}>
+            <SubmitButton pendingLabel="Evaluating telemetry...">Run telemetry evaluation</SubmitButton>
+          </form>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>Recent job runs</CardTitle>
