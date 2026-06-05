@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type NavLinkProps = {
   href: string;
   label: string;
-  icon?: LucideIcon;
+  children?: ReactNode;
   mobile?: boolean;
 };
 
@@ -17,7 +17,7 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function NavLink({ href, label, icon: Icon, mobile = false }: NavLinkProps) {
+export function NavLink({ href, label, children, mobile = false }: NavLinkProps) {
   const pathname = usePathname();
   const active = isActivePath(pathname, href);
 
@@ -44,8 +44,7 @@ export function NavLink({ href, label, icon: Icon, mobile = false }: NavLinkProp
       )}
       aria-current={active ? "page" : undefined}
     >
-      {Icon ? <Icon className="h-4 w-4" /> : null}
-      {label}
+      {children ?? label}
     </Link>
   );
 }
