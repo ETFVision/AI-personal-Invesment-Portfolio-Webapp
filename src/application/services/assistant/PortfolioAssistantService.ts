@@ -1,6 +1,12 @@
 import type { AssistantRepository } from "@/application/ports/repositories/AssistantRepository";
 import type { AiPortfolioAssistantProvider } from "@/application/ports/providers/AiPortfolioAssistantProvider";
-import { ASSISTANT_UNSUPPORTED_RESPONSE, type AssistantAnswer } from "../../../domain/assistant/types";
+import {
+  ASSISTANT_ADVICE_BLOCKED_RESPONSE,
+  ASSISTANT_GENERAL_KNOWLEDGE_BLOCKED_RESPONSE,
+  ASSISTANT_UNSUPPORTED_RESPONSE,
+  type AssistantAnswer,
+  type AssistantRouteResult
+} from "../../../domain/assistant/types";
 import { AssistantContextBuilder } from "./AssistantContextBuilder";
 import { AssistantPromptBuilder } from "./AssistantPromptBuilder";
 import { AssistantQuestionRouter } from "./AssistantQuestionRouter";
@@ -16,6 +22,12 @@ function tokensFromUsage(usage: Record<string, unknown>) {
     promptTokens: Number(usage.input_tokens ?? usage.prompt_tokens ?? 0),
     completionTokens: Number(usage.output_tokens ?? usage.completion_tokens ?? 0)
   };
+}
+
+function blockedResponse(route: AssistantRouteResult) {
+  if (route.blockedIntent === "advice_seeking") return ASSISTANT_ADVICE_BLOCKED_RESPONSE;
+  if (route.blockedIntent === "general_knowledge") return ASSISTANT_GENERAL_KNOWLEDGE_BLOCKED_RESPONSE;
+  return ASSISTANT_UNSUPPORTED_RESPONSE;
 }
 
 export class PortfolioAssistantService {
@@ -57,13 +69,14 @@ export class PortfolioAssistantService {
 
     if (!route.supported) {
       const responseTimeMs = Date.now() - startedAt;
+      const content = blockedResponse(route);
       const assistantMessage = await this.assistantRepository.createMessage({
         conversationId: conversation.id,
         userId: input.userId,
         portfolioId: input.portfolioId,
         role: "assistant",
         questionCategory: route.category,
-        content: ASSISTANT_UNSUPPORTED_RESPONSE,
+        content,
         metadata: { route, llmInvoked: false },
         responseTimeMs
       });

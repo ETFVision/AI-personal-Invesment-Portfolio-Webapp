@@ -1,9 +1,7 @@
 import type { AssistantQuestionCategory, AssistantRouteResult } from "@/domain/assistant/types";
+import { AssistantIntentGuardrailService } from "./AssistantIntentGuardrailService";
 
 const unsupportedPatterns = [
-  /\bweather\b/i,
-  /\bjoke\b/i,
-  /\bpoem\b/i,
   /\bworld war\b/i,
   /\bquantum\b/i,
   /\bwarren buffett\b/i,
@@ -56,13 +54,31 @@ const categoryRules: Array<{ category: AssistantQuestionCategory; confidence: nu
 ];
 
 export class AssistantQuestionRouter {
+  constructor(private readonly intentGuardrails = new AssistantIntentGuardrailService()) {}
+
   route(question: string, previousCategory?: string | null): AssistantRouteResult {
     const trimmed = question.trim();
     if (!trimmed) {
-      return { category: "unsupported", supported: false, confidence: 1, reason: "Empty question." };
+      return { category: "unsupported", supported: false, confidence: 1, reason: "Empty question.", blockedIntent: "unsupported_scope" };
+    }
+    const intent = this.intentGuardrails.classify(trimmed);
+    if (intent.blocked) {
+      return {
+        category: "unsupported",
+        supported: false,
+        confidence: 0.98,
+        reason: intent.reason ?? "Question blocked by deterministic assistant guardrail.",
+        blockedIntent: intent.intent ?? "unsupported_scope"
+      };
     }
     if (unsupportedPatterns.some((pattern) => pattern.test(trimmed))) {
-      return { category: "unsupported", supported: false, confidence: 0.95, reason: "Question is outside ETFVision portfolio-intelligence scope." };
+      return {
+        category: "unsupported",
+        supported: false,
+        confidence: 0.95,
+        reason: "Question is outside ETFVision portfolio-intelligence scope.",
+        blockedIntent: "unsupported_scope"
+      };
     }
 
     for (const rule of categoryRules) {
@@ -80,6 +96,6 @@ export class AssistantQuestionRouter {
       };
     }
 
-    return { category: "unsupported", supported: false, confidence: 0.7, reason: "No ETFVision-specific intent was detected." };
+    return { category: "unsupported", supported: false, confidence: 0.7, reason: "No ETFVision-specific intent was detected.", blockedIntent: "unsupported_scope" };
   }
 }

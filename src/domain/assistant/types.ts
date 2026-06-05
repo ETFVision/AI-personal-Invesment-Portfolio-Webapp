@@ -9,6 +9,11 @@ export type AssistantQuestionCategory =
   | "monitoring"
   | "unsupported";
 
+export type AssistantBlockedIntent =
+  | "advice_seeking"
+  | "general_knowledge"
+  | "unsupported_scope";
+
 export type AssistantMessageRole = "user" | "assistant" | "system";
 export type AssistantConversationStatus = "active" | "archived";
 
@@ -58,6 +63,7 @@ export type AssistantRouteResult = {
   supported: boolean;
   confidence: number;
   reason: string;
+  blockedIntent?: AssistantBlockedIntent;
 };
 
 export type AssistantContextPackage = {
@@ -136,3 +142,9 @@ export type AssistantAnswer = {
 
 export const ASSISTANT_UNSUPPORTED_RESPONSE =
   "The Portfolio Assistant is designed specifically for portfolio-related questions such as portfolio reviews, risk analysis, Market Vision, recommendations and ETF exposures.";
+
+export const ASSISTANT_ADVICE_BLOCKED_RESPONSE =
+  "ETFVision is a Portfolio Intelligence Platform, not an Investment Adviser.\n\nETFVision does not provide investment advice, trading instructions, allocation guidance, position sizing, market predictions, or buy/sell recommendations.\n\nI can explain portfolio reviews, recommendation methodology, risk analysis, Market Vision observations, telemetry evidence, ETF exposures, and portfolio monitoring. Investment decisions remain with you.";
+
+export const ASSISTANT_GENERAL_KNOWLEDGE_BLOCKED_RESPONSE =
+  "The Portfolio Assistant is designed specifically for portfolio-related questions such as portfolio reviews, recommendations, Market Vision, telemetry, ETF exposures, and portfolio risk.\n\nPlease ask a portfolio-related question, such as how a topic affects your portfolio or contributes to your portfolio exposure.";

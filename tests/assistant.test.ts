@@ -13,7 +13,14 @@ import { AssistantResponseGuardrailService } from "../src/application/services/a
 import { AssistantPromptBuilder } from "../src/application/services/assistant/AssistantPromptBuilder";
 import { PortfolioAssistantService } from "../src/application/services/assistant/PortfolioAssistantService";
 import { AssistantContextBuilder } from "../src/application/services/assistant/AssistantContextBuilder";
-import { ASSISTANT_UNSUPPORTED_RESPONSE, type AssistantConversation, type AssistantMessage, type AssistantUsageLog } from "../src/domain/assistant/types";
+import {
+  ASSISTANT_ADVICE_BLOCKED_RESPONSE,
+  ASSISTANT_GENERAL_KNOWLEDGE_BLOCKED_RESPONSE,
+  ASSISTANT_UNSUPPORTED_RESPONSE,
+  type AssistantConversation,
+  type AssistantMessage,
+  type AssistantUsageLog
+} from "../src/domain/assistant/types";
 
 const now = "2026-06-05T00:00:00.000Z";
 
@@ -190,6 +197,42 @@ test("assistant router maps ETFVision questions and rejects out-of-scope questio
   assert.equal(router.route("Tell me a joke about markets").supported, false);
 });
 
+test("assistant router blocks advice-seeking before recommendation context", () => {
+  const router = new AssistantQuestionRouter();
+  const blockedQuestions = [
+    "What stock should I buy today?",
+    "Should I buy NVDA?",
+    "Should I sell VOO?",
+    "What ETF will outperform?",
+    "Give me a target allocation.",
+    "Tell me how to beat the market.",
+    "Give me a trading strategy."
+  ];
+
+  for (const question of blockedQuestions) {
+    const route = router.route(question);
+    assert.equal(route.supported, false, question);
+    assert.equal(route.blockedIntent, "advice_seeking", question);
+  }
+});
+
+test("assistant router blocks general knowledge unless framed around portfolio context", () => {
+  const router = new AssistantQuestionRouter();
+  assert.equal(router.route("What is inflation?").blockedIntent, "general_knowledge");
+  assert.equal(router.route("What is Bitcoin?").blockedIntent, "general_knowledge");
+  assert.equal(router.route("What is ChatGPT?").blockedIntent, "general_knowledge");
+  assert.equal(router.route("How does inflation affect my portfolio?").supported, true);
+  assert.notEqual(router.route("How does Bitcoin affect my portfolio?").blockedIntent, "general_knowledge");
+});
+
+test("assistant router allows recommendation explanations but blocks recommendation advice", () => {
+  const router = new AssistantQuestionRouter();
+  assert.equal(router.route("Why is NVDA Hold?").supported, true);
+  assert.equal(router.route("Why is NVDA not a Buy?").supported, true);
+  assert.equal(router.route("Explain VOO's Watch rating.").supported, true);
+  assert.equal(router.route("Should I buy NVDA?").supported, false);
+});
+
 test("assistant router uses prior category for follow-up questions", () => {
   const router = new AssistantQuestionRouter();
   const route = router.route("Which one contributes most?", "risk");
@@ -257,7 +300,7 @@ test("unsupported assistant questions are logged without invoking the AI provide
   );
 
   const answer = await service.answer({
-    question: "Tell me a joke",
+    question: "Can you write SQL for me?",
     userId: "user-1",
     portfolioId: "portfolio-1"
   });
@@ -268,6 +311,62 @@ test("unsupported assistant questions are logged without invoking the AI provide
   assert.equal(repository.usageLogs.length, 1);
   assert.equal(repository.usageLogs[0].supported, false);
   assert.equal(repository.usageLogs[0].modelUsed, null);
+});
+
+test("advice-seeking assistant questions do not invoke context or AI and do not expose recommendation data", async () => {
+  const repository = new MemoryAssistantRepository();
+  const provider = new ThrowingAssistantProvider();
+  const service = new PortfolioAssistantService(
+    repository,
+    new AssistantQuestionRouter(),
+    {
+      build: async () => {
+        throw new Error("Context should not be built for advice-seeking questions.");
+      }
+    } as never,
+    new AssistantPromptBuilder(),
+    provider,
+    new AssistantResponseGuardrailService()
+  );
+
+  const answer = await service.answer({
+    question: "What stock should I buy today?",
+    userId: "user-1",
+    portfolioId: "portfolio-1"
+  });
+
+  assert.equal(provider.calls, 0);
+  assert.equal(answer.route.blockedIntent, "advice_seeking");
+  assert.equal(answer.assistantMessage.content, ASSISTANT_ADVICE_BLOCKED_RESPONSE);
+  assert.doesNotMatch(answer.assistantMessage.content, /\b(Strong Buy|highest score|top recommendation|IAU|NVDA)\b/i);
+  assert.equal(repository.usageLogs[0].supported, false);
+});
+
+test("general knowledge questions are blocked without invoking the AI provider", async () => {
+  const repository = new MemoryAssistantRepository();
+  const provider = new ThrowingAssistantProvider();
+  const service = new PortfolioAssistantService(
+    repository,
+    new AssistantQuestionRouter(),
+    {
+      build: async () => {
+        throw new Error("Context should not be built for general knowledge questions.");
+      }
+    } as never,
+    new AssistantPromptBuilder(),
+    provider,
+    new AssistantResponseGuardrailService()
+  );
+
+  const answer = await service.answer({
+    question: "What is inflation?",
+    userId: "user-1",
+    portfolioId: "portfolio-1"
+  });
+
+  assert.equal(provider.calls, 0);
+  assert.equal(answer.route.blockedIntent, "general_knowledge");
+  assert.equal(answer.assistantMessage.content, ASSISTANT_GENERAL_KNOWLEDGE_BLOCKED_RESPONSE);
 });
 
 test("assistant context prefers ETF look-through exposure over direct broad-market taxonomy", async () => {
