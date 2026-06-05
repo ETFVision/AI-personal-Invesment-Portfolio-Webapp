@@ -4,6 +4,8 @@ on:
   schedule:
     # 6:30 AM Singapore time, GitHub Actions cron is UTC.
     - cron: "30 22 * * *"
+    # 7:15 AM Singapore time backup trigger in case GitHub drops or delays the primary schedule.
+    - cron: "15 23 * * *"
   workflow_dispatch:
 
 concurrency:

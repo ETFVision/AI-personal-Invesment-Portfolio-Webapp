@@ -30,10 +30,13 @@ These are used by `/api/jobs/price-refresh`, `/api/jobs/portfolio-valuation-refr
 | Workflow | UTC Cron | Singapore Time | Purpose |
 |---|---:|---:|---|
 | `daily-data-refresh.yml` | `30 22 * * *` | 6:30 AM daily | Prices, portfolio valuation, FRED, FMP news, NewsData.io |
+| `daily-data-refresh.yml` backup | `15 23 * * *` | 7:15 AM daily | Catch-up run if GitHub drops or delays the primary daily schedule |
 | `weekly-intelligence-refresh.yml` | `0 0 * * 1` | 8:00 AM Monday | News reconciliation, Market Vision, Recommendations, Portfolio Review |
+| `weekly-intelligence-refresh.yml` backup | `45 0 * * 1` | 8:45 AM Monday | Catch-up run if GitHub drops or delays the primary weekly schedule |
 | `monthly-slow-refresh.yml` | `30 0 1 * *` | 8:30 AM first day monthly | Fundamentals, ETF look-through, benchmarks, universe validation |
+| `monthly-slow-refresh.yml` backup | `15 1 1 * *` | 9:15 AM first day monthly | Catch-up run if GitHub drops or delays the primary monthly schedule |
 
-GitHub Actions cron uses UTC.
+GitHub Actions cron uses UTC. Backup triggers are safe because app-side jobs use locks and freshness checks.
 
 ## Endpoint Order
 
