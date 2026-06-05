@@ -132,6 +132,37 @@ Each snapshot stores a deterministic directional proxy:
 
 This is currently prepared for future outcome evaluation. It is not yet used to tune Market Vision generation or recommendations.
 
+V1.5 evaluates matured Market Vision snapshots at 1m, 3m, 6m and 12m.
+
+Evaluation uses a deterministic theme-to-proxy mapping. Examples:
+
+- Technology -> `XLK`
+- Healthcare -> `XLV`
+- Financials -> `XLF`
+- Energy -> `XLE`
+- Semiconductors -> `SMH`
+- Gold / Commodities -> `GLD`
+- Rates / Bonds / Credit -> `AGG`
+- Inflation -> `TIP`
+- International -> `VXUS`
+- Emerging Markets -> `VWO`
+- Broad Market / Equities -> `VOO`
+
+Formula:
+
+```text
+proxy_return = proxy_end_price / proxy_start_price - 1
+benchmark_return = benchmark_end / benchmark_start - 1
+excess_return = proxy_return - benchmark_return
+```
+
+Success logic:
+
+- `bullish`: successful when proxy excess return is positive
+- `bearish`: successful when proxy excess return is negative
+- `neutral`: successful when excess return stays within a neutral band
+- `mixed`: successful when the realized move is not materially adverse
+
 ## Portfolio Review Telemetry
 
 When Portfolio Review runs, the app captures:
@@ -149,6 +180,64 @@ When Portfolio Review runs, the app captures:
 - ETF look-through snapshot
 
 This supports future longitudinal review of whether suggestions and risk warnings were useful.
+
+V1.5 evaluates matured Portfolio Review snapshots by comparing the old review snapshot with a later review snapshot for the same portfolio.
+
+Stored outcome metrics:
+
+- portfolio return
+- benchmark return
+- excess return
+- portfolio score change
+- diversification score change
+- concentration score change
+- risk score change
+- volatility change, when captured
+- drawdown change, when captured
+- effectiveness classification
+
+Effectiveness classification:
+
+- `effective`: a material score improvement is observed
+- `neutral`: changes are small or mixed
+- `deteriorated`: a material score deterioration is observed
+
+Portfolio Review telemetry is observational. It does not assume the user acted on a suggestion.
+
+## Confidence Calibration
+
+V1.5 groups evaluated recommendation outcomes into confidence buckets:
+
+- `0-49`
+- `50-59`
+- `60-69`
+- `70-79`
+- `80-89`
+- `90+`
+
+For each bucket and horizon, telemetry shows:
+
+- observation count
+- hit rate
+- average excess return
+
+This is intended for future Recommendation Engine calibration review.
+
+## Coverage Metrics
+
+V1.5 tracks telemetry completeness:
+
+```text
+coverage = evaluated matured observations / total matured observations
+```
+
+Coverage is shown separately for:
+
+- recommendations
+- Market Vision
+- Portfolio Review
+
+Missing data and missing benchmark outcome counts are also surfaced.
 
 ## Services
 
@@ -188,9 +277,11 @@ Dashboard sections:
 
 - overview metrics
 - recommendation outcomes by label and horizon
-- factor evidence cards
-- Market Vision snapshots
-- Portfolio Review snapshots
+- coverage metrics
+- confidence calibration
+- factor best/worst leaderboards
+- Market Vision accuracy
+- Portfolio Review effectiveness
 
 ## Future Improvements
 

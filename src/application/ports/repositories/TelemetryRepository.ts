@@ -5,6 +5,9 @@ import type {
   TelemetryHorizon,
   TelemetryMarketVisionSnapshot,
   TelemetryOutcomeStatus,
+  TelemetryMarketVisionOutcome,
+  TelemetryPortfolioReviewOutcome,
+  PortfolioReviewEffectiveness,
   TelemetryPortfolioReviewSnapshot,
   TelemetryRecommendationOutcome,
   TelemetryRecommendationSnapshot
@@ -56,6 +59,35 @@ export type UpsertTelemetryFactorOutcomeInput = {
   confidenceBucket: string;
 };
 
+export type UpsertTelemetryMarketVisionOutcomeInput = {
+  marketVisionSnapshotId: string;
+  horizon: TelemetryHorizon;
+  evaluationDate: string;
+  proxySymbol: string | null;
+  proxyReturn: number | null;
+  benchmarkReturn: number | null;
+  excessReturn: number | null;
+  success: boolean | null;
+  outcomeStatus: TelemetryOutcomeStatus;
+};
+
+export type UpsertTelemetryPortfolioReviewOutcomeInput = {
+  portfolioReviewSnapshotId: string;
+  horizon: TelemetryHorizon;
+  evaluationDate: string;
+  portfolioReturn: number | null;
+  benchmarkReturn: number | null;
+  excessReturn: number | null;
+  volatilityChange: number | null;
+  drawdownChange: number | null;
+  diversificationScoreChange: number | null;
+  concentrationScoreChange: number | null;
+  riskScoreChange: number | null;
+  portfolioScoreChange: number | null;
+  effectivenessClassification: PortfolioReviewEffectiveness | null;
+  outcomeStatus: TelemetryOutcomeStatus;
+};
+
 export type CreateTelemetryMarketVisionSnapshotInput = {
   reportId: string | null;
   reportPeriodStart: string | null;
@@ -94,6 +126,11 @@ export type PricePoint = {
   closePrice: number;
 };
 
+export type PortfolioValuePoint = {
+  date: string;
+  totalValue: number;
+};
+
 export interface TelemetryRepository {
   createRecommendationSnapshots(input: CreateTelemetryRecommendationSnapshotInput[]): Promise<TelemetryRecommendationSnapshot[]>;
   createMarketVisionSnapshots(input: CreateTelemetryMarketVisionSnapshotInput[]): Promise<TelemetryMarketVisionSnapshot[]>;
@@ -105,9 +142,17 @@ export interface TelemetryRepository {
   upsertFactorOutcomes(input: UpsertTelemetryFactorOutcomeInput[]): Promise<void>;
   listFactorOutcomes(limit?: number): Promise<TelemetryFactorOutcome[]>;
   listMarketVisionSnapshots(limit?: number): Promise<TelemetryMarketVisionSnapshot[]>;
+  listMarketVisionOutcomes(): Promise<TelemetryMarketVisionOutcome[]>;
+  upsertMarketVisionOutcomes(input: UpsertTelemetryMarketVisionOutcomeInput[]): Promise<void>;
   listPortfolioReviewSnapshots(limit?: number): Promise<TelemetryPortfolioReviewSnapshot[]>;
+  listPortfolioReviewOutcomes(): Promise<TelemetryPortfolioReviewOutcome[]>;
+  upsertPortfolioReviewOutcomes(input: UpsertTelemetryPortfolioReviewOutcomeInput[]): Promise<void>;
   getInstrumentPriceOnOrAfter(instrumentId: string, targetDate: string): Promise<PricePoint | null>;
   getInstrumentPriceOnOrBefore(instrumentId: string, targetDate: string): Promise<PricePoint | null>;
+  getInstrumentPriceBySymbolOnOrAfter(symbol: string, targetDate: string): Promise<PricePoint | null>;
+  getInstrumentPriceBySymbolOnOrBefore(symbol: string, targetDate: string): Promise<PricePoint | null>;
+  getPortfolioValueOnOrAfter(portfolioId: string, targetDate: string): Promise<PortfolioValuePoint | null>;
+  getPortfolioValueOnOrBefore(portfolioId: string, targetDate: string): Promise<PortfolioValuePoint | null>;
   getBenchmarkPriceOnOrAfter(symbol: string, targetDate: string): Promise<PricePoint | null>;
   getBenchmarkPriceOnOrBefore(symbol: string, targetDate: string): Promise<PricePoint | null>;
   getDashboard(): Promise<TelemetryDashboard>;

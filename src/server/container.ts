@@ -53,6 +53,8 @@ import { TelemetryAggregationService } from "@/application/services/telemetry/Te
 import { TelemetryDashboardService } from "@/application/services/telemetry/TelemetryDashboardService";
 import { TelemetryEvaluationService } from "@/application/services/telemetry/TelemetryEvaluationService";
 import { TelemetrySnapshotService } from "@/application/services/telemetry/TelemetrySnapshotService";
+import { MarketVisionTelemetryEvaluationService } from "@/application/services/telemetry/MarketVisionTelemetryEvaluationService";
+import { PortfolioReviewTelemetryEvaluationService } from "@/application/services/telemetry/PortfolioReviewTelemetryEvaluationService";
 import { EtfExposureProviderService } from "@/application/services/etfLookthrough/EtfExposureProviderService";
 import { EtfLookthroughRefreshService } from "@/application/services/etfLookthrough/EtfLookthroughRefreshService";
 import { EtfLookthroughService } from "@/application/services/etfLookthrough/EtfLookthroughService";
@@ -271,7 +273,14 @@ export function createContainer() {
     { model: env.MARKET_VISION_MODEL }
   );
   const telemetryAggregationService = new TelemetryAggregationService(telemetryRepository);
-  const telemetryEvaluationService = new TelemetryEvaluationService(telemetryRepository, telemetryAggregationService);
+  const marketVisionTelemetryEvaluationService = new MarketVisionTelemetryEvaluationService(telemetryRepository);
+  const portfolioReviewTelemetryEvaluationService = new PortfolioReviewTelemetryEvaluationService(telemetryRepository);
+  const telemetryEvaluationService = new TelemetryEvaluationService(
+    telemetryRepository,
+    telemetryAggregationService,
+    marketVisionTelemetryEvaluationService,
+    portfolioReviewTelemetryEvaluationService
+  );
   const telemetryDashboardService = new TelemetryDashboardService(telemetryRepository);
   const telemetrySnapshotService = new TelemetrySnapshotService(telemetryRepository, universeRepository, portfolioRepository);
   const recommendationService = new RecommendationService(
@@ -346,6 +355,8 @@ export function createContainer() {
     recommendationService,
     telemetryRepository,
     telemetryAggregationService,
+    marketVisionTelemetryEvaluationService,
+    portfolioReviewTelemetryEvaluationService,
     telemetryEvaluationService,
     telemetryDashboardService,
     telemetrySnapshotService,

@@ -2,6 +2,8 @@ import type { TelemetryRepository, UpsertTelemetryRecommendationOutcomeInput } f
 import type { TelemetryHorizon, TelemetryRecommendationSnapshot } from "@/domain/telemetry/types";
 import { calculateSimpleReturn, classifyRecommendationOutcome, maturedDate, TELEMETRY_HORIZONS } from "./telemetryMath";
 import { TelemetryAggregationService } from "./TelemetryAggregationService";
+import { MarketVisionTelemetryEvaluationService } from "./MarketVisionTelemetryEvaluationService";
+import { PortfolioReviewTelemetryEvaluationService } from "./PortfolioReviewTelemetryEvaluationService";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -18,7 +20,9 @@ function isFinitePrice(value: number | null | undefined): value is number {
 export class TelemetryEvaluationService {
   constructor(
     private readonly telemetryRepository: TelemetryRepository,
-    private readonly aggregationService: TelemetryAggregationService
+    private readonly aggregationService: TelemetryAggregationService,
+    private readonly marketVisionEvaluationService?: MarketVisionTelemetryEvaluationService,
+    private readonly portfolioReviewEvaluationService?: PortfolioReviewTelemetryEvaluationService
   ) {}
 
   async evaluateMaturedRecommendations(input: { asOfDate?: string; horizons?: TelemetryHorizon[] } = {}) {
@@ -61,10 +65,20 @@ export class TelemetryEvaluationService {
     }
 
     await this.telemetryRepository.upsertRecommendationOutcomes(outcomes);
+    const marketVisionResult = await this.marketVisionEvaluationService?.evaluate({ asOfDate, horizons }) ?? {
+      marketVisionSnapshotsChecked: 0,
+      marketVisionOutcomesEvaluated: 0
+    };
+    const portfolioReviewResult = await this.portfolioReviewEvaluationService?.evaluate({ asOfDate, horizons }) ?? {
+      portfolioReviewSnapshotsChecked: 0,
+      portfolioReviewOutcomesEvaluated: 0
+    };
     const aggregateResult = await this.aggregationService.refreshFactorOutcomes(horizons);
     return {
       snapshotsChecked: snapshots.length,
       outcomesEvaluated: outcomes.length,
+      ...marketVisionResult,
+      ...portfolioReviewResult,
       ...aggregateResult
     };
   }

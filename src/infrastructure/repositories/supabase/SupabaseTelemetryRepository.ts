@@ -3,18 +3,25 @@ import type {
   CreateTelemetryPortfolioReviewSnapshotInput,
   CreateTelemetryRecommendationSnapshotInput,
   PricePoint,
+  PortfolioValuePoint,
   TelemetryRepository,
   UpsertTelemetryFactorOutcomeInput,
+  UpsertTelemetryMarketVisionOutcomeInput,
+  UpsertTelemetryPortfolioReviewOutcomeInput,
   UpsertTelemetryRecommendationOutcomeInput
 } from "@/application/ports/repositories/TelemetryRepository";
 import type {
+  ConfidenceCalibrationRow,
   RecommendationTelemetrySummaryRow,
   TelemetryDashboard,
   TelemetryFactorOutcome,
+  TelemetryMarketVisionOutcome,
   TelemetryMarketVisionSnapshot,
+  TelemetryPortfolioReviewOutcome,
   TelemetryPortfolioReviewSnapshot,
   TelemetryRecommendationOutcome,
-  TelemetryRecommendationSnapshot
+  TelemetryRecommendationSnapshot,
+  TelemetryCoverageMetrics
 } from "@/domain/telemetry/types";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 
@@ -143,6 +150,45 @@ function mapPortfolioReviewSnapshot(row: any): TelemetryPortfolioReviewSnapshot 
     allocationSnapshot: toObject(row.allocation_snapshot),
     lookthroughSnapshot: toObject(row.lookthrough_snapshot),
     createdAt: row.created_at
+  };
+}
+
+function mapMarketVisionOutcome(row: any): TelemetryMarketVisionOutcome {
+  return {
+    id: row.id,
+    marketVisionSnapshotId: row.market_vision_snapshot_id,
+    horizon: row.horizon,
+    evaluationDate: row.evaluation_date,
+    proxySymbol: row.proxy_symbol,
+    proxyReturn: numberOrNull(row.proxy_return),
+    benchmarkReturn: numberOrNull(row.benchmark_return),
+    excessReturn: numberOrNull(row.excess_return),
+    success: row.success,
+    outcomeStatus: row.outcome_status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapPortfolioReviewOutcome(row: any): TelemetryPortfolioReviewOutcome {
+  return {
+    id: row.id,
+    portfolioReviewSnapshotId: row.portfolio_review_snapshot_id,
+    horizon: row.horizon,
+    evaluationDate: row.evaluation_date,
+    portfolioReturn: numberOrNull(row.portfolio_return),
+    benchmarkReturn: numberOrNull(row.benchmark_return),
+    excessReturn: numberOrNull(row.excess_return),
+    volatilityChange: numberOrNull(row.volatility_change),
+    drawdownChange: numberOrNull(row.drawdown_change),
+    diversificationScoreChange: numberOrNull(row.diversification_score_change),
+    concentrationScoreChange: numberOrNull(row.concentration_score_change),
+    riskScoreChange: numberOrNull(row.risk_score_change),
+    portfolioScoreChange: numberOrNull(row.portfolio_score_change),
+    effectivenessClassification: row.effectiveness_classification,
+    outcomeStatus: row.outcome_status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 }
 
@@ -301,11 +347,72 @@ export class SupabaseTelemetryRepository implements TelemetryRepository {
     return (data ?? []).map(mapMarketVisionSnapshot);
   }
 
+  async listMarketVisionOutcomes() {
+    const { data, error } = await this.db
+      .from("telemetry_market_vision_outcomes")
+      .select("*")
+      .order("evaluation_date", { ascending: false })
+      .limit(5000);
+    if (isMissingTelemetryTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapMarketVisionOutcome);
+  }
+
+  async upsertMarketVisionOutcomes(input: UpsertTelemetryMarketVisionOutcomeInput[]) {
+    if (input.length === 0) return;
+    const { error } = await this.db.from("telemetry_market_vision_outcomes").upsert(input.map((item) => ({
+      market_vision_snapshot_id: item.marketVisionSnapshotId,
+      horizon: item.horizon,
+      evaluation_date: item.evaluationDate,
+      proxy_symbol: item.proxySymbol,
+      proxy_return: item.proxyReturn,
+      benchmark_return: item.benchmarkReturn,
+      excess_return: item.excessReturn,
+      success: item.success,
+      outcome_status: item.outcomeStatus
+    })), { onConflict: "market_vision_snapshot_id,horizon" });
+    if (isMissingTelemetryTable(error)) return;
+    if (error) throw new Error(error.message);
+  }
+
   async listPortfolioReviewSnapshots(limit = 100) {
     const { data, error } = await this.db.from("telemetry_portfolio_review_snapshots").select("*").order("generated_at", { ascending: false }).limit(limit);
     if (isMissingTelemetryTable(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapPortfolioReviewSnapshot);
+  }
+
+  async listPortfolioReviewOutcomes() {
+    const { data, error } = await this.db
+      .from("telemetry_portfolio_review_outcomes")
+      .select("*")
+      .order("evaluation_date", { ascending: false })
+      .limit(5000);
+    if (isMissingTelemetryTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapPortfolioReviewOutcome);
+  }
+
+  async upsertPortfolioReviewOutcomes(input: UpsertTelemetryPortfolioReviewOutcomeInput[]) {
+    if (input.length === 0) return;
+    const { error } = await this.db.from("telemetry_portfolio_review_outcomes").upsert(input.map((item) => ({
+      portfolio_review_snapshot_id: item.portfolioReviewSnapshotId,
+      horizon: item.horizon,
+      evaluation_date: item.evaluationDate,
+      portfolio_return: item.portfolioReturn,
+      benchmark_return: item.benchmarkReturn,
+      excess_return: item.excessReturn,
+      volatility_change: item.volatilityChange,
+      drawdown_change: item.drawdownChange,
+      diversification_score_change: item.diversificationScoreChange,
+      concentration_score_change: item.concentrationScoreChange,
+      risk_score_change: item.riskScoreChange,
+      portfolio_score_change: item.portfolioScoreChange,
+      effectiveness_classification: item.effectivenessClassification,
+      outcome_status: item.outcomeStatus
+    })), { onConflict: "portfolio_review_snapshot_id,horizon" });
+    if (isMissingTelemetryTable(error)) return;
+    if (error) throw new Error(error.message);
   }
 
   async getInstrumentPriceOnOrAfter(instrumentId: string, targetDate: string) {
@@ -336,6 +443,22 @@ export class SupabaseTelemetryRepository implements TelemetryRepository {
     return data ? mapPricePoint(data) : null;
   }
 
+  async getInstrumentPriceBySymbolOnOrAfter(symbol: string, targetDate: string) {
+    return this.getInstrumentPriceBySymbol(symbol, targetDate, "after");
+  }
+
+  async getInstrumentPriceBySymbolOnOrBefore(symbol: string, targetDate: string) {
+    return this.getInstrumentPriceBySymbol(symbol, targetDate, "before");
+  }
+
+  async getPortfolioValueOnOrAfter(portfolioId: string, targetDate: string) {
+    return this.getPortfolioValue(portfolioId, targetDate, "after");
+  }
+
+  async getPortfolioValueOnOrBefore(portfolioId: string, targetDate: string) {
+    return this.getPortfolioValue(portfolioId, targetDate, "before");
+  }
+
   async getBenchmarkPriceOnOrAfter(symbol: string, targetDate: string) {
     return this.getBenchmarkPrice(symbol, targetDate, "after");
   }
@@ -345,12 +468,14 @@ export class SupabaseTelemetryRepository implements TelemetryRepository {
   }
 
   async getDashboard(): Promise<TelemetryDashboard> {
-    const [snapshots, outcomes, factors, marketVisionSnapshots, portfolioReviewSnapshots] = await Promise.all([
+    const [snapshots, outcomes, factors, marketVisionSnapshots, marketVisionOutcomes, portfolioReviewSnapshots, portfolioReviewOutcomes] = await Promise.all([
       this.listRecommendationSnapshots(2000),
       this.listRecommendationOutcomes(),
       this.listFactorOutcomes(100),
       this.listMarketVisionSnapshots(50),
-      this.listPortfolioReviewSnapshots(50)
+      this.listMarketVisionOutcomes(),
+      this.listPortfolioReviewSnapshots(50),
+      this.listPortfolioReviewOutcomes()
     ]);
     const evaluated = outcomes.filter((item) => item.outcomeStatus === "evaluated");
     const latestEvaluationDate = outcomes.map((item) => item.evaluationDate).sort().at(-1) ?? null;
@@ -362,13 +487,47 @@ export class SupabaseTelemetryRepository implements TelemetryRepository {
         pendingOutcomes: outcomes.filter((item) => item.outcomeStatus === "pending").length,
         marketVisionSnapshots: marketVisionSnapshots.length,
         portfolioReviewSnapshots: portfolioReviewSnapshots.length,
-        latestEvaluationDate
+        latestEvaluationDate,
+        coverage: calculateCoverage(snapshots, outcomes, marketVisionSnapshots, marketVisionOutcomes, portfolioReviewSnapshots, portfolioReviewOutcomes)
       },
       recommendationSummary: summarizeRecommendations(snapshots, outcomes),
       factorOutcomes: factors,
+      bestFactors: factors.filter((item) => item.observationCount >= 10 && item.averageExcessReturn != null).slice().sort((a, b) => (b.averageExcessReturn ?? -Infinity) - (a.averageExcessReturn ?? -Infinity)).slice(0, 10),
+      worstFactors: factors.filter((item) => item.observationCount >= 10 && item.averageExcessReturn != null).slice().sort((a, b) => (a.averageExcessReturn ?? Infinity) - (b.averageExcessReturn ?? Infinity)).slice(0, 10),
+      confidenceCalibration: summarizeConfidenceCalibration(snapshots, outcomes),
+      marketVisionOutcomes,
+      portfolioReviewOutcomes,
       marketVisionSnapshots,
       portfolioReviewSnapshots
     };
+  }
+
+  private async getInstrumentPriceBySymbol(symbol: string, targetDate: string, direction: "after" | "before"): Promise<PricePoint | null> {
+    let query = this.db
+      .from("instrument_prices")
+      .select("price_date,close_price,instruments!inner(symbol)")
+      .eq("instruments.symbol", symbol.toUpperCase())
+      .gt("close_price", 0);
+    query = direction === "after"
+      ? query.gte("price_date", targetDate).order("price_date", { ascending: true })
+      : query.lte("price_date", targetDate).order("price_date", { ascending: false });
+    const { data, error } = await query.limit(1).maybeSingle();
+    if (error) return null;
+    return data ? mapPricePoint(data) : null;
+  }
+
+  private async getPortfolioValue(portfolioId: string, targetDate: string, direction: "after" | "before"): Promise<PortfolioValuePoint | null> {
+    let query = this.db
+      .from("portfolio_snapshots")
+      .select("snapshot_date,total_value")
+      .eq("portfolio_id", portfolioId)
+      .gt("total_value", 0);
+    query = direction === "after"
+      ? query.gte("snapshot_date", targetDate).order("snapshot_date", { ascending: true })
+      : query.lte("snapshot_date", targetDate).order("snapshot_date", { ascending: false });
+    const { data, error } = await query.limit(1).maybeSingle();
+    if (error) return null;
+    return data ? { date: data.snapshot_date, totalValue: Number(data.total_value) } : null;
   }
 
   private async getBenchmarkPrice(symbol: string, targetDate: string, direction: "after" | "before"): Promise<PricePoint | null> {
@@ -413,6 +572,92 @@ function isMatured(startDate: string, asOfDate: string, horizon: string) {
   return addMonths(startDate, horizonMonths(horizon)) <= asOfDate;
 }
 
+const telemetryHorizons = ["1m", "3m", "6m", "12m"] as const;
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function maturedObservationCount(snapshots: Array<{ generatedAt: string }>, asOfDate = today()) {
+  return snapshots.reduce((sum, snapshot) => {
+    const startDate = snapshot.generatedAt.slice(0, 10);
+    return sum + telemetryHorizons.filter((horizon) => isMatured(startDate, asOfDate, horizon)).length;
+  }, 0);
+}
+
+function coveragePercent(evaluated: number, matured: number) {
+  return matured === 0 ? null : evaluated / matured;
+}
+
+function calculateCoverage(
+  recommendationSnapshots: TelemetryRecommendationSnapshot[],
+  recommendationOutcomes: TelemetryRecommendationOutcome[],
+  marketVisionSnapshots: TelemetryMarketVisionSnapshot[],
+  marketVisionOutcomes: TelemetryMarketVisionOutcome[],
+  portfolioReviewSnapshots: TelemetryPortfolioReviewSnapshot[],
+  portfolioReviewOutcomes: TelemetryPortfolioReviewOutcome[]
+): TelemetryCoverageMetrics {
+  const maturedRecommendationObservations = maturedObservationCount(recommendationSnapshots);
+  const maturedMarketVisionObservations = maturedObservationCount(marketVisionSnapshots);
+  const maturedPortfolioReviewObservations = maturedObservationCount(portfolioReviewSnapshots);
+  const evaluatedRecommendationObservations = recommendationOutcomes.filter((item) => item.outcomeStatus === "evaluated").length;
+  const evaluatedMarketVisionObservations = marketVisionOutcomes.filter((item) => item.outcomeStatus === "evaluated").length;
+  const evaluatedPortfolioReviewObservations = portfolioReviewOutcomes.filter((item) => item.outcomeStatus === "evaluated").length;
+  const allOutcomes = [...recommendationOutcomes, ...marketVisionOutcomes, ...portfolioReviewOutcomes];
+  return {
+    recommendationCoverage: coveragePercent(evaluatedRecommendationObservations, maturedRecommendationObservations),
+    marketVisionCoverage: coveragePercent(evaluatedMarketVisionObservations, maturedMarketVisionObservations),
+    portfolioReviewCoverage: coveragePercent(evaluatedPortfolioReviewObservations, maturedPortfolioReviewObservations),
+    maturedRecommendationObservations,
+    evaluatedRecommendationObservations,
+    maturedMarketVisionObservations,
+    evaluatedMarketVisionObservations,
+    maturedPortfolioReviewObservations,
+    evaluatedPortfolioReviewObservations,
+    missingDataOutcomes: allOutcomes.filter((item) => item.outcomeStatus === "insufficient_data" || item.outcomeStatus === "stale_price").length,
+    benchmarkMissingOutcomes: allOutcomes.filter((item) => item.outcomeStatus === "benchmark_missing").length
+  };
+}
+
+function confidenceBucket(value: number) {
+  if (value < 50) return "0-49";
+  if (value < 60) return "50-59";
+  if (value < 70) return "60-69";
+  if (value < 80) return "70-79";
+  if (value < 90) return "80-89";
+  return "90+";
+}
+
+function average(values: Array<number | null>) {
+  const numeric = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  return numeric.length === 0 ? null : numeric.reduce((sum, value) => sum + value, 0) / numeric.length;
+}
+
+function summarizeConfidenceCalibration(
+  snapshots: TelemetryRecommendationSnapshot[],
+  outcomes: TelemetryRecommendationOutcome[]
+): ConfidenceCalibrationRow[] {
+  const snapshotById = new Map(snapshots.map((snapshot) => [snapshot.id, snapshot]));
+  const groups = new Map<string, TelemetryRecommendationOutcome[]>();
+  for (const outcome of outcomes.filter((item) => item.outcomeStatus === "evaluated")) {
+    const snapshot = snapshotById.get(outcome.recommendationSnapshotId);
+    if (!snapshot) continue;
+    const bucket = confidenceBucket(snapshot.confidenceScore);
+    const key = `${bucket}|${outcome.horizon}`;
+    groups.set(key, [...(groups.get(key) ?? []), outcome]);
+  }
+  return Array.from(groups.entries()).map(([key, rows]) => {
+    const [bucket, horizon] = key.split("|") as [string, any];
+    return {
+      bucket,
+      horizon,
+      observationCount: rows.length,
+      hitRate: rows.length === 0 ? null : rows.filter((row) => row.success).length / rows.length,
+      averageExcessReturn: average(rows.map((row) => row.excessReturn))
+    };
+  }).sort((a, b) => a.horizon.localeCompare(b.horizon) || a.bucket.localeCompare(b.bucket));
+}
+
 function summarizeRecommendations(
   snapshots: TelemetryRecommendationSnapshot[],
   outcomes: TelemetryRecommendationOutcome[]
@@ -428,10 +673,6 @@ function summarizeRecommendations(
   return Array.from(groups.entries()).map(([key, rows]) => {
     const [recommendation, horizon] = key.split("|") as [string, any];
     const evaluated = rows.filter((row) => row.outcomeStatus === "evaluated");
-    const average = (values: Array<number | null>) => {
-      const numeric = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-      return numeric.length === 0 ? null : numeric.reduce((sum, value) => sum + value, 0) / numeric.length;
-    };
     return {
       recommendation,
       horizon,

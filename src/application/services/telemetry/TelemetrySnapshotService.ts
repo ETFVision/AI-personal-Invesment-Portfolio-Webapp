@@ -154,7 +154,19 @@ export class TelemetrySnapshotService {
       ].slice(0, 10),
       improvementSuggestions: report.portfolioImprovementSuggestions,
       allocationSnapshot: report.allocationReview.metrics ?? {},
-      lookthroughSnapshot: report.inputsSnapshot ?? {}
+      lookthroughSnapshot: {
+        ...(report.inputsSnapshot ?? {}),
+        reviewMetrics: {
+          allocation: report.allocationReview.metrics ?? {},
+          concentration: report.concentrationReview.metrics ?? {},
+          diversification: report.diversificationReview.metrics ?? {},
+          risk: report.riskReview.metrics ?? {},
+          fixedIncome: report.fixedIncomeReview.metrics ?? {},
+          macroFit: report.macroFitReview.metrics ?? {},
+          themeExposure: report.themeExposureReview.metrics ?? {},
+          geography: report.geographyReview.metrics ?? {}
+        }
+      }
     });
     return { snapshotsCreated: snapshot ? 1 : 0 };
   }

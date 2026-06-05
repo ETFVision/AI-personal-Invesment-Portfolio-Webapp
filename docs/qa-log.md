@@ -2406,3 +2406,52 @@ Validation performed:
 Production-readiness assessment:
 - READY for preview deployment after migration `054_telemetry_learning_layer.sql` is applied.
 - Safe rollout profile: telemetry writes are non-blocking and the dashboard handles missing tables/data with empty states.
+
+## 2026-06-05 - Telemetry V1.5 Hardening QA Checkpoint
+
+Scope:
+- Completed Telemetry V1.5 hardening on branch `codex/telemetry-learning-layer`.
+- Covered Market Vision outcome evaluation, Portfolio Review effectiveness evaluation, confidence calibration, coverage metrics, factor leaderboards, dashboard refinement, tests and documentation.
+
+Architecture assessment:
+- PASS: Telemetry remains observational and deterministic.
+- PASS: No Recommendation Engine scores, weights, guardrails, Portfolio Review logic, Market Vision logic, portfolio data or return formulas were changed.
+- PASS: Existing telemetry tables are reused where possible.
+- PASS: One small migration adds `risk_score_change` and `effectiveness_classification` to `telemetry_portfolio_review_outcomes`.
+- PASS: Evaluation is still driven through the existing `telemetry-evaluation` job and Admin Jobs manual control.
+
+Calculation assessment:
+- PASS: Market Vision outcomes calculate proxy return, benchmark return and excess return.
+- PASS: Market Vision success rules are deterministic for bullish, bearish, neutral and mixed directions.
+- PASS: Market Vision proxy mapping is centralized in `marketVisionProxyMap.ts`.
+- PASS: Portfolio Review outcomes compare prior review snapshots with later review snapshots for the same portfolio.
+- PASS: Portfolio Review effectiveness is classified as effective, neutral or deteriorated from material score changes.
+- PASS: Confidence calibration groups evaluated recommendation outcomes by 0-49, 50-59, 60-69, 70-79, 80-89 and 90+ buckets.
+- PASS: Coverage metrics compare evaluated observations against matured snapshot-horizons.
+- PASS: Factor best/worst leaderboards require at least early evidence before ranking.
+
+UX assessment:
+- PASS: `/telemetry` now shows coverage, recommendation accuracy, confidence calibration, factor intelligence, Market Vision accuracy and Portfolio Review effectiveness.
+- PASS: Empty states explain when no matured/evaluated data exists yet.
+- PASS: Dashboard copy continues to avoid investment advice or certainty from small samples.
+
+Critical issues:
+- None found in implementation review.
+
+Medium-priority issues:
+- None found in implementation review.
+
+Low-priority improvements for later:
+- Add user-action tracking so Portfolio Review effectiveness can distinguish acted-on suggestions from passive market movement.
+- Add richer Market Vision proxy mappings from canonical themes if the theme taxonomy expands.
+- Add human-reviewed telemetry-based weight suggestion workflow only after enough evidence accumulates.
+- Add per-instrument recommendation calibration drilldowns.
+
+Validation performed:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd test` passed: 178 tests.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY for preview deployment after migrations `054_telemetry_learning_layer.sql` and `055_telemetry_v1_5_hardening.sql` are applied.
