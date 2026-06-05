@@ -68,9 +68,10 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
     );
   }
 
-  const dashboard = await container.portfolioService.getDashboard(portfolio.id);
-  const portfolioReviewDashboard = await container.portfolioReviewService.getDashboard(portfolio.id);
-  const latestPortfolioReview = portfolioReviewDashboard.latestReport;
+  const [dashboard, latestPortfolioReview] = await Promise.all([
+    container.portfolioService.getDashboard(portfolio.id),
+    container.portfolioReviewRepository.getLatestReportSummary(portfolio.id)
+  ]);
   const lookthroughReport = lookthroughReportFromSnapshot(latestPortfolioReview?.inputsSnapshot?.lookthroughExposure);
   const sectorAllocation = lookthroughReport?.sectorExposures.length
     ? allocationFromLookthrough(lookthroughReport.sectorExposures)

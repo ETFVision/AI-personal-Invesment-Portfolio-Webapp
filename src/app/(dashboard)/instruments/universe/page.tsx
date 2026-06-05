@@ -100,8 +100,10 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
     query: q || undefined,
     isActive: status === "inactive" ? false : status === "all" ? undefined : true
   });
-  const rows = await container.instrumentMarketService.buildInstrumentMarketViews(instruments, { lookbackYears: 1 });
-  const fundamentalsRows = await container.fundamentalsRepository.listSummaryRows();
+  const [rows, fundamentalsRows] = await Promise.all([
+    container.instrumentMarketService.buildInstrumentMarketViews(instruments, { lookbackYears: 1 }),
+    container.fundamentalsRepository.listSummaryRows()
+  ]);
   const fundamentalsByInstrumentId = new Map(fundamentalsRows.map((row) => [row.instrument.id, row]));
   const filteredRows = type ? rows.filter((row) => instrumentBucket(row) === type) : rows;
   const groupedRows = groupByAssetClass(filteredRows);

@@ -103,8 +103,10 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
   const selectedInstruments = activeItems
     .map((item) => instrumentById.get(item.instrumentId))
     .filter((instrument): instrument is NonNullable<typeof instrument> => Boolean(instrument));
-  const marketRows = await container.instrumentMarketService.buildInstrumentMarketViews(selectedInstruments, { lookbackYears: 1 });
-  const fundamentalsRows = await container.fundamentalsRepository.listSummaryRows();
+  const [marketRows, fundamentalsRows] = await Promise.all([
+    container.instrumentMarketService.buildInstrumentMarketViews(selectedInstruments, { lookbackYears: 1 }),
+    container.fundamentalsRepository.listSummaryRows()
+  ]);
   const fundamentalsByInstrumentId = new Map(fundamentalsRows.map((row) => [row.instrument.id, row]));
   const itemByInstrumentId = new Map(activeItems.map((item) => [item.instrumentId, item]));
   const rows = marketRows.map((row) => {

@@ -238,9 +238,11 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
     );
   }
 
-  const dashboard = await container.portfolioService.getDashboard(portfolio.id);
+  const [dashboard, macroDashboard] = await Promise.all([
+    container.portfolioService.getDashboard(portfolio.id),
+    container.macroDashboardService.getDashboard()
+  ]);
   const report = await container.bondService.getPortfolioBondAnalytics(dashboard);
-  const macroDashboard = await container.macroDashboardService.getDashboard();
   const macroContext = container.macroContextService.buildContext(macroDashboard);
 
   if (report.bondHoldings.length === 0) {

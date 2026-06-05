@@ -505,8 +505,11 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
     );
   }
 
-  const dashboard = await container.portfolioReviewService.getDashboard(portfolio.id);
-  const latestEtfExposureLog = (await container.etfExposureRepository.listRefreshLogs(1))[0] ?? null;
+  const [dashboard, etfExposureLogs] = await Promise.all([
+    container.portfolioReviewService.getDashboard(portfolio.id),
+    container.etfExposureRepository.listRefreshLogs(1)
+  ]);
+  const latestEtfExposureLog = etfExposureLogs[0] ?? null;
   const report = dashboard.latestReport;
 
   return (

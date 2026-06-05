@@ -1,5 +1,6 @@
 import type {
   CreatePortfolioReviewRunInput,
+  PortfolioReviewSummary,
   PortfolioReviewRepository,
   UpsertPortfolioReviewReportInput
 } from "@/application/ports/repositories/PortfolioReviewRepository";
@@ -76,6 +77,24 @@ function mapReport(row: any): PortfolioReviewReport {
     portfolioImprovementSuggestions: arrayValue<PortfolioImprovementSuggestion>(row.portfolio_improvement_suggestions),
     potentialActions: arrayValue<PortfolioPotentialAction>(row.potential_actions),
     dataLimitations: arrayValue<string>(row.data_limitations),
+    overallPortfolioScore: row.overall_portfolio_score == null ? null : Number(row.overall_portfolio_score),
+    confidenceScore: Number(row.confidence_score ?? 0),
+    inputsSnapshot: row.inputs_snapshot ?? {},
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapSummary(row: any): PortfolioReviewSummary {
+  return {
+    id: row.id,
+    portfolioId: row.portfolio_id,
+    portfolioReviewRunId: row.portfolio_review_run_id,
+    reviewDate: row.review_date,
+    periodStart: row.period_start,
+    periodEnd: row.period_end,
+    status: row.status,
+    watchAreas: arrayValue<PortfolioReviewFinding>(row.watch_areas),
     overallPortfolioScore: row.overall_portfolio_score == null ? null : Number(row.overall_portfolio_score),
     confidenceScore: Number(row.confidence_score ?? 0),
     inputsSnapshot: row.inputs_snapshot ?? {},
@@ -175,6 +194,20 @@ export class SupabasePortfolioReviewRepository implements PortfolioReviewReposit
     if (isMissingPortfolioReviewTable(error)) return null;
     if (error) throw new Error(error.message);
     return data ? mapReport(data) : null;
+  }
+
+  async getLatestReportSummary(portfolioId: string) {
+    const { data, error } = await this.db
+      .from("portfolio_review_reports")
+      .select("id,portfolio_id,portfolio_review_run_id,review_date,period_start,period_end,status,watch_areas,overall_portfolio_score,confidence_score,inputs_snapshot,created_at,updated_at")
+      .eq("portfolio_id", portfolioId)
+      .order("review_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (isMissingPortfolioReviewTable(error)) return null;
+    if (error) throw new Error(error.message);
+    return data ? mapSummary(data) : null;
   }
 
   async listRuns(portfolioId: string, limit = 10) {

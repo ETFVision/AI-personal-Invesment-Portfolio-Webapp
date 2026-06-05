@@ -408,17 +408,18 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
   const instrument = instruments.find((item) => item.symbol?.toUpperCase() === decodedSymbol);
   if (!instrument) notFound();
 
-  const [marketView] = await container.instrumentMarketService.buildInstrumentMarketViews([instrument], { lookbackYears: 1 });
-  const [bondProfiles] = await Promise.all([container.instrumentService.listBondProfiles()]);
   const type = resolveInstrumentType(instrument);
   const typeLabel = instrumentTypeLabel(type);
-  const bondProfile = bondProfiles.find((profile) => profile.instrumentId === instrument.id) ?? null;
-  const fundamentalsDetail = type === "stock" && instrument.symbol ? await container.fundamentalsRepository.getDetailBySymbol(instrument.symbol) : null;
-  const [riskMetric, recommendation, recommendationHistory] = await Promise.all([
+  const [marketViews, bondProfiles, fundamentalsDetail, riskMetric, recommendation, recommendationHistory] = await Promise.all([
+    container.instrumentMarketService.buildInstrumentMarketViews([instrument], { lookbackYears: 1 }),
+    container.instrumentService.listBondProfiles(),
+    type === "stock" && instrument.symbol ? container.fundamentalsRepository.getDetailBySymbol(instrument.symbol) : Promise.resolve(null),
     container.instrumentRiskService.getInstrumentRiskMetric(instrument),
     container.recommendationService.getLatestForInstrument(instrument.id),
     container.recommendationService.getHistoryForInstrument(instrument.id)
   ]);
+  const marketView = marketViews[0];
+  const bondProfile = bondProfiles.find((profile) => profile.instrumentId === instrument.id) ?? null;
   const tabs = tabsForType(type, instrument, marketView, bondProfile, fundamentalsDetail, riskMetric, recommendation, recommendationHistory);
 
   return (

@@ -200,16 +200,20 @@ export default async function RiskPage() {
     );
   }
 
-  const dashboard = await container.portfolioService.getDashboard(portfolio.id);
-  const bondReport = await container.bondService.getPortfolioBondAnalytics(dashboard);
-  const macroDashboard = await container.macroDashboardService.getDashboard();
+  const [dashboard, macroDashboard, cachedRiskReport] = await Promise.all([
+    container.portfolioService.getDashboard(portfolio.id),
+    container.macroDashboardService.getDashboard(),
+    container.riskAnalyticsRepository.getLatestRiskReport(portfolio.id)
+  ]);
   const macroContext = container.macroContextService.buildContext(macroDashboard);
-  const cachedRiskReport = await container.riskAnalyticsRepository.getLatestRiskReport(portfolio.id);
   const cachedReport = cachedRiskReport?.report as Partial<RiskAnalyticsReport> | null | undefined;
   const canUseCachedReport = cachedReport?.taxonomyVersion === RISK_TAXONOMY_VERSION;
-  const report = canUseCachedReport
-    ? cachedReport as RiskAnalyticsReport
-    : await container.riskAnalyticsDataService.buildReport(portfolio.id, dashboard);
+  const [bondReport, report] = await Promise.all([
+    container.bondService.getPortfolioBondAnalytics(dashboard),
+    canUseCachedReport
+      ? Promise.resolve(cachedReport as RiskAnalyticsReport)
+      : container.riskAnalyticsDataService.buildReport(portfolio.id, dashboard)
+  ]);
   if (!canUseCachedReport) {
     await container.riskAnalyticsRepository.upsertRiskReport({
       portfolioId: portfolio.id,
