@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { runRecommendationsAction } from "@/server/actions/recommendationActions";
 import { formatNumber, formatPercent } from "@/lib/utils";
@@ -18,11 +19,11 @@ function score(value: number | null | undefined) {
 }
 
 function tone(label: string) {
-  if (label === "Strong Buy" || label === "Buy") return "border-emerald-200 bg-emerald-50 text-emerald-900";
-  if (label === "Hold") return "border-blue-200 bg-blue-50 text-blue-900";
-  if (label === "Watch") return "border-amber-200 bg-amber-50 text-amber-900";
-  if (label === "Reduce" || label === "Sell") return "border-red-200 bg-red-50 text-red-900";
-  return "border-border bg-muted text-muted-foreground";
+  if (label === "Strong Buy" || label === "Buy") return "positive";
+  if (label === "Hold") return "info";
+  if (label === "Watch") return "warning";
+  if (label === "Reduce" || label === "Sell") return "danger";
+  return "neutral";
 }
 
 function RecommendationTable({ title, description, rows }: { title: string; description: string; rows: InstrumentRecommendation[] }) {
@@ -42,8 +43,8 @@ function RecommendationTable({ title, description, rows }: { title: string; desc
                 <tr>
                   <th className="p-3">Instrument</th>
                   <th className="p-3">Label</th>
-                  <th className="p-3">Score</th>
-                  <th className="p-3">Confidence</th>
+                  <th className="p-3 text-right">Score</th>
+                  <th className="p-3 text-right">Confidence</th>
                   <th className="p-3">Risk</th>
                   <th className="p-3">Drivers</th>
                   <th className="p-3">Guardrails</th>
@@ -57,10 +58,10 @@ function RecommendationTable({ title, description, rows }: { title: string; desc
                       <p className="text-xs text-muted-foreground">{row.instrumentType}</p>
                     </td>
                     <td className="p-3">
-                      <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-medium ${tone(row.recommendationLabel)}`}>{row.recommendationLabel}</span>
+                      <StatusBadge tone={tone(row.recommendationLabel)}>{row.recommendationLabel}</StatusBadge>
                     </td>
-                    <td className="p-3">{score(row.overallScore)}</td>
-                    <td className="p-3">{formatPercent(row.confidenceScore / 100)}</td>
+                    <td className="p-3 text-right">{score(row.overallScore)}</td>
+                    <td className="p-3 text-right">{formatPercent(row.confidenceScore / 100)}</td>
                     <td className="p-3 capitalize">{row.riskLevel.replaceAll("_", " ")}</td>
                     <td className="max-w-xs p-3 text-xs text-muted-foreground">{row.positiveDrivers.slice(0, 2).join("; ") || "-"}</td>
                     <td className="max-w-xs p-3 text-xs text-muted-foreground">{row.guardrailsApplied.join("; ") || "-"}</td>
@@ -88,45 +89,41 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
   }, {});
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm text-muted-foreground">Research</p>
-          <h1 className="text-2xl font-semibold">Recommendations</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Deterministic scoring, explainable drivers and guardrails. No trades are placed.</p>
-        </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Research"
+        title="Recommendations"
+        description="Deterministic scoring, explainable drivers and guardrails. No trades are placed."
+        meta={
+          <>
+            <StatusBadge tone={dashboard.latestRun?.status === "success" ? "positive" : dashboard.latestRun ? "warning" : "neutral"}>
+              {dashboard.latestRun?.status ?? "No run yet"}
+            </StatusBadge>
+            <StatusBadge tone="info">{recommendations.length} latest recommendations</StatusBadge>
+          </>
+        }
+        actions={
         <form action={runRecommendationsAction} className="flex flex-wrap gap-2">
           <input type="hidden" name="returnTo" value="/recommendations" />
           <SubmitButton pendingLabel="Running recommendations...">Run recommendations</SubmitButton>
         </form>
-      </div>
+        }
+      />
 
       {params?.recommendationMessage ? <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{params.recommendationMessage}</p> : null}
       {params?.recommendationError ? <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{params.recommendationError}</p> : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Latest run</CardTitle></CardHeader>
-          <CardContent><p className="text-xl font-semibold">{dashboard.latestRun?.runDate ?? "-"}</p><p className="text-xs text-muted-foreground">{dashboard.latestRun?.status ?? "No run yet"}</p></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Evaluated</CardTitle></CardHeader>
-          <CardContent><p className="text-xl font-semibold">{formatNumber(dashboard.latestRun?.instrumentsEvaluated ?? 0, 0)}</p><p className="text-xs text-muted-foreground">Approved active instruments</p></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Buy / Strong Buy</CardTitle></CardHeader>
-          <CardContent><p className="text-xl font-semibold">{formatNumber((labelCounts.Buy ?? 0) + (labelCounts["Strong Buy"] ?? 0), 0)}</p><p className="text-xs text-muted-foreground">After guardrails</p></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Insufficient data</CardTitle></CardHeader>
-          <CardContent><p className="text-xl font-semibold">{formatNumber(labelCounts["Insufficient Data"] ?? 0, 0)}</p><p className="text-xs text-muted-foreground">Needs more inputs</p></CardContent>
-        </Card>
+        <MetricCard title="Latest run" value={dashboard.latestRun?.runDate ?? "-"} footer={dashboard.latestRun?.status ?? "No run yet"} />
+        <MetricCard title="Evaluated" value={formatNumber(dashboard.latestRun?.instrumentsEvaluated ?? 0, 0)} footer="Approved active instruments" />
+        <MetricCard title="Buy / Strong Buy" value={formatNumber((labelCounts.Buy ?? 0) + (labelCounts["Strong Buy"] ?? 0), 0)} footer="After guardrails" />
+        <MetricCard title="Insufficient data" value={formatNumber(labelCounts["Insufficient Data"] ?? 0, 0)} footer="Needs more inputs" />
       </div>
 
       <RecommendationTable title="Universe Opportunities" description="Highest-scoring approved instruments after deterministic guardrails." rows={dashboard.universeOpportunities} />
       <RecommendationTable title="Portfolio Recommendations" description="Latest recommendations for instruments currently held in the default portfolio." rows={dashboard.portfolioRecommendations.slice(0, 50)} />
       <RecommendationTable title="Watchlist Recommendations" description="Latest recommendations for active watchlist instruments." rows={dashboard.watchlistRecommendations.slice(0, 50)} />
       <RecommendationTable title="All Recommendations" description="Full latest recommendation set for QA and traceability." rows={recommendations.slice(0, 100)} />
-    </div>
+    </PageContainer>
   );
 }

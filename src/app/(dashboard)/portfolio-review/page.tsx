@@ -3,6 +3,7 @@ import { createContainer } from "@/server/container";
 import { refreshEtfLookthroughExposureAction, runPortfolioReviewAction } from "@/server/actions/portfolioReviewActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { formatPercent } from "@/lib/utils";
 import type {
@@ -538,14 +539,21 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
   const report = dashboard.latestReport;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm text-muted-foreground">Research</p>
-          <h1 className="text-2xl font-semibold">Portfolio Review</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Deterministic portfolio-level review across allocation, risk, macro, recommendations, fixed income and themes.</p>
-        </div>
-        <div className="flex flex-col items-start gap-2 sm:items-end">
+    <PageContainer>
+      <PageHeader
+        eyebrow="Research"
+        title="Portfolio Review"
+        description="Deterministic portfolio-level review across allocation, risk, macro, recommendations, fixed income and themes."
+        meta={
+          <>
+            <StatusBadge tone={report ? "positive" : "neutral"}>{report ? `Report ${report.reviewDate}` : "No report yet"}</StatusBadge>
+            <StatusBadge tone={latestEtfExposureLog?.status === "success" ? "positive" : latestEtfExposureLog ? "warning" : "neutral"}>
+              ETF exposure {formatDateTime(latestEtfExposureLog?.completedAt ?? latestEtfExposureLog?.startedAt)}
+            </StatusBadge>
+          </>
+        }
+        actions={
+          <div className="flex flex-col items-start gap-2 sm:items-end">
           <div className="flex flex-wrap gap-2">
             <form action={refreshEtfLookthroughExposureAction}>
               <input type="hidden" name="returnTo" value="/portfolio-review" />
@@ -561,7 +569,8 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
             {latestEtfExposureLog ? ` - ${latestEtfExposureLog.status} (${latestEtfExposureLog.etfsRefreshed}/${latestEtfExposureLog.etfsRequested} ETFs)` : ""}
           </p>
         </div>
-      </div>
+        }
+      />
 
       {params?.portfolioReviewMessage ? <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{params.portfolioReviewMessage}</p> : null}
       {params?.portfolioReviewError ? <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{params.portfolioReviewError}</p> : null}
@@ -601,10 +610,10 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
 
           {lookthroughReport(report) ? (
             <section className="space-y-4">
-              <div>
-                <h2 className="text-xl font-semibold">ETF Look-Through Exposure</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Provider ETF allocations are used where cached; direct instrument taxonomy is used as fallback.</p>
-              </div>
+              <SectionHeader
+                title="ETF Look-Through Exposure"
+                description="Provider ETF allocations are used where cached; direct instrument taxonomy is used as fallback."
+              />
               <div className="grid gap-4 lg:grid-cols-2">
                 <ExposureTable title="Look-Through Sector Exposure" description="Actual sector exposure after decomposing equity ETFs." rows={lookthroughReport(report)?.sectorExposures ?? []} />
                 <ExposureTable title="Look-Through Country Exposure" description="Country exposure from ETF allocations and direct holdings." rows={lookthroughReport(report)?.countryExposures ?? []} />
@@ -656,6 +665,6 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
           </section>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

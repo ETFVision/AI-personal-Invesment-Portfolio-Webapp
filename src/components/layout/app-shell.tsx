@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   Banknote,
   BarChart3,
@@ -22,6 +21,7 @@ import {
 } from "lucide-react";
 import { signOutAction } from "@/server/actions/authActions";
 import { Button } from "@/components/ui/button";
+import { NavLink } from "@/components/layout/nav-link";
 
 const navGroups = [
   {
@@ -81,16 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {navGroups.map((group) => (
             <div key={group.label} className="space-y-1">
               <p className="px-3 text-xs font-medium uppercase text-muted-foreground">{group.label}</p>
-              {group.items.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="flex items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-muted"
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              ))}
+              {group.items.map((item) => <NavLink key={item.href} href={item.href} label={item.label} icon={item.icon} />)}
             </div>
           ))}
         </nav>
@@ -112,11 +103,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </form>
           </div>
           <nav className="mt-3 flex gap-2 overflow-x-auto pb-1">
-            {mobileNavItems.map((item) => (
-              <Link key={item.href} href={item.href} className="whitespace-nowrap rounded-md bg-muted px-3 py-1.5 text-xs">
-                {item.label}
-              </Link>
-            ))}
+            {mobileNavItems.map((item) => <NavLink key={item.href} href={item.href} label={item.label} mobile />)}
           </nav>
         </header>
         <main className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8">{children}</main>

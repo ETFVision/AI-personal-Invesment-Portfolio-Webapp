@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,12 +50,6 @@ const implicationFields = [
   ["riskImplication", "Risk"] as const,
   ["watchlistImplication", "Watchlist"] as const
 ];
-
-function statusClass(status: string) {
-  if (status === "published") return "bg-emerald-100 text-emerald-700";
-  if (status === "archived") return "bg-muted text-muted-foreground";
-  return "bg-amber-100 text-amber-700";
-}
 
 function ReportSelector({ reports, selectedReport }: { reports: MarketVisionReport[]; selectedReport: MarketVisionReport | null }) {
   return (
@@ -307,15 +302,18 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
   const report = dashboard.selectedReport;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-end">
-        <div>
-          <p className="text-sm text-muted-foreground">Market Vision</p>
-          <h1 className="text-2xl font-semibold">Weekly CIO-style briefing</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            CIO-style synthesis from News Intelligence, FRED macro signals, portfolio analytics, risk, bonds, and benchmarks.
-          </p>
-        </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Market Vision"
+        title="Weekly CIO-style briefing"
+        description="CIO-style synthesis from News Intelligence, FRED macro signals, portfolio analytics, risk, bonds, and benchmarks."
+        meta={
+          <>
+            <StatusBadge tone={report ? "positive" : "neutral"}>{report ? report.status : "No report yet"}</StatusBadge>
+            {report ? <StatusBadge tone="info">{report.reportDate}</StatusBadge> : null}
+          </>
+        }
+        actions={
         <div className="flex flex-col gap-2 sm:flex-row">
           <ReportSelector reports={dashboard.reports} selectedReport={report} />
           <form action={createMarketVisionDraftAction}>
@@ -325,7 +323,8 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             <SubmitButton variant="secondary" pendingLabel="Generating...">Generate AI draft</SubmitButton>
           </form>
         </div>
-      </div>
+        }
+      />
 
       {params?.message || params?.error ? (
         <Card>
@@ -344,36 +343,10 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
       ) : (
         <>
           <section className="grid gap-4 md:grid-cols-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Status</CardTitle>
-                <CardDescription>Manual workflow state</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusClass(report.status)}`}>{report.status}</span>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Report date</CardTitle>
-                <CardDescription>Briefing date</CardDescription>
-              </CardHeader>
-              <CardContent className="text-2xl font-semibold">{report.reportDate}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Source</CardTitle>
-                <CardDescription>Generation mode</CardDescription>
-              </CardHeader>
-              <CardContent className="text-2xl font-semibold capitalize">{report.sourceType}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Confidence</CardTitle>
-                <CardDescription>Generated report score</CardDescription>
-              </CardHeader>
-              <CardContent className="text-2xl font-semibold">{report.confidenceScore == null ? "-" : `${report.confidenceScore}%`}</CardContent>
-            </Card>
+            <MetricCard title="Status" value={<StatusBadge tone={report.status === "published" ? "positive" : report.status === "archived" ? "neutral" : "warning"}>{report.status}</StatusBadge>} footer="Manual workflow state" />
+            <MetricCard title="Report date" value={report.reportDate} footer="Briefing date" />
+            <MetricCard title="Source" value={<span className="capitalize">{report.sourceType}</span>} footer="Generation mode" />
+            <MetricCard title="Confidence" value={report.confidenceScore == null ? "-" : `${report.confidenceScore}%`} footer="Generated report score" />
           </section>
 
           {report.sourceType === "generated" ? (
@@ -542,6 +515,6 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
           ))}
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

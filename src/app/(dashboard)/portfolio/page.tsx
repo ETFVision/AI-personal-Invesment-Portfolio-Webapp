@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import {
   AllocationDonutPanel,
   AllocationPanel,
@@ -84,13 +85,23 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
   const displayCurrency = hasMixedOrNonBaseCurrency ? undefined : portfolio.baseCurrency;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm text-muted-foreground">Portfolio dashboard</p>
-          <h1 className="text-2xl font-semibold">{portfolio.name}</h1>
-        </div>
-        <div className="flex flex-wrap gap-2">
+    <PageContainer>
+      <PageHeader
+        eyebrow="Dashboard"
+        title={portfolio.name}
+        description="Executive view of portfolio value, performance, allocation, review status and data freshness."
+        meta={
+          <>
+            <StatusBadge tone={dashboard.latestPriceDate ? "positive" : "warning"}>
+              Prices {dashboard.latestPriceDate ? `as of ${dashboard.latestPriceDate}` : "not refreshed"}
+            </StatusBadge>
+            <StatusBadge tone={latestPortfolioReview ? "info" : "neutral"}>
+              Review {latestPortfolioReview ? latestPortfolioReview.reviewDate : "not run"}
+            </StatusBadge>
+          </>
+        }
+        actions={
+          <>
           <form action={refreshAllDataAction}>
             <input type="hidden" name="returnTo" value="/portfolio" />
             <SubmitButton variant="secondary" pendingLabel="Refreshing data...">
@@ -99,8 +110,9 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
           </form>
           <Link className="rounded-md border px-4 py-2 text-sm hover:bg-muted" href="/cash">Add cash</Link>
           <Link className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground" href="/holdings">Add holding</Link>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {resolvedSearchParams?.priceMessage || resolvedSearchParams?.benchmarkMessage || resolvedSearchParams?.refreshMessage ? (
         <Card>
@@ -127,71 +139,55 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
       ) : null}
 
       <section className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Total portfolio value</CardTitle>
-            <CardDescription>
-              {hasMixedOrNonBaseCurrency
-                ? "Native-currency sum shown until FX conversion is added."
-                : dashboard.latestPriceDate
-                  ? `Cash plus latest stored prices as of ${dashboard.latestPriceDate}.`
-                  : "Cash plus holding cost basis until prices are refreshed."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {displayCurrency ? formatCurrency(dashboard.totalValueEstimate, displayCurrency) : dashboard.totalValueEstimate.toLocaleString("en-US")}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Cash</CardTitle>
-            <CardDescription>Available balances entered manually.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {displayCurrency ? formatCurrency(dashboard.totalCash, displayCurrency) : dashboard.totalCash.toLocaleString("en-US")}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Holdings</CardTitle>
-            <CardDescription>
-              {dashboard.latestPriceDate
-                ? `${dashboard.holdings.length} positions valued from latest stored prices where available.`
-                : `${dashboard.holdings.length} current manual positions.`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {displayCurrency ? formatCurrency(dashboard.totalHoldingsMarketValue, displayCurrency) : dashboard.totalHoldingsMarketValue.toLocaleString("en-US")}
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Total portfolio value"
+          description={
+            hasMixedOrNonBaseCurrency
+              ? "Native-currency sum shown until FX conversion is added."
+              : dashboard.latestPriceDate
+                ? `Cash plus latest stored prices as of ${dashboard.latestPriceDate}.`
+                : "Cash plus holding cost basis until prices are refreshed."
+          }
+          value={displayCurrency ? formatCurrency(dashboard.totalValueEstimate, displayCurrency) : dashboard.totalValueEstimate.toLocaleString("en-US")}
+        />
+        <MetricCard
+          title="Cash"
+          description="Available balances entered manually."
+          value={displayCurrency ? formatCurrency(dashboard.totalCash, displayCurrency) : dashboard.totalCash.toLocaleString("en-US")}
+        />
+        <MetricCard
+          title="Holdings"
+          description={
+            dashboard.latestPriceDate
+              ? `${dashboard.holdings.length} positions valued from latest stored prices where available.`
+              : `${dashboard.holdings.length} current manual positions.`
+          }
+          value={displayCurrency ? formatCurrency(dashboard.totalHoldingsMarketValue, displayCurrency) : dashboard.totalHoldingsMarketValue.toLocaleString("en-US")}
+        />
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Unrealised gain/loss</CardTitle>
-            <CardDescription>Current market value versus average cost.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-semibold ${dashboard.unrealizedGainLoss < 0 ? "text-destructive" : dashboard.unrealizedGainLoss > 0 ? "text-emerald-600" : ""}`}>
-              {displayCurrency
-                ? formatCurrency(dashboard.unrealizedGainLoss, displayCurrency)
-                : dashboard.unrealizedGainLoss.toLocaleString("en-US", { maximumFractionDigits: 2 })}
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">{formatPercent(dashboard.unrealizedGainLossPercent)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Realised gain/loss</CardTitle>
-            <CardDescription>Calculated from buy/sell transactions where possible.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-semibold ${dashboard.realizedGainLoss < 0 ? "text-destructive" : dashboard.realizedGainLoss > 0 ? "text-emerald-600" : ""}`}>
-              {displayCurrency ? formatCurrency(dashboard.realizedGainLoss, displayCurrency) : dashboard.realizedGainLoss.toLocaleString("en-US", { maximumFractionDigits: 2 })}
-            </div>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Unrealised gain/loss"
+          description="Current market value versus average cost."
+          tone={dashboard.unrealizedGainLoss < 0 ? "danger" : dashboard.unrealizedGainLoss > 0 ? "positive" : "neutral"}
+          value={
+            displayCurrency
+              ? formatCurrency(dashboard.unrealizedGainLoss, displayCurrency)
+              : dashboard.unrealizedGainLoss.toLocaleString("en-US", { maximumFractionDigits: 2 })
+          }
+          footer={formatPercent(dashboard.unrealizedGainLossPercent)}
+        />
+        <MetricCard
+          title="Realised gain/loss"
+          description="Calculated from buy/sell transactions where possible."
+          tone={dashboard.realizedGainLoss < 0 ? "danger" : dashboard.realizedGainLoss > 0 ? "positive" : "neutral"}
+          value={
+            displayCurrency
+              ? formatCurrency(dashboard.realizedGainLoss, displayCurrency)
+              : dashboard.realizedGainLoss.toLocaleString("en-US", { maximumFractionDigits: 2 })
+          }
+        />
         <Card>
           <CardHeader>
             <CardTitle>Cash vs invested</CardTitle>
@@ -322,6 +318,6 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </Card>
       </section>
 
-    </div>
+    </PageContainer>
   );
 }

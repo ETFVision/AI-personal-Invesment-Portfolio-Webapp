@@ -10,6 +10,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 type NewsPageProps = {
@@ -190,12 +191,19 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
   const gdeltFetchSummary = queryStatusSummary(dashboard.gdeltQueryStatuses);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm text-muted-foreground">News foundation</p>
-          <h1 className="text-2xl font-semibold">News Intelligence</h1>
-        </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Research"
+        title="News & Themes"
+        description="Provider news ingestion, deduplication, classification, source quality and weekly reconciliation for Market Vision."
+        meta={
+          <>
+            <StatusBadge tone="info">FMP {fmpSummary.status}</StatusBadge>
+            <StatusBadge tone={gdeltFetchSummary.failed > 0 ? "warning" : "neutral"}>GDELT failed groups {gdeltFetchSummary.failed}</StatusBadge>
+            <StatusBadge tone={newsDataFetchSummary.failed > 0 ? "warning" : "neutral"}>NewsData failed groups {newsDataFetchSummary.failed}</StatusBadge>
+          </>
+        }
+        actions={
         <div className="flex flex-wrap gap-2">
           <form action={runDailyNewsIngestionAction}>
             <SubmitButton pendingLabel="Fetching FMP...">Refresh FMP</SubmitButton>
@@ -213,7 +221,8 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
             <SubmitButton variant="secondary" pendingLabel="Reconciling...">Weekly reconcile</SubmitButton>
           </form>
         </div>
-      </div>
+        }
+      />
 
       {params?.message || params?.error ? (
         <Card>
@@ -224,22 +233,10 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
       ) : null}
 
       <section className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Stored Articles</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-semibold">{dashboard.stats.totalArticles}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Classified</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-semibold">{dashboard.stats.classifiedArticles}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Duplicates</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-semibold">{dashboard.stats.duplicateArticles}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Weekly Reconciliations</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-semibold">{dashboard.stats.weeklyReconciliations}</CardContent>
-        </Card>
+        <MetricCard title="Stored articles" value={dashboard.stats.totalArticles} footer="Current dashboard window" />
+        <MetricCard title="Classified" value={dashboard.stats.classifiedArticles} footer="Article-level classification complete" />
+        <MetricCard title="Duplicates" value={dashboard.stats.duplicateArticles} footer="Preserved and excluded from summaries" />
+        <MetricCard title="Weekly reconciliations" value={dashboard.stats.weeklyReconciliations} footer="Draft or published summaries" />
       </section>
 
       <Card>
@@ -709,6 +706,6 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
           </CardContent>
         </Card>
       </section>
-    </div>
+    </PageContainer>
   );
 }
