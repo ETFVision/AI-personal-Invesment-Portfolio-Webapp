@@ -2257,3 +2257,47 @@ Validation performed:
 Production-readiness assessment:
 - READY FOR TELEMETRY as a deterministic review layer.
 - Portfolio Review V1 is suitable as an input to Telemetry Learning, provided Telemetry remains observational and does not auto-change scoring weights without review.
+
+## 2026-06-05 - Unified Price Refresh Architecture QA Checkpoint
+
+Scope:
+- Reviewed the latest price-refresh architecture update after unifying portfolio price refresh with instrument market metrics.
+- Covered master instrument price refresh, portfolio price sync, `daily_prices`, `instrument_prices`, `instrument_market_metrics`, holding metrics, portfolio valuation sequencing, risk/return consumers, scheduled workflow order, and regression tests.
+
+Architecture assessment:
+- PASS: `/api/jobs/price-refresh` now refreshes the active master instrument universe before syncing portfolio asset prices.
+- PASS: Portfolio asset prices now sync from `instrument_market_metrics`, which is the compact derived latest-price layer.
+- PASS: The daily workflow now calls one combined price refresh before portfolio valuation, avoiding duplicate scheduled provider calls.
+- PASS: Existing portfolio valuation, holding metrics, snapshots, return formulas, metadata enrichment, taxonomy, fundamentals, risk, recommendations, and portfolio review service boundaries were not redesigned.
+- PASS: `/api/jobs/instrument-price-refresh` remains available for manual catch-up, but is no longer part of the daily automation.
+
+Calculation assessment:
+- PASS: Derived holding metrics continue to use `instrument_market_metrics` directly, so current holding value and holding return metrics are aligned with the master instrument layer.
+- PASS: Portfolio valuation still runs after price refresh and continues to create portfolio, holding, and cash snapshots from current portfolio state.
+- PASS: Portfolio and holding return formulas were not changed.
+- PASS: Risk analytics still receives portfolio daily price history through the existing repository interface.
+
+Medium-priority issue found and fixed:
+- Issue: Syncing portfolio prices into `daily_prices` with provider `instrument_market_metrics` could create duplicate same-date rows alongside older `financial_modeling_prep` rows because `daily_prices` is unique on `(asset_id, provider, price_date)`.
+- Risk: Duplicate same-date rows could pollute fallback holding price history and risk-return series even if headline valuations mostly stayed correct.
+- Fix: Portfolio price sync now writes under canonical provider `financial_modeling_prep`, updating the existing row for that asset/date instead of creating a parallel row.
+- Fix: `getLatestPricesForAssets` and `listDailyPricesForAssets` now defensively dedupe same asset/date rows and prefer canonical FMP rows over derived mirror rows if legacy duplicates exist.
+
+Critical issues:
+- None found.
+
+Low-priority improvements for later:
+- Add a database cleanup script only if legacy `daily_prices.provider = 'instrument_market_metrics'` rows were created in production before this fix.
+- Add a trading-day-aware freshness label so valid US-market prices do not look stale solely due to Singapore calendar time.
+- Add an admin warning for holdings whose ticker does not map to an active instrument.
+- Consider eventually removing the `daily_prices` mirror once holdings are fully instrument-linked and all portfolio consumers can read directly from instrument-derived price history.
+
+Validation performed:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd test` passed: 170 tests.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY after deployment of the duplicate-row fix.
+- Recommended deployment verification: run Daily Data Refresh manually once, then confirm the `price-refresh` job summary includes both `masterInstrumentRefresh` and `portfolioPriceSync`, Universe/Watchlist freshness updates, and Portfolio valuation refresh creates a current snapshot using the synced prices.

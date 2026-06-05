@@ -55,6 +55,32 @@ function uniqueSymbols(symbols: Array<string | null | undefined>) {
   return Array.from(new Set(symbols.map((symbol) => symbol?.trim().toUpperCase()).filter((symbol): symbol is string => Boolean(symbol))));
 }
 
+const CANONICAL_MARKET_DATA_PROVIDER = "financial_modeling_prep";
+
+function providerRank(provider: string | null | undefined) {
+  if (provider === CANONICAL_MARKET_DATA_PROVIDER) return 3;
+  if (provider && provider !== "instrument_market_metrics") return 2;
+  if (provider === "instrument_market_metrics") return 1;
+  return 0;
+}
+
+function dedupeDailyPriceRows(rows: any[], order: "asc" | "desc") {
+  const deduped = new Map<string, any>();
+  for (const row of rows) {
+    const key = `${row.asset_id}:${row.price_date}`;
+    const current = deduped.get(key);
+    if (!current || providerRank(row.provider) > providerRank(current.provider)) {
+      deduped.set(key, row);
+    }
+  }
+  return Array.from(deduped.values()).sort((a, b) => {
+    const byAsset = String(a.asset_id).localeCompare(String(b.asset_id));
+    if (byAsset !== 0) return byAsset;
+    const byDate = String(a.price_date).localeCompare(String(b.price_date));
+    return order === "asc" ? byDate : -byDate;
+  });
+}
+
 export class SupabaseMarketDataRepository implements MarketDataRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
@@ -146,7 +172,7 @@ export class SupabaseMarketDataRepository implements MarketDataRepository {
     if (error) throw new Error(error.message);
 
     const latest = new Map<string, DailyPrice>();
-    for (const row of data ?? []) {
+    for (const row of dedupeDailyPriceRows(data ?? [], "desc")) {
       if (!latest.has(row.asset_id)) latest.set(row.asset_id, mapDailyPrice(row));
     }
     return latest;
@@ -166,7 +192,7 @@ export class SupabaseMarketDataRepository implements MarketDataRepository {
     if (isMissingDailyPricesTable(error)) return [];
     if (error) throw new Error(error.message);
 
-    return (data ?? []).map(mapDailyPrice);
+    return dedupeDailyPriceRows(data ?? [], "asc").map(mapDailyPrice);
   }
 
   async getPricesForAssetsOnDate(assetIds: string[], priceDate: string, provider: string) {
@@ -202,7 +228,7 @@ export class SupabaseMarketDataRepository implements MarketDataRepository {
     if (error) throw new Error(error.message);
   }
 
-  async syncPortfolioDailyPricesFromInstrumentPrices(portfolioId: string, _provider?: string): Promise<SyncPortfolioDailyPricesResult> {
+  async syncPortfolioDailyPricesFromInstrumentPrices(portfolioId: string, provider = CANONICAL_MARKET_DATA_PROVIDER): Promise<SyncPortfolioDailyPricesResult> {
     const holdings = await this.listPricedPortfolioHoldings(portfolioId);
     const requestedSymbols = uniqueSymbols(holdings.map((holding) => holding.ticker));
     if (holdings.length === 0 || requestedSymbols.length === 0) {
@@ -245,7 +271,7 @@ export class SupabaseMarketDataRepository implements MarketDataRepository {
       return [
         {
           assetId: holding.assetId,
-          provider: "instrument_market_metrics",
+          provider,
           symbol,
           priceDate: latestMetric.latest_price_date,
           closePrice: Number(latestMetric.latest_price),
