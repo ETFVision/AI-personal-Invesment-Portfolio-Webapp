@@ -26,6 +26,9 @@ jobs:
       - name: Price refresh
         run: bash scripts/call-job-endpoint.sh /api/jobs/price-refresh
 
+      - name: Instrument universe price refresh
+        run: bash scripts/call-job-endpoint.sh /api/jobs/instrument-price-refresh
+
       - name: Portfolio valuation refresh
         run: bash scripts/call-job-endpoint.sh /api/jobs/portfolio-valuation-refresh
 
