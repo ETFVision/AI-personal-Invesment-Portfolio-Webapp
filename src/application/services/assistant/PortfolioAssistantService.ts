@@ -90,7 +90,8 @@ export class PortfolioAssistantService {
     const providerResult = await this.provider.answer({
       question: input.question,
       category: route.category,
-      context: promptPayload.context
+      context: promptPayload.context,
+      responseRequirements: promptPayload.responseRequirements
     });
     const validated = this.guardrails.validate(providerResult.answer);
     const responseTimeMs = Date.now() - startedAt;

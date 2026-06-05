@@ -4,6 +4,7 @@ export type PortfolioAssistantProviderInput = {
   question: string;
   category: AssistantQuestionCategory;
   context: AssistantContextPackage;
+  responseRequirements?: string[];
 };
 
 export type PortfolioAssistantProviderOutput = {

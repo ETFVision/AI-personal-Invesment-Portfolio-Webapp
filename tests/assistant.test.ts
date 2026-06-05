@@ -124,6 +124,65 @@ class ThrowingAssistantProvider implements AiPortfolioAssistantProvider {
   }
 }
 
+const minimalAssistantContext = {
+  category: "portfolio_overview" as const,
+  portfolio: {
+    id: "portfolio-1",
+    name: "Main",
+    totalValue: 1000,
+    latestPriceDate: "2026-06-04",
+    portfolioScore: 77,
+    diversificationScore: 79,
+    concentrationScore: 59,
+    riskScore: 88,
+    fixedIncomeScore: 79,
+    macroFitScore: 72
+  },
+  holdings: [],
+  indirectHoldings: [],
+  exposures: {
+    source: "lookthrough" as const,
+    lookthroughCoverage: { etfCount: 3 },
+    sectors: [{ label: "Technology", percent: 0.267 }],
+    geographies: [{ label: "United States", percent: 0.633 }],
+    themes: []
+  },
+  portfolioReview: {
+    summary: "Broadly healthy",
+    watchAreas: ["Top holding concentration: Largest holding exceeds 25%."],
+    suggestions: [],
+    riskFindings: [],
+    concentrationFindings: []
+  },
+  recommendations: { distribution: {}, focused: [] },
+  marketVision: { title: null, executiveSummary: null, risks: [], opportunities: [], portfolioImplications: {} },
+  telemetry: {
+    available: false,
+    recommendationCoverage: null,
+    bestFactors: [],
+    worstFactors: [],
+    confidenceCalibration: [],
+    marketVisionAccuracy: [],
+    portfolioReviewEffectiveness: null
+  },
+  recentMessages: [],
+  dataLimitations: []
+};
+
+class CapturingAssistantProvider implements AiPortfolioAssistantProvider {
+  input: unknown = null;
+
+  async answer(input: Parameters<AiPortfolioAssistantProvider["answer"]>[0]) {
+    this.input = input;
+    return {
+      answer: "Direct answer.\n\n## Most Important Thing Right Now\nMonitor concentration.\n\n## ETFVision View\nBroadly healthy.",
+      tokenUsage: { input_tokens: 10, output_tokens: 10 },
+      costEstimate: 0.0001,
+      modelUsed: "test-model"
+    };
+  }
+}
+
 test("assistant router maps ETFVision questions and rejects out-of-scope questions", () => {
   const router = new AssistantQuestionRouter();
   assert.equal(router.route("Why is my portfolio score 77?").category, "portfolio_review");
@@ -143,6 +202,42 @@ test("assistant guardrail replaces prohibited investment instructions", () => {
   const result = guardrails.validate("You should buy VOO and allocate 20%.");
   assert.equal(result.ok, false);
   assert.match(result.answer, /cannot provide buy\/sell instructions/i);
+});
+
+test("assistant prompt builder carries CIO response-quality requirements", () => {
+  const payload = new AssistantPromptBuilder().build({
+    question: "Is my portfolio healthy?",
+    context: minimalAssistantContext
+  });
+  const requirements = payload.responseRequirements.join("\n");
+  assert.match(requirements, /Most Important Thing Right Now/);
+  assert.match(requirements, /Rank findings by priority/);
+  assert.match(requirements, /ETFVision View/);
+  assert.match(requirements, /Executive summaries should be concise/);
+  assert.match(requirements, /mention this only when evidence, changes, monitoring, or historical accuracy is relevant/);
+});
+
+test("supported assistant questions pass response requirements to the AI provider", async () => {
+  const repository = new MemoryAssistantRepository();
+  const provider = new CapturingAssistantProvider();
+  const service = new PortfolioAssistantService(
+    repository,
+    new AssistantQuestionRouter(),
+    { build: async () => minimalAssistantContext } as never,
+    new AssistantPromptBuilder(),
+    provider,
+    new AssistantResponseGuardrailService()
+  );
+
+  await service.answer({
+    question: "Is my portfolio healthy?",
+    userId: "user-1",
+    portfolioId: "portfolio-1"
+  });
+
+  const input = provider.input as { responseRequirements?: string[] };
+  assert.ok(input.responseRequirements?.some((item) => item.includes("Most Important Thing Right Now")));
+  assert.ok(input.responseRequirements?.some((item) => item.includes("ETFVision View")));
 });
 
 test("unsupported assistant questions are logged without invoking the AI provider", async () => {
