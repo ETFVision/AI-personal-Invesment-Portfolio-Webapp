@@ -161,9 +161,7 @@ export function PortfolioAssistantDrawer({
         Assistant
       </button>
       {open ? (
-        <div className="fixed inset-0 z-50 bg-slate-950/30 backdrop-blur-sm">
-          {panel}
-        </div>
+        panel
       ) : null}
     </>
   );
