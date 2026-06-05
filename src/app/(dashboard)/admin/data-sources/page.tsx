@@ -1,5 +1,6 @@
 import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { env } from "@/infrastructure/config/env";
 
 function statusLabel(enabled: boolean, configured = true) {
@@ -46,12 +47,13 @@ export default async function DataSourcesPage() {
   await container.authProvider.requireUser();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm text-muted-foreground">Admin</p>
-        <h1 className="text-2xl font-semibold">Data Sources</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Provider configuration, macro data and data-source health will live here.</p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Admin"
+        title="Data Sources"
+        description="Provider configuration, macro data and data-source health."
+        meta={<StatusBadge tone="info">{providers.length} providers</StatusBadge>}
+      />
       <Card>
         <CardHeader>
           <CardTitle>Provider configuration</CardTitle>
@@ -72,6 +74,6 @@ export default async function DataSourcesPage() {
           ))}
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

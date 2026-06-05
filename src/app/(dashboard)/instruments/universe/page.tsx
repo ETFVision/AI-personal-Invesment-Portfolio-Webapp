@@ -4,6 +4,7 @@ import { backfillUniverseHistoryAction, refreshAllDataAction } from "@/server/ac
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { InstrumentDirectoryTable } from "@/components/instruments/instrument-directory-table";
 import type { InstrumentMarketView } from "@/domain/universe/types";
@@ -106,13 +107,18 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
   const groupedRows = groupByAssetClass(filteredRows);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm text-muted-foreground">Instruments</p>
-          <h1 className="text-2xl font-semibold">Universe directory</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Approved investment universe. Open a symbol for the canonical instrument detail page.</p>
-        </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Instruments"
+        title="Universe directory"
+        description="Approved investment universe with market metrics, taxonomy, freshness and instrument-level drilldowns."
+        meta={
+          <>
+            <StatusBadge tone="info">{filteredRows.length} instruments</StatusBadge>
+            <StatusBadge tone="neutral">{Object.keys(groupedRows).length} groups</StatusBadge>
+          </>
+        }
+        actions={
         <div className="flex flex-wrap gap-2">
           <form action={seedUniverseAction}><Button type="submit" variant="outline">Seed universe</Button></form>
           <form action={refreshAllDataAction}>
@@ -124,7 +130,8 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
             <SubmitButton variant="secondary" pendingLabel="Backfilling history...">Backfill history</SubmitButton>
           </form>
         </div>
-      </div>
+        }
+      />
 
       {params?.message || params?.refreshMessage ? (
         <Card>
@@ -178,10 +185,7 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
                       .sort(([a], [b]) => a.localeCompare(b))
                       .map(([sector, sectorRows]) => (
                         <div key={sector} className="space-y-3">
-                          <div>
-                            <h3 className="text-sm font-semibold">{sector}</h3>
-                            <p className="text-xs text-muted-foreground">{sectorRows.length} instruments</p>
-                          </div>
+                          <SectionHeader title={sector} description={`${sectorRows.length} instruments`} />
                           <InstrumentDirectoryTable rows={sortRows(sectorRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} />
                         </div>
                       ))}
@@ -203,6 +207,6 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
             );
           })}
       </div>
-    </div>
+    </PageContainer>
   );
 }

@@ -3,6 +3,7 @@ import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { InstrumentDirectoryTable } from "@/components/instruments/instrument-directory-table";
 import type { InstrumentMarketView, WatchlistTier } from "@/domain/universe/types";
@@ -119,18 +120,24 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
   const groupedRows = groupByAssetClass(rows);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm text-muted-foreground">Instruments</p>
-          <h1 className="text-2xl font-semibold">Watchlist directory</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Curated watchlist instruments. Open a symbol for the canonical instrument detail page.</p>
-        </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Instruments"
+        title="Watchlist directory"
+        description="Curated watchlist instruments with tiers, thesis context, market metrics and canonical instrument drilldowns."
+        meta={
+          <>
+            <StatusBadge tone="info">{rows.length} active items</StatusBadge>
+            <StatusBadge tone="neutral">{Object.keys(groupedRows).length} groups</StatusBadge>
+          </>
+        }
+        actions={
         <form action={refreshAllDataAction}>
           <input type="hidden" name="returnTo" value="/instruments/watchlist" />
           <SubmitButton pendingLabel="Refreshing data...">Refresh data</SubmitButton>
         </form>
-      </div>
+        }
+      />
 
       {params?.message || params?.refreshMessage ? (
         <Card>
@@ -176,10 +183,7 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
                       .sort(([a], [b]) => a.localeCompare(b))
                       .map(([sector, sectorRows]) => (
                         <div key={sector} className="space-y-3">
-                          <div>
-                            <h3 className="text-sm font-semibold">{sector}</h3>
-                            <p className="text-xs text-muted-foreground">{sectorRows.length} instruments</p>
-                          </div>
+                          <SectionHeader title={sector} description={`${sectorRows.length} instruments`} />
                           <InstrumentDirectoryTable rows={sortRows(sectorRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} emptyMessage="No watchlist instruments matched your filters." />
                         </div>
                       ))}
@@ -206,6 +210,6 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
           </Card>
         ) : null}
       </div>
-    </div>
+    </PageContainer>
   );
 }

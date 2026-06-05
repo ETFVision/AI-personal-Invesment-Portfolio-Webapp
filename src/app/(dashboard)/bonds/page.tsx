@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
@@ -50,15 +51,7 @@ function BreakdownList({ title, items }: { title: string; items: AllocationItem[
 }
 
 function SummaryCard({ title, value, description }: { title: string; value: string; description: string }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="text-3xl font-semibold">{value}</CardContent>
-    </Card>
-  );
+  return <MetricCard title={title} value={value} footer={description} />;
 }
 
 function ContextList({ items }: { items: string[] }) {
@@ -270,14 +263,18 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm text-muted-foreground">Bond intelligence</p>
-        <h1 className="text-2xl font-semibold">{portfolio.name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Deterministic fixed-income analytics for bond ETF exposure, duration risk, credit risk, inflation sensitivity, and recession-hedging role.
-        </p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Research"
+        title="Fixed Income"
+        description="Deterministic fixed-income analytics for bond ETF exposure, duration risk, credit risk, inflation sensitivity and recession-hedging role."
+        meta={
+          <>
+            <StatusBadge tone="info">{report.bondHoldings.length} bond ETFs</StatusBadge>
+            <StatusBadge tone={report.creditRiskExposure > 0.15 ? "warning" : "positive"}>Credit risk {formatPercent(report.creditRiskExposure)}</StatusBadge>
+          </>
+        }
+      />
 
       {params?.message || params?.error ? (
         <Card>
@@ -454,6 +451,6 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
       </Card>
 
       <BondProfileEditor holdings={report.bondHoldings} />
-    </div>
+    </PageContainer>
   );
 }

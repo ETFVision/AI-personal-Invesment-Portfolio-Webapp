@@ -1,17 +1,19 @@
 import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 
 export default async function SystemHealthPage() {
   const container = createContainer();
   await container.authProvider.requireUser();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm text-muted-foreground">Admin</p>
-        <h1 className="text-2xl font-semibold">System Health</h1>
-        <p className="mt-1 text-sm text-muted-foreground">A future home for provider freshness, job health, and data quality checks.</p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Admin"
+        title="System Health"
+        description="A future home for provider freshness, job health and data quality checks."
+        meta={<StatusBadge tone="neutral">Prepared</StatusBadge>}
+      />
       <Card>
         <CardHeader>
           <CardTitle>Health summary placeholder</CardTitle>
@@ -23,6 +25,6 @@ export default async function SystemHealthPage() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

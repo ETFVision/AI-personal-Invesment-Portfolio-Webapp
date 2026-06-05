@@ -3,6 +3,7 @@ import { createContainer } from "@/server/container";
 import { refreshFundamentalsAction } from "@/server/actions/fundamentalsActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { formatPercent } from "@/lib/utils";
 
@@ -29,47 +30,33 @@ export default async function FundamentalsPage({ searchParams }: { searchParams:
   const covered = rows.filter((row) => row.latestScore?.overallFundamentalScore != null).length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">Research</p>
-          <h1 className="text-2xl font-semibold">Fundamentals</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Company fundamentals for individual stocks only. No recommendations are generated here.</p>
-        </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Research"
+        title="Fundamentals"
+        description="Company fundamentals for individual stocks only. No recommendations are generated here."
+        meta={
+          <>
+            <StatusBadge tone="info">{covered}/{rows.length} covered</StatusBadge>
+            <StatusBadge tone={logs[0]?.status === "success" ? "positive" : logs[0] ? "warning" : "neutral"}>{logs[0]?.status ?? "No refresh yet"}</StatusBadge>
+          </>
+        }
+        actions={
         <form action={refreshFundamentalsAction} className="flex gap-2">
           <input type="hidden" name="returnTo" value="/fundamentals" />
           <input type="hidden" name="force" value="true" />
           <SubmitButton pendingLabel="Refreshing fundamentals...">Refresh fundamentals</SubmitButton>
         </form>
-      </div>
+        }
+      />
 
       {params.message ? <div className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-700">{params.message}</div> : null}
       {params.error ? <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{params.error}</div> : null}
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Coverage</CardTitle>
-            <CardDescription>Stocks with a calculated score.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold">{covered}/{rows.length}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Latest run</CardTitle>
-            <CardDescription>Most recent refresh status.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm">
-            {logs[0] ? `${logs[0].status} - ${logs[0].profilesUpdated} profiles, ${logs[0].scoresUpdated} scores` : "No refresh logs yet"}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Scope</CardTitle>
-            <CardDescription>Individual stocks only.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">ETFs, bonds, gold, and crypto are intentionally excluded.</CardContent>
-        </Card>
+        <MetricCard title="Coverage" description="Stocks with a calculated score." value={`${covered}/${rows.length}`} />
+        <MetricCard title="Latest run" description="Most recent refresh status." value={logs[0]?.status ?? "No run"} footer={logs[0] ? `${logs[0].profilesUpdated} profiles, ${logs[0].scoresUpdated} scores` : "No refresh logs yet"} />
+        <MetricCard title="Scope" description="Individual stocks only." value="Stocks" footer="ETFs, bonds, gold, and crypto are intentionally excluded." />
       </div>
 
       <Card>
@@ -141,6 +128,6 @@ export default async function FundamentalsPage({ searchParams }: { searchParams:
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

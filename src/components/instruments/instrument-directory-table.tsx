@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MiniRangeBar } from "@/components/ui/charts";
 import type { InstrumentMarketView } from "@/domain/universe/types";
 import type { FundamentalsSummaryRow } from "@/domain/fundamentals/types";
 import { formatCurrencyWithCode, formatPercent } from "@/lib/utils";
@@ -25,9 +26,9 @@ function score(value: number | null | undefined) {
 export function InstrumentDirectoryTable({ rows, fundamentalsByInstrumentId, emptyMessage = "No instruments found." }: InstrumentDirectoryTableProps) {
   if (rows.length === 0) return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;
   return (
-    <div className="overflow-x-auto rounded-md border">
-      <table className="w-full min-w-[1100px] text-left text-sm">
-        <thead className="border-b bg-muted/50 text-xs uppercase text-muted-foreground">
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <table className="w-full min-w-[1120px] text-left text-sm">
+        <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-muted-foreground">
           <tr>
             <th className="p-3">Symbol</th>
             <th className="p-3">Name</th>
@@ -49,9 +50,9 @@ export function InstrumentDirectoryTable({ rows, fundamentalsByInstrumentId, emp
             const type = resolveInstrumentType(row.instrument);
             const fundamentals = type === "stock" ? fundamentalsByInstrumentId?.get(row.instrument.id) : undefined;
             return (
-              <tr key={row.instrument.id} className="border-b align-top last:border-0">
+              <tr key={row.instrument.id} className="border-b border-slate-100 align-top last:border-0">
                 <td className="p-3 font-medium">
-                  {symbol ? <Link className="hover:underline" href={`/instruments/${encodeURIComponent(symbol)}`}>{symbol}</Link> : "-"}
+                  {symbol ? <Link className="text-slate-950 hover:text-teal-700 hover:underline" href={`/instruments/${encodeURIComponent(symbol)}`}>{symbol}</Link> : "-"}
                   <p className="mt-1 text-xs text-muted-foreground">{(row.watchlistTierLabel ?? row.instrument.benchmarkTags.join(", ")) || "-"}</p>
                 </td>
                 <td className="p-3">
@@ -61,16 +62,24 @@ export function InstrumentDirectoryTable({ rows, fundamentalsByInstrumentId, emp
                   {row.thesis ? <p className="mt-1 text-xs text-muted-foreground">{row.thesis}</p> : null}
                 </td>
                 <td className="p-3"><InstrumentTypeBadge label={instrumentTypeLabel(type)} /></td>
-                <td className="p-3">
+                <td className="p-3 text-right font-medium">
                   {row.latestPrice == null ? "-" : formatCurrencyWithCode(row.latestPrice, row.instrument.currency ?? "USD")}
                 </td>
-                <td className="p-3">
+                <td className={row.dailyReturn == null ? "p-3 text-right text-slate-500" : row.dailyReturn >= 0 ? "p-3 text-right font-semibold text-emerald-600" : "p-3 text-right font-semibold text-red-600"}>
                   {row.dailyReturn == null ? "-" : formatPercent(row.dailyReturn)}
                 </td>
                 <td className="p-3">
                   {row.fiftyTwoWeekLow == null || row.fiftyTwoWeekHigh == null
                     ? "-"
-                    : `${formatCurrencyWithCode(row.fiftyTwoWeekLow, row.instrument.currency ?? "USD")} - ${formatCurrencyWithCode(row.fiftyTwoWeekHigh, row.instrument.currency ?? "USD")}`}
+                    : (
+                      <MiniRangeBar
+                        current={row.latestPrice}
+                        low={row.fiftyTwoWeekLow}
+                        high={row.fiftyTwoWeekHigh}
+                        lowLabel={formatCurrencyWithCode(row.fiftyTwoWeekLow, row.instrument.currency ?? "USD")}
+                        highLabel={formatCurrencyWithCode(row.fiftyTwoWeekHigh, row.instrument.currency ?? "USD")}
+                      />
+                    )}
                 </td>
                 <td className="p-3">
                   {row.liquidity}

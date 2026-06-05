@@ -3,6 +3,7 @@ import { approveTaxonomyMappingAction, saveInstrumentTaxonomyAction } from "@/se
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 
 type TaxonomyPageProps = {
   searchParams?: Promise<{
@@ -35,11 +36,19 @@ export default async function TaxonomyPage({ searchParams }: TaxonomyPageProps) 
   );
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm text-muted-foreground">Settings / Admin</p>
-        <h1 className="text-2xl font-semibold">Taxonomy Management</h1>
-      </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Admin"
+        title="Taxonomy Management"
+        description="Canonical sectors, themes, provider mappings and manual taxonomy overrides."
+        meta={
+          <>
+            <StatusBadge tone="info">{sectors.length} sectors</StatusBadge>
+            <StatusBadge tone="info">{themes.length} themes</StatusBadge>
+            <StatusBadge tone={unmapped.length > 0 ? "warning" : "positive"}>{unmapped.length} review items</StatusBadge>
+          </>
+        }
+      />
 
       {params?.taxonomyMessage || params?.taxonomyError ? (
         <Card>
@@ -173,7 +182,7 @@ export default async function TaxonomyPage({ searchParams }: TaxonomyPageProps) 
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }
 

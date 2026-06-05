@@ -2,7 +2,9 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { HorizontalExposureBars } from "@/components/ui/charts";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { formatAssetTypeLabel, formatPercent } from "@/lib/utils";
 import type { AllocationItem } from "@/domain/portfolio/types";
 import type { DrawdownPoint } from "@/application/services/risk/riskMath";
@@ -77,24 +79,14 @@ function AllocationTable({ title, items }: { title: string; items: AllocationIte
   return (
     <div>
       <h3 className="mb-3 text-sm font-medium">{title}</h3>
-      <div className="overflow-hidden rounded-md border">
-        <table className="w-full text-sm">
-          <tbody>
-            {visibleItems.length === 0 ? (
-              <tr>
-                <td className="p-3 text-muted-foreground">No exposure data yet.</td>
-              </tr>
-            ) : (
-              visibleItems.map((item) => (
-                <tr key={item.label} className="border-b last:border-0">
-                  <td className="p-3">{item.label}</td>
-                  <td className="p-3 text-right text-muted-foreground">{formatPercent(item.percent)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <HorizontalExposureBars
+        items={visibleItems.map((item) => ({
+          label: item.label,
+          value: item.percent,
+          valueLabel: formatPercent(item.percent)
+        }))}
+        emptyText="No exposure data yet."
+      />
     </div>
   );
 }
@@ -235,14 +227,20 @@ export default async function RiskPage() {
   }));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm text-muted-foreground">Risk analytics</p>
-        <h1 className="text-2xl font-semibold">{portfolio.name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Deterministic portfolio risk metrics from stored snapshots, prices, metadata, and benchmark history.
-        </p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Research"
+        title="Risk"
+        description="Deterministic portfolio risk metrics from stored snapshots, prices, metadata and benchmark history."
+        meta={
+          <>
+            <StatusBadge tone="info">As of {report.asOfDate}</StatusBadge>
+            <StatusBadge tone={report.diversification.score >= 70 ? "positive" : report.diversification.score >= 45 ? "warning" : "danger"}>
+              Diversification {report.diversification.score}/100
+            </StatusBadge>
+          </>
+        }
+      />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
@@ -574,6 +572,6 @@ export default async function RiskPage() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

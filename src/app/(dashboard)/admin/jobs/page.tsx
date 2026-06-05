@@ -1,5 +1,6 @@
 import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 
 function statusClass(status: string) {
   if (status === "success") return "bg-emerald-100 text-emerald-800";
@@ -39,12 +40,13 @@ export default async function JobsPage() {
   const runs = await container.jobRunService.listRecent(30);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm text-muted-foreground">Admin</p>
-        <h1 className="text-2xl font-semibold">Jobs</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Latest scheduled and manual refresh summaries from the app job endpoints.</p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Admin"
+        title="Jobs"
+        description="Latest scheduled and manual refresh summaries from the app job endpoints."
+        meta={<StatusBadge tone="info">{runs.length} recent runs</StatusBadge>}
+      />
       <Card>
         <CardHeader>
           <CardTitle>Recent job runs</CardTitle>
@@ -87,6 +89,6 @@ export default async function JobsPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

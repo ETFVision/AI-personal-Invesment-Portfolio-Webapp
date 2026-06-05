@@ -1,6 +1,8 @@
 import { backfillMacroIndicatorsAction, refreshMacroIndicatorsAction } from "@/server/actions/macroActions";
 import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Sparkline } from "@/components/ui/charts";
+import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { SubmitButton } from "@/components/ui/submit-button";
 import type { MacroDashboardIndicator } from "@/domain/macro/types";
 
@@ -51,13 +53,18 @@ export default async function MacroPage({ searchParams }: MacroPageProps) {
   const latestLog = dashboard.ingestionLogs[0];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm text-muted-foreground">Structured macro data</p>
-          <h1 className="text-2xl font-semibold">Macro Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">FRED indicators for Market Vision, bonds, risk context, and future intelligence layers.</p>
-        </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Research"
+        title="Macro"
+        description="FRED indicators for Market Vision, bonds, risk context and future intelligence layers."
+        meta={
+          <>
+            <StatusBadge tone="info">{dashboard.indicators.length} indicators</StatusBadge>
+            <StatusBadge tone={latestLog?.status === "success" ? "positive" : latestLog ? "warning" : "neutral"}>{latestLog?.status ?? "Not run"}</StatusBadge>
+          </>
+        }
+        actions={
         <div className="flex flex-wrap gap-2">
           <form action={refreshMacroIndicatorsAction}>
             <SubmitButton pendingLabel="Refreshing...">Refresh FRED</SubmitButton>
@@ -66,7 +73,8 @@ export default async function MacroPage({ searchParams }: MacroPageProps) {
             <SubmitButton variant="outline" pendingLabel="Backfilling...">Backfill history</SubmitButton>
           </form>
         </div>
-      </div>
+        }
+      />
 
       {params?.message || params?.error ? (
         <Card>
@@ -77,22 +85,10 @@ export default async function MacroPage({ searchParams }: MacroPageProps) {
       ) : null}
 
       <section className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Indicators</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-semibold">{dashboard.indicators.length}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Last refresh</CardTitle></CardHeader>
-          <CardContent className="text-sm font-medium">{latestLog?.completedAt?.slice(0, 10) ?? "Not run"}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Latest status</CardTitle></CardHeader>
-          <CardContent className="text-sm font-medium capitalize">{latestLog?.status ?? "Not run"}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Regime date</CardTitle></CardHeader>
-          <CardContent className="text-sm font-medium">{dashboard.latestRegime?.snapshotDate ?? "No regime yet"}</CardContent>
-        </Card>
+        <MetricCard title="Indicators" value={dashboard.indicators.length} footer="Active FRED series" />
+        <MetricCard title="Last refresh" value={latestLog?.completedAt?.slice(0, 10) ?? "Not run"} footer="Most recent ingestion completion" />
+        <MetricCard title="Latest status" value={<span className="capitalize">{latestLog?.status ?? "Not run"}</span>} footer="Refresh job outcome" />
+        <MetricCard title="Regime date" value={dashboard.latestRegime?.snapshotDate ?? "No regime yet"} footer="Latest macro regime snapshot" />
       </section>
 
       <Card>
@@ -162,9 +158,7 @@ export default async function MacroPage({ searchParams }: MacroPageProps) {
                       <td className="py-3 pr-3">{trend?.confidenceScore ?? 0}/100</td>
                       <td className="py-3 pr-3">
                         {path ? (
-                          <svg viewBox="0 0 180 60" className="h-12 w-36">
-                            <polyline points={path} fill="none" className="stroke-primary" strokeWidth="2" />
-                          </svg>
+                          <Sparkline points={path} />
                         ) : <span className="text-muted-foreground">Needs data</span>}
                       </td>
                     </tr>
@@ -195,6 +189,6 @@ export default async function MacroPage({ searchParams }: MacroPageProps) {
           ))}
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

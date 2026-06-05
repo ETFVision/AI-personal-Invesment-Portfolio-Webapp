@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
 import type { InstrumentRecommendation, RecommendationHistoryItem } from "@/domain/recommendations/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MiniRangeBar } from "@/components/ui/charts";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 import { DataFreshnessBadge, InstrumentTypeBadge, ThemeBadgeList } from "./instrument-badges";
 
@@ -15,20 +16,21 @@ export function InstrumentHeader({
   marketView: InstrumentMarketView;
 }) {
   return (
-    <div className="flex flex-col justify-between gap-4 rounded-md border p-4 sm:flex-row sm:items-start">
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] sm:flex sm:items-start sm:justify-between sm:gap-5">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-700 via-cyan-500 to-slate-300" />
       <div>
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <InstrumentTypeBadge label={typeLabel} />
           <DataFreshnessBadge label={marketView.freshnessLabel} tone={marketView.freshnessTone} />
           <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{instrument.isActive ? "Active" : "Inactive"}</span>
         </div>
-        <p className="text-sm text-muted-foreground">Instrument detail</p>
-        <h1 className="text-2xl font-semibold">{instrument.symbol ?? "-"} - {instrument.name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">Instrument detail</p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{instrument.symbol ?? "-"} - {instrument.name}</h1>
+        <p className="mt-2 text-sm text-slate-500">
           {instrument.exchange ?? "No exchange"} - {instrument.currency ?? "No currency"} - {instrument.geography ?? "No geography"}
         </p>
       </div>
-      <div className="grid grid-cols-2 gap-3 text-sm sm:min-w-72">
+      <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:mt-0 sm:min-w-80">
         <SummaryMetric label="Latest" value={marketView.latestPrice == null ? "-" : formatCurrencyWithCode(marketView.latestPrice, instrument.currency ?? "USD")} />
         <SummaryMetric label="Daily" value={marketView.dailyReturn == null ? "-" : formatPercent(marketView.dailyReturn)} />
       </div>
@@ -53,6 +55,18 @@ export function InstrumentSummaryCard({ marketView }: { marketView: InstrumentMa
         <SummaryMetric label="1Y return" value={marketView.oneYearReturn == null ? "-" : formatPercent(marketView.oneYearReturn)} />
         <SummaryMetric label="52W low" value={marketView.fiftyTwoWeekLow == null ? "-" : formatCurrencyWithCode(marketView.fiftyTwoWeekLow, currency)} />
         <SummaryMetric label="52W high" value={marketView.fiftyTwoWeekHigh == null ? "-" : formatCurrencyWithCode(marketView.fiftyTwoWeekHigh, currency)} />
+        <div className="rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm sm:col-span-2 lg:col-span-4">
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">52W position</p>
+          <div className="mt-3">
+            <MiniRangeBar
+              current={marketView.latestPrice}
+              low={marketView.fiftyTwoWeekLow}
+              high={marketView.fiftyTwoWeekHigh}
+              lowLabel={marketView.fiftyTwoWeekLow == null ? "-" : formatCurrencyWithCode(marketView.fiftyTwoWeekLow, currency)}
+              highLabel={marketView.fiftyTwoWeekHigh == null ? "-" : formatCurrencyWithCode(marketView.fiftyTwoWeekHigh, currency)}
+            />
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -310,9 +324,9 @@ export function MarketVisionContextCard() {
 export function InstrumentTabs({ tabs }: { tabs: Array<{ label: string; content: ReactNode }> }) {
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 overflow-x-auto rounded-md border p-2">
+      <div className="flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white/80 p-2 shadow-sm">
         {tabs.map((tab) => (
-          <a key={tab.label} href={`#${tab.label.toLowerCase().replaceAll(" ", "-")}`} className="whitespace-nowrap rounded-md bg-muted px-3 py-1.5 text-xs">
+          <a key={tab.label} href={`#${tab.label.toLowerCase().replaceAll(" ", "-")}`} className="whitespace-nowrap rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-teal-200 hover:bg-teal-50 hover:text-teal-900">
             {tab.label}
           </a>
         ))}
@@ -334,7 +348,7 @@ export function PlaceholderPanel({ title, description }: { title: string; descri
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Prepared for the next layer. No functionality is implemented in this phase.</p>
+        <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-4 text-sm text-slate-500">Prepared for the next layer. No functionality is implemented in this phase.</p>
       </CardContent>
     </Card>
   );
@@ -360,9 +374,9 @@ export function ThemesPanel({ instrument }: { instrument: Instrument }) {
 
 export function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border bg-background p-3">
-      <p className="text-xs uppercase text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-medium capitalize">{value}</p>
+    <div className="rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold capitalize text-slate-900">{value}</p>
     </div>
   );
 }

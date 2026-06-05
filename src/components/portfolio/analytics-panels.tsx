@@ -1,7 +1,8 @@
 import { AllocationItem, CashPerformance, PerformanceMetric, PortfolioDashboard, ProductPerformance } from "@/domain/portfolio/types";
+import { HorizontalExposureBars } from "@/components/ui/charts";
 import { formatAssetTypeLabel, formatCurrencyWithCode, formatPercent } from "@/lib/utils";
 
-const chartColors = ["#2563eb", "#059669", "#d97706", "#7c3aed", "#dc2626", "#0891b2", "#4b5563"];
+const chartColors = ["#0f766e", "#0891b2", "#2563eb", "#7c3aed", "#059669", "#d97706", "#64748b"];
 
 function groupAllocationForDisplay(items: AllocationItem[], maxItems = 6) {
   if (items.length <= maxItems) return items;
@@ -18,17 +19,7 @@ function groupAllocationForDisplay(items: AllocationItem[], maxItems = 6) {
 }
 
 function ExposureBar({ label, value, percent }: { label: string; value: string; percent: number }) {
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between gap-3 text-sm">
-        <span>{label}</span>
-        <span className="text-muted-foreground">{value}</span>
-      </div>
-      <div className="h-2 rounded-full bg-muted">
-        <div className="h-2 rounded-full bg-primary" style={{ width: `${Math.min(Math.max(percent, 0) * 100, 100)}%` }} />
-      </div>
-    </div>
-  );
+  return <HorizontalExposureBars items={[{ label, value: percent, valueLabel: value }]} />;
 }
 
 export function CashInvestedPanel({ dashboard }: { dashboard: PortfolioDashboard }) {
@@ -90,20 +81,20 @@ export function AllocationDonutPanel({
   });
 
   return (
-    <div className="grid gap-4 md:grid-cols-[150px_1fr] md:items-center">
+    <div className="grid gap-5 md:grid-cols-[160px_1fr] md:items-center">
       <div
         aria-label={title}
-        className="mx-auto h-36 w-36 rounded-full border"
-        style={{ background: `conic-gradient(${segments.join(", ")})` }}
+        className="mx-auto h-40 w-40 rounded-full border-[12px] border-white shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08),0_12px_30px_rgba(15,23,42,0.08)]"
+        style={{ background: `radial-gradient(circle at center, white 0 48%, transparent 49%), conic-gradient(${segments.join(", ")})` }}
       />
       <div className="space-y-2">
         {displayItems.map((item, index) => (
-          <div key={item.label} className="flex items-center justify-between gap-3 text-sm">
+          <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-white/70 px-3 py-2 text-sm">
             <span className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: chartColors[index % chartColors.length] }} />
-              {labelFormatter(item.label)}
+              <span className="font-medium text-slate-700">{labelFormatter(item.label)}</span>
             </span>
-            <span className="text-muted-foreground">{formatPercent(item.percent)}</span>
+            <span className="font-semibold text-slate-900">{formatPercent(item.percent)}</span>
           </div>
         ))}
       </div>

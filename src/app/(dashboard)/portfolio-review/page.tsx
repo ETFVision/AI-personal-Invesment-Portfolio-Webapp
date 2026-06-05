@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createContainer } from "@/server/container";
 import { refreshEtfLookthroughExposureAction, runPortfolioReviewAction } from "@/server/actions/portfolioReviewActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { HorizontalExposureBars, StackedExposureBar } from "@/components/ui/charts";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricCard, PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -363,18 +364,17 @@ function ExposureTable({
         {rows.length === 0 ? (
           <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No look-through exposure available yet.</p>
         ) : (
-          <div className="space-y-2">
-            {shownRows.map((row) => (
-              <div key={`${row.exposureType}-${row.exposureName}`} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-md border p-3 text-sm">
-                <div>
-                  <p className="font-medium">{row.exposureName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {mode === "overlap" ? "Direct signal" : "Direct"} {formatPercent(row.directWeight)} - ETF look-through {formatPercent(row.etfLookthroughWeight)}
-                  </p>
-                </div>
-                <span className="font-medium">{formatPercent(row.exposureWeight)}</span>
-              </div>
-            ))}
+          <div className="space-y-3">
+            <HorizontalExposureBars
+              max={mode === "overlap" ? Math.max(...shownRows.map((row) => row.exposureWeight), 0.01) : 1}
+              items={shownRows.map((row) => ({
+                label: row.exposureName,
+                value: row.exposureWeight,
+                valueLabel: formatPercent(row.exposureWeight),
+                detail: `${mode === "overlap" ? "Direct signal" : "Direct"} ${formatPercent(row.directWeight)} - ETF look-through ${formatPercent(row.etfLookthroughWeight)}`,
+                tone: mode === "overlap" ? "muted" : "default"
+              }))}
+            />
             {rows.length > shownRows.length ? (
               <p className="text-xs text-muted-foreground">
                 Showing top {shownRows.length}; remaining rows {mode === "overlap" ? "signal weight" : "total"} {formatPercent(remainingTotal)}.
@@ -404,24 +404,16 @@ function HoldingExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] })
         {rows.length === 0 ? (
           <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Indirect holding exposure unavailable.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {shownRows.map((row) => (
-              <div key={row.holdingSymbol} className="rounded-md border p-3 text-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{row.holdingSymbol}{row.holdingName ? ` - ${row.holdingName}` : ""}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Direct {formatPercent(row.directWeight)} - ETF look-through {formatPercent(row.indirectWeight)}
-                    </p>
-                    {row.sourceEtfs.length > 0 ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Source ETFs: {row.sourceEtfs.map((item) => `${item.symbol} ${formatPercent(item.weight)}`).join(", ")}
-                      </p>
-                    ) : null}
-                  </div>
-                  <span className="font-medium">{formatPercent(row.totalWeight)}</span>
-                </div>
-              </div>
+              <StackedExposureBar
+                key={row.holdingSymbol}
+                label={`${row.holdingSymbol}${row.holdingName ? ` - ${row.holdingName}` : ""}`}
+                totalLabel={formatPercent(row.totalWeight)}
+                direct={row.directWeight}
+                indirect={row.indirectWeight}
+                detail={row.sourceEtfs.length > 0 ? `Source ETFs: ${row.sourceEtfs.map((item) => `${item.symbol} ${formatPercent(item.weight)}`).join(", ")}` : undefined}
+              />
             ))}
           </div>
         )}
@@ -445,27 +437,18 @@ function IndirectHoldingExposureTable({ rows }: { rows: PortfolioLookthroughHold
         {shownRows.length === 0 ? (
           <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No indirect ETF holding exposure available yet.</p>
         ) : (
-          <div className="space-y-2">
-            {shownRows.map((row) => (
-              <div key={`indirect-${row.holdingSymbol}`} className="rounded-md border p-3 text-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{row.holdingSymbol}{row.holdingName ? ` - ${row.holdingName}` : ""}</p>
-                    <p className="text-xs text-muted-foreground">
-                      ETF look-through {formatPercent(row.indirectWeight)}
-                      {row.directWeight > 0 ? ` - total with direct holding ${formatPercent(row.totalWeight)}` : ""}
-                    </p>
-                    {row.sourceEtfs.length > 0 ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Source ETFs: {row.sourceEtfs.map((item) => `${item.symbol} ${formatPercent(item.weight)}`).join(", ")}
-                      </p>
-                    ) : null}
-                  </div>
-                  <span className="font-medium">{formatPercent(row.indirectWeight)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+          <HorizontalExposureBars
+            max={Math.max(...shownRows.map((row) => row.indirectWeight), 0.01)}
+            items={shownRows.map((row) => ({
+              label: `${row.holdingSymbol}${row.holdingName ? ` - ${row.holdingName}` : ""}`,
+              value: row.indirectWeight,
+              valueLabel: formatPercent(row.indirectWeight),
+              detail: [
+                row.directWeight > 0 ? `Total with direct holding ${formatPercent(row.totalWeight)}` : null,
+                row.sourceEtfs.length > 0 ? `Source ETFs: ${row.sourceEtfs.map((item) => `${item.symbol} ${formatPercent(item.weight)}`).join(", ")}` : null
+              ].filter(Boolean).join(" - ")
+            }))}
+          />
         )}
       </CardContent>
     </Card>

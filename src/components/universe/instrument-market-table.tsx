@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { MiniRangeBar } from "@/components/ui/charts";
 import { Input } from "@/components/ui/input";
 import { InstrumentMarketView } from "@/domain/universe/types";
 import { cn, formatCurrencyWithCode, formatPercent } from "@/lib/utils";
@@ -36,9 +37,9 @@ export function InstrumentMarketTable({ rows, emptyMessage = "No instruments in 
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
       <table className="min-w-full text-left text-sm">
-        <thead className="border-b text-xs uppercase text-muted-foreground">
+        <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-muted-foreground">
           <tr>
             <th className="py-2 pr-3">Rank</th>
             <th className="py-2 pr-3">Symbol</th>
@@ -58,20 +59,32 @@ export function InstrumentMarketTable({ rows, emptyMessage = "No instruments in 
             const currency = row.instrument.currency ?? "USD";
             return (
               <Fragment key={row.instrument.id}>
-                <tr className="border-b align-top last:border-0">
+                <tr className="border-b border-slate-100 align-top last:border-0">
                   <td className="py-3 pr-3 font-medium">{row.rank}</td>
-                  <td className="py-3 pr-3 font-medium">{row.instrument.symbol ?? "-"}</td>
+                  <td className="py-3 pr-3 font-semibold text-slate-950">{row.instrument.symbol ?? "-"}</td>
                   <td className="py-3 pr-3">
                     <div className="font-medium">{row.instrument.name}</div>
                     <div className="text-xs text-muted-foreground">
                       {row.instrument.exchange ?? "-"} {row.instrument.currency ? `- ${row.instrument.currency}` : ""}
                     </div>
                   </td>
-                  <td className="py-3 pr-3">{formatMoney(row.latestPrice, currency)}</td>
-                  <td className={cn("py-3 pr-3 font-medium", metricTone(row.dailyReturn))}>
+                  <td className="py-3 pr-3 text-right font-medium">{formatMoney(row.latestPrice, currency)}</td>
+                  <td className={cn("py-3 pr-3 text-right font-semibold", metricTone(row.dailyReturn))}>
                     {row.dailyReturn == null ? "-" : formatPercent(row.dailyReturn)}
                   </td>
-                  <td className="py-3 pr-3">{formatRange(row.fiftyTwoWeekLow, row.fiftyTwoWeekHigh, currency)}</td>
+                  <td className="py-3 pr-3">
+                    {row.fiftyTwoWeekLow == null || row.fiftyTwoWeekHigh == null ? (
+                      formatRange(row.fiftyTwoWeekLow, row.fiftyTwoWeekHigh, currency)
+                    ) : (
+                      <MiniRangeBar
+                        current={row.latestPrice}
+                        low={row.fiftyTwoWeekLow}
+                        high={row.fiftyTwoWeekHigh}
+                        lowLabel={formatMoney(row.fiftyTwoWeekLow, currency)}
+                        highLabel={formatMoney(row.fiftyTwoWeekHigh, currency)}
+                      />
+                    )}
+                  </td>
                   <td className="py-3 pr-3">{row.liquidity}</td>
                   <td className={cn("py-3 pr-3", row.freshnessTone)}>{row.freshnessLabel}</td>
                   <td className="py-3 pr-3">
@@ -87,7 +100,7 @@ export function InstrumentMarketTable({ rows, emptyMessage = "No instruments in 
                   </td>
                 </tr>
                 {isOpen ? (
-                  <tr className="border-b bg-muted/30 last:border-0">
+                  <tr className="border-b bg-slate-50/80 last:border-0">
                     <td className="py-4 pr-3" colSpan={10}>
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <MetricCard label="1Y return" value={row.oneYearReturn == null ? "-" : formatPercent(row.oneYearReturn)} tone={metricTone(row.oneYearReturn)} />
