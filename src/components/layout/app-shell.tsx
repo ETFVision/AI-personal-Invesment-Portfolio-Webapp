@@ -13,6 +13,7 @@ import {
   Newspaper,
   PlusCircle,
   ClipboardCheck,
+  Activity,
   Search,
   ServerCog,
   ShieldCheck,
@@ -53,7 +54,8 @@ const navGroups = [
       { href: "/risk", label: "Risk", icon: ShieldCheck },
       { href: "/bonds", label: "Fixed Income", icon: Landmark },
       { href: "/recommendations", label: "Recommendations", icon: Sparkles },
-      { href: "/portfolio-review", label: "Portfolio Review", icon: ClipboardCheck }
+      { href: "/portfolio-review", label: "Portfolio Review", icon: ClipboardCheck },
+      { href: "/telemetry", label: "Telemetry", icon: Activity }
     ]
   },
   {

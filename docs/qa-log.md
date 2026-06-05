@@ -2346,3 +2346,63 @@ Validation performed:
 Production-readiness assessment:
 - READY TO MERGE after Vercel preview approval.
 - Merge risk is low: the branch is one scoped commit ahead of `main`, and `main` already includes the prior performance-loading branch.
+
+## 2026-06-05 - Telemetry Learning Layer Implementation QA Checkpoint
+
+Scope:
+- Built Telemetry Learning Layer V1 on branch `codex/telemetry-learning-layer`.
+- Covered immutable recommendation snapshots, outcome evaluation, factor outcome aggregation, Market Vision snapshots, Portfolio Review snapshots, Research navigation, scheduled job route, workflow integration, tests and documentation.
+
+Architecture assessment:
+- PASS: Telemetry is observational only and does not alter Recommendation Engine scoring, Portfolio Review logic, return formulas, or Market Vision generation.
+- PASS: Snapshot capture is non-blocking; telemetry failures are swallowed so production recommendation/report jobs are not broken by telemetry writes.
+- PASS: Service/repository pattern is preserved through `TelemetryRepository`, `SupabaseTelemetryRepository`, `TelemetrySnapshotService`, `TelemetryEvaluationService`, `TelemetryAggregationService`, and `TelemetryDashboardService`.
+- PASS: UI reads through the container service and does not call Supabase directly.
+- PASS: The protected `/api/jobs/telemetry-evaluation` route uses the shared cron job wrapper and `CRON_SECRET` protection.
+- PASS: Weekly GitHub workflow now runs telemetry evaluation after Portfolio Review.
+
+Data model assessment:
+- PASS: `telemetry_recommendation_snapshots` stores immutable recommendation context, drivers, component scores, guardrails, benchmark symbol, and price at recommendation.
+- PASS: `telemetry_recommendation_outcomes` upserts one row per snapshot/horizon for `1m`, `3m`, `6m`, and `12m`.
+- PASS: `telemetry_factor_outcomes` aggregates hit rate, average asset return, average benchmark return, average excess return, and evidence bucket.
+- PASS: Market Vision and Portfolio Review snapshot tables are present for future outcome evaluation.
+- PASS: Tables use portable PostgreSQL, explicit indexes, RLS read policies, and existing `set_updated_at()` triggers where applicable.
+
+Calculation assessment:
+- PASS: Asset return uses `end_price / start_price - 1`.
+- PASS: Benchmark return uses the same formula.
+- PASS: Excess return is calculated as asset return minus benchmark return.
+- PASS: Buy/Strong Buy success requires positive excess return.
+- PASS: Reduce/Sell success requires negative excess return.
+- PASS: Hold/Watch success rules are conservative diagnostic rules and are documented.
+- PASS: Missing asset data is marked `insufficient_data`; missing benchmark data is marked `benchmark_missing`.
+- PASS: Factor evidence buckets remain conservative and sample-size aware.
+
+UX assessment:
+- PASS: `Research -> Telemetry` page added.
+- PASS: Dashboard shows overview metrics, recommendation outcome table, factor evidence cards, Market Vision snapshots, and Portfolio Review snapshots.
+- PASS: Empty states explain when data is unavailable because snapshots have not matured yet.
+- PASS: Copy clearly states telemetry is read-only evidence and does not auto-tune recommendations.
+
+Critical issues:
+- None found.
+
+Medium-priority issues:
+- None found.
+
+Low-priority improvements for later:
+- Add Market Vision outcome evaluation against proxy instruments.
+- Add Portfolio Review outcome evaluation against portfolio snapshots, drawdown changes, and diversification/concentration score changes.
+- Add manual calibration report views for recommendation guardrails and factor sensitivity.
+- Add human-approved scoring weight suggestion workflow only after enough evidence accumulates.
+- Consider a compact Admin Data Sources control to trigger telemetry evaluation manually.
+
+Validation performed:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd test` passed: 175 tests.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY for preview deployment after migration `054_telemetry_learning_layer.sql` is applied.
+- Safe rollout profile: telemetry writes are non-blocking and the dashboard handles missing tables/data with empty states.

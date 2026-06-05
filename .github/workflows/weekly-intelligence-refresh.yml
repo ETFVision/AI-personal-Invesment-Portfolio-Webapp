@@ -34,3 +34,6 @@ jobs:
 
       - name: Portfolio Review run
         run: bash scripts/call-job-endpoint.sh /api/jobs/portfolio-review-run
+
+      - name: Telemetry evaluation
+        run: bash scripts/call-job-endpoint.sh /api/jobs/telemetry-evaluation

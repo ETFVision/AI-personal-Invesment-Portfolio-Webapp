@@ -1,116 +1,206 @@
-# Telemetry Learning
+# Telemetry Learning Layer
 
 ## Purpose
 
-Monthly Telemetry evaluates recommendation outcomes, benchmark comparison, signal accuracy, bond signal accuracy, overreaction detection, scoring weight adjustments, and human approval.
+Telemetry V1 is an observational learning layer. It records what the app believed at decision time, then evaluates later outcomes across fixed horizons.
 
-## Logic Flow
+It does not:
 
-```text
-Collect monthly recommendation history
-  -> Compare accepted, rejected, ignored, completed recommendations
-  -> Measure subsequent asset and portfolio outcomes
-  -> Compare portfolio to benchmarks
-  -> Evaluate signal accuracy and bond signal accuracy
-  -> Detect overreaction and underreaction
-  -> Suggest scoring weight changes
-  -> Require human approval before applying changes
-  -> Store telemetry review
-```
+- change recommendation scoring weights
+- change portfolio review logic
+- create buy/sell instructions
+- use AI to make investment decisions
+- auto-apply learned adjustments
+
+## Current Scope
+
+Telemetry V1 tracks:
+
+- Recommendation snapshots
+- Recommendation outcomes versus a benchmark
+- Factor outcome aggregation
+- Market Vision theme snapshots
+- Portfolio Review score and suggestion snapshots
+
+Evaluation horizons:
+
+- 1 month
+- 3 months
+- 6 months
+- 12 months
 
 ## Database Tables
 
-Primary tables:
+Migration:
 
-- `telemetry_reviews`
-- `recommendation_history`
-- `recommendations`
-- `scoring_weights`
-- `scoring_weight_change_suggestions`
-- `portfolio_benchmark_comparisons`
-- `asset_scores`
-- `bond_scores`
+- `supabase/migrations/054_telemetry_learning_layer.sql`
 
-Recommended additions:
+Tables:
 
-```sql
-create table signal_accuracy_reviews (
-  id uuid primary key,
-  telemetry_review_id uuid not null references telemetry_reviews(id),
-  signal_type text not null,
-  scope text not null,
-  evaluated_count integer not null default 0,
-  correct_count integer not null default 0,
-  false_positive_count integer not null default 0,
-  false_negative_count integer not null default 0,
-  accuracy_score numeric(12, 6),
-  notes jsonb not null default '[]',
-  created_at timestamptz not null default now()
-);
+- `telemetry_recommendation_snapshots`
+- `telemetry_recommendation_outcomes`
+- `telemetry_factor_outcomes`
+- `telemetry_market_vision_snapshots`
+- `telemetry_market_vision_outcomes`
+- `telemetry_portfolio_review_snapshots`
+- `telemetry_portfolio_review_outcomes`
 
-create table recommendation_outcome_reviews (
-  id uuid primary key,
-  telemetry_review_id uuid not null references telemetry_reviews(id),
-  recommendation_id uuid not null references recommendations(id),
-  user_response text,
-  subsequent_return numeric(18, 10),
-  benchmark_relative_return numeric(18, 10),
-  risk_change jsonb not null default '{}',
-  outcome_classification text,
-  created_at timestamptz not null default now()
-);
-```
+Snapshot tables are append-only by design. Outcome and aggregate tables are upserted as evaluations mature.
 
-## Signal Accuracy
+## Recommendation Telemetry
 
-Evaluate:
+At recommendation run time, the app captures:
 
-- Did Buy/Strong Buy candidates outperform relevant benchmarks?
-- Did Reduce/Sell reduce risk or avoid underperformance?
-- Did Watch items remain uncertain or become actionable?
-- Did bond duration calls match rate movement?
-- Did Treasury vs corporate calls match credit-spread behavior?
-- Did TIPS calls match inflation behavior?
+- portfolio and user context
+- instrument id and symbol
+- recommendation label
+- recommendation score
+- confidence score
+- benchmark symbol
+- price at recommendation
+- positive and negative drivers
+- scoring components
+- guardrails
+- factor inputs
 
-## Weight Adjustment Rules
-
-- Suggest changes only.
-- Require human approval.
-- Use small changes, usually +/-2% to +/-5%.
-- Never eliminate risk or portfolio-fit weights.
-- Do not increase news impact after a noisy month.
-- Do not change weights from too few observations.
-
-## Pseudo-Code
-
-```ts
-export class MonthlyTelemetryService {
-  async runMonthlyReview(userId: string, portfolioId: string, month: Date) {
-    const recommendations = await this.recommendations.listForMonth(userId, month);
-    const outcomes = await this.evaluateRecommendationOutcomes(recommendations);
-    const benchmarkComparison = await this.benchmarks.comparePortfolioForMonth(portfolioId, month);
-    const signalAccuracy = await this.evaluateSignalAccuracy(recommendations, outcomes);
-    const bondSignalAccuracy = await this.evaluateBondSignals(recommendations, outcomes);
-    const overreactions = detectOverreaction(buildRecommendationEvents(recommendations, outcomes));
-    const weightSuggestions = suggestScoringWeightChanges({ outcomes, signalAccuracy, bondSignalAccuracy, overreactions });
-    return this.telemetry.saveReview({ userId, portfolioId, month, outcomes, benchmarkComparison, signalAccuracy, bondSignalAccuracy, overreactions, weightSuggestions });
-  }
-}
-```
-
-## UI Concepts
-
-- Monthly intelligence review.
-- Recommendation outcome table.
-- Benchmark comparison chart.
-- Signal accuracy cards.
-- Bond signal accuracy card.
-- Overreaction warnings.
-- Approve/reject weight changes.
-
-## Example
+Outcome evaluation calculates:
 
 ```text
-Bond duration signals were useful this month. Short-duration bond recommendations performed as expected during rising rates. Suggested change: increase bond duration fit weight by 2 points and reduce bond momentum by 2 points. Human approval required.
+asset_return = end_price / start_price - 1
+benchmark_return = benchmark_end / benchmark_start - 1
+excess_return = asset_return - benchmark_return
 ```
 
+Success logic:
+
+- `Buy` / `Strong Buy`: successful when excess return is positive
+- `Reduce` / `Sell`: successful when excess return is negative
+- `Hold`: successful when excess return is within a narrow range or absolute return remains controlled
+- `Watch`: successful when the item does not outperform or remains weak
+
+Rows with missing asset prices are marked `insufficient_data`.
+Rows with missing benchmark prices are marked `benchmark_missing`.
+
+## Factor Aggregation
+
+Telemetry groups evaluated outcomes by factor bucket and horizon.
+
+Examples:
+
+- `fundamentals = strong`
+- `valuation = weak`
+- `risk = mixed`
+- `market_vision_alignment = strong`
+- `recommendation_label = Buy`
+
+Each aggregate stores:
+
+- observation count
+- hit rate
+- average asset return
+- average benchmark return
+- average excess return
+- evidence bucket
+
+Evidence buckets:
+
+- fewer than 10 observations: `insufficient_evidence`
+- 10 to 29 observations: `early_signal`
+- 30 to 99 observations: `moderate_evidence`
+- 100 or more observations: `stronger_evidence`
+
+## Market Vision Telemetry
+
+When a Market Vision report is generated, the app captures theme snapshots for:
+
+- Equities
+- Bonds
+- Gold / Commodities
+- Crypto
+- Rates
+- Inflation
+- Growth
+- Currency
+- Geopolitical
+
+Each snapshot stores a deterministic directional proxy:
+
+- `bullish`
+- `neutral`
+- `bearish`
+- `mixed`
+
+This is currently prepared for future outcome evaluation. It is not yet used to tune Market Vision generation or recommendations.
+
+## Portfolio Review Telemetry
+
+When Portfolio Review runs, the app captures:
+
+- portfolio score
+- diversification score
+- concentration score
+- risk score
+- fixed income score
+- macro fit score
+- theme exposure summary
+- top risks
+- improvement suggestions
+- allocation snapshot
+- ETF look-through snapshot
+
+This supports future longitudinal review of whether suggestions and risk warnings were useful.
+
+## Services
+
+Core services:
+
+- `TelemetrySnapshotService`
+- `TelemetryEvaluationService`
+- `TelemetryAggregationService`
+- `TelemetryDashboardService`
+
+Repository:
+
+- `TelemetryRepository`
+- `SupabaseTelemetryRepository`
+
+Job:
+
+- `TelemetryEvaluationJob`
+
+Protected route:
+
+- `/api/jobs/telemetry-evaluation`
+
+The route uses the same `CRON_SECRET` protection as other scheduled jobs.
+
+## UI
+
+Page:
+
+- `/telemetry`
+
+Navigation:
+
+- `Research -> Telemetry`
+
+Dashboard sections:
+
+- overview metrics
+- recommendation outcomes by label and horizon
+- factor evidence cards
+- Market Vision snapshots
+- Portfolio Review snapshots
+
+## Future Improvements
+
+Future phases can add:
+
+- Market Vision outcome evaluation against proxies
+- Portfolio Review outcome evaluation against portfolio snapshots
+- recommendation calibration reports
+- suggested weight changes requiring human approval
+- telemetry-aware confidence calibration
+- user feedback tracking
+
+Any future weight changes should remain manual-review first.
