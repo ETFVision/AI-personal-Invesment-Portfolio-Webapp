@@ -9,12 +9,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({})) as { question?: unknown; conversationId?: unknown };
     const question = typeof body.question === "string" ? body.question.trim() : "";
     if (!question) return NextResponse.json({ error: "Question is required." }, { status: 400 });
-    const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
+    const { user, portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
     if (!portfolio) return NextResponse.json({ error: "Portfolio is required before using the assistant." }, { status: 400 });
 
     const answer = await container.portfolioAssistantService.answer({
       question,
-      userId: authUser.id,
+      userId: user.id,
       portfolioId: portfolio.id,
       conversationId: typeof body.conversationId === "string" ? body.conversationId : null
     });

@@ -23,12 +23,12 @@ export default async function AssistantPage({ searchParams }: AssistantPageProps
   const params = await searchParams;
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();
-  const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
-  const conversations = await container.assistantRepository.listConversations(authUser.id, 12);
+  const { user, portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
+  const conversations = await container.assistantRepository.listConversations(user.id, 12);
   const requestedConversation = params?.conversationId
     ? await container.assistantRepository.getConversation(params.conversationId)
     : conversations[0] ?? null;
-  const selectedConversation = requestedConversation?.userId === authUser.id ? requestedConversation : null;
+  const selectedConversation = requestedConversation?.userId === user.id ? requestedConversation : null;
   const selectedMessages = selectedConversation
     ? await container.assistantRepository.listMessages(selectedConversation.id, 20)
     : [];
