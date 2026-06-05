@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { createContainer } from "@/server/container";
-import { refreshFundamentalsAction } from "@/server/actions/fundamentalsActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
-import { SubmitButton } from "@/components/ui/submit-button";
 import { formatPercent } from "@/lib/utils";
 
 function score(value: number | null | undefined) {
@@ -40,13 +38,6 @@ export default async function FundamentalsPage({ searchParams }: { searchParams:
             <StatusBadge tone="info">{covered}/{rows.length} covered</StatusBadge>
             <StatusBadge tone={logs[0]?.status === "success" ? "positive" : logs[0] ? "warning" : "neutral"}>{logs[0]?.status ?? "No refresh yet"}</StatusBadge>
           </>
-        }
-        actions={
-        <form action={refreshFundamentalsAction} className="flex gap-2">
-          <input type="hidden" name="returnTo" value="/fundamentals" />
-          <input type="hidden" name="force" value="true" />
-          <SubmitButton pendingLabel="Refreshing fundamentals...">Refresh fundamentals</SubmitButton>
-        </form>
         }
       />
 

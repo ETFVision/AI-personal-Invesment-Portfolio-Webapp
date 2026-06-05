@@ -2301,3 +2301,48 @@ Validation performed:
 Production-readiness assessment:
 - READY after deployment of the duplicate-row fix.
 - Recommended deployment verification: run Daily Data Refresh manually once, then confirm the `price-refresh` job summary includes both `masterInstrumentRefresh` and `portfolioPriceSync`, Universe/Watchlist freshness updates, and Portfolio valuation refresh creates a current snapshot using the synced prices.
+
+## 2026-06-05 - Admin Data Sources Cleanup Pre-Merge QA Checkpoint
+
+Scope:
+- Reviewed branch `codex/admin-data-source-cleanup` before merging to `main`.
+- Covered the Admin Data Sources consolidation, removal of provider refresh controls from product-facing pages, News & Themes layout changes, Market Vision workflow relocation, article URL linking, and compatibility with the prior performance-loading branch already merged into `main`.
+
+Architecture assessment:
+- PASS: Provider ingestion, refresh, backfill, and generation controls are centralized under `Admin -> Data Sources`.
+- PASS: Product-facing pages no longer expose global data refresh buttons or source diagnostics links.
+- PASS: `News & Themes` now focuses on article/theme/reconciliation output rather than provider queue diagnostics.
+- PASS: `Market Vision` no longer owns draft generation controls or latest weekly reconciliation operations; those are now administered from Data Sources.
+- PASS: No direct provider calls were added to UI components; existing server action and service/repository boundaries remain intact.
+- PASS: `seedUniverseAction` now supports a `returnTo` path so Admin-originated seed operations return to Admin.
+
+UX assessment:
+- PASS: Removed leftover white `Data refresh` buttons from Portfolio, Universe, Watchlist, Setup, Macro, Fundamentals, and Portfolio Review.
+- PASS: Removed `Data-source diagnostics` button from News & Themes.
+- PASS: Latest fetched news now appears directly below filters on News & Themes.
+- PASS: Latest fetched news uses an internal scroll area and keeps article rows compact.
+- PASS: Weekly reconciliation and theme intelligence now appear side by side below latest news.
+- PASS: News article headlines link to source URLs in a new tab when URLs are available.
+- PASS: Market Vision macro/world-news input moved below Portfolio Implications.
+- PASS: Market Vision macro/world-news headlines link to source URLs in a new tab when URLs are available.
+
+Critical issues:
+- None found.
+
+Medium-priority issues:
+- None found.
+
+Low-priority improvements for later:
+- Consider splitting `Admin -> Data Sources` into tabs or accordions if the operational console becomes too long.
+- Consider adding a compact "data freshness" read-only badge to relevant product pages if users need passive status without refresh controls.
+- Consider a visual browser QA pass in Vercel preview before merge because the local in-app browser tool was unavailable in this session.
+
+Validation performed:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd test` passed: 171 tests.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY TO MERGE after Vercel preview approval.
+- Merge risk is low: the branch is one scoped commit ahead of `main`, and `main` already includes the prior performance-loading branch.

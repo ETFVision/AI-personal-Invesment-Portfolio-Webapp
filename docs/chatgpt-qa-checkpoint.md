@@ -353,6 +353,40 @@ Known checks:
 - Jobs are logged in `job_runs`.
 - Provider-specific logs remain in their own tables.
 
+## Admin Data Sources / UI Cleanup QA
+
+Latest branch reviewed:
+
+- `codex/admin-data-source-cleanup`
+- Commit: `48753e0 Centralize data source diagnostics in admin`
+
+Status:
+
+- Ready for Vercel preview approval before merge to `main`.
+
+What changed:
+
+- Centralized provider diagnostics, refresh controls, backfill controls, and report-generation operations under `Admin -> Data Sources`.
+- Removed operational refresh buttons from product-facing pages.
+- Removed the source diagnostics shortcut from `News & Themes`.
+- Moved Market Vision draft-generation controls and latest weekly-news reconciliation operations to Admin.
+- Reworked `News & Themes` so latest fetched news appears below filters, with a scrollable article list and external source links.
+- Moved Market Vision macro/world-news input below Portfolio Implications and made source headlines clickable.
+- Prior performance-loading branch is already merged into `main` and remains the base for this branch.
+
+QA result:
+
+- Critical issues: none.
+- Medium-priority issues: none.
+- Low-priority follow-up: consider tabs or accordions for `Admin -> Data Sources` if the page becomes too dense after production use.
+
+Validation:
+
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd test` passed: 171 tests.
+- `npm.cmd run build` passed.
+
 ## Critical Open Issues
 
 None currently recorded as blocking.
@@ -383,4 +417,3 @@ None currently recorded as blocking.
 - Do not overwrite manual taxonomy or manual bond classifications.
 - Do not change return formulas without targeted QA.
 - Keep all business logic in service/repository layers.
-

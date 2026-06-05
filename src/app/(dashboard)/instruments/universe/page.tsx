@@ -1,11 +1,8 @@
 import { createContainer } from "@/server/container";
-import { seedUniverseAction } from "@/server/actions/universeActions";
-import { backfillUniverseHistoryAction, refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
-import { SubmitButton } from "@/components/ui/submit-button";
 import { InstrumentDirectoryTable } from "@/components/instruments/instrument-directory-table";
 import type { InstrumentMarketView } from "@/domain/universe/types";
 
@@ -119,19 +116,6 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
             <StatusBadge tone="info">{filteredRows.length} instruments</StatusBadge>
             <StatusBadge tone="neutral">{Object.keys(groupedRows).length} groups</StatusBadge>
           </>
-        }
-        actions={
-        <div className="flex flex-wrap gap-2">
-          <form action={seedUniverseAction}><Button type="submit" variant="outline">Seed universe</Button></form>
-          <form action={refreshAllDataAction}>
-            <input type="hidden" name="returnTo" value="/instruments/universe" />
-            <SubmitButton pendingLabel="Refreshing data...">Refresh data</SubmitButton>
-          </form>
-          <form action={backfillUniverseHistoryAction}>
-            <input type="hidden" name="returnTo" value="/instruments/universe" />
-            <SubmitButton variant="secondary" pendingLabel="Backfilling history...">Backfill history</SubmitButton>
-          </form>
-        </div>
         }
       />
 

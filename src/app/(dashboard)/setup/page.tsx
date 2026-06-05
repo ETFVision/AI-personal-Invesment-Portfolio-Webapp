@@ -1,12 +1,10 @@
 import { setupPortfolioAction, updatePortfolioSetupAction } from "@/server/actions/portfolioActions";
-import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import { createContainer } from "@/server/container";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { SubmitButton } from "@/components/ui/submit-button";
 
 export default async function SetupPage({ searchParams }: { searchParams: Promise<{ edit?: string; error?: string; metadataMessage?: string; metadataError?: string; refreshMessage?: string; refreshError?: string }> }) {
   const params = await searchParams;
@@ -23,12 +21,6 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
           <p className="text-sm text-muted-foreground">Manual setup</p>
           <h1 className="text-2xl font-semibold">Portfolio setup</h1>
         </div>
-        {portfolio ? (
-          <form action={refreshAllDataAction}>
-            <input type="hidden" name="returnTo" value="/setup" />
-            <SubmitButton variant="secondary" pendingLabel="Refreshing data...">Refresh data</SubmitButton>
-          </form>
-        ) : null}
       </div>
       <Card>
         <CardHeader>

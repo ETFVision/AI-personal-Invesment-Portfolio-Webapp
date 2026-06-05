@@ -1,10 +1,8 @@
 import { createContainer } from "@/server/container";
-import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
-import { SubmitButton } from "@/components/ui/submit-button";
 import { InstrumentDirectoryTable } from "@/components/instruments/instrument-directory-table";
 import type { InstrumentMarketView, WatchlistTier } from "@/domain/universe/types";
 
@@ -132,12 +130,6 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
             <StatusBadge tone="info">{rows.length} active items</StatusBadge>
             <StatusBadge tone="neutral">{Object.keys(groupedRows).length} groups</StatusBadge>
           </>
-        }
-        actions={
-        <form action={refreshAllDataAction}>
-          <input type="hidden" name="returnTo" value="/instruments/watchlist" />
-          <SubmitButton pendingLabel="Refreshing data...">Refresh data</SubmitButton>
-        </form>
         }
       />
 

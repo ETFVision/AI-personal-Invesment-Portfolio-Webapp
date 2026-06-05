@@ -12,8 +12,6 @@ import {
   WinnersLosersPanel
 } from "@/components/portfolio/analytics-panels";
 import { formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
-import { SubmitButton } from "@/components/ui/submit-button";
-import { refreshAllDataAction } from "@/server/actions/dataRefreshActions";
 import type { AllocationItem } from "@/domain/portfolio/types";
 import type { PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
@@ -103,12 +101,6 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         }
         actions={
           <>
-          <form action={refreshAllDataAction}>
-            <input type="hidden" name="returnTo" value="/portfolio" />
-            <SubmitButton variant="secondary" pendingLabel="Refreshing data...">
-              Refresh data
-            </SubmitButton>
-          </form>
           <Link className="rounded-md border px-4 py-2 text-sm hover:bg-muted" href="/cash">Add cash</Link>
           <Link className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground" href="/holdings">Add holding</Link>
           </>

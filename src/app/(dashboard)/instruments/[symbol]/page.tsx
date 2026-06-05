@@ -79,7 +79,7 @@ function categoryLabel(value: string) {
 
 function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
   if (!detail) {
-    return <PlaceholderPanel title="Fundamentals" description="No fundamentals are linked to this stock yet. Refresh fundamentals from the Fundamentals overview page." />;
+    return <PlaceholderPanel title="Fundamentals" description="No fundamentals are linked to this stock yet. Refresh fundamentals from Admin Data Sources." />;
   }
   const latestRatio = detail.latestRatio;
   const latestIncome = detail.statements.find((statement) => statement.statementType === "income_statement");
@@ -178,7 +178,7 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
               <SummaryMetric label="Balance trend" value={score(detail.trendSummary.balanceSheetTrendScore)} />
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No stored trend summary yet. Refresh fundamentals after applying the trend migration.</p>
+            <p className="text-sm text-muted-foreground">No stored trend summary yet. Refresh fundamentals from Admin Data Sources after applying the trend migration.</p>
           )}
           {detail.trendSummary?.warnings.length ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

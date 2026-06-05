@@ -1,9 +1,7 @@
-import { backfillMacroIndicatorsAction, refreshMacroIndicatorsAction } from "@/server/actions/macroActions";
 import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkline } from "@/components/ui/charts";
 import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
-import { SubmitButton } from "@/components/ui/submit-button";
 import type { MacroDashboardIndicator } from "@/domain/macro/types";
 
 type MacroPageProps = {
@@ -63,16 +61,6 @@ export default async function MacroPage({ searchParams }: MacroPageProps) {
             <StatusBadge tone="info">{dashboard.indicators.length} indicators</StatusBadge>
             <StatusBadge tone={latestLog?.status === "success" ? "positive" : latestLog ? "warning" : "neutral"}>{latestLog?.status ?? "Not run"}</StatusBadge>
           </>
-        }
-        actions={
-        <div className="flex flex-wrap gap-2">
-          <form action={refreshMacroIndicatorsAction}>
-            <SubmitButton pendingLabel="Refreshing...">Refresh FRED</SubmitButton>
-          </form>
-          <form action={backfillMacroIndicatorsAction}>
-            <SubmitButton variant="outline" pendingLabel="Backfilling...">Backfill history</SubmitButton>
-          </form>
-        </div>
         }
       />
 
@@ -167,26 +155,6 @@ export default async function MacroPage({ searchParams }: MacroPageProps) {
               </tbody>
             </table>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>FRED ingestion logs</CardTitle>
-          <CardDescription>Refresh and backfill status for cron portability.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {dashboard.ingestionLogs.length === 0 ? (
-            <p className="text-muted-foreground">No FRED ingestion jobs have run yet.</p>
-          ) : dashboard.ingestionLogs.map((log) => (
-            <div key={log.id} className="rounded-md border p-3">
-              <div className="font-medium">{log.jobName} - {log.status}</div>
-              <div className="text-muted-foreground">
-                {log.indicatorsSuccessful}/{log.indicatorsRequested} indicators, {log.observationsInserted} inserted, {log.observationsUpdated} updated
-              </div>
-              {log.errorMessage ? <div className="mt-1 text-destructive">{log.errorMessage}</div> : null}
-            </div>
-          ))}
         </CardContent>
       </Card>
     </PageContainer>

@@ -26,10 +26,12 @@ function formNullableNumber(formData: FormData, key: string) {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
-export async function seedUniverseAction() {
+export async function seedUniverseAction(formData?: FormData) {
   await createContainer().authProvider.requireUser();
   const result = await createContainer().universeManagementService.ensureSeededUniverse();
-  redirect(`/instruments/universe?message=${encodeURIComponent(`Seeded ${result.instruments} instruments and ${result.watchlistItems} watchlist items.`)}`);
+  const rawReturnTo = String(formData?.get("returnTo") ?? "/instruments/universe");
+  const returnTo = rawReturnTo.startsWith("/") ? rawReturnTo : "/instruments/universe";
+  redirect(`${returnTo}?message=${encodeURIComponent(`Seeded ${result.instruments} instruments and ${result.watchlistItems} watchlist items.`)}`);
 }
 
 export async function refreshUniverseMetadataAction() {

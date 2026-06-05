@@ -2,9 +2,6 @@ import { Archive, FilePenLine, Send } from "lucide-react";
 import { createContainer } from "@/server/container";
 import {
   archiveMarketVisionReportAction,
-  createMarketVisionDraftFromLatestNewsAction,
-  createMarketVisionDraftAction,
-  generateAiMarketVisionDraftAction,
   publishMarketVisionReportAction,
   saveMarketVisionDraftAction
 } from "@/server/actions/marketVisionActions";
@@ -291,9 +288,8 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
   const params = await searchParams;
   const container = createContainer();
   await container.authProvider.requireUser();
-  const [dashboard, latestWeeklyNews, latestGlobalNews, macroDashboard] = await Promise.all([
+  const [dashboard, latestGlobalNews, macroDashboard] = await Promise.all([
     container.marketVisionService.getDashboard(params?.reportId),
-    container.newsRepository.getLatestWeeklyReconciliation(),
     Promise.all([
       container.newsRepository.listNewsWithClassifications({ sourceProvider: "newsdata", includeDuplicates: false, limit: 40 }),
       container.newsRepository.listNewsWithClassifications({ sourceProvider: "gdelt", includeDuplicates: false, limit: 40 })
@@ -318,12 +314,6 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
         actions={
         <div className="flex flex-col gap-2 sm:flex-row">
           <ReportSelector reports={dashboard.reports} selectedReport={report} />
-          <form action={createMarketVisionDraftAction}>
-            <SubmitButton>Create draft</SubmitButton>
-          </form>
-          <form action={generateAiMarketVisionDraftAction}>
-            <SubmitButton variant="secondary" pendingLabel="Generating...">Generate AI draft</SubmitButton>
-          </form>
         </div>
         }
       />
@@ -339,8 +329,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
       {!report ? (
         <EmptyState
           title="No Market Vision report yet"
-          description="Create a manual draft or generate an AI draft from the latest weekly reconciliation."
-          action={<div className="flex gap-2"><form action={createMarketVisionDraftAction}><Button type="submit">Create draft</Button></form><form action={generateAiMarketVisionDraftAction}><Button type="submit" variant="secondary">Generate AI draft</Button></form></div>}
+          description="Create a manual or AI draft from Admin Data Sources after the latest weekly news reconciliation is ready."
         />
       ) : (
         <>
@@ -387,57 +376,6 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             </div>
             <ReportActions report={report} />
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Latest weekly news reconciliation</CardTitle>
-              <CardDescription>News Intelligence input prepared for Market Vision generation.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {!latestWeeklyNews ? (
-                <p className="text-muted-foreground">No weekly news reconciliation has been created yet.</p>
-              ) : (
-                <>
-                  <p className="font-medium">{latestWeeklyNews.periodStart} to {latestWeeklyNews.periodEnd} · {latestWeeklyNews.status}</p>
-                  <p className="text-muted-foreground">{latestWeeklyNews.macroSummary ?? latestWeeklyNews.equitiesSummary ?? "No summary available."}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <form action={createMarketVisionDraftFromLatestNewsAction}>
-                      <SubmitButton variant="outline" pendingLabel="Creating draft...">Create draft from news</SubmitButton>
-                    </form>
-                    <form action={generateAiMarketVisionDraftAction}>
-                      <SubmitButton variant="secondary" pendingLabel="Generating...">Generate AI draft</SubmitButton>
-                    </form>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Macro / world-news input</CardTitle>
-              <CardDescription>NewsData primary plus GDELT fallback macro, geopolitical, currency, energy, trade, and credit stories prepared for manual Market Vision drafting.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {latestGlobalNews.length === 0 ? (
-                <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No NewsData or GDELT macro/world-news articles have been ingested yet.</p>
-              ) : (
-                <div className="grid gap-3 md:grid-cols-2">
-                  {latestGlobalNews.slice(0, 6).map((item) => (
-                    <div key={item.id} className="rounded-md border p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm font-medium">{item.title}</p>
-                        <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs">{item.classification?.primaryTheme ?? "Unmapped"}</span>
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {item.sourceName ?? (item.sourceProvider === "newsdata" ? "NewsData" : "GDELT")} - {item.country ?? "Global"} - {item.publishedAt?.slice(0, 10) ?? "No date"}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader>
@@ -494,29 +432,39 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle>Macro / world-news input</CardTitle>
+              <CardDescription>NewsData primary plus GDELT fallback macro, geopolitical, currency, energy, trade, and credit stories prepared for manual Market Vision drafting.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {latestGlobalNews.length === 0 ? (
+                <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No NewsData or GDELT macro/world-news articles have been ingested yet.</p>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {latestGlobalNews.slice(0, 6).map((item) => (
+                    <div key={item.id} className="rounded-md border p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-medium">
+                          {item.url ? (
+                            <a href={item.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">{item.title}</a>
+                          ) : item.title}
+                        </p>
+                        <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs">{item.classification?.primaryTheme ?? "Unmapped"}</span>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {item.sourceName ?? (item.sourceProvider === "newsdata" ? "NewsData" : "GDELT")} - {item.country ?? "Global"} - {item.publishedAt?.slice(0, 10) ?? "No date"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {report.status === "draft" ? <ReportEditor report={report} /> : null}
         </>
       )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Generation logs</CardTitle>
-          <CardDescription>Weekly job and manual generation outcomes.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          {dashboard.generationLogs.length === 0 ? (
-            <p className="text-muted-foreground">No AI Market Vision generation has run yet.</p>
-          ) : dashboard.generationLogs.map((log) => (
-            <div key={log.id} className="rounded-md border p-3">
-              <div className="font-medium">{log.periodStart ?? "-"} to {log.periodEnd ?? "-"} - {log.status}</div>
-              <div className="text-muted-foreground">
-                {log.modelUsed ?? "No model"} - {log.promptVersion ?? "No prompt"} - {log.status === "skipped" ? "No new AI call" : log.costEstimate == null ? "Cost not configured" : `$${log.costEstimate.toFixed(6)}`}
-              </div>
-              {log.errorMessage ? <div className="mt-1 text-destructive">{log.errorMessage}</div> : null}
-            </div>
-          ))}
-        </CardContent>
-      </Card>
     </PageContainer>
   );
 }

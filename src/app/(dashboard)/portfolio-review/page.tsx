@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createContainer } from "@/server/container";
-import { refreshEtfLookthroughExposureAction, runPortfolioReviewAction } from "@/server/actions/portfolioReviewActions";
+import { runPortfolioReviewAction } from "@/server/actions/portfolioReviewActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HorizontalExposureBars, StackedExposureBar } from "@/components/ui/charts";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -529,10 +529,6 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
         actions={
           <div className="flex flex-col items-start gap-2 sm:items-end">
           <div className="flex flex-wrap gap-2">
-            <form action={refreshEtfLookthroughExposureAction}>
-              <input type="hidden" name="returnTo" value="/portfolio-review" />
-              <SubmitButton variant="secondary" pendingLabel="Refreshing ETF exposure...">Refresh ETF exposure</SubmitButton>
-            </form>
             <form action={runPortfolioReviewAction}>
               <input type="hidden" name="returnTo" value="/portfolio-review" />
               <SubmitButton pendingLabel="Running review...">Run portfolio review</SubmitButton>
