@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { CashPerformancePanel } from "@/components/portfolio/analytics-panels";
 import { formatCurrency } from "@/lib/utils";
 
@@ -20,15 +21,38 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
   const dashboard = await container.portfolioService.getDashboard(portfolio.id);
   const cashBalances = dashboard.cashBalances;
   const editing = cashBalances.find((item) => item.id === params.edit);
+  const currencies = Array.from(new Set(cashBalances.map((cash) => cash.currency)));
+  const latestCashDate = cashBalances.map((cash) => cash.asOfDate).sort((a, b) => b.localeCompare(a))[0];
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-      <section className="space-y-4">
-        <div>
-          <p className="text-sm text-muted-foreground">Manual ingestion</p>
-          <h1 className="text-2xl font-semibold">Cash balances</h1>
-        </div>
-        <Card>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Portfolio"
+        title="Cash balances"
+        description="Track deployable cash by account and currency for allocation, portfolio review and return analytics."
+        meta={
+          <>
+            <StatusBadge tone="info">{cashBalances.length} balances</StatusBadge>
+            <StatusBadge tone={latestCashDate ? "positive" : "neutral"}>
+              Latest {latestCashDate ?? "none"}
+            </StatusBadge>
+          </>
+        }
+      />
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          title="Total cash"
+          value={formatCurrency(dashboard.totalCash, portfolio.baseCurrency)}
+          description="Native cash total displayed in portfolio base currency context."
+        />
+        <MetricCard title="Balances" value={cashBalances.length} description="Cash entries across broker accounts." />
+        <MetricCard title="Currencies" value={currencies.length || "-"} description={currencies.length ? currencies.join(", ") : "No cash currencies entered."} />
+        <MetricCard title="Latest as-of date" value={latestCashDate ?? "-"} description="Newest cash balance date." tone={latestCashDate ? "positive" : "neutral"} />
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <Card className="border-slate-200 shadow-sm">
           <CardHeader>
             <CardTitle>{editing ? "Edit cash balance" : "Add cash balance"}</CardTitle>
             <CardDescription>Track cash by currency and account before deploying it.</CardDescription>
@@ -67,66 +91,75 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
             </form>
           </CardContent>
         </Card>
-      </section>
 
-      <section className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Current cash</CardTitle>
-            <CardDescription>Native currency balances. FX conversion will be added with market data.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {cashBalances.length === 0 ? (
-              <EmptyState title="No cash balances" description="Add your available cash so the allocation engine can identify deployable capital later." />
-            ) : (
-              <div className="divide-y rounded-lg border">
-                {cashBalances.map((cash) => (
-                  <div key={cash.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <div className="font-medium">{formatCurrency(cash.amount, cash.currency)}</div>
-                      <div className="text-sm text-muted-foreground">{cash.accountName ?? "Default account"} · {cash.asOfDate}</div>
-                    </div>
-                    <div className="flex gap-2">
-                      <a className="rounded-md border px-3 py-2 text-sm hover:bg-muted" href={`/cash?edit=${cash.id}`}>Edit</a>
-                      <form action={deleteCashBalanceAction}>
-                        <input type="hidden" name="id" value={cash.id} />
-                        <Button type="submit" variant="ghost" size="sm">Delete</Button>
-                      </form>
-                    </div>
+        <div className="space-y-6">
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle>Current cash</CardTitle>
+              <CardDescription>Native currency balances. FX conversion will be added with market data.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {cashBalances.length === 0 ? (
+                <EmptyState title="No cash balances" description="Add your available cash so the allocation engine can identify deployable capital later." />
+              ) : (
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <div className="hidden grid-cols-[1fr_0.8fr_auto] gap-4 border-b border-slate-200 bg-slate-50/90 px-5 py-3 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-500 sm:grid">
+                    <span>Account</span>
+                    <span className="text-right">Amount</span>
+                    <span className="text-right">Actions</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Cash performance</CardTitle>
-            <CardDescription>Flow-adjusted daily, weekly, monthly, 1Y, YTD, and since-inception cash movement by account.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {cashBalances.length === 0 ? (
-              <EmptyState title="No cash performance" description="Add cash balances and refresh prices to create snapshots." />
-            ) : (
-              cashBalances.map((cash) => {
-                const performance = dashboard.cashPerformance.find((item) => item.cashBalanceId === cash.id);
-                return (
-                  <section key={cash.id} className="space-y-3 rounded-lg border p-4">
-                    <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-                      <div>
-                        <h3 className="font-medium">{cash.accountName ?? "Default account"}</h3>
-                        <p className="text-sm text-muted-foreground">{cash.currency} · {cash.asOfDate}</p>
+                  <div className="divide-y divide-slate-100">
+                    {cashBalances.map((cash) => (
+                      <div key={cash.id} className="grid gap-4 px-5 py-4 text-sm transition-colors hover:bg-slate-50/70 sm:grid-cols-[1fr_0.8fr_auto] sm:items-center">
+                        <div>
+                          <div className="font-semibold text-slate-950">{cash.accountName ?? "Default account"}</div>
+                          <div className="mt-1 text-xs text-slate-500">{cash.asOfDate}</div>
+                        </div>
+                        <div className="font-semibold tabular-nums text-slate-950 sm:text-right">{formatCurrency(cash.amount, cash.currency)}</div>
+                        <div className="flex gap-2 sm:justify-end">
+                          <a className="rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100" href={`/cash?edit=${cash.id}`}>Edit</a>
+                          <form action={deleteCashBalanceAction}>
+                            <input type="hidden" name="id" value={cash.id} />
+                            <Button type="submit" variant="ghost" size="sm">Delete</Button>
+                          </form>
+                        </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">{formatCurrency(cash.amount, cash.currency)}</div>
-                    </div>
-                    <CashPerformancePanel performance={performance} currency={cash.currency} />
-                  </section>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle>Cash performance</CardTitle>
+              <CardDescription>Flow-adjusted daily, weekly, monthly, 1Y, YTD, and since-inception cash movement by account.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {cashBalances.length === 0 ? (
+                <EmptyState title="No cash performance" description="Add cash balances and refresh prices to create snapshots." />
+              ) : (
+                cashBalances.map((cash) => {
+                  const performance = dashboard.cashPerformance.find((item) => item.cashBalanceId === cash.id);
+                  return (
+                    <section key={cash.id} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                      <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                        <div>
+                          <h3 className="font-semibold text-slate-950">{cash.accountName ?? "Default account"}</h3>
+                          <p className="text-sm text-slate-500">{cash.currency} | {cash.asOfDate}</p>
+                        </div>
+                        <div className="text-sm font-semibold text-slate-950">{formatCurrency(cash.amount, cash.currency)}</div>
+                      </div>
+                      <CashPerformancePanel performance={performance} currency={cash.currency} />
+                    </section>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </section>
-    </div>
+    </PageContainer>
   );
 }

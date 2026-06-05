@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { HoldingsTable } from "@/components/portfolio/holdings-table";
+import { formatCurrency, formatPercent } from "@/lib/utils";
 
 export default async function HoldingsPage({ searchParams }: { searchParams: Promise<{ edit?: string; error?: string }> }) {
   const params = await searchParams;
@@ -22,15 +24,46 @@ export default async function HoldingsPage({ searchParams }: { searchParams: Pro
   const editing = holdings.find((item) => item.id === params.edit);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm text-muted-foreground">Manual ingestion</p>
-        <h1 className="text-2xl font-semibold">Holdings</h1>
-      </div>
-      <Card>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Portfolio"
+        title="Holdings"
+        description="Maintain the current positions used by portfolio valuation, risk, recommendations and review analytics."
+        meta={
+          <>
+            <StatusBadge tone={dashboard.latestPriceDate ? "positive" : "warning"}>
+              Prices {dashboard.latestPriceDate ? `as of ${dashboard.latestPriceDate}` : "not refreshed"}
+            </StatusBadge>
+            <StatusBadge tone="info">{holdings.length} positions</StatusBadge>
+          </>
+        }
+      />
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard title="Positions" value={holdings.length} description="Current holdings entered for this portfolio." />
+        <MetricCard
+          title="Holdings value"
+          value={formatCurrency(dashboard.totalHoldingsMarketValue, portfolio.baseCurrency)}
+          description="Latest stored prices where available."
+        />
+        <MetricCard
+          title="Unrealised gain/loss"
+          value={formatCurrency(dashboard.unrealizedGainLoss, portfolio.baseCurrency)}
+          description={formatPercent(dashboard.unrealizedGainLossPercent)}
+          tone={dashboard.unrealizedGainLoss < 0 ? "danger" : dashboard.unrealizedGainLoss > 0 ? "positive" : "neutral"}
+        />
+        <MetricCard
+          title="Latest price date"
+          value={dashboard.latestPriceDate ?? "-"}
+          description="Used for current market value and holding returns."
+          tone={dashboard.latestPriceDate ? "positive" : "warning"}
+        />
+      </section>
+
+      <Card className="border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle>{editing ? "Edit holding" : "Add holding"}</CardTitle>
-          <CardDescription>Add current positions with average cost. Daily pricing comes in a later milestone.</CardDescription>
+          <CardDescription>Add or update position quantity, cost basis, account and purchase date.</CardDescription>
         </CardHeader>
         <CardContent>
           {params.error ? <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{params.error}</div> : null}
@@ -89,7 +122,7 @@ export default async function HoldingsPage({ searchParams }: { searchParams: Pro
           </form>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle>Holdings table</CardTitle>
           <CardDescription>Current positions with daily, weekly, monthly, 1Y, YTD, and since-inception performance.</CardDescription>
@@ -102,6 +135,6 @@ export default async function HoldingsPage({ searchParams }: { searchParams: Pro
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

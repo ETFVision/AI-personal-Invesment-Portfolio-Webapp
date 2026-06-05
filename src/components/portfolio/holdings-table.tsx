@@ -1,7 +1,7 @@
 import { deleteHoldingAction } from "@/server/actions/portfolioActions";
 import { Button } from "@/components/ui/button";
 import { Holding, HoldingValuation, ProductPerformance } from "@/domain/portfolio/types";
-import { formatAssetTypeLabel, formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
+import { cn, formatAssetTypeLabel, formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 
 type HoldingsTableProps =
   | { holdings: Holding[]; valuations?: never; productPerformance?: ProductPerformance[] }
@@ -22,18 +22,18 @@ export function HoldingsTable({ holdings, valuations, productPerformance = [] }:
   const performanceLabels = ["Daily", "Weekly", "Monthly", "1Y", "YTD", "Since inception"];
 
   return (
-    <div className="overflow-hidden rounded-lg border">
-      <div className="hidden grid-cols-[1.15fr_0.55fr_0.55fr_0.6fr_0.65fr_0.75fr_1.35fr_auto] gap-3 bg-muted px-4 py-3 text-xs font-medium text-muted-foreground xl:grid">
-        <span>Asset</span>
-        <span>Type</span>
-        <span>Account</span>
-        <span>Quantity</span>
-        <span>Unit value</span>
-        <span>Market value</span>
-        <span>Performance</span>
-        <span />
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="hidden grid-cols-[minmax(220px,1.25fr)_0.55fr_0.65fr_0.65fr_0.75fr_0.85fr_minmax(290px,1.35fr)_auto] gap-4 border-b border-slate-200 bg-slate-50/90 px-5 py-3 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-500 xl:grid">
+        <span className="self-center">Asset</span>
+        <span className="self-center">Type</span>
+        <span className="self-center">Account</span>
+        <span className="self-center text-right">Quantity</span>
+        <span className="self-center text-right">Unit value</span>
+        <span className="self-center text-right">Market value</span>
+        <span className="self-center">Performance</span>
+        <span className="self-center text-right">Actions</span>
       </div>
-      <div className="divide-y">
+      <div className="divide-y divide-slate-100">
         {rows.map((row) => {
           const holding = row.holding;
           const performance = performanceByHoldingId.get(holding.id);
@@ -41,48 +41,51 @@ export function HoldingsTable({ holdings, valuations, productPerformance = [] }:
           return (
             <div
               key={holding.id}
-              className="grid gap-3 px-4 py-4 text-sm xl:grid-cols-[1.15fr_0.55fr_0.55fr_0.6fr_0.65fr_0.75fr_1.35fr_auto]"
+              className="grid gap-4 px-5 py-4 text-sm transition-colors hover:bg-slate-50/70 xl:grid-cols-[minmax(220px,1.25fr)_0.55fr_0.65fr_0.65fr_0.75fr_0.85fr_minmax(290px,1.35fr)_auto]"
             >
-              <div>
-                <div className="font-medium">{holding.ticker ?? holding.assetName}</div>
-                <div className="text-xs text-muted-foreground">
+              <div className="min-w-0">
+                <div className="truncate font-semibold text-slate-950">{holding.ticker ?? holding.assetName}</div>
+                <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
                   {holding.assetName}
                   {row.valuationSource === "market_price" && row.priceDate ? ` | priced ${row.priceDate}` : ""}
                 </div>
               </div>
-              <div><span className="text-xs text-muted-foreground md:hidden">Type </span>{formatAssetTypeLabel(holding.assetType)}</div>
-              <div><span className="text-xs text-muted-foreground md:hidden">Account </span>{holding.accountName ?? "Default"}</div>
-              <div><span className="text-xs text-muted-foreground md:hidden">Quantity </span>{formatNumber(holding.quantity)}</div>
-              <div><span className="text-xs text-muted-foreground md:hidden">Unit value </span>{formatCurrencyWithCode(row.unitPrice ?? 0, row.valueCurrency)}</div>
-              <div><span className="text-xs text-muted-foreground md:hidden">Market value </span>{formatCurrencyWithCode(row.value, row.valueCurrency)}</div>
-              <div>
-                <span className="text-xs text-muted-foreground md:hidden">Performance </span>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 xl:block">
+              <div className="text-slate-700"><span className="text-xs text-slate-500 xl:hidden">Type </span>{formatAssetTypeLabel(holding.assetType)}</div>
+              <div className="text-slate-700"><span className="text-xs text-slate-500 xl:hidden">Account </span>{holding.accountName ?? "Default"}</div>
+              <div className="tabular-nums text-slate-900 xl:text-right"><span className="text-xs text-slate-500 xl:hidden">Quantity </span>{formatNumber(holding.quantity)}</div>
+              <div className="tabular-nums text-slate-900 xl:text-right"><span className="text-xs text-slate-500 xl:hidden">Unit value </span>{formatCurrencyWithCode(row.unitPrice ?? 0, row.valueCurrency)}</div>
+              <div className="font-semibold tabular-nums text-slate-950 xl:text-right"><span className="text-xs text-slate-500 xl:hidden">Market value </span>{formatCurrencyWithCode(row.value, row.valueCurrency)}</div>
+              <div className="min-w-0">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 xl:hidden">Performance</span>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {performanceLabels.map((label) => {
                     const metric = performance?.metrics.find((item) => item.label === label);
+                    const isNegative = metric?.valueChange != null && metric.valueChange < 0;
                     return (
-                      <div key={label} className="flex justify-between gap-2 text-xs xl:justify-start">
-                        <span className="text-muted-foreground xl:hidden">{label === "Since inception" ? "SI" : label}</span>
+                      <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+                        <div className="text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                          {label === "Since inception" ? "Inception" : label}
+                        </div>
                         {metric?.percentChange == null ? (
-                          <span className="text-muted-foreground">-</span>
+                          <div className="mt-1 text-xs font-semibold text-slate-400">-</div>
                         ) : (
-                          <span className={metric.valueChange != null && metric.valueChange < 0 ? "text-destructive" : "text-emerald-600"}>
+                          <div className={cn("mt-1 text-xs font-semibold tabular-nums", isNegative ? "text-red-700" : "text-emerald-700")}>
                             {formatPercent(metric.percentChange)}
-                          </span>
+                          </div>
                         )}
                       </div>
                     );
                   })}
                 </div>
                 {sinceInception?.percentChange != null ? (
-                  <div className="mt-1 text-xs text-muted-foreground">
+                  <div className="mt-2 text-xs text-slate-500">
                     Total {formatCurrencyWithCode(performance?.totalGainLoss ?? 0, row.valueCurrency)}
                   </div>
                 ) : null}
-                <div className="mt-1 text-xs text-muted-foreground">Alloc {formatPercent(total === 0 ? 0 : row.value / total)}</div>
+                <div className="mt-1 text-xs text-slate-500">Alloc {formatPercent(total === 0 ? 0 : row.value / total)}</div>
               </div>
-              <div className="flex gap-2 md:justify-end">
-                <a className="rounded-md border px-3 py-2 text-xs hover:bg-muted" href={`/holdings?edit=${holding.id}`}>
+              <div className="flex gap-2 xl:justify-end">
+                <a className="rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100" href={`/holdings?edit=${holding.id}`}>
                   Edit
                 </a>
                 <form action={deleteHoldingAction}>

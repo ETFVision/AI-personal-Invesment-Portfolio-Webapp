@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 
 export default async function TransactionsPage({ searchParams }: { searchParams: Promise<{ edit?: string; error?: string }> }) {
@@ -19,14 +20,34 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
 
   const transactions = await container.portfolioRepository.listTransactions(portfolio.id);
   const editing = transactions.find((item) => item.id === params.edit);
+  const buySellCount = transactions.filter((item) => item.transactionType === "buy" || item.transactionType === "sell").length;
+  const cashMovementCount = transactions.filter((item) => item.transactionType.includes("cash")).length;
+  const latestTransactionDate = transactions.map((item) => item.transactionDate).sort((a, b) => b.localeCompare(a))[0];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm text-muted-foreground">Manual ingestion</p>
-        <h1 className="text-2xl font-semibold">Transactions</h1>
-      </div>
-      <Card>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Portfolio"
+        title="Transactions"
+        description="Audit trail for buys, sells, cash flows, dividends, fees and manual adjustments."
+        meta={
+          <>
+            <StatusBadge tone="info">{transactions.length} ledger rows</StatusBadge>
+            <StatusBadge tone={latestTransactionDate ? "positive" : "neutral"}>
+              Latest {latestTransactionDate ?? "none"}
+            </StatusBadge>
+          </>
+        }
+      />
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard title="Transactions" value={transactions.length} description="Total records in the manual ledger." />
+        <MetricCard title="Buys / sells" value={buySellCount} description="Investment transactions used by return logic." />
+        <MetricCard title="Cash movements" value={cashMovementCount} description="Deposits, withdrawals and cash income rows." />
+        <MetricCard title="Latest date" value={latestTransactionDate ?? "-"} description="Most recent ledger record." tone={latestTransactionDate ? "positive" : "neutral"} />
+      </section>
+
+      <Card className="border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle>{editing ? "Edit transaction" : "Add transaction"}</CardTitle>
           <CardDescription>Record buys, sells, cash movements, fees, and manual adjustments.</CardDescription>
@@ -107,7 +128,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle>Transaction ledger</CardTitle>
           <CardDescription>Manual transaction history for auditability.</CardDescription>
@@ -116,29 +137,47 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
           {transactions.length === 0 ? (
             <EmptyState title="No transactions" description="Add a buy, sell, cash movement, fee, or manual adjustment." />
           ) : (
-            <div className="divide-y rounded-lg border">
-              {transactions.map((transaction) => (
-                <div key={transaction.id} className="grid gap-3 p-4 text-sm md:grid-cols-[1fr_0.8fr_0.8fr_0.8fr_auto]">
-                  <div>
-                    <div className="font-medium">{transaction.transactionType.replace("_", " ")}</div>
-                    <div className="text-muted-foreground">{transaction.transactionDate} · {transaction.accountName ?? "Default account"}</div>
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="hidden grid-cols-[1.1fr_0.7fr_0.8fr_0.8fr_auto] gap-4 border-b border-slate-200 bg-slate-50/90 px-5 py-3 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-500 md:grid">
+                <span>Type / account</span>
+                <span className="text-right">Quantity</span>
+                <span className="text-right">Price</span>
+                <span className="text-right">Net amount</span>
+                <span className="text-right">Actions</span>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {transactions.map((transaction) => (
+                  <div key={transaction.id} className="grid gap-4 px-5 py-4 text-sm transition-colors hover:bg-slate-50/70 md:grid-cols-[1.1fr_0.7fr_0.8fr_0.8fr_auto]">
+                    <div className="min-w-0">
+                      <div className="font-semibold capitalize text-slate-950">{transaction.transactionType.replaceAll("_", " ")}</div>
+                      <div className="mt-1 text-xs text-slate-500">{transaction.transactionDate} | {transaction.accountName ?? "Default account"}</div>
+                    </div>
+                    <div className="tabular-nums text-slate-900 md:text-right">
+                      <span className="text-xs text-slate-500 md:hidden">Qty </span>
+                      {transaction.quantity == null ? "-" : formatNumber(transaction.quantity)}
+                    </div>
+                    <div className="tabular-nums text-slate-900 md:text-right">
+                      <span className="text-xs text-slate-500 md:hidden">Price </span>
+                      {transaction.price == null ? "No price" : formatCurrency(transaction.price, transaction.currency)}
+                    </div>
+                    <div className="font-semibold tabular-nums text-slate-950 md:text-right">
+                      <span className="text-xs text-slate-500 md:hidden">Net </span>
+                      {transaction.netAmount == null ? "Manual" : formatCurrency(transaction.netAmount, transaction.currency)}
+                    </div>
+                    <div className="flex gap-2 md:justify-end">
+                      <a className="rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100" href={`/transactions?edit=${transaction.id}`}>Edit</a>
+                      <form action={deleteTransactionAction}>
+                        <input type="hidden" name="id" value={transaction.id} />
+                        <Button type="submit" variant="ghost" size="sm">Delete</Button>
+                      </form>
+                    </div>
                   </div>
-                  <div>Qty {transaction.quantity == null ? "-" : formatNumber(transaction.quantity)}</div>
-                  <div>{transaction.price == null ? "No price" : formatCurrency(transaction.price, transaction.currency)}</div>
-                  <div>{transaction.netAmount == null ? "Manual" : formatCurrency(transaction.netAmount, transaction.currency)}</div>
-                  <div className="flex gap-2 md:justify-end">
-                    <a className="rounded-md border px-3 py-2 text-xs hover:bg-muted" href={`/transactions?edit=${transaction.id}`}>Edit</a>
-                    <form action={deleteTransactionAction}>
-                      <input type="hidden" name="id" value={transaction.id} />
-                      <Button type="submit" variant="ghost" size="sm">Delete</Button>
-                    </form>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }
