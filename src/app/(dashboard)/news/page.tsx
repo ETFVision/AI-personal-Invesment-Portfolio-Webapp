@@ -29,7 +29,7 @@ function tone(score: number) {
 
 function ReconciliationSection({ title, value }: { title: string; value: string | null }) {
   return (
-    <div className="rounded-md border p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <p className="text-sm font-medium">{title}</p>
       <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{value || "No summary available."}</p>
     </div>
@@ -222,19 +222,19 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                   <div className="mt-1 text-xs text-muted-foreground">Newest reconciliation shown. Older drafts remain stored in the database.</div>
                 </div>
                 <div className="grid gap-3 text-sm md:grid-cols-4 xl:grid-cols-2">
-                  <div className="rounded-md border p-3">
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                     <p className="text-xs uppercase text-muted-foreground">Classified</p>
                     <p className="mt-1 text-xl font-semibold">{coverageNumber(latestWeekly.coverageMetadata, "classifiedInPeriod")}</p>
                   </div>
-                  <div className="rounded-md border p-3">
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                     <p className="text-xs uppercase text-muted-foreground">Included</p>
                     <p className="mt-1 text-xl font-semibold">{coverageNumber(latestWeekly.coverageMetadata, "includedInReconciliation")}</p>
                   </div>
-                  <div className="rounded-md border p-3">
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                     <p className="text-xs uppercase text-muted-foreground">Excluded</p>
                     <p className="mt-1 text-xl font-semibold">{coverageNumber(latestWeekly.coverageMetadata, "excludedByEligibility")}</p>
                   </div>
-                  <div className="rounded-md border p-3">
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                     <p className="text-xs uppercase text-muted-foreground">Equity items</p>
                     <p className="mt-1 text-xl font-semibold">{bucketCount(latestWeekly.coverageMetadata, "equities")}</p>
                   </div>
@@ -267,7 +267,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
               <>
                 <div className="grid gap-3">
                   {dashboard.themeSummary.slice(0, 9).map((theme) => (
-                    <div key={theme.theme} className="rounded-md border p-3">
+                    <div key={theme.theme} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="font-medium">{theme.theme}</p>
@@ -288,26 +288,26 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                   ))}
                 </div>
                 <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
-                  <div className="rounded-md border p-3">
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                     <p className="text-sm font-medium">Emerging themes</p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {dashboard.themeIntelligence.emergingThemes.length ? dashboard.themeIntelligence.emergingThemes.map((theme) => theme.theme).join(", ") : "No rising theme signal yet."}
                     </p>
                   </div>
-                  <div className="rounded-md border p-3">
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                     <p className="text-sm font-medium">Persistent themes</p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {dashboard.themeIntelligence.persistentThemes.length ? dashboard.themeIntelligence.persistentThemes.map((theme) => theme.theme).join(", ") : "No persistent theme signal yet."}
                     </p>
                   </div>
-                  <div className="rounded-md border p-3">
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                     <p className="text-sm font-medium">Structural themes</p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {dashboard.themeIntelligence.structuralThemes.length ? dashboard.themeIntelligence.structuralThemes.map((theme) => theme.theme).join(", ") : "No structural theme signal yet."}
                     </p>
                   </div>
                 </div>
-                <div className="rounded-md border p-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-medium">Classification review queue</p>
                     <span className="text-xs text-muted-foreground">{dashboard.themeIntelligence.reviewQueue.length} flagged</span>

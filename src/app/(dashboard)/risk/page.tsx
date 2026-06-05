@@ -146,7 +146,7 @@ function RiskContributorTable({ report }: { report: RiskAnalyticsReport }) {
   return (
     <div className="overflow-hidden rounded-md border">
       <table className="w-full text-sm">
-        <thead className="bg-muted/60 text-left">
+        <thead className="text-left">
           <tr>
             <th className="p-3 font-medium">Instrument</th>
             <th className="p-3 font-medium">Class</th>
@@ -162,7 +162,7 @@ function RiskContributorTable({ report }: { report: RiskAnalyticsReport }) {
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={row.label} className="border-t">
+              <tr key={row.label} className="">
                 <td className="p-3 font-medium">{row.label}</td>
                 <td className="p-3 text-muted-foreground">{formatAssetTypeLabel(row.assetClass)}</td>
                 <td className="p-3 text-right">{formatPercent(row.allocation)}</td>
@@ -180,7 +180,7 @@ function RiskContributorTable({ report }: { report: RiskAnalyticsReport }) {
 function ContextList({ items }: { items: string[] }) {
   return (
     <div className="grid gap-2 text-sm md:grid-cols-2">
-      {items.map((item) => <p key={item} className="rounded-md border p-3 text-muted-foreground">{item}</p>)}
+      {items.map((item) => <p key={item} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-600">{item}</p>)}
     </div>
   );
 }
@@ -367,7 +367,7 @@ export default async function RiskPage() {
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {macroContext.regimeCards.filter((card) => ["Rates", "Inflation", "Yield curve", "Liquidity"].includes(card.label)).map((card) => (
-              <div key={card.label} className="rounded-md border p-3">
+              <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <p className="text-xs uppercase text-muted-foreground">{card.label}</p>
                 <p className="mt-1 text-sm font-medium">{card.value}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{card.description}</p>
@@ -375,9 +375,9 @@ export default async function RiskPage() {
             ))}
           </div>
           <ContextList items={macroContext.riskContext} />
-          <div className="overflow-x-auto rounded-md border">
+          <div className="professional-table overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
-              <thead className="bg-muted/60 text-left">
+              <thead className="text-left">
                 <tr>
                   <th className="p-3 font-medium">Indicator</th>
                   <th className="p-3 font-medium">Latest</th>
@@ -387,7 +387,7 @@ export default async function RiskPage() {
               </thead>
               <tbody>
                 {macroContext.keyIndicators.slice().sort((a, b) => b.severityScore - a.severityScore).slice(0, 6).map((indicator) => (
-                  <tr key={indicator.code} className="border-t">
+                  <tr key={indicator.code} className="">
                     <td className="p-3">
                       <p className="font-medium">{indicator.code}</p>
                       <p className="text-xs text-muted-foreground">{indicator.name}</p>
@@ -411,7 +411,7 @@ export default async function RiskPage() {
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-2">
             {report.warnings.map((warning) => (
-              <div key={warning} className="flex gap-3 rounded-md border p-3 text-sm">
+              <div key={warning} className="flex gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm text-sm">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                 <span>{warning}</span>
               </div>
@@ -510,15 +510,15 @@ export default async function RiskPage() {
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="grid gap-3 text-sm sm:grid-cols-3">
-              <div className="rounded-md border p-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <p className="text-muted-foreground">Method</p>
                 <p className="mt-1 font-medium">{report.riskContributionMethod === "covariance" ? "Covariance-based" : "Proxy estimate"}</p>
               </div>
-              <div className="rounded-md border p-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <p className="text-muted-foreground">History coverage</p>
                 <p className="mt-1 font-medium">{formatPercent(report.riskContributionCoverage)}</p>
               </div>
-              <div className="rounded-md border p-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <p className="text-muted-foreground">Risk model vol</p>
                 <p className="mt-1 font-medium">{report.riskContributionVolatility == null ? "-" : formatPercent(report.riskContributionVolatility)}</p>
               </div>
@@ -537,7 +537,7 @@ export default async function RiskPage() {
         <CardContent>
           <div className="overflow-hidden rounded-md border">
             <table className="w-full text-sm">
-              <thead className="bg-muted/60 text-left">
+              <thead className="text-left">
                 <tr>
                   <th className="p-3 font-medium">Benchmark</th>
                   <th className="p-3 text-right font-medium">Portfolio max drawdown</th>
@@ -553,7 +553,7 @@ export default async function RiskPage() {
                   </tr>
                 ) : (
                   report.benchmarkDrawdowns.map((row) => (
-                    <tr key={row.benchmarkKey} className="border-t">
+                    <tr key={row.benchmarkKey} className="">
                       <td className="p-3 font-medium">{row.benchmarkName}</td>
                       <td className="p-3 text-right">{formatMaybePercent(row.portfolioMaxDrawdown)}</td>
                       <td className="p-3 text-right">{formatMaybePercent(row.benchmarkMaxDrawdown)}</td>

@@ -26,8 +26,8 @@ export function NavLink({ href, label, children, mobile = false }: NavLinkProps)
       <Link
         href={href}
         className={cn(
-          "whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-          active ? "border-teal-200 bg-teal-50 text-teal-900" : "border-slate-200 bg-white text-slate-600 hover:text-slate-950"
+          "whitespace-nowrap rounded-md border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
+          active ? "border-slate-300 bg-slate-100 text-slate-950" : "border-slate-200 bg-white text-slate-600 hover:text-slate-950"
         )}
       >
         {label}
@@ -39,8 +39,8 @@ export function NavLink({ href, label, children, mobile = false }: NavLinkProps)
     <Link
       href={href}
       className={cn(
-        "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-        active ? "bg-white/12 font-semibold text-white shadow-inner" : "text-slate-300 hover:bg-white/8 hover:text-white"
+        "group flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
+        active ? "bg-white/12 font-semibold text-white shadow-inner" : "text-slate-400 hover:bg-white/8 hover:text-white"
       )}
       aria-current={active ? "page" : undefined}
     >

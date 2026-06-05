@@ -61,7 +61,7 @@ export default async function FundamentalsPage({ searchParams }: { searchParams:
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="border-b text-xs uppercase text-muted-foreground">
+                <thead className="text-xs uppercase text-muted-foreground">
                   <tr>
                     <th className="py-2 pr-3">Symbol</th>
                     <th className="py-2 pr-3">Company</th>

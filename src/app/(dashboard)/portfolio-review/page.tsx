@@ -41,9 +41,9 @@ function formatDateTime(value: string | null | undefined) {
 }
 
 function severityTone(severity: PortfolioReviewFinding["severity"]) {
-  if (severity === "attention") return "border-red-200 bg-red-50 text-red-900";
+  if (severity === "attention") return "border-rose-200 bg-rose-50 text-rose-900";
   if (severity === "watch") return "border-amber-200 bg-amber-50 text-amber-900";
-  return "border-blue-200 bg-blue-50 text-blue-900";
+  return "border-sky-200 bg-sky-50 text-sky-900";
 }
 
 function metricLabel(value: string) {
@@ -172,9 +172,9 @@ function SectionMetrics({ metrics }: { metrics: Record<string, unknown> | undefi
   return (
     <div className="mt-3 grid gap-2 sm:grid-cols-2">
       {entries.map(([key, value]) => (
-        <div key={key} className="rounded-md bg-muted p-3">
-          <p className="text-xs text-muted-foreground">{metricLabel(key)}</p>
-          <p className="mt-1 text-sm font-medium">{metricValue(key, value)}</p>
+        <div key={key} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">{metricLabel(key)}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-900">{metricValue(key, value)}</p>
         </div>
       ))}
     </div>
@@ -227,7 +227,7 @@ function SectionCard({ title, section }: { title: string; section: PortfolioRevi
             <CardTitle>{title}</CardTitle>
             <CardDescription>{displaySection.summary}</CardDescription>
           </div>
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-sm font-semibold text-slate-800">{score(displaySection.score)}</span>
+          <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-sm font-semibold text-slate-800">{score(displaySection.score)}</span>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -243,7 +243,7 @@ function SectionCard({ title, section }: { title: string; section: PortfolioRevi
             ))}
           </div>
         )}
-        <details className="rounded-xl border border-slate-200 bg-white/80 p-3 text-sm">
+        <details className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-sm">
           <summary className="cursor-pointer font-medium text-slate-600">Section metrics</summary>
           <SectionMetrics metrics={displaySection.metrics} />
         </details>
@@ -262,10 +262,10 @@ function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggest
       </CardHeader>
       <CardContent className="space-y-3">
         {safeSuggestions.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No improvement suggestion generated for the latest review.</p>
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No improvement suggestion generated for the latest review.</p>
         ) : safeSuggestions.map((suggestion) => {
           const candidates = Array.isArray(suggestion.candidateInstruments) ? suggestion.candidateInstruments : [];
-          return <div key={`${suggestion.category}-${suggestion.title}`} className="rounded-md border p-4">
+          return <div key={`${suggestion.category}-${suggestion.title}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-medium">{suggestion.title}</p>
               <span className="rounded-md bg-muted px-2 py-1 text-xs capitalize">{suggestion.priority}</span>
@@ -294,7 +294,7 @@ function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggest
                   <Link
                     key={`${suggestion.title}-${candidate.instrumentId}`}
                     href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
-                    className="rounded-md border p-3 text-xs hover:bg-muted"
+                    className="rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-sm hover:bg-muted"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{candidate.symbol}</span>
@@ -362,7 +362,7 @@ function ExposureTable({
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No look-through exposure available yet.</p>
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No look-through exposure available yet.</p>
         ) : (
           <div className="space-y-3">
             <HorizontalExposureBars
@@ -381,7 +381,7 @@ function ExposureTable({
               </p>
             ) : null}
             {mode === "allocation" && totalExposure > 1.05 ? (
-              <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+              <p className="rounded-xl border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
                 Allocation total is above 100%, which usually means source classifications overlap. Review this table before treating it as a strict allocation split.
               </p>
             ) : null}
@@ -402,7 +402,7 @@ function HoldingExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] })
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Indirect holding exposure unavailable.</p>
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">Indirect holding exposure unavailable.</p>
         ) : (
           <div className="space-y-3">
             {shownRows.map((row) => (
@@ -435,7 +435,7 @@ function IndirectHoldingExposureTable({ rows }: { rows: PortfolioLookthroughHold
       </CardHeader>
       <CardContent>
         {shownRows.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No indirect ETF holding exposure available yet.</p>
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No indirect ETF holding exposure available yet.</p>
         ) : (
           <HorizontalExposureBars
             max={Math.max(...shownRows.map((row) => row.indirectWeight), 0.01)}
@@ -465,9 +465,9 @@ function Actions({ actions }: { actions: PortfolioPotentialAction[] }) {
       </CardHeader>
       <CardContent className="space-y-2">
         {safeActions.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No review action generated.</p>
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No review action generated.</p>
         ) : safeActions.map((action) => (
-          <div key={`${action.actionType}-${action.title}`} className="rounded-md border p-3 text-sm">
+          <div key={`${action.actionType}-${action.title}`} className="rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm">
             <p className="font-medium">{action.title}</p>
             <p className="mt-1 text-muted-foreground">{action.detail}</p>
           </div>
@@ -542,8 +542,8 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
         }
       />
 
-      {params?.portfolioReviewMessage ? <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{params.portfolioReviewMessage}</p> : null}
-      {params?.portfolioReviewError ? <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{params.portfolioReviewError}</p> : null}
+      {params?.portfolioReviewMessage ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{params.portfolioReviewMessage}</p> : null}
+      {params?.portfolioReviewError ? <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{params.portfolioReviewError}</p> : null}
 
       {!report ? (
         <EmptyState
@@ -625,7 +625,7 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 {dashboard.reports.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between rounded-md border p-2">
+                  <div key={item.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-2">
                     <span>{item.reviewDate}</span>
                     <span>{score(item.overallPortfolioScore)}</span>
                   </div>

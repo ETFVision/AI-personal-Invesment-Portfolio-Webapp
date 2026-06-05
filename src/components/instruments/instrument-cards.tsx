@@ -4,6 +4,7 @@ import type { InstrumentRecommendation, RecommendationHistoryItem } from "@/doma
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MiniRangeBar } from "@/components/ui/charts";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
+import { RecommendationBadge } from "@/components/ui/professional";
 import { DataFreshnessBadge, InstrumentTypeBadge, ThemeBadgeList } from "./instrument-badges";
 
 export function InstrumentHeader({
@@ -16,15 +17,15 @@ export function InstrumentHeader({
   marketView: InstrumentMarketView;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] sm:flex sm:items-start sm:justify-between sm:gap-5">
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-700 via-cyan-500 to-slate-300" />
+    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.055)] sm:flex sm:items-start sm:justify-between sm:gap-5">
+      <div className="absolute inset-x-0 top-0 h-px bg-slate-300" />
       <div>
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <InstrumentTypeBadge label={typeLabel} />
           <DataFreshnessBadge label={marketView.freshnessLabel} tone={marketView.freshnessTone} />
-          <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{instrument.isActive ? "Active" : "Inactive"}</span>
+          <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">{instrument.isActive ? "Active" : "Inactive"}</span>
         </div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">Instrument detail</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Instrument detail</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{instrument.symbol ?? "-"} - {instrument.name}</h1>
         <p className="mt-2 text-sm text-slate-500">
           {instrument.exchange ?? "No exchange"} - {instrument.currency ?? "No currency"} - {instrument.geography ?? "No geography"}
@@ -79,14 +80,6 @@ function riskLabel(value: string | null | undefined) {
 
 function riskPercent(value: number | null | undefined) {
   return value == null ? "-" : formatPercent(value);
-}
-
-function recommendationTone(label: string) {
-  if (label === "Strong Buy" || label === "Buy") return "border-emerald-200 bg-emerald-50 text-emerald-900";
-  if (label === "Hold") return "border-blue-200 bg-blue-50 text-blue-900";
-  if (label === "Watch") return "border-amber-200 bg-amber-50 text-amber-900";
-  if (label === "Reduce" || label === "Sell") return "border-red-200 bg-red-50 text-red-900";
-  return "border-border bg-muted text-muted-foreground";
 }
 
 function scoreValue(value: unknown) {
@@ -200,11 +193,9 @@ export function RecommendationSummaryCard({ recommendation, history = [] }: { re
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-md border bg-background p-3">
-            <p className="text-xs uppercase text-muted-foreground">Label</p>
-            <span className={`mt-2 inline-flex rounded-md border px-2 py-1 text-sm font-medium ${recommendationTone(recommendation.recommendationLabel)}`}>
-              {recommendation.recommendationLabel}
-            </span>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Label</p>
+            <RecommendationBadge label={recommendation.recommendationLabel} className="mt-2" />
           </div>
           <SummaryMetric label="Score" value={recommendation.overallScore == null ? "-" : `${Math.round(recommendation.overallScore)}/100`} />
           <SummaryMetric label="Confidence" value={formatPercent(recommendation.confidenceScore / 100)} />
@@ -216,51 +207,51 @@ export function RecommendationSummaryCard({ recommendation, history = [] }: { re
         </div>
         <p className="rounded-md border bg-muted p-3 text-sm text-muted-foreground">{recommendation.recommendationReasoningSummary}</p>
         <div className="grid gap-3 lg:grid-cols-2">
-          <div className="rounded-md border p-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <p className="text-xs uppercase text-muted-foreground">Positive drivers</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
               {(recommendation.positiveDrivers.length ? recommendation.positiveDrivers : ["-"]).map((item) => <li key={item}>{item}</li>)}
             </ul>
           </div>
-          <div className="rounded-md border p-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <p className="text-xs uppercase text-muted-foreground">Negative drivers</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
               {(recommendation.negativeDrivers.length ? recommendation.negativeDrivers : ["-"]).map((item) => <li key={item}>{normalizeNegativeDriver(item)}</li>)}
             </ul>
           </div>
-          <div className="rounded-md border p-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <p className="text-xs uppercase text-muted-foreground">Guardrails</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
               {(recommendation.guardrailsApplied.length ? recommendation.guardrailsApplied : ["-"]).map((item) => <li key={item}>{item}</li>)}
             </ul>
           </div>
-          <div className="rounded-md border p-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <p className="text-xs uppercase text-muted-foreground">Data limitations</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
               {(recommendation.dataLimitations.length ? recommendation.dataLimitations : ["-"]).map((item) => <li key={item}>{item}</li>)}
             </ul>
           </div>
-          <div className="rounded-md border p-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <p className="text-xs uppercase text-muted-foreground">Upgrade triggers</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
               {(recommendation.recommendationChangeTriggers.upgrade.length ? recommendation.recommendationChangeTriggers.upgrade : ["-"]).map((item) => <li key={item}>{item}</li>)}
             </ul>
           </div>
-          <div className="rounded-md border p-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <p className="text-xs uppercase text-muted-foreground">Downgrade triggers</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
               {(recommendation.recommendationChangeTriggers.downgrade.length ? recommendation.recommendationChangeTriggers.downgrade : ["-"]).map((item) => <li key={item}>{item}</li>)}
             </ul>
           </div>
         </div>
-        <div className="rounded-md border p-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <p className="text-xs uppercase text-muted-foreground">Score breakdown</p>
           {components.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">No component breakdown stored.</p>
           ) : (
             <div className="mt-2 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="border-b text-xs uppercase text-muted-foreground">
+                <thead className="text-xs uppercase text-muted-foreground">
                   <tr>
                     <th className="py-2 pr-3">Component</th>
                     <th className="py-2 pr-3">Score</th>
@@ -282,14 +273,14 @@ export function RecommendationSummaryCard({ recommendation, history = [] }: { re
             </div>
           )}
         </div>
-        <div className="rounded-md border p-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <p className="text-xs uppercase text-muted-foreground">Recent history</p>
           {history.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">No historical recommendation runs stored yet.</p>
           ) : (
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {history.map((item) => (
-                <div key={item.id} className="rounded-md border bg-background p-2 text-sm">
+                <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm">
                   <p className="text-xs text-muted-foreground">{item.runDate}</p>
                   <p className="font-medium">{item.recommendationLabel}</p>
                   <p className="text-xs text-muted-foreground">{item.overallScore == null ? "No score" : `${Math.round(item.overallScore)}/100`} - {formatPercent(item.confidenceScore / 100)} confidence</p>
@@ -326,7 +317,7 @@ export function InstrumentTabs({ tabs }: { tabs: Array<{ label: string; content:
     <div className="space-y-4">
       <div className="flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white/80 p-2 shadow-sm">
         {tabs.map((tab) => (
-          <a key={tab.label} href={`#${tab.label.toLowerCase().replaceAll(" ", "-")}`} className="whitespace-nowrap rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-teal-200 hover:bg-teal-50 hover:text-teal-900">
+          <a key={tab.label} href={`#${tab.label.toLowerCase().replaceAll(" ", "-")}`} className="whitespace-nowrap rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-950">
             {tab.label}
           </a>
         ))}
@@ -374,8 +365,8 @@ export function ThemesPanel({ instrument }: { instrument: Instrument }) {
 
 export function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm">
-      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className="mt-1 text-sm font-semibold capitalize text-slate-900">{value}</p>
     </div>
   );

@@ -37,7 +37,7 @@ function miniPath(indicator: MacroDashboardIndicator) {
 
 function RegimeCard({ title, value }: { title: string; value: string | null | undefined }) {
   return (
-    <div className="rounded-md border p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <p className="text-xs uppercase text-muted-foreground">{title}</p>
       <p className="mt-1 text-sm font-medium capitalize">{(value ?? "insufficient_data").replaceAll("_", " ")}</p>
     </div>

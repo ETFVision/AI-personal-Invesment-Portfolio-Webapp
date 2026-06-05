@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
+import { MetricCard, PageContainer, PageHeader, RecommendationBadge, StatusBadge } from "@/components/ui/professional";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { runRecommendationsAction } from "@/server/actions/recommendationActions";
 import { formatNumber, formatPercent } from "@/lib/utils";
@@ -18,14 +18,6 @@ function score(value: number | null | undefined) {
   return value == null ? "-" : `${Math.round(value)}/100`;
 }
 
-function tone(label: string) {
-  if (label === "Strong Buy" || label === "Buy") return "positive";
-  if (label === "Hold") return "info";
-  if (label === "Watch") return "warning";
-  if (label === "Reduce" || label === "Sell") return "danger";
-  return "neutral";
-}
-
 function RecommendationTable({ title, description, rows }: { title: string; description: string; rows: InstrumentRecommendation[] }) {
   return (
     <Card>
@@ -37,9 +29,9 @@ function RecommendationTable({ title, description, rows }: { title: string; desc
         {rows.length === 0 ? (
           <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No recommendations in this section yet. Run the deterministic engine after applying the migration.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="professional-table overflow-x-auto">
             <table className="min-w-full text-left text-sm">
-              <thead className="border-b text-xs uppercase text-muted-foreground">
+              <thead>
                 <tr>
                   <th className="p-3">Instrument</th>
                   <th className="p-3">Label</th>
@@ -52,13 +44,13 @@ function RecommendationTable({ title, description, rows }: { title: string; desc
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.id} className="border-b align-top last:border-0">
+                  <tr key={row.id} className="align-top">
                     <td className="p-3">
                       <Link href={`/instruments/${encodeURIComponent(row.symbol)}#recommendations`} className="font-medium hover:underline">{row.symbol}</Link>
                       <p className="text-xs text-muted-foreground">{row.instrumentType}</p>
                     </td>
                     <td className="p-3">
-                      <StatusBadge tone={tone(row.recommendationLabel)}>{row.recommendationLabel}</StatusBadge>
+                      <RecommendationBadge label={row.recommendationLabel} />
                     </td>
                     <td className="p-3 text-right">{score(row.overallScore)}</td>
                     <td className="p-3 text-right">{formatPercent(row.confidenceScore / 100)}</td>
@@ -111,7 +103,7 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
       />
 
       {params?.recommendationMessage ? <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{params.recommendationMessage}</p> : null}
-      {params?.recommendationError ? <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{params.recommendationError}</p> : null}
+      {params?.recommendationError ? <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{params.recommendationError}</p> : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard title="Latest run" value={dashboard.latestRun?.runDate ?? "-"} footer={dashboard.latestRun?.status ?? "No run yet"} />

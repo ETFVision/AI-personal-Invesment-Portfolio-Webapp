@@ -52,7 +52,7 @@ export function InstrumentDirectoryTable({ rows, fundamentalsByInstrumentId, emp
             return (
               <tr key={row.instrument.id} className="border-b border-slate-100 align-top last:border-0">
                 <td className="p-3 font-medium">
-                  {symbol ? <Link className="text-slate-950 hover:text-teal-700 hover:underline" href={`/instruments/${encodeURIComponent(symbol)}`}>{symbol}</Link> : "-"}
+                  {symbol ? <Link className="text-slate-950 hover:text-slate-700 hover:underline" href={`/instruments/${encodeURIComponent(symbol)}`}>{symbol}</Link> : "-"}
                   <p className="mt-1 text-xs text-muted-foreground">{(row.watchlistTierLabel ?? row.instrument.benchmarkTags.join(", ")) || "-"}</p>
                 </td>
                 <td className="p-3">
@@ -65,7 +65,7 @@ export function InstrumentDirectoryTable({ rows, fundamentalsByInstrumentId, emp
                 <td className="p-3 text-right font-medium">
                   {row.latestPrice == null ? "-" : formatCurrencyWithCode(row.latestPrice, row.instrument.currency ?? "USD")}
                 </td>
-                <td className={row.dailyReturn == null ? "p-3 text-right text-slate-500" : row.dailyReturn >= 0 ? "p-3 text-right font-semibold text-emerald-600" : "p-3 text-right font-semibold text-red-600"}>
+                <td className={row.dailyReturn == null ? "p-3 text-right text-slate-500" : row.dailyReturn >= 0 ? "p-3 text-right font-semibold text-emerald-600" : "p-3 text-right font-semibold text-rose-600"}>
                   {row.dailyReturn == null ? "-" : formatPercent(row.dailyReturn)}
                 </td>
                 <td className="p-3">

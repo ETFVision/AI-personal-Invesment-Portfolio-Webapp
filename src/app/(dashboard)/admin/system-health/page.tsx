@@ -20,7 +20,7 @@ export default async function SystemHealthPage() {
           <CardDescription>Prepared for future monitoring without adding telemetry in this phase.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
             No system-health aggregation is implemented yet.
           </p>
         </CardContent>

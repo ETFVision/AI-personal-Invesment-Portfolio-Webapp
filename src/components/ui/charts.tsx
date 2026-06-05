@@ -10,10 +10,10 @@ export type ExposureBarItem = {
 };
 
 const toneBars = {
-  default: "bg-teal-600",
+  default: "bg-slate-700",
   positive: "bg-emerald-600",
   warning: "bg-amber-500",
-  danger: "bg-red-500",
+  danger: "bg-rose-500",
   muted: "bg-slate-400"
 };
 
@@ -29,11 +29,11 @@ export function ChartShell({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm", className)}>
+    <div className={cn("rounded-xl border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)]", className)}>
       {title || description ? (
         <div className="mb-4">
           {title ? <p className="text-sm font-semibold tracking-tight text-slate-950">{title}</p> : null}
-          {description ? <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p> : null}
+          {description ? <p className="mt-1 text-xs leading-5 text-slate-600">{description}</p> : null}
         </div>
       ) : null}
       {children}
@@ -69,7 +69,7 @@ export function HorizontalExposureBars({
               </div>
               <span className="shrink-0 font-semibold text-slate-900">{item.valueLabel}</span>
             </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
               <div className={cn("h-full rounded-full", toneBars[item.tone ?? "default"])} style={{ width }} />
             </div>
           </div>
@@ -95,7 +95,7 @@ export function StackedExposureBar({
   const directWidth = Math.min(100, Math.max(0, direct * 100));
   const indirectWidth = Math.min(100 - directWidth, Math.max(0, indirect * 100));
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/80 p-3 text-sm shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate font-medium text-slate-800">{label}</p>
@@ -103,9 +103,9 @@ export function StackedExposureBar({
         </div>
         <span className="shrink-0 font-semibold text-slate-900">{totalLabel}</span>
       </div>
-      <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full bg-teal-700" style={{ width: `${directWidth}%` }} />
-        <div className="h-full bg-cyan-500" style={{ width: `${indirectWidth}%` }} />
+      <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full bg-slate-800" style={{ width: `${directWidth}%` }} />
+        <div className="h-full bg-sky-500" style={{ width: `${indirectWidth}%` }} />
       </div>
       <div className="mt-2 flex gap-4 text-xs text-slate-500">
         <span>Direct</span>
@@ -135,7 +135,7 @@ export function MiniRangeBar({
     <div className="min-w-40 space-y-1.5">
       <div className="relative h-2 rounded-full bg-slate-100">
         <div className="absolute inset-y-0 left-0 rounded-full bg-slate-300" style={{ width: "100%" }} />
-        {position == null ? null : <div className="absolute top-1/2 h-3 w-1.5 -translate-y-1/2 rounded-full bg-teal-700" style={{ left: `calc(${position}% - 3px)` }} />}
+        {position == null ? null : <div className="absolute top-1/2 h-3 w-1.5 -translate-y-1/2 rounded-full bg-slate-900" style={{ left: `calc(${position}% - 3px)` }} />}
       </div>
       <div className="flex justify-between gap-2 text-[0.68rem] text-slate-500">
         <span>{lowLabel}</span>
@@ -154,7 +154,7 @@ export function Sparkline({
   className?: string;
   tone?: "default" | "positive" | "danger" | "muted";
 }) {
-  const stroke = tone === "positive" ? "stroke-emerald-600" : tone === "danger" ? "stroke-red-500" : tone === "muted" ? "stroke-slate-400" : "stroke-teal-700";
+  const stroke = tone === "positive" ? "stroke-emerald-600" : tone === "danger" ? "stroke-rose-500" : tone === "muted" ? "stroke-slate-400" : "stroke-slate-800";
   return (
     <svg viewBox="0 0 180 60" className={cn("h-12 w-36", className)}>
       <polyline points={points} fill="none" className={stroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />

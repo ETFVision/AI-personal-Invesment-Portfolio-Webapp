@@ -430,7 +430,7 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
         <span>{decodedSymbol}</span>
       </div>
       <InstrumentHeader instrument={instrument} typeLabel={typeLabel} marketView={marketView} />
-      <div className="flex gap-2 overflow-x-auto rounded-md border p-2">
+      <div className="flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
         {tabs.map((tab) => (
           <a key={tab.label} href={`#${detailId(tab.label)}`} className="whitespace-nowrap rounded-md bg-muted px-3 py-1.5 text-xs">
             {tab.label}

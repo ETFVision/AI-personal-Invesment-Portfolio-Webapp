@@ -66,12 +66,12 @@ function ReportSelector({ reports, selectedReport }: { reports: MarketVisionRepo
 
 function MacroIndicatorCards({ indicators }: { indicators: MacroContextIndicator[] }) {
   if (indicators.length === 0) {
-    return <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">FRED indicator trends will appear after the Macro dashboard is backfilled.</p>;
+    return <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">FRED indicator trends will appear after the Macro dashboard is backfilled.</p>;
   }
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {indicators.map((indicator) => (
-        <div key={indicator.code} className="rounded-md border p-3">
+        <div key={indicator.code} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <p className="text-xs uppercase text-muted-foreground">{indicator.category}</p>
           <p className="mt-1 text-sm font-medium">{indicator.code}</p>
           <p className="text-xs text-muted-foreground">{indicator.name}</p>
@@ -85,12 +85,12 @@ function MacroIndicatorCards({ indicators }: { indicators: MacroContextIndicator
 
 function MacroRegimeCards({ cards }: { cards: MacroContextCard[] }) {
   if (cards.length === 0) {
-    return <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">FRED macro regimes will appear after the Macro dashboard is refreshed.</p>;
+    return <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">FRED macro regimes will appear after the Macro dashboard is refreshed.</p>;
   }
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map((card) => (
-        <div key={card.label} className="rounded-md border p-3">
+        <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <p className="text-xs uppercase text-muted-foreground">{card.label}</p>
           <p className="mt-1 text-sm font-medium">{card.value}</p>
           <p className="mt-1 text-xs text-muted-foreground">{card.description}</p>
@@ -103,7 +103,7 @@ function MacroRegimeCards({ cards }: { cards: MacroContextCard[] }) {
 function MacroContextList({ items }: { items: string[] }) {
   return (
     <div className="grid gap-2 text-sm md:grid-cols-2">
-      {items.map((item) => <p key={item} className="rounded-md border p-3 text-muted-foreground">{item}</p>)}
+      {items.map((item) => <p key={item} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-600">{item}</p>)}
     </div>
   );
 }
@@ -135,7 +135,7 @@ function ListCard({ title, items, emptyText }: { title: string; items: string[];
           <p className="text-sm text-muted-foreground">{emptyText}</p>
         ) : (
           <ul className="space-y-2 text-sm">
-            {items.map((item) => <li key={item} className="rounded-md border p-3">{item}</li>)}
+            {items.map((item) => <li key={item} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">{item}</li>)}
           </ul>
         )}
       </CardContent>
@@ -145,12 +145,12 @@ function ListCard({ title, items, emptyText }: { title: string; items: string[];
 
 function ThemeTable({ events }: { events: MarketThemeEvent[] }) {
   if (events.length === 0) {
-    return <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No market theme events have been added yet.</p>;
+    return <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No market theme events have been added yet.</p>;
   }
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="professional-table overflow-x-auto">
       <table className="w-full min-w-[760px] text-sm">
-        <thead className="bg-muted/60 text-left">
+        <thead className="text-left">
           <tr>
             <th className="p-3 font-medium">Theme</th>
             <th className="p-3 font-medium">Category</th>
@@ -162,7 +162,7 @@ function ThemeTable({ events }: { events: MarketThemeEvent[] }) {
         </thead>
         <tbody>
           {events.map((event) => (
-            <tr key={event.id} className="border-t">
+            <tr key={event.id} className="">
               <td className="p-3">
                 <p className="font-medium">{event.title}</p>
                 <p className="text-xs text-muted-foreground">{event.description}</p>
@@ -347,19 +347,19 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
                 <CardDescription>Model, prompt and usage tracking for auditability.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 text-sm md:grid-cols-4">
-                <div className="rounded-md border p-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                   <p className="text-xs uppercase text-muted-foreground">Model</p>
                   <p className="mt-1 font-medium">{report.modelUsed ?? "-"}</p>
                 </div>
-                <div className="rounded-md border p-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                   <p className="text-xs uppercase text-muted-foreground">Prompt</p>
                   <p className="mt-1 font-medium">{report.promptVersion ?? "-"}</p>
                 </div>
-                <div className="rounded-md border p-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                   <p className="text-xs uppercase text-muted-foreground">Cost</p>
                   <p className="mt-1 font-medium">{report.costEstimate == null ? "Not configured" : `$${report.costEstimate.toFixed(6)}`}</p>
                 </div>
-                <div className="rounded-md border p-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                   <p className="text-xs uppercase text-muted-foreground">Duration</p>
                   <p className="mt-1 font-medium">{report.generationDurationMs == null ? "-" : `${report.generationDurationMs}ms`}</p>
                 </div>
@@ -367,7 +367,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             </Card>
           ) : null}
 
-          <div className="flex flex-col justify-between gap-3 rounded-md border p-4 sm:flex-row sm:items-center">
+          <div className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
             <div>
               <h2 className="font-semibold">{report.title}</h2>
               <p className="text-sm text-muted-foreground">
@@ -422,7 +422,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2">
               {implicationFields.map(([key, label]) => (
-                <div key={key} className="rounded-md border p-3">
+                <div key={key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                   <p className="text-sm font-medium">{label}</p>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
                     {report.portfolioImplications[key] || "No implication entered yet."}
@@ -439,11 +439,11 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             </CardHeader>
             <CardContent>
               {latestGlobalNews.length === 0 ? (
-                <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No NewsData or GDELT macro/world-news articles have been ingested yet.</p>
+                <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No NewsData or GDELT macro/world-news articles have been ingested yet.</p>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2">
                   {latestGlobalNews.slice(0, 6).map((item) => (
-                    <div key={item.id} className="rounded-md border p-3">
+                    <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                       <div className="flex items-start justify-between gap-3">
                         <p className="text-sm font-medium">
                           {item.url ? (

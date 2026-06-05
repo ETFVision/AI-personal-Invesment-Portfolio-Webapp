@@ -74,7 +74,7 @@ export default async function TaxonomyPage({ searchParams }: TaxonomyPageProps) 
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="border-b text-xs uppercase text-muted-foreground">
+                <thead className="text-xs uppercase text-muted-foreground">
                   <tr>
                     <th className="py-2 pr-3">Symbol</th>
                     <th className="py-2 pr-3">Raw sector</th>
@@ -117,7 +117,7 @@ export default async function TaxonomyPage({ searchParams }: TaxonomyPageProps) 
         <CardContent>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
-              <thead className="border-b text-xs uppercase text-muted-foreground">
+              <thead className="text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="py-2 pr-3">Symbol</th>
                   <th className="py-2 pr-3">Raw provider</th>
@@ -173,7 +173,7 @@ export default async function TaxonomyPage({ searchParams }: TaxonomyPageProps) 
         <CardContent>
           <div className="grid gap-2 text-sm md:grid-cols-2 lg:grid-cols-3">
             {providerMappings.map((mapping) => (
-              <div key={mapping.id} className="rounded-md border p-3">
+              <div key={mapping.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <div className="font-medium">{mapping.rawValue}</div>
                 <div className="text-xs text-muted-foreground">{mapping.sourceProvider} / {mapping.mappingType}</div>
                 <div className="mt-1 text-xs">{mapping.canonicalValue}</div>

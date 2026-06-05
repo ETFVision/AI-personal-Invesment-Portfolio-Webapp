@@ -69,7 +69,7 @@ export function HoldingsTable({ holdings, valuations, productPerformance = [] }:
                         {metric?.percentChange == null ? (
                           <div className="mt-1 text-xs font-semibold text-slate-400">-</div>
                         ) : (
-                          <div className={cn("mt-1 text-xs font-semibold tabular-nums", isNegative ? "text-red-700" : "text-emerald-700")}>
+                          <div className={cn("mt-1 text-xs font-semibold tabular-nums", isNegative ? "text-rose-700" : "text-emerald-700")}>
                             {formatPercent(metric.percentChange)}
                           </div>
                         )}

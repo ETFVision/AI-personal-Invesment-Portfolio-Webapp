@@ -54,7 +54,7 @@ export default async function JobsPage() {
         </CardHeader>
         <CardContent className="overflow-x-auto">
           {runs.length === 0 ? (
-            <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
               No scheduled job runs recorded yet. Runs will appear here after the new migration is applied and a protected job endpoint is called.
             </p>
           ) : (

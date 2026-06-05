@@ -123,7 +123,7 @@ function fmpFetchSummary(log: {
 
 function StatBox({ label, value, className }: { label: string; value: ReactNode; className?: string }) {
   return (
-    <div className="rounded-md border p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className={`mt-1 text-sm font-semibold ${className ?? ""}`}>{value}</p>
     </div>
@@ -252,7 +252,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           {providers.map((provider) => (
-            <div key={provider.name} className="rounded-md border p-4">
+            <div key={provider.name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-medium">{provider.name}</p>
@@ -298,7 +298,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
           <StatBox label="Metadata latest run" value={formatDateTime(metadataLogs[0]?.completedAt ?? metadataLogs[0]?.createdAt)} />
         </div>
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          <div className="rounded-md border p-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <p className="text-sm font-medium">ETF exposure refresh logs</p>
             <div className="mt-3 space-y-2 text-sm">
               {etfExposureLogs.length === 0 ? <p className="text-muted-foreground">No ETF exposure refresh has run yet.</p> : etfExposureLogs.map((log) => (
@@ -310,7 +310,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
               ))}
             </div>
           </div>
-          <div className="rounded-md border p-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <p className="text-sm font-medium">Instrument metadata refresh logs</p>
             <div className="mt-3 space-y-2 text-sm">
               {metadataLogs.length === 0 ? <p className="text-muted-foreground">No metadata refresh has run yet.</p> : metadataLogs.map((log) => (
@@ -345,7 +345,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         </div>
         <div className="mt-4 space-y-2 text-sm">
           {fundamentalsLogs.length === 0 ? <p className="text-muted-foreground">No fundamentals refresh has run yet.</p> : fundamentalsLogs.map((log) => (
-            <div key={log.id} className="rounded-md border p-3">
+            <div key={log.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
               <p className={`font-medium ${statusTone(log.status)}`}>{log.status} - {formatDateTime(log.completedAt ?? log.startedAt)}</p>
               <p className="text-muted-foreground">{log.stocksRequested} requested, {log.profilesUpdated} profiles, {log.scoresUpdated} scores, {log.statementsUpdated} statements</p>
               {log.errorMessage ? <p className="text-destructive">{log.errorMessage}</p> : null}
@@ -377,7 +377,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         </div>
         <div className="mt-4 space-y-2 text-sm">
           {macroDashboard.ingestionLogs.length === 0 ? <p className="text-muted-foreground">No FRED ingestion jobs have run yet.</p> : macroDashboard.ingestionLogs.map((log) => (
-            <div key={log.id} className="rounded-md border p-3">
+            <div key={log.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
               <p className={`font-medium ${statusTone(log.status)}`}>{log.jobName} - {log.status}</p>
               <p className="text-muted-foreground">{log.indicatorsSuccessful}/{log.indicatorsRequested} indicators, {log.observationsInserted} inserted, {log.observationsUpdated} updated</p>
               {log.errorMessage ? <p className="text-destructive">{log.errorMessage}</p> : null}
@@ -417,7 +417,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
           <StatBox label="Weekly reconciliations" value={newsDashboard.stats.weeklyReconciliations} />
         </div>
 
-        <div className="mt-4 rounded-md border p-3">
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <p className="text-sm font-medium">FMP fetch summary</p>
           <div className="mt-3 grid gap-3 md:grid-cols-6">
             <StatBox label="Status" value={fmpSummary.status} className={statusTone(fmpSummary.status)} />
@@ -440,7 +440,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
               </thead>
               <tbody>
                 {fmpSummary.groups.map((group) => (
-                  <tr key={group.name} className="border-t">
+                  <tr key={group.name} className="">
                     <td className="py-3 pr-3 font-medium">{group.name}</td>
                     <td className="py-3 pr-3 text-muted-foreground">{group.description}</td>
                     <td className="py-3 pr-3">{group.fetched}</td>
@@ -458,7 +458,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
           <QueryGroupTable title="GDELT query-group status" summary={gdeltSummary} statuses={newsDashboard.gdeltQueryStatuses} />
         </div>
 
-        <div className="mt-4 rounded-md border p-3">
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <p className="text-sm font-medium">News ingestion logs</p>
           <div className="mt-3 space-y-2 text-sm">
             {newsDashboard.ingestionLogs.length === 0 ? <p className="text-muted-foreground">No news ingestion jobs have run yet.</p> : newsDashboard.ingestionLogs.map((log) => (
@@ -490,7 +490,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
           </>
         }
       >
-        <div className="mb-4 rounded-md border p-3 text-sm">
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm text-sm">
           <p className="font-medium">Latest weekly news reconciliation</p>
           {!latestWeeklyNews ? (
             <p className="mt-2 text-muted-foreground">No weekly news reconciliation has been created yet.</p>
@@ -505,7 +505,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
           {marketVisionDashboard.generationLogs.length === 0 ? (
             <p className="text-muted-foreground">No AI Market Vision generation has run yet.</p>
           ) : marketVisionDashboard.generationLogs.map((log) => (
-            <div key={log.id} className="rounded-md border p-3">
+            <div key={log.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
               <p className={`font-medium ${statusTone(log.status)}`}>{log.periodStart ?? "-"} to {log.periodEnd ?? "-"} - {log.status}</p>
               <p className="text-muted-foreground">
                 {log.modelUsed ?? "No model"} - {log.promptVersion ?? "No prompt"} - {log.status === "skipped" ? "No new AI call" : log.costEstimate == null ? "Cost not configured" : `$${log.costEstimate.toFixed(6)}`}
@@ -549,7 +549,7 @@ function QueryGroupTable({
   }>;
 }) {
   return (
-    <div className="rounded-md border p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <p className="text-sm font-medium">{title}</p>
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <StatBox label="Fetched" value={summary.fetched} />
@@ -561,7 +561,7 @@ function QueryGroupTable({
       </div>
       <div className="mt-3 overflow-x-auto">
         {statuses.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No active query groups found.</p>
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No active query groups found.</p>
         ) : (
           <table className="w-full min-w-[900px] text-sm">
             <thead className="text-left text-xs uppercase text-muted-foreground">

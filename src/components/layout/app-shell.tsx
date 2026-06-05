@@ -72,11 +72,11 @@ const mobileNavItems = navGroups.flatMap((group) => group.items);
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
-      <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col bg-slate-950 p-4 text-white shadow-2xl md:flex">
-        <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.06] p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-200">AI Portfolio</p>
-          <h1 className="mt-2 text-xl font-semibold tracking-tight">Investment cockpit</h1>
-          <p className="mt-2 text-xs leading-5 text-slate-300">Portfolio intelligence, risk, research and recommendations.</p>
+      <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col border-r border-slate-200 bg-slate-950 p-4 text-white shadow-[16px_0_40px_rgba(15,23,42,0.16)] md:flex">
+        <div className="mb-6 rounded-xl border border-white/10 bg-white/[0.045] p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">AI Portfolio</p>
+          <h1 className="mt-2 text-xl font-semibold tracking-tight text-white">Investment cockpit</h1>
+          <p className="mt-2 text-xs leading-5 text-slate-400">Portfolio intelligence, risk, research and recommendations.</p>
         </div>
         <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
           {navGroups.map((group) => (
@@ -102,7 +102,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </form>
       </aside>
       <div className="md:pl-72">
-        <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 px-4 py-3 shadow-sm backdrop-blur md:hidden">
+        <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:hidden">
           <div className="flex items-center justify-between">
             <span className="font-semibold">AI Portfolio</span>
             <form action={signOutAction}>
@@ -115,7 +115,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {mobileNavItems.map((item) => <NavLink key={item.href} href={item.href} label={item.label} mobile />)}
           </nav>
         </header>
-        <main className="mx-auto w-full max-w-[1500px] px-4 py-6 md:px-8 lg:px-10">{children}</main>
+        <main className="mx-auto w-full max-w-[1500px] px-4 py-7 md:px-8 lg:px-10">{children}</main>
       </div>
     </div>
   );

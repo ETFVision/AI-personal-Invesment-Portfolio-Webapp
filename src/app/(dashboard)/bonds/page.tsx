@@ -31,7 +31,7 @@ function BreakdownList({ title, items }: { title: string; items: AllocationItem[
       <h3 className="text-sm font-medium">{title}</h3>
       <div className="space-y-2">
         {items.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No exposure data yet.</p>
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No exposure data yet.</p>
         ) : (
           items.map((item) => (
             <div key={item.label} className="space-y-1.5">
@@ -57,16 +57,16 @@ function SummaryCard({ title, value, description }: { title: string; value: stri
 function ContextList({ items }: { items: string[] }) {
   return (
     <div className="grid gap-2 text-sm md:grid-cols-2">
-      {items.map((item) => <p key={item} className="rounded-md border p-3 text-muted-foreground">{item}</p>)}
+      {items.map((item) => <p key={item} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-600">{item}</p>)}
     </div>
   );
 }
 
 function BondHoldingsTable({ report }: { report: BondAnalyticsReport }) {
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="professional-table overflow-x-auto">
       <table className="w-full min-w-[860px] text-sm">
-        <thead className="bg-muted/60 text-left">
+        <thead className="text-left">
           <tr>
             <th className="p-3 font-medium">ETF</th>
             <th className="p-3 text-right font-medium">Value</th>
@@ -82,7 +82,7 @@ function BondHoldingsTable({ report }: { report: BondAnalyticsReport }) {
         </thead>
         <tbody>
           {report.bondHoldings.map((holding) => (
-            <tr key={holding.holdingId} className="border-t">
+            <tr key={holding.holdingId} className="">
               <td className="p-3">
                 <p className="font-medium">{holding.symbol}</p>
                 <p className="text-xs text-muted-foreground">{holding.name}</p>
@@ -106,9 +106,9 @@ function BondHoldingsTable({ report }: { report: BondAnalyticsReport }) {
 
 function ScenarioTable({ report }: { report: BondAnalyticsReport }) {
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="professional-table overflow-x-auto">
       <table className="w-full min-w-[720px] text-sm">
-        <thead className="bg-muted/60 text-left">
+        <thead className="text-left">
           <tr>
             <th className="p-3 font-medium">Scenario</th>
             <th className="p-3 text-right font-medium">Bond sleeve impact</th>
@@ -118,7 +118,7 @@ function ScenarioTable({ report }: { report: BondAnalyticsReport }) {
         </thead>
         <tbody>
           {report.scenarioImpacts.map((scenario) => (
-            <tr key={scenario.scenarioKey} className="border-t">
+            <tr key={scenario.scenarioKey} className="">
               <td className="p-3 font-medium">{scenario.label}</td>
               <td className="p-3 text-right">{scenario.estimatedBondSleeveImpact == null ? "Needs data" : formatPercent(scenario.estimatedBondSleeveImpact)}</td>
               <td className="p-3 text-right">{scenario.estimatedPortfolioImpact == null ? "Needs data" : formatPercent(scenario.estimatedPortfolioImpact)}</td>
@@ -141,11 +141,11 @@ function BondProfileEditor({ holdings }: { holdings: BondHoldingExposure[] }) {
       </CardHeader>
       <CardContent className="space-y-4">
         {editableHoldings.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
             No curated bond ETF profile is available to edit. Add a seeded bond ETF from the universe to enable profile overrides.
           </p>
         ) : editableHoldings.map((holding) => (
-          <form key={holding.holdingId} action={saveBondProfileAction} className="grid gap-3 rounded-md border p-4 md:grid-cols-4">
+          <form key={holding.holdingId} action={saveBondProfileAction} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4">
             <input type="hidden" name="instrumentId" value={holding.instrumentId} />
             <input type="hidden" name="symbol" value={holding.symbol} />
             <div className="space-y-2">
@@ -301,7 +301,7 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {macroContext.regimeCards.filter((card) => ["Rates", "Inflation", "Yield curve", "Liquidity"].includes(card.label)).map((card) => (
-              <div key={card.label} className="rounded-md border p-3">
+              <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <p className="text-xs uppercase text-muted-foreground">{card.label}</p>
                 <p className="mt-1 text-sm font-medium">{card.value}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{card.description}</p>
@@ -309,9 +309,9 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
             ))}
           </div>
           <ContextList items={macroContext.bondContext} />
-          <div className="overflow-x-auto rounded-md border">
+          <div className="professional-table overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
-              <thead className="bg-muted/60 text-left">
+              <thead className="text-left">
                 <tr>
                   <th className="p-3 font-medium">Indicator</th>
                   <th className="p-3 font-medium">Latest</th>
@@ -321,7 +321,7 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
               </thead>
               <tbody>
                 {macroContext.keyIndicators.filter((indicator) => ["FEDFUNDS", "DGS10", "T10Y2Y", "CPIAUCSL", "PCEPILFE", "NFCI"].includes(indicator.code)).map((indicator) => (
-                  <tr key={indicator.code} className="border-t">
+                  <tr key={indicator.code} className="">
                     <td className="p-3">
                       <p className="font-medium">{indicator.code}</p>
                       <p className="text-xs text-muted-foreground">{indicator.name}</p>
@@ -345,7 +345,7 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-2">
             {report.warnings.map((warning) => (
-              <div key={warning} className="flex gap-3 rounded-md border p-3 text-sm">
+              <div key={warning} className="flex gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm text-sm">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                 <span>{warning}</span>
               </div>
@@ -392,7 +392,7 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             {Object.entries(report.roleSummary).map(([key, value]) => (
-              <div key={key} className="rounded-md border p-3">
+              <div key={key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <p className="text-sm font-medium">{titleCase(key)}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{value}</p>
               </div>
@@ -418,7 +418,7 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
             <CardDescription>Plain-language checks for the current bond sleeve.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {report.diagnostics.map((item) => <p key={item} className="rounded-md border p-3">{item}</p>)}
+            {report.diagnostics.map((item) => <p key={item} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">{item}</p>)}
           </CardContent>
         </Card>
         <Card>
@@ -427,7 +427,7 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
             <CardDescription>Deterministic notes that future allocation logic can consume.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {report.allocationGuidance.map((item) => <p key={item} className="rounded-md border p-3">{item}</p>)}
+            {report.allocationGuidance.map((item) => <p key={item} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">{item}</p>)}
           </CardContent>
         </Card>
       </section>

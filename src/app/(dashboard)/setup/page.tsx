@@ -149,7 +149,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
 
 function CoverageMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <div className="text-xs uppercase text-muted-foreground">{label}</div>
       <div className="mt-1 text-2xl font-semibold">{value}</div>
     </div>

@@ -140,7 +140,7 @@ export function WinnersLosersPanel({ dashboard }: { dashboard: PortfolioDashboar
           <p className="text-sm text-muted-foreground">No positive unrealised gains yet.</p>
         ) : (
           dashboard.topWinners.map((row) => (
-            <div key={row.valuation.holding.id} className="rounded-md border p-3 text-sm">
+            <div key={row.valuation.holding.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm">
               <div className="flex justify-between gap-3">
                 <span className="font-medium">{row.valuation.holding.ticker ?? row.valuation.holding.assetName}</span>
                 <span className="text-emerald-600">{formatPercent(row.gainLossPercent)}</span>
@@ -158,7 +158,7 @@ export function WinnersLosersPanel({ dashboard }: { dashboard: PortfolioDashboar
           <p className="text-sm text-muted-foreground">No unrealised losses yet.</p>
         ) : (
           dashboard.topLosers.map((row) => (
-            <div key={row.valuation.holding.id} className="rounded-md border p-3 text-sm">
+            <div key={row.valuation.holding.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm">
               <div className="flex justify-between gap-3">
                 <span className="font-medium">{row.valuation.holding.ticker ?? row.valuation.holding.assetName}</span>
                 <span className="text-destructive">{formatPercent(row.gainLossPercent)}</span>
@@ -205,7 +205,7 @@ function ShortTermPerformanceGrid({
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {metrics.map((metric) => (
-        <div key={metric.label} className="space-y-3 rounded-md border p-3">
+        <div key={metric.label} className="space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           {(() => {
             const benchmarkSpread = getShortTermBenchmarkSpread(metric.label, benchmarkComparison);
             const spread = benchmarkSpread
@@ -435,7 +435,7 @@ function MultiBenchmarkPeriodChart({
       .join(" ");
 
   return (
-    <div className="rounded-md border p-4">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-medium">{label}</div>
@@ -545,7 +545,7 @@ function PeriodPerformanceChart({
   const endLabel = "Now";
 
   return (
-    <div className="rounded-md border p-4">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="text-sm font-medium">{metric.label}</div>
         <div className={hasValue && metric.valueChange! < 0 ? "text-sm text-destructive" : hasValue ? "text-sm text-emerald-600" : "text-sm text-muted-foreground"}>
@@ -595,7 +595,7 @@ export function MetricGrid({ metrics, currency }: { metrics: PerformanceMetric[]
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {metrics.map((item) => (
-        <div key={item.label} className="rounded-md border p-3">
+        <div key={item.label} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="text-sm font-medium">{item.label}</div>
           {item.valueChange == null || item.percentChange == null ? (
             <div className="mt-2 text-sm text-muted-foreground">Needs history</div>
@@ -715,7 +715,7 @@ function BenchmarkSpreadCard({
 }) {
   const spread = benchmarkSpreadPercent(portfolioReturn, benchmarkReturn);
   return (
-    <div className="rounded-md border p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <div className="text-sm font-medium">{label}</div>
       <div className="mt-2 text-lg font-semibold">
         {spread == null ? <span className="text-muted-foreground">Needs history</span> : <span className={spread < 0 ? "text-destructive" : "text-emerald-600"}>{formatPercent(spread)}</span>}
@@ -807,7 +807,7 @@ function ComparisonLineChart({
   const endLabel = points[points.length - 1].snapshotDate.slice(0, 7);
 
   return (
-    <div className="rounded-md border p-4">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-medium">{title}</div>
