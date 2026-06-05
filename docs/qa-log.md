@@ -2455,3 +2455,54 @@ Validation performed:
 
 Production-readiness assessment:
 - READY for preview deployment after migrations `054_telemetry_learning_layer.sql` and `055_telemetry_v1_5_hardening.sql` are applied.
+
+## 2026-06-05 - Telemetry UX Hardening Pre-Merge QA Checkpoint
+
+Scope:
+- Reviewed branch `codex/telemetry-learning-layer` before merge to `main`.
+- Covered full telemetry branch contents plus the final Telemetry UX hardening commit `eaf88ce`.
+- Focused on confirming UX-only hardening did not alter telemetry calculations, recommendation logic, Portfolio Review logic, Market Vision logic, scheduled rules, or schema.
+
+Architecture assessment:
+- PASS: Telemetry page reads through `TelemetryDashboardService` and `TelemetryRepository`; no direct Supabase calls were added to UI.
+- PASS: Latest UX hardening changed only `src/app/(dashboard)/telemetry/page.tsx`.
+- PASS: Telemetry remains observational only.
+- PASS: Existing service/repository pattern remains intact.
+- PASS: Admin Jobs manual telemetry evaluation and weekly workflow telemetry evaluation remain wired through the shared cron job wrapper.
+
+UX assessment:
+- PASS: Telemetry first viewport now presents status-oriented cards instead of large empty zeroes.
+- PASS: Lifecycle panel explains Capture -> Wait -> Evaluate -> Learn.
+- PASS: Readiness panel explains which telemetry pillars are collecting, awaiting evidence, active, or available.
+- PASS: Collection progress uses real snapshot counts only; no fabricated countdowns or inferred dates were introduced.
+- PASS: Coverage cards now explain awaiting maturity instead of showing technical `0 / 0` states.
+- PASS: Empty states were improved for recommendation outcomes, confidence calibration, factor intelligence, Market Vision accuracy and Portfolio Review effectiveness.
+- PASS: Copy uses learning-system language: Collecting Evidence, Waiting For Maturity, Awaiting Evidence, Building History and Learning in Progress.
+
+Calculation/data integrity assessment:
+- PASS: No telemetry return formulas were changed.
+- PASS: No recommendation scoring weights, labels or guardrails were changed.
+- PASS: No Market Vision generation logic was changed.
+- PASS: No Portfolio Review logic was changed.
+- PASS: No database migrations were added by the UX hardening commit.
+
+Critical issues:
+- None found.
+
+Medium-priority issues:
+- None found.
+
+Low-priority improvements for later:
+- The instrument detail page still has a placeholder tab label for future telemetry; this is not merge-blocking but can be updated in a later detail-page pass.
+- The telemetry evaluation job success message mentions recommendation outcomes first, while metadata includes Market Vision and Portfolio Review outcomes too; this can be made more descriptive later.
+- A visual browser QA pass in Vercel Preview is still recommended because the in-app browser tool was unavailable in this session.
+
+Validation performed:
+- `npm.cmd run lint` passed.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed: 178 tests.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY TO MERGE after Vercel Preview visual approval.
+- Merge risk is low: latest UX hardening is isolated to the Telemetry page and full validation is green.
