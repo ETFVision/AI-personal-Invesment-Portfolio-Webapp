@@ -14,15 +14,18 @@ import {
   PlusCircle,
   ClipboardCheck,
   Activity,
+  Bot,
   Search,
   ServerCog,
   ShieldCheck,
   Sparkles,
-  Table2
+  Table2,
+  WalletCards
 } from "lucide-react";
 import { signOutAction } from "@/server/actions/authActions";
 import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/layout/nav-link";
+import { PortfolioAssistantDrawer } from "@/components/assistant/portfolio-assistant-drawer";
 
 const navGroups = [
   {
@@ -55,6 +58,7 @@ const navGroups = [
       { href: "/bonds", label: "Fixed Income", icon: Landmark },
       { href: "/recommendations", label: "Recommendations", icon: Sparkles },
       { href: "/portfolio-review", label: "Portfolio Review", icon: ClipboardCheck },
+      { href: "/assistant", label: "Assistant", icon: Bot },
       { href: "/telemetry", label: "Telemetry", icon: Activity }
     ]
   },
@@ -63,6 +67,7 @@ const navGroups = [
     items: [
       { href: "/setup/taxonomy", label: "Taxonomy", icon: Search },
       { href: "/admin/data-sources", label: "Data Sources", icon: Database },
+      { href: "/admin/assistant-usage", label: "AI Usage", icon: WalletCards },
       { href: "/admin/jobs", label: "Jobs", icon: ServerCog },
       { href: "/admin/system-health", label: "System Health", icon: HeartPulse }
     ]
@@ -118,6 +123,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         </header>
         <main className="mx-auto w-full max-w-[1500px] px-4 py-6 md:px-8 lg:px-10">{children}</main>
+        <PortfolioAssistantDrawer />
       </div>
     </div>
   );

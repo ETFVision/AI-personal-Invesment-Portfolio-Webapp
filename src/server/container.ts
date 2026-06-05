@@ -49,6 +49,11 @@ import { FundamentalsRefreshService } from "@/application/services/fundamentals/
 import { RecommendationService } from "@/application/services/recommendations/RecommendationService";
 import { PortfolioReviewService } from "@/application/services/portfolioReview/PortfolioReviewService";
 import { PortfolioReviewRunService } from "@/application/services/portfolioReview/PortfolioReviewRunService";
+import { AssistantContextBuilder } from "@/application/services/assistant/AssistantContextBuilder";
+import { AssistantPromptBuilder } from "@/application/services/assistant/AssistantPromptBuilder";
+import { AssistantQuestionRouter } from "@/application/services/assistant/AssistantQuestionRouter";
+import { AssistantResponseGuardrailService } from "@/application/services/assistant/AssistantResponseGuardrailService";
+import { PortfolioAssistantService } from "@/application/services/assistant/PortfolioAssistantService";
 import { TelemetryAggregationService } from "@/application/services/telemetry/TelemetryAggregationService";
 import { TelemetryDashboardService } from "@/application/services/telemetry/TelemetryDashboardService";
 import { TelemetryEvaluationService } from "@/application/services/telemetry/TelemetryEvaluationService";
@@ -71,6 +76,7 @@ import { FmpAssetMetadataProvider } from "@/infrastructure/providers/metadata/Fm
 import { FmpMarketDataProvider } from "@/infrastructure/providers/marketData/FmpMarketDataProvider";
 import { OpenAiNewsProvider } from "@/infrastructure/providers/ai/OpenAiNewsProvider";
 import { OpenAiMarketVisionProvider } from "@/infrastructure/providers/ai/OpenAiMarketVisionProvider";
+import { OpenAiPortfolioAssistantProvider } from "@/infrastructure/providers/ai/OpenAiPortfolioAssistantProvider";
 import { FmpNewsProvider } from "@/infrastructure/providers/news/FmpNewsProvider";
 import { FmpFundamentalsProvider } from "@/infrastructure/providers/fundamentals/FmpFundamentalsProvider";
 import { FmpEtfExposureProvider } from "@/infrastructure/providers/etf/FmpEtfExposureProvider";
@@ -94,6 +100,7 @@ import { SupabasePortfolioReviewRepository } from "@/infrastructure/repositories
 import { SupabaseEtfExposureRepository } from "@/infrastructure/repositories/supabase/SupabaseEtfExposureRepository";
 import { SupabaseJobRunRepository } from "@/infrastructure/repositories/supabase/SupabaseJobRunRepository";
 import { SupabaseTelemetryRepository } from "@/infrastructure/repositories/supabase/SupabaseTelemetryRepository";
+import { SupabaseAssistantRepository } from "@/infrastructure/repositories/supabase/SupabaseAssistantRepository";
 import { env } from "@/infrastructure/config/env";
 
 export function createContainer() {
@@ -114,6 +121,7 @@ export function createContainer() {
   const etfExposureRepository = new SupabaseEtfExposureRepository();
   const jobRunRepository = new SupabaseJobRunRepository();
   const telemetryRepository = new SupabaseTelemetryRepository();
+  const assistantRepository = new SupabaseAssistantRepository();
   const marketDataProvider = new FmpMarketDataProvider();
   const assetMetadataProvider = new FmpAssetMetadataProvider();
   const newsProvider = new FmpNewsProvider();
@@ -122,6 +130,7 @@ export function createContainer() {
   const macroDataProvider = new FredMacroDataProvider();
   const newsAiProvider = new OpenAiNewsProvider();
   const marketVisionAiProvider = new OpenAiMarketVisionProvider();
+  const portfolioAssistantProvider = new OpenAiPortfolioAssistantProvider();
   const fundamentalsProvider = new FmpFundamentalsProvider();
   const etfExposureProvider = new FmpEtfExposureProvider();
   const marketDataService = new MarketDataService(marketDataRepository, marketDataProvider);
@@ -306,6 +315,25 @@ export function createContainer() {
     portfolioLookthroughExposureService
   );
   const portfolioReviewRunService = new PortfolioReviewRunService(portfolioReviewRepository, portfolioReviewService, telemetrySnapshotService);
+  const assistantQuestionRouter = new AssistantQuestionRouter();
+  const assistantPromptBuilder = new AssistantPromptBuilder();
+  const assistantResponseGuardrailService = new AssistantResponseGuardrailService();
+  const assistantContextBuilder = new AssistantContextBuilder(
+    portfolioService,
+    portfolioReviewRepository,
+    recommendationRepository,
+    marketVisionRepository,
+    telemetryDashboardService,
+    assistantRepository
+  );
+  const portfolioAssistantService = new PortfolioAssistantService(
+    assistantRepository,
+    assistantQuestionRouter,
+    assistantContextBuilder,
+    assistantPromptBuilder,
+    portfolioAssistantProvider,
+    assistantResponseGuardrailService
+  );
   return {
     authProvider: new SupabaseAuthProvider(),
     portfolioRepository,
@@ -354,12 +382,18 @@ export function createContainer() {
     recommendationRepository,
     recommendationService,
     telemetryRepository,
+    assistantRepository,
     telemetryAggregationService,
     marketVisionTelemetryEvaluationService,
     portfolioReviewTelemetryEvaluationService,
     telemetryEvaluationService,
     telemetryDashboardService,
     telemetrySnapshotService,
+    assistantQuestionRouter,
+    assistantContextBuilder,
+    assistantPromptBuilder,
+    assistantResponseGuardrailService,
+    portfolioAssistantService,
     portfolioReviewRepository,
     etfExposureRepository,
     etfLookthroughService,
