@@ -7,10 +7,10 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variants = {
-  default: "bg-primary text-primary-foreground hover:bg-primary/90",
-  secondary: "bg-muted text-foreground hover:bg-muted/80",
-  outline: "border border-border bg-background hover:bg-muted",
-  ghost: "hover:bg-muted",
+  default: "bg-teal-700 text-white shadow-sm hover:bg-teal-800",
+  secondary: "bg-slate-900 text-white shadow-sm hover:bg-slate-800",
+  outline: "border border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50",
+  ghost: "text-slate-700 hover:bg-slate-100",
   destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90"
 };
 
@@ -33,4 +33,3 @@ export function Button({ className, variant = "default", size = "default", ...pr
     />
   );
 }
-

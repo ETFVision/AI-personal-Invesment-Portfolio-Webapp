@@ -5,15 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 type Tone = "neutral" | "positive" | "warning" | "danger" | "info";
 
 const toneClasses: Record<Tone, string> = {
-  neutral: "border-border bg-muted text-muted-foreground",
+  neutral: "border-slate-200 bg-slate-100 text-slate-700",
   positive: "border-emerald-200 bg-emerald-50 text-emerald-900",
   warning: "border-amber-200 bg-amber-50 text-amber-900",
   danger: "border-red-200 bg-red-50 text-red-900",
-  info: "border-blue-200 bg-blue-50 text-blue-900"
+  info: "border-cyan-200 bg-cyan-50 text-cyan-900"
 };
 
 export function PageContainer({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("space-y-6", className)}>{children}</div>;
+  return <div className={cn("space-y-7", className)}>{children}</div>;
 }
 
 export function PageHeader({
@@ -30,14 +30,17 @@ export function PageHeader({
   meta?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col justify-between gap-4 border-b pb-5 lg:flex-row lg:items-end">
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] md:p-6">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-700 via-cyan-500 to-slate-300" />
+      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
       <div className="min-w-0">
-        {eyebrow ? <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{eyebrow}</p> : null}
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground md:text-3xl">{title}</h1>
+        {eyebrow ? <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">{eyebrow}</p> : null}
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 md:text-3xl">{title}</h1>
         {description ? <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p> : null}
         {meta ? <div className="mt-3 flex flex-wrap gap-2">{meta}</div> : null}
       </div>
       {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
+      </div>
     </div>
   );
 }
@@ -66,7 +69,7 @@ export function SectionHeader({
 
 export function StatusBadge({ children, tone = "neutral", className }: { children: React.ReactNode; tone?: Tone; className?: string }) {
   return (
-    <span className={cn("inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium", toneClasses[tone], className)}>
+    <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold", toneClasses[tone], className)}>
       {children}
     </span>
   );
@@ -94,13 +97,17 @@ export function MetricCard({
 }) {
   const valueTone = tone === "positive" ? "text-emerald-700" : tone === "danger" ? "text-red-700" : tone === "warning" ? "text-amber-700" : "";
   return (
-    <Card className={cn("overflow-hidden", className)}>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+    <Card className={cn("relative overflow-hidden", className)}>
+      <div className={cn(
+        "absolute inset-x-0 top-0 h-1",
+        tone === "positive" ? "bg-emerald-500" : tone === "danger" ? "bg-red-500" : tone === "warning" ? "bg-amber-500" : "bg-teal-600"
+      )} />
+      <CardHeader className="pb-2 pt-5">
+        <CardTitle className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</CardTitle>
         {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
       <CardContent>
-        <div className={cn("text-2xl font-semibold tracking-tight", valueTone)}>{value}</div>
+        <div className={cn("text-2xl font-semibold tracking-tight text-slate-950", valueTone)}>{value}</div>
         {footer ? <div className="mt-2 text-xs text-muted-foreground">{footer}</div> : null}
       </CardContent>
     </Card>

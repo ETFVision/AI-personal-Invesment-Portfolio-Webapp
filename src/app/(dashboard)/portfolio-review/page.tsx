@@ -3,7 +3,7 @@ import { createContainer } from "@/server/container";
 import { refreshEtfLookthroughExposureAction, runPortfolioReviewAction } from "@/server/actions/portfolioReviewActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
+import { MetricCard, PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { formatPercent } from "@/lib/utils";
 import type {
@@ -498,22 +498,10 @@ function SummaryCards({ report }: { report: PortfolioReviewReport }) {
   const watchAreas = Array.isArray(report.watchAreas) ? report.watchAreas : [];
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Portfolio score</CardTitle></CardHeader>
-        <CardContent><p className="text-2xl font-semibold">{score(report.overallPortfolioScore)}</p><p className="text-xs text-muted-foreground">Weighted deterministic review</p></CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Data Coverage</CardTitle></CardHeader>
-        <CardContent><p className="text-2xl font-semibold">{formatPercent(report.confidenceScore / 100)}</p><p className="text-xs text-muted-foreground">Input coverage and freshness</p></CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Watch areas</CardTitle></CardHeader>
-        <CardContent><p className="text-2xl font-semibold">{watchAreas.length}</p><p className="text-xs text-muted-foreground">Attention or watch findings</p></CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Review date</CardTitle></CardHeader>
-        <CardContent><p className="text-2xl font-semibold">{report.reviewDate}</p><p className="text-xs text-muted-foreground">{report.status}</p></CardContent>
-      </Card>
+      <MetricCard title="Portfolio score" value={score(report.overallPortfolioScore)} footer="Weighted deterministic review" />
+      <MetricCard title="Data Coverage" value={formatPercent(report.confidenceScore / 100)} footer="Input coverage and freshness" />
+      <MetricCard title="Watch areas" value={watchAreas.length} footer="Attention or watch findings" tone={watchAreas.length > 0 ? "warning" : "positive"} />
+      <MetricCard title="Review date" value={report.reviewDate} footer={report.status} />
     </div>
   );
 }

@@ -71,16 +71,17 @@ const mobileNavItems = navGroups.flatMap((group) => group.items);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-background">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r bg-card p-4 md:flex">
-        <div className="mb-6">
-          <p className="text-sm text-muted-foreground">AI Portfolio</p>
-          <h1 className="text-lg font-semibold">Investment cockpit</h1>
+    <div className="min-h-screen">
+      <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col bg-slate-950 p-4 text-white shadow-2xl md:flex">
+        <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.06] p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-200">AI Portfolio</p>
+          <h1 className="mt-2 text-xl font-semibold tracking-tight">Investment cockpit</h1>
+          <p className="mt-2 text-xs leading-5 text-slate-300">Portfolio intelligence, risk, research and recommendations.</p>
         </div>
         <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
           {navGroups.map((group) => (
             <div key={group.label} className="space-y-1">
-              <p className="px-3 text-xs font-medium uppercase text-muted-foreground">{group.label}</p>
+              <p className="px-3 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">{group.label}</p>
               {group.items.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -94,14 +95,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <form action={signOutAction} className="pt-4">
-          <Button type="submit" variant="outline" className="w-full">
+          <Button type="submit" variant="outline" className="w-full border-white/15 bg-white/[0.04] text-slate-200 hover:bg-white/10 hover:text-white">
             <LogOut className="h-4 w-4" />
             Sign out
           </Button>
         </form>
       </aside>
-      <div className="md:pl-64">
-        <header className="sticky top-0 z-10 border-b bg-background/95 px-4 py-3 backdrop-blur md:hidden">
+      <div className="md:pl-72">
+        <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 px-4 py-3 shadow-sm backdrop-blur md:hidden">
           <div className="flex items-center justify-between">
             <span className="font-semibold">AI Portfolio</span>
             <form action={signOutAction}>
@@ -114,7 +115,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {mobileNavItems.map((item) => <NavLink key={item.href} href={item.href} label={item.label} mobile />)}
           </nav>
         </header>
-        <main className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8">{children}</main>
+        <main className="mx-auto w-full max-w-[1500px] px-4 py-6 md:px-8 lg:px-10">{children}</main>
       </div>
     </div>
   );

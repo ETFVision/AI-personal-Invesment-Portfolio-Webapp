@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
+import { MetricCard, PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
 import {
   AllocationDonutPanel,
   AllocationPanel,
@@ -138,7 +138,7 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </Card>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           title="Total portfolio value"
           description={
@@ -164,9 +164,16 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
           }
           value={displayCurrency ? formatCurrency(dashboard.totalHoldingsMarketValue, displayCurrency) : dashboard.totalHoldingsMarketValue.toLocaleString("en-US")}
         />
+        <MetricCard
+          title="Portfolio review"
+          description="Latest deterministic portfolio health readout."
+          tone={latestPortfolioReview?.overallPortfolioScore == null ? "neutral" : latestPortfolioReview.overallPortfolioScore >= 75 ? "positive" : latestPortfolioReview.overallPortfolioScore >= 55 ? "info" : "warning"}
+          value={latestPortfolioReview?.overallPortfolioScore == null ? "-" : `${Math.round(latestPortfolioReview.overallPortfolioScore)}/100`}
+          footer={latestPortfolioReview ? `Reviewed ${latestPortfolioReview.reviewDate}` : "Run Portfolio Review to populate"}
+        />
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 lg:grid-cols-3">
         <MetricCard
           title="Unrealised gain/loss"
           description="Current market value versus average cost."
@@ -188,7 +195,7 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
               : dashboard.realizedGainLoss.toLocaleString("en-US", { maximumFractionDigits: 2 })
           }
         />
-        <Card>
+        <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Cash vs invested</CardTitle>
             <CardDescription>Portfolio balance between dry powder and holdings.</CardDescription>
@@ -237,6 +244,10 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </CardContent>
       </Card>
 
+      <SectionHeader
+        title="Performance Command Center"
+        description="Portfolio return, allocation and exposure panels using the latest stored derived metrics."
+      />
       <Card>
         <CardHeader>
           <CardTitle>Performance</CardTitle>
@@ -258,6 +269,10 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </Card>
       ) : null}
 
+      <SectionHeader
+        title="Allocation & Exposure"
+        description="Portfolio composition with ETF look-through exposure when the latest review has cached provider data."
+      />
       <Card id="allocation">
         <CardHeader>
           <CardTitle>Allocation by asset type</CardTitle>
