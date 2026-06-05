@@ -77,6 +77,8 @@ export type AssistantContextPackage = {
   holdings: Array<{ symbol: string; name: string; value: number; percent: number | null }>;
   indirectHoldings: Array<{ symbol: string; name?: string | null; percent?: number | null; value?: number | null }>;
   exposures: {
+    source: "lookthrough" | "direct_fallback";
+    lookthroughCoverage: Record<string, unknown> | null;
     sectors: Array<{ label: string; percent: number }>;
     geographies: Array<{ label: string; percent: number }>;
     themes: Array<{ label: string; percent: number }>;

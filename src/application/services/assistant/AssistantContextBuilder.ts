@@ -21,6 +21,32 @@ function allocationItems(items: Array<{ label: string; percent: number }>, limit
   return items.slice(0, limit).map((item) => ({ label: item.label, percent: rounded(item.percent) ?? 0 }));
 }
 
+function lookthroughExposure(report: PortfolioReviewReport | null) {
+  const snapshot = unknownRecord(report?.inputsSnapshot);
+  return unknownRecord(snapshot.lookthroughExposure);
+}
+
+function exposureItemsFromLookthrough(
+  rows: unknown[],
+  fallback: Array<{ label: string; percent: number }>,
+  limit = 8
+) {
+  const parsed = rows.map((item) => {
+    const row = unknownRecord(item);
+    const rawWeight = row.exposureWeight ?? row.percent ?? row.weight;
+    const percent = typeof rawWeight === "number" ? rawWeight : null;
+    return {
+      label: String(row.exposureName ?? row.label ?? row.name ?? "Unknown"),
+      percent
+    };
+  }).filter((item): item is { label: string; percent: number } => item.percent != null && item.percent > 0);
+  const source = parsed.length > 0 ? parsed : fallback;
+  return source
+    .sort((a, b) => b.percent - a.percent)
+    .slice(0, limit)
+    .map((item) => ({ label: item.label, percent: rounded(item.percent) ?? 0 }));
+}
+
 function unknownArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
@@ -55,9 +81,26 @@ function componentScore(recommendation: InstrumentRecommendation, key: string) {
 }
 
 function topIndirectHoldings(report: PortfolioReviewReport | null) {
-  const lookthrough = unknownRecord(report?.inputsSnapshot);
-  const direct = unknownArray(lookthrough.topCombinedHoldings ?? lookthrough.topIndirectHoldings ?? lookthrough.topUnderlyingHoldings);
+  const snapshot = unknownRecord(report?.inputsSnapshot);
+  const lookthrough = lookthroughExposure(report);
+  const holdingRows = unknownArray(lookthrough.holdingExposures);
+  const nestedHoldings = holdingRows
+    .map((item) => {
+      const row = unknownRecord(item);
+      return {
+        symbol: String(row.holdingSymbol ?? row.symbol ?? row.ticker ?? row.label ?? "Unknown"),
+        name: typeof row.holdingName === "string" ? row.holdingName : typeof row.name === "string" ? row.name : null,
+        percent: typeof row.totalWeight === "number" ? rounded(row.totalWeight) : typeof row.percent === "number" ? rounded(row.percent) : null,
+        value: typeof row.value === "number" ? rounded(row.value) : null
+      };
+    })
+    .filter((item) => item.percent != null && item.percent > 0)
+    .sort((a, b) => (b.percent ?? 0) - (a.percent ?? 0));
+  const direct = nestedHoldings.length > 0
+    ? nestedHoldings
+    : unknownArray(snapshot.topCombinedHoldings ?? snapshot.topIndirectHoldings ?? snapshot.topUnderlyingHoldings);
   return direct.slice(0, 10).map((item) => {
+    if ("symbol" in Object(item) && "percent" in Object(item)) return item as { symbol: string; name?: string | null; percent?: number | null; value?: number | null };
     const row = unknownRecord(item);
     return {
       symbol: String(row.symbol ?? row.ticker ?? row.label ?? "Unknown"),
@@ -108,6 +151,11 @@ export class AssistantContextBuilder {
         portfolioFit: componentScore(item, "portfolio_fit"),
         marketVisionAlignment: componentScore(item, "market_vision_alignment")
       }));
+    const lookthrough = lookthroughExposure(latestReview);
+    const lookthroughSectorRows = unknownArray(lookthrough.sectorExposures);
+    const lookthroughCountryRows = unknownArray(lookthrough.countryExposures);
+    const lookthroughThemeRows = unknownArray(lookthrough.themeExposures);
+    const hasLookthroughExposure = lookthroughSectorRows.length > 0 || lookthroughCountryRows.length > 0 || lookthroughThemeRows.length > 0;
 
     return {
       category: input.category,
@@ -120,9 +168,11 @@ export class AssistantContextBuilder {
       })),
       indirectHoldings: topIndirectHoldings(latestReview),
       exposures: {
-        sectors: allocationItems(dashboard.allocationBySector),
-        geographies: allocationItems(dashboard.allocationByGeography),
-        themes: allocationItems(this.themeExposureItems(latestReview))
+        source: hasLookthroughExposure ? "lookthrough" : "direct_fallback",
+        lookthroughCoverage: unknownRecord(lookthrough.coverage),
+        sectors: exposureItemsFromLookthrough(lookthroughSectorRows, allocationItems(dashboard.allocationBySector)),
+        geographies: exposureItemsFromLookthrough(lookthroughCountryRows, allocationItems(dashboard.allocationByGeography)),
+        themes: exposureItemsFromLookthrough(lookthroughThemeRows, allocationItems(this.themeExposureItems(latestReview)))
       },
       portfolioReview: {
         summary: latestReview?.executiveSummary ?? null,

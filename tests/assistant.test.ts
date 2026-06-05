@@ -12,6 +12,7 @@ import { AssistantQuestionRouter } from "../src/application/services/assistant/A
 import { AssistantResponseGuardrailService } from "../src/application/services/assistant/AssistantResponseGuardrailService";
 import { AssistantPromptBuilder } from "../src/application/services/assistant/AssistantPromptBuilder";
 import { PortfolioAssistantService } from "../src/application/services/assistant/PortfolioAssistantService";
+import { AssistantContextBuilder } from "../src/application/services/assistant/AssistantContextBuilder";
 import { ASSISTANT_UNSUPPORTED_RESPONSE, type AssistantConversation, type AssistantMessage, type AssistantUsageLog } from "../src/domain/assistant/types";
 
 const now = "2026-06-05T00:00:00.000Z";
@@ -172,4 +173,118 @@ test("unsupported assistant questions are logged without invoking the AI provide
   assert.equal(repository.usageLogs.length, 1);
   assert.equal(repository.usageLogs[0].supported, false);
   assert.equal(repository.usageLogs[0].modelUsed, null);
+});
+
+test("assistant context prefers ETF look-through exposure over direct broad-market taxonomy", async () => {
+  const repository = new MemoryAssistantRepository();
+  const builder = new AssistantContextBuilder(
+    {
+      getDashboard: async () => ({
+        portfolio: { id: "portfolio-1", userId: "user-1", name: "Main", baseCurrency: "USD", isDefault: true },
+        totalValueEstimate: 1000,
+        latestPriceDate: "2026-06-04",
+        holdingValuations: [],
+        allocationBySector: [
+          { label: "Multi-Asset / Broad Market", value: 800, percent: 0.8 },
+          { label: "Technology", value: 200, percent: 0.2 }
+        ],
+        allocationByGeography: [{ label: "North America", value: 1000, percent: 1 }],
+        holdings: [],
+        cashBalances: [],
+        transactions: [],
+        totalCash: 0,
+        totalHoldingsCost: 0,
+        totalHoldingsMarketValue: 1000,
+        investedAmount: 1000,
+        unrealizedGainLoss: 0,
+        unrealizedGainLossPercent: 0,
+        realizedGainLoss: 0,
+        allocationByType: [],
+        currencyExposure: [],
+        topWinners: [],
+        topLosers: [],
+        performance: [],
+        productPerformance: [],
+        cashPerformance: [],
+        cashPercent: 0,
+        investedPercent: 1,
+        benchmarkComparisons: []
+      })
+    } as never,
+    {
+      getLatestReport: async () => ({
+        id: "review-1",
+        portfolioId: "portfolio-1",
+        portfolioReviewRunId: null,
+        reviewDate: "2026-06-04",
+        periodStart: "2026-06-01",
+        periodEnd: "2026-06-04",
+        status: "draft",
+        executiveSummary: "Broadly healthy",
+        allocationReview: { score: 80, summary: "", findings: [], metrics: {} },
+        concentrationReview: { score: 59, summary: "", findings: [], metrics: {} },
+        diversificationReview: { score: 79, summary: "", findings: [], metrics: {} },
+        riskReview: { score: 88, summary: "", findings: [], metrics: {} },
+        macroFitReview: { score: 72, summary: "", findings: [], metrics: {} },
+        recommendationAlignmentReview: { score: 70, summary: "", findings: [], metrics: {} },
+        fixedIncomeReview: { score: 79, summary: "", findings: [], metrics: {} },
+        themeExposureReview: { score: 70, summary: "", findings: [], metrics: {} },
+        geographyReview: { score: 65, summary: "", findings: [], metrics: {} },
+        watchAreas: [],
+        portfolioImprovementSuggestions: [],
+        potentialActions: [],
+        dataLimitations: [],
+        overallPortfolioScore: 77,
+        confidenceScore: 80,
+        inputsSnapshot: {
+          lookthroughExposure: {
+            coverage: { etfCount: 3, etfsWithSectorExposure: 3, etfsWithCountryExposure: 3 },
+            sectorExposures: [
+              { exposureName: "Technology", exposureWeight: 0.3058 },
+              { exposureName: "Healthcare", exposureWeight: 0.0587 }
+            ],
+            countryExposures: [
+              { exposureName: "United States", exposureWeight: 0.7293 },
+              { exposureName: "International", exposureWeight: 0.2707 }
+            ],
+            holdingExposures: [
+              { holdingSymbol: "MSFT", holdingName: "Microsoft", totalWeight: 0.11, directWeight: 0.06, indirectWeight: 0.05 }
+            ]
+          }
+        },
+        createdAt: now,
+        updatedAt: now
+      })
+    } as never,
+    { listLatestRecommendations: async () => [] } as never,
+    { getLatestPublishedReport: async () => null } as never,
+    {
+      getDashboard: async () => ({
+        overview: { evaluatedOutcomes: 0, coverage: { recommendationCoverage: null } },
+        factorOutcomes: [],
+        bestFactors: [],
+        worstFactors: [],
+        confidenceCalibration: [],
+        marketVisionOutcomes: [],
+        portfolioReviewOutcomes: []
+      })
+    } as never,
+    repository
+  );
+
+  const context = await builder.build({
+    question: "What is my sector exposure?",
+    category: "etf",
+    userId: "user-1",
+    portfolioId: "portfolio-1",
+    conversationId: "conversation-1"
+  });
+
+  assert.equal(context.exposures.source, "lookthrough");
+  assert.deepEqual(context.exposures.sectors.slice(0, 2), [
+    { label: "Technology", percent: 0.3058 },
+    { label: "Healthcare", percent: 0.0587 }
+  ]);
+  assert.equal(context.exposures.sectors.some((item) => item.label === "Multi-Asset / Broad Market"), false);
+  assert.equal(context.indirectHoldings[0].symbol, "MSFT");
 });
