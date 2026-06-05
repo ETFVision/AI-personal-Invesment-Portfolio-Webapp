@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/risk-math.test.js .test-build/tests/taxonomy.test.js .test-build/tests/performance.test.js .test-build/tests/analytics.test.js .test-build/tests/benchmark-comparison.test.js .test-build/tests/format.test.js .test-build/tests/bond-analytics.test.js .test-build/tests/market-vision.test.js .test-build/tests/news-intelligence.test.js .test-build/tests/macro-data.test.js .test-build/tests/instrument-ia.test.js .test-build/tests/fundamentals.test.js .test-build/tests/recommendations.test.js .test-build/tests/portfolio-review.test.js"
+    "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/risk-math.test.js .test-build/tests/taxonomy.test.js .test-build/tests/performance.test.js .test-build/tests/analytics.test.js .test-build/tests/benchmark-comparison.test.js .test-build/tests/format.test.js .test-build/tests/bond-analytics.test.js .test-build/tests/market-vision.test.js .test-build/tests/news-intelligence.test.js .test-build/tests/macro-data.test.js .test-build/tests/instrument-ia.test.js .test-build/tests/fundamentals.test.js .test-build/tests/recommendations.test.js .test-build/tests/portfolio-review.test.js .test-build/tests/price-refresh.test.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

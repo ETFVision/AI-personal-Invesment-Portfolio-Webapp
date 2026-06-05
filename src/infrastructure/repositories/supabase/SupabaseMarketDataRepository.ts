@@ -1,5 +1,6 @@
 import {
   MarketDataRepository,
+  SyncPortfolioDailyPricesResult,
   UpdateAssetMetadataInput,
   UpsertDailyPriceInput
 } from "@/application/ports/repositories/MarketDataRepository";
@@ -48,6 +49,10 @@ function isMissingDailyPricesTable(error: { code?: string; message?: string } | 
 
 function isMissingTable(error: { code?: string; message?: string } | null) {
   return Boolean(error && (error.code === "42P01" || error.message?.toLowerCase().includes("does not exist")));
+}
+
+function uniqueSymbols(symbols: Array<string | null | undefined>) {
+  return Array.from(new Set(symbols.map((symbol) => symbol?.trim().toUpperCase()).filter((symbol): symbol is string => Boolean(symbol))));
 }
 
 export class SupabaseMarketDataRepository implements MarketDataRepository {
@@ -195,6 +200,74 @@ export class SupabaseMarketDataRepository implements MarketDataRepository {
       { onConflict: "asset_id,provider,price_date" }
     );
     if (error) throw new Error(error.message);
+  }
+
+  async syncPortfolioDailyPricesFromInstrumentPrices(portfolioId: string, _provider?: string): Promise<SyncPortfolioDailyPricesResult> {
+    const holdings = await this.listPricedPortfolioHoldings(portfolioId);
+    const requestedSymbols = uniqueSymbols(holdings.map((holding) => holding.ticker));
+    if (holdings.length === 0 || requestedSymbols.length === 0) {
+      return { requestedSymbols: [], syncedCount: 0, missingSymbols: [] };
+    }
+
+    const { data: instruments, error: instrumentError } = await this.db
+      .from("instruments")
+      .select("id,symbol,currency")
+      .in("symbol", requestedSymbols);
+    if (isMissingTable(instrumentError)) return { requestedSymbols, syncedCount: 0, missingSymbols: requestedSymbols };
+    if (instrumentError) throw new Error(instrumentError.message);
+
+    const instrumentBySymbol = new Map(
+      (instruments ?? []).map((instrument) => [String(instrument.symbol ?? "").trim().toUpperCase(), instrument])
+    );
+    const instrumentIds = Array.from(new Set((instruments ?? []).map((instrument) => instrument.id).filter(Boolean)));
+    if (instrumentIds.length === 0) {
+      return { requestedSymbols, syncedCount: 0, missingSymbols: requestedSymbols };
+    }
+
+    const { data: metrics, error: metricsError } = await this.db
+      .from("instrument_market_metrics")
+      .select("instrument_id,latest_price,latest_price_date")
+      .in("instrument_id", instrumentIds)
+      .not("latest_price", "is", null)
+      .not("latest_price_date", "is", null);
+    if (isMissingTable(metricsError)) return { requestedSymbols, syncedCount: 0, missingSymbols: requestedSymbols };
+    if (metricsError) throw new Error(metricsError.message);
+
+    const latestMetricByInstrumentId = new Map((metrics ?? []).map((row) => [String(row.instrument_id), row]));
+
+    const rows = holdings.flatMap((holding) => {
+      const symbol = holding.ticker?.trim().toUpperCase();
+      if (!symbol) return [];
+      const instrument = instrumentBySymbol.get(symbol);
+      if (!instrument?.id) return [];
+      const latestMetric = latestMetricByInstrumentId.get(String(instrument.id));
+      if (!latestMetric?.latest_price || !latestMetric.latest_price_date) return [];
+      return [
+        {
+          assetId: holding.assetId,
+          provider: "instrument_market_metrics",
+          symbol,
+          priceDate: latestMetric.latest_price_date,
+          closePrice: Number(latestMetric.latest_price),
+          currency: instrument.currency ?? holding.costCurrency,
+          rawPayload: {
+            source: "instrument_market_metrics",
+            instrumentId: instrument.id
+          }
+        }
+      ];
+    });
+
+    if (rows.length > 0) {
+      await this.upsertDailyPrices(rows);
+    }
+
+    const syncedSymbols = new Set(rows.map((row) => row.symbol));
+    return {
+      requestedSymbols,
+      syncedCount: rows.length,
+      missingSymbols: requestedSymbols.filter((symbol) => !syncedSymbols.has(symbol))
+    };
   }
 
   async updateAssetMetadata(input: UpdateAssetMetadataInput[]) {

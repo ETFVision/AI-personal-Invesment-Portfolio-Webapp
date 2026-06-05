@@ -1,10 +1,14 @@
 import { BackgroundJob } from "@/application/ports/jobs/BackgroundJob";
+import { InstrumentMarketService } from "@/application/services/InstrumentMarketService";
 import { MarketDataService } from "@/application/services/MarketDataService";
 
 export class RefreshPortfolioPricesJob implements BackgroundJob {
   readonly name = "refresh_portfolio_prices";
 
-  constructor(private readonly marketDataService: MarketDataService) {}
+  constructor(
+    private readonly marketDataService: MarketDataService,
+    private readonly instrumentMarketService: InstrumentMarketService
+  ) {}
 
   async run(input?: Record<string, unknown>) {
     const userId = typeof input?.userId === "string" ? input.userId : null;
@@ -16,11 +20,22 @@ export class RefreshPortfolioPricesJob implements BackgroundJob {
       };
     }
 
-    const result = await this.marketDataService.refreshPortfolioPrices({ userId, portfolioId });
+    const instrumentRefresh = await this.instrumentMarketService.refreshInstrumentPricesInBatches({
+      lookbackDays: 30,
+      batchSize: 40,
+      maxBatches: 3,
+      includeBackfill: false
+    });
+    const result = await this.marketDataService.syncPortfolioPricesFromInstrumentPrices({ portfolioId });
+    const errors = [...instrumentRefresh.errors, ...result.errors];
     return {
-      ok: result.errors.length === 0,
-      message: result.message,
-      metadata: result
+      ok: errors.length === 0,
+      message: `${instrumentRefresh.message} ${result.message}`,
+      metadata: {
+        masterInstrumentRefresh: instrumentRefresh,
+        portfolioPriceSync: result,
+        errors
+      }
     };
   }
 }

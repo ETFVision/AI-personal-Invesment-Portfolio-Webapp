@@ -25,6 +25,12 @@ export type UpdateAssetMetadataInput = {
   rawPayload: unknown;
 };
 
+export type SyncPortfolioDailyPricesResult = {
+  requestedSymbols: string[];
+  syncedCount: number;
+  missingSymbols: string[];
+};
+
 export interface MarketDataRepository {
   listPricedPortfolioHoldings(portfolioId: string): Promise<Holding[]>;
   listWatchlistAssets(userId: string): Promise<Asset[]>;
@@ -33,5 +39,6 @@ export interface MarketDataRepository {
   listDailyPricesForAssets(assetIds: string[], sinceDate?: string): Promise<DailyPrice[]>;
   getPricesForAssetsOnDate(assetIds: string[], priceDate: string, provider: string): Promise<Map<string, DailyPrice>>;
   upsertDailyPrices(input: UpsertDailyPriceInput[]): Promise<void>;
+  syncPortfolioDailyPricesFromInstrumentPrices(portfolioId: string, provider?: string): Promise<SyncPortfolioDailyPricesResult>;
   updateAssetMetadata(input: UpdateAssetMetadataInput[]): Promise<void>;
 }

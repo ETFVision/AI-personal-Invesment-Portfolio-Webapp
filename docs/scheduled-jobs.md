@@ -29,7 +29,7 @@ These are used by `/api/jobs/price-refresh`, `/api/jobs/portfolio-valuation-refr
 
 | Workflow | UTC Cron | Singapore Time | Purpose |
 |---|---:|---:|---|
-| `daily-data-refresh.yml` | `30 22 * * *` | 6:30 AM daily | Portfolio prices, instrument universe prices, portfolio valuation, FRED, FMP news, NewsData.io |
+| `daily-data-refresh.yml` | `30 22 * * *` | 6:30 AM daily | Master instrument prices, portfolio price sync, portfolio valuation, FRED, FMP news, NewsData.io |
 | `daily-data-refresh.yml` backup | `15 23 * * *` | 7:15 AM daily | Catch-up run if GitHub drops or delays the primary daily schedule |
 | `weekly-intelligence-refresh.yml` | `0 0 * * 1` | 8:00 AM Monday | News reconciliation, Market Vision, Recommendations, Portfolio Review |
 | `weekly-intelligence-refresh.yml` backup | `45 0 * * 1` | 8:45 AM Monday | Catch-up run if GitHub drops or delays the primary weekly schedule |
@@ -43,11 +43,12 @@ GitHub Actions cron uses UTC. Backup triggers are safe because app-side jobs use
 Daily:
 
 1. `/api/jobs/price-refresh`
-2. `/api/jobs/instrument-price-refresh`
-3. `/api/jobs/portfolio-valuation-refresh`
-4. `/api/jobs/fred-macro-ingestion`
-5. `/api/jobs/daily-news-ingestion`
-6. `/api/jobs/newsdata-news-ingestion`
+2. `/api/jobs/portfolio-valuation-refresh`
+3. `/api/jobs/fred-macro-ingestion`
+4. `/api/jobs/daily-news-ingestion`
+5. `/api/jobs/newsdata-news-ingestion`
+
+`/api/jobs/price-refresh` refreshes the master active instrument price universe first, then syncs matching portfolio holdings into `daily_prices` for existing portfolio valuation and snapshot calculations. `/api/jobs/instrument-price-refresh` remains available for manual universe/watchlist catch-up runs, but the daily automation does not call it separately.
 
 Weekly:
 

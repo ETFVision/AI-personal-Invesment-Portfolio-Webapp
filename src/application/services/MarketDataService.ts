@@ -139,4 +139,20 @@ export class MarketDataService {
       };
     }
   }
+
+  async syncPortfolioPricesFromInstrumentPrices(input: { portfolioId: string; provider?: string }): Promise<RefreshPricesResult> {
+    const result = await this.repository.syncPortfolioDailyPricesFromInstrumentPrices(input.portfolioId, input.provider);
+    const errors = result.missingSymbols.map((symbol) => `No instrument price available for ${symbol}.`);
+    return {
+      requestedSymbols: result.requestedSymbols,
+      fetchedCount: 0,
+      skippedCount: Math.max(0, result.requestedSymbols.length - result.syncedCount),
+      storedCount: result.syncedCount,
+      errors,
+      message:
+        result.syncedCount > 0
+          ? `Synced ${result.syncedCount} portfolio asset price${result.syncedCount === 1 ? "" : "s"} from instrument prices.${errors.length > 0 ? ` ${errors.length} symbol${errors.length === 1 ? "" : "s"} still need instrument prices.` : ""}`
+          : `No portfolio asset prices were synced from instrument prices.${errors.length > 0 ? ` ${errors.join(" ")}` : ""}`
+    };
+  }
 }

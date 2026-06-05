@@ -358,7 +358,7 @@ export function createContainer() {
     marketDataService,
     assetMetadataService,
     jobs: {
-      refreshPortfolioPrices: new RefreshPortfolioPricesJob(marketDataService),
+      refreshPortfolioPrices: new RefreshPortfolioPricesJob(marketDataService, instrumentMarketService),
       refreshBenchmarkData: new RefreshBenchmarkDataJob(benchmarkService),
       dailyNewsIngestion: new DailyNewsIngestionJob(newsIngestionService, newsClassificationService),
       gdeltNewsIngestion: new GdeltNewsIngestionJob(globalNewsIngestionService),
