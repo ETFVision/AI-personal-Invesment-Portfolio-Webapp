@@ -59,8 +59,9 @@ export function SectionHeader({
   return (
     <div className={cn("flex flex-col justify-between gap-2 sm:flex-row sm:items-end", className)}>
       <div>
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-        {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-teal-700">Section</p>
+        <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-950">{title}</h2>
+        {description ? <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-500">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
     </div>
@@ -103,7 +104,7 @@ export function MetricCard({
         tone === "positive" ? "bg-emerald-500" : tone === "danger" ? "bg-red-500" : tone === "warning" ? "bg-amber-500" : "bg-teal-600"
       )} />
       <CardHeader className="pb-2 pt-5">
-        <CardTitle className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</CardTitle>
+        <CardTitle className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</CardTitle>
         {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
       <CardContent>
@@ -128,8 +129,8 @@ export function InsightCard({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-lg border p-4 text-sm", toneClasses[tone], className)}>
-      <p className="font-medium">{title}</p>
+    <div className={cn("rounded-xl border p-4 text-sm shadow-sm", toneClasses[tone], className)}>
+      <p className="font-semibold tracking-tight">{title}</p>
       {description ? <p className="mt-1 opacity-90">{description}</p> : null}
       {children ? <div className="mt-3">{children}</div> : null}
     </div>

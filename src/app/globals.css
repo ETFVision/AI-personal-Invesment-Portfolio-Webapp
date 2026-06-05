@@ -37,7 +37,7 @@ table {
 }
 
 th {
-  color: hsl(var(--muted-foreground));
+  color: #64748b;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -49,12 +49,24 @@ th {
   vertical-align: top;
 }
 
+td {
+  color: #334155;
+}
+
 tbody tr {
   transition: background-color 140ms ease;
 }
 
 tbody tr:hover {
   background: rgba(15, 118, 110, 0.035);
+}
+
+.bg-muted {
+  background-color: #f3f6f8;
+}
+
+.text-muted-foreground {
+  color: #64748b;
 }
 
 ::selection {

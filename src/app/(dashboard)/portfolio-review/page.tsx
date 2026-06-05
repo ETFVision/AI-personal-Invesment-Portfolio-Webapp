@@ -226,24 +226,24 @@ function SectionCard({ title, section }: { title: string; section: PortfolioRevi
             <CardTitle>{title}</CardTitle>
             <CardDescription>{displaySection.summary}</CardDescription>
           </div>
-          <span className="rounded-md bg-muted px-2 py-1 text-sm font-medium">{score(displaySection.score)}</span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-sm font-semibold text-slate-800">{score(displaySection.score)}</span>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {displaySection.findings.length === 0 ? (
-          <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">No material finding in this section.</p>
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-3 text-sm text-slate-500">No material finding in this section.</p>
         ) : (
           <div className="space-y-2">
             {displaySection.findings.map((finding, index) => (
-              <div key={`${finding.title}-${index}`} className={`rounded-md border p-3 text-sm ${severityTone(finding.severity)}`}>
-                <p className="font-medium">{finding.title}</p>
+              <div key={`${finding.title}-${index}`} className={`rounded-xl border p-3 text-sm shadow-sm ${severityTone(finding.severity)}`}>
+                <p className="font-semibold tracking-tight">{finding.title}</p>
                 <p className="mt-1 opacity-90">{finding.detail}</p>
               </div>
             ))}
           </div>
         )}
-        <details className="rounded-md border p-3 text-sm">
-          <summary className="cursor-pointer text-muted-foreground">Section metrics</summary>
+        <details className="rounded-xl border border-slate-200 bg-white/80 p-3 text-sm">
+          <summary className="cursor-pointer font-medium text-slate-600">Section metrics</summary>
           <SectionMetrics metrics={displaySection.metrics} />
         </details>
       </CardContent>
