@@ -19,7 +19,7 @@ import { GdeltNormalizationService, gdeltNormalizationInternals } from "../src/i
 import { GdeltNewsProvider as RealGdeltNewsProvider, gdeltProviderInternals } from "../src/infrastructure/providers/news/GdeltNewsProvider";
 import { NewsDataNormalizationService, newsDataNormalizationInternals } from "../src/infrastructure/providers/news/NewsDataNormalizationService";
 import { newsDataProviderInternals } from "../src/infrastructure/providers/news/NewsDataNewsProvider";
-import { isJwtIssuedAtFutureError } from "../src/infrastructure/repositories/supabase/supabaseErrors";
+import { isJwtIssuedAtFutureError, withSupabaseClockSkewRetry } from "../src/infrastructure/repositories/supabase/supabaseErrors";
 import type { GdeltArticleMetadata, GdeltIngestionLog, GdeltQueryGroup, NewsClassification, NewsDataArticleMetadata, NewsDataIngestionLog, NewsDataQueryGroup, NewsIngestionLog, NewsItem, NormalizedNewsArticle, WeeklyNewsReconciliation } from "../src/domain/news/types";
 import type { MacroIndicatorRepository } from "../src/application/ports/repositories/MacroIndicatorRepository";
 import type { MacroThemeSignal } from "../src/domain/macro/types";
@@ -2097,4 +2097,18 @@ test("Supabase JWT clock-skew helper detects issued-at-future errors", () => {
   assert.equal(isJwtIssuedAtFutureError({ message: "JWT issued at future" }), true);
   assert.equal(isJwtIssuedAtFutureError({ message: "duplicate key value violates unique constraint" }), false);
   assert.equal(isJwtIssuedAtFutureError(null), false);
+});
+
+test("Supabase clock-skew retry retries issued-at-future errors once", async () => {
+  let calls = 0;
+  const result = await withSupabaseClockSkewRetry(async () => {
+    calls += 1;
+    return calls === 1
+      ? { data: null, error: { message: "JWT issued at future" } }
+      : { data: ["ok"], error: null };
+  }, 0);
+
+  assert.equal(calls, 2);
+  assert.deepEqual(result.data, ["ok"]);
+  assert.equal(result.error, null);
 });

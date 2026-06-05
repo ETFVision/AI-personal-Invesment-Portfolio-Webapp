@@ -13,6 +13,7 @@ import type {
   UpsertMarketVisionReportInput
 } from "@/application/ports/repositories/MarketVisionRepository";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
+import { withSupabaseClockSkewRetry } from "./supabaseErrors";
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -184,46 +185,54 @@ export class SupabaseMarketVisionRepository implements MarketVisionRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
   async listReports(limit = 20) {
-    const { data, error } = await this.db
-      .from("market_vision_reports")
-      .select("*")
-      .order("report_date", { ascending: false })
-      .limit(limit);
+    const { data, error } = await withSupabaseClockSkewRetry(() =>
+      this.db
+        .from("market_vision_reports")
+        .select("*")
+        .order("report_date", { ascending: false })
+        .limit(limit)
+    );
     if (isMissingMarketVisionTable(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapReport);
   }
 
   async getReportById(reportId: string) {
-    const { data, error } = await this.db.from("market_vision_reports").select("*").eq("id", reportId).maybeSingle();
+    const { data, error } = await withSupabaseClockSkewRetry(() =>
+      this.db.from("market_vision_reports").select("*").eq("id", reportId).maybeSingle()
+    );
     if (isMissingMarketVisionTable(error)) return null;
     if (error) throw new Error(error.message);
     return data ? mapReport(data) : null;
   }
 
   async getLatestPublishedReport() {
-    const { data, error } = await this.db
-      .from("market_vision_reports")
-      .select("*")
-      .eq("status", "published")
-      .order("report_date", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data, error } = await withSupabaseClockSkewRetry(() =>
+      this.db
+        .from("market_vision_reports")
+        .select("*")
+        .eq("status", "published")
+        .order("report_date", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    );
     if (isMissingMarketVisionTable(error)) return null;
     if (error) throw new Error(error.message);
     return data ? mapReport(data) : null;
   }
 
   async findGeneratedReportForPeriod(periodStart: string, periodEnd: string) {
-    const { data, error } = await this.db
-      .from("market_vision_reports")
-      .select("*")
-      .eq("source_type", "generated")
-      .eq("report_period_start", periodStart)
-      .eq("report_period_end", periodEnd)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data, error } = await withSupabaseClockSkewRetry(() =>
+      this.db
+        .from("market_vision_reports")
+        .select("*")
+        .eq("source_type", "generated")
+        .eq("report_period_start", periodStart)
+        .eq("report_period_end", periodEnd)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    );
     if (isMissingMarketVisionTable(error)) return null;
     if (error) throw new Error(error.message);
     return data ? mapReport(data) : null;
@@ -245,7 +254,9 @@ export class SupabaseMarketVisionRepository implements MarketVisionRepository {
   }
 
   async listMacroIndicators() {
-    const { data, error } = await this.db.from("macro_indicators").select("*").order("category").order("indicator_name");
+    const { data, error } = await withSupabaseClockSkewRetry(() =>
+      this.db.from("macro_indicators").select("*").order("category").order("indicator_name")
+    );
     if (isMissingMarketVisionTable(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapMacroIndicator);
@@ -273,9 +284,12 @@ export class SupabaseMarketVisionRepository implements MarketVisionRepository {
   }
 
   async listThemeEvents(reportId?: string) {
-    let query = this.db.from("market_theme_events").select("*").order("severity_score", { ascending: false });
-    if (reportId) query = query.eq("report_id", reportId);
-    const { data, error } = await query;
+    const runQuery = () => {
+      let query = this.db.from("market_theme_events").select("*").order("severity_score", { ascending: false });
+      if (reportId) query = query.eq("report_id", reportId);
+      return query;
+    };
+    const { data, error } = await withSupabaseClockSkewRetry(runQuery);
     if (isMissingMarketVisionTable(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapThemeEvent);
@@ -323,11 +337,13 @@ export class SupabaseMarketVisionRepository implements MarketVisionRepository {
   }
 
   async listGenerationLogs(limit = 20) {
-    const { data, error } = await this.db
-      .from("market_vision_generation_logs")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(limit);
+    const { data, error } = await withSupabaseClockSkewRetry(() =>
+      this.db
+        .from("market_vision_generation_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(limit)
+    );
     if (isMissingMarketVisionTable(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapGenerationLog);

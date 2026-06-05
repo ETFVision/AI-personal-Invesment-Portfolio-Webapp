@@ -15,6 +15,7 @@ import type {
   MacroTrend
 } from "@/domain/macro/types";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
+import { withSupabaseClockSkewRetry } from "./supabaseErrors";
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -142,22 +143,27 @@ export class SupabaseMacroIndicatorRepository implements MacroIndicatorRepositor
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
   async listIndicators(filters?: { isActive?: boolean; sourceProvider?: string }) {
-    let query = this.db.from("macro_indicators").select("*").order("category").order("indicator_code");
-    if (filters?.isActive !== undefined) query = query.eq("is_active", filters.isActive);
-    if (filters?.sourceProvider) query = query.eq("source_provider", filters.sourceProvider);
-    const { data, error } = await query;
+    const runQuery = () => {
+      let query = this.db.from("macro_indicators").select("*").order("category").order("indicator_code");
+      if (filters?.isActive !== undefined) query = query.eq("is_active", filters.isActive);
+      if (filters?.sourceProvider) query = query.eq("source_provider", filters.sourceProvider);
+      return query;
+    };
+    const { data, error } = await withSupabaseClockSkewRetry(runQuery);
     if (missing(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapIndicator);
   }
 
   async listObservations(indicatorId: string, limit = 260) {
-    const { data, error } = await this.db
-      .from("macro_observations")
-      .select("*")
-      .eq("indicator_id", indicatorId)
-      .order("observation_date", { ascending: false })
-      .limit(limit);
+    const { data, error } = await withSupabaseClockSkewRetry(() =>
+      this.db
+        .from("macro_observations")
+        .select("*")
+        .eq("indicator_id", indicatorId)
+        .order("observation_date", { ascending: false })
+        .limit(limit)
+    );
     if (missing(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapObservation).reverse();
@@ -165,9 +171,25 @@ export class SupabaseMacroIndicatorRepository implements MacroIndicatorRepositor
 
   async listObservationsForIndicators(indicatorIds: string[], limitPerIndicator = 260) {
     const output = new Map<string, MacroObservation[]>();
-    for (const indicatorId of indicatorIds) {
-      output.set(indicatorId, await this.listObservations(indicatorId, limitPerIndicator));
+    if (indicatorIds.length === 0) return output;
+    for (const indicatorId of indicatorIds) output.set(indicatorId, []);
+    const { data, error } = await withSupabaseClockSkewRetry(() =>
+      this.db
+        .from("macro_observations")
+        .select("*")
+        .in("indicator_id", indicatorIds)
+        .order("observation_date", { ascending: false })
+        .limit(Math.max(indicatorIds.length * limitPerIndicator, limitPerIndicator))
+    );
+    if (missing(error)) return output;
+    if (error) throw new Error(error.message);
+
+    for (const observation of (data ?? []).map(mapObservation)) {
+      const rows = output.get(observation.indicatorId);
+      if (!rows || rows.length >= limitPerIndicator) continue;
+      rows.push(observation);
     }
+    for (const [indicatorId, rows] of output) output.set(indicatorId, rows.reverse());
     return output;
   }
 
@@ -214,9 +236,12 @@ export class SupabaseMacroIndicatorRepository implements MacroIndicatorRepositor
   }
 
   async listLatestTrends(indicatorIds?: string[]) {
-    let query = this.db.from("macro_trends").select("*").order("as_of_date", { ascending: false });
-    if (indicatorIds?.length) query = query.in("indicator_id", indicatorIds);
-    const { data, error } = await query.limit(500);
+    const runQuery = () => {
+      let query = this.db.from("macro_trends").select("*").order("as_of_date", { ascending: false });
+      if (indicatorIds?.length) query = query.in("indicator_id", indicatorIds);
+      return query.limit(500);
+    };
+    const { data, error } = await withSupabaseClockSkewRetry(runQuery);
     if (missing(error)) return [];
     if (error) throw new Error(error.message);
     const byIndicator = new Map<string, MacroTrend>();
@@ -244,12 +269,14 @@ export class SupabaseMacroIndicatorRepository implements MacroIndicatorRepositor
   }
 
   async getLatestRegimeSnapshot() {
-    const { data, error } = await this.db
-      .from("macro_regime_snapshots")
-      .select("*")
-      .order("snapshot_date", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data, error } = await withSupabaseClockSkewRetry(() =>
+      this.db
+        .from("macro_regime_snapshots")
+        .select("*")
+        .order("snapshot_date", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    );
     if (missing(error)) return null;
     if (error) throw new Error(error.message);
     return data ? mapRegime(data) : null;
@@ -278,24 +305,28 @@ export class SupabaseMacroIndicatorRepository implements MacroIndicatorRepositor
   }
 
   async listMacroThemeSignalsForPeriod(periodStart: string, periodEnd: string) {
-    const { data, error } = await this.db
-      .from("macro_theme_signals")
-      .select("*")
-      .gte("signal_date", periodStart)
-      .lte("signal_date", periodEnd)
-      .order("signal_date", { ascending: false });
+    const { data, error } = await withSupabaseClockSkewRetry(() =>
+      this.db
+        .from("macro_theme_signals")
+        .select("*")
+        .gte("signal_date", periodStart)
+        .lte("signal_date", periodEnd)
+        .order("signal_date", { ascending: false })
+    );
     if (missing(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapMacroThemeSignal);
   }
 
   async listLatestMacroThemeSignals(asOfDate: string) {
-    const { data, error } = await this.db
-      .from("macro_theme_signals")
-      .select("*")
-      .lte("signal_date", asOfDate)
-      .order("signal_date", { ascending: false })
-      .limit(500);
+    const { data, error } = await withSupabaseClockSkewRetry(() =>
+      this.db
+        .from("macro_theme_signals")
+        .select("*")
+        .lte("signal_date", asOfDate)
+        .order("signal_date", { ascending: false })
+        .limit(500)
+    );
     if (missing(error)) return [];
     if (error) throw new Error(error.message);
     const latestBySignal = new Map<string, MacroThemeSignal>();
@@ -325,7 +356,9 @@ export class SupabaseMacroIndicatorRepository implements MacroIndicatorRepositor
   }
 
   async listIngestionLogs(limit = 10) {
-    const { data, error } = await this.db.from("macro_ingestion_logs").select("*").order("started_at", { ascending: false }).limit(limit);
+    const { data, error } = await withSupabaseClockSkewRetry(() =>
+      this.db.from("macro_ingestion_logs").select("*").order("started_at", { ascending: false }).limit(limit)
+    );
     if (missing(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapLog);

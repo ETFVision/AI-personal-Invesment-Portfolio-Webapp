@@ -291,13 +291,15 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
   const params = await searchParams;
   const container = createContainer();
   await container.authProvider.requireUser();
-  const dashboard = await container.marketVisionService.getDashboard(params?.reportId);
-  const latestWeeklyNews = await container.newsRepository.getLatestWeeklyReconciliation();
-  const latestGlobalNews = eligibleGdeltInput([
-    ...await container.newsRepository.listNewsWithClassifications({ sourceProvider: "newsdata", includeDuplicates: false, limit: 40 }),
-    ...await container.newsRepository.listNewsWithClassifications({ sourceProvider: "gdelt", includeDuplicates: false, limit: 40 })
-  ]).slice(0, 8);
-  const macroDashboard = await container.macroDashboardService.getDashboard();
+  const [dashboard, latestWeeklyNews, latestGlobalNews, macroDashboard] = await Promise.all([
+    container.marketVisionService.getDashboard(params?.reportId),
+    container.newsRepository.getLatestWeeklyReconciliation(),
+    Promise.all([
+      container.newsRepository.listNewsWithClassifications({ sourceProvider: "newsdata", includeDuplicates: false, limit: 40 }),
+      container.newsRepository.listNewsWithClassifications({ sourceProvider: "gdelt", includeDuplicates: false, limit: 40 })
+    ]).then(([newsDataRows, gdeltRows]) => eligibleGdeltInput([...newsDataRows, ...gdeltRows]).slice(0, 8)),
+    container.macroDashboardService.getDashboard()
+  ]);
   const macroContext = container.macroContextService.buildContext(macroDashboard);
   const report = dashboard.selectedReport;
 
