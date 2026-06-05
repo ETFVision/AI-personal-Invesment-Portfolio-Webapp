@@ -22,6 +22,16 @@ const suggestedQuestions = [
   "How diversified am I?"
 ];
 
+async function parseAssistantResponse(response: Response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return { error: text.slice(0, 240) || "Assistant returned a non-JSON response." };
+  }
+}
+
 export function PortfolioAssistantDrawer({
   mode = "floating",
   initialConversationId = null,
@@ -56,10 +66,12 @@ export function PortfolioAssistantDrawer({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ question: trimmed, conversationId })
         });
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error ?? "Assistant request failed.");
-        setConversationId(payload.conversationId);
-        setMessages((current) => [...current, payload.message]);
+        const payload = await parseAssistantResponse(response);
+        if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "Assistant request failed.");
+        if (typeof payload.conversationId === "string") setConversationId(payload.conversationId);
+        const message = payload.message as AssistantChatMessage | undefined;
+        if (!message?.id || !message.content || message.role !== "assistant") throw new Error("Assistant response was incomplete.");
+        setMessages((current) => [...current, message]);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Assistant request failed.");
       }
