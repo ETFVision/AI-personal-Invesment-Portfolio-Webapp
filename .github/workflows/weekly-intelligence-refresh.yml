@@ -1,11 +1,7 @@
 name: Weekly Intelligence Refresh
 
 on:
-  schedule:
-    # Monday 8:00 AM Singapore time, GitHub Actions cron is UTC.
-    - cron: "0 0 * * 1"
-    # Monday 8:45 AM Singapore time backup trigger.
-    - cron: "45 0 * * 1"
+  # Production scheduling moved to Supabase Cron. Keep this as a manual fallback.
   workflow_dispatch:
 
 concurrency:

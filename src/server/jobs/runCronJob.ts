@@ -18,8 +18,10 @@ type StructuredJobResponse = {
 type RunCronJobOptions = {
   jobName: string;
   lockTtlSeconds?: number;
-  runSource?: "github_actions" | "manual_ui" | "vercel_cron" | "local";
+  runSource?: "github_actions" | "manual_ui" | "vercel_cron" | "supabase_cron" | "local";
 };
+
+const allowedRunSources = new Set(["github_actions", "manual_ui", "vercel_cron", "supabase_cron", "local"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -63,6 +65,12 @@ function summarize(value: unknown): Record<string, unknown> {
   return summary;
 }
 
+function inferRunSource(request: NextRequest, fallback?: RunCronJobOptions["runSource"]) {
+  const header = request.headers.get("x-job-source")?.trim().toLowerCase();
+  if (header && allowedRunSources.has(header)) return header as NonNullable<RunCronJobOptions["runSource"]>;
+  return fallback ?? "github_actions";
+}
+
 async function tryAcquireLock(jobName: string, lockOwner: string, ttlSeconds: number) {
   const db = createSupabaseAdminClient();
   const now = new Date();
@@ -95,7 +103,8 @@ export async function runCronJob(
   if (unauthorized) return unauthorized;
 
   const startedAt = new Date();
-  const lockOwner = `${options.runSource ?? "github_actions"}-${startedAt.getTime()}`;
+  const runSource = inferRunSource(request, options.runSource);
+  const lockOwner = `${runSource}-${startedAt.getTime()}`;
   const { acquired, db } = await tryAcquireLock(options.jobName, lockOwner, options.lockTtlSeconds ?? 15 * 60);
 
   if (!acquired) {
@@ -111,7 +120,7 @@ export async function runCronJob(
     };
     await db.from("job_runs").insert({
       job_name: options.jobName,
-      run_source: options.runSource ?? "github_actions",
+      run_source: runSource,
       status: response.status,
       started_at: response.started_at,
       completed_at: response.completed_at,
@@ -138,7 +147,7 @@ export async function runCronJob(
     };
     await db.from("job_runs").insert({
       job_name: options.jobName,
-      run_source: options.runSource ?? "github_actions",
+      run_source: runSource,
       status,
       started_at: response.started_at,
       completed_at: response.completed_at,
@@ -162,7 +171,7 @@ export async function runCronJob(
     };
     await db.from("job_runs").insert({
       job_name: options.jobName,
-      run_source: options.runSource ?? "github_actions",
+      run_source: runSource,
       status: "failed",
       started_at: response.started_at,
       completed_at: response.completed_at,
