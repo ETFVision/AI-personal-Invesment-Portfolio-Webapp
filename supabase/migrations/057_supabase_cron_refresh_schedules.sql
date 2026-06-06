@@ -81,11 +81,11 @@ declare
     'app-daily-fmp-news-ingestion',
     'app-daily-newsdata-ingestion',
     'app-weekly-news-reconciliation',
+    'app-weekly-fundamentals-refresh',
     'app-weekly-market-vision',
     'app-weekly-recommendation-run',
     'app-weekly-portfolio-review-run',
     'app-weekly-telemetry-evaluation',
-    'app-monthly-fundamentals-refresh',
     'app-monthly-etf-lookthrough-refresh',
     'app-monthly-universe-validation'
   ];
@@ -138,7 +138,13 @@ select cron.schedule(
   $$select public.invoke_scheduled_app_job('/api/jobs/newsdata-news-ingestion');$$
 );
 
--- Weekly intelligence refreshes: every Monday from 8:00 AM SGT.
+-- Weekly intelligence refreshes: every Monday from 7:30 AM SGT.
+select cron.schedule(
+  'app-weekly-fundamentals-refresh',
+  '30 23 * * 0',
+  $$select public.invoke_scheduled_app_job('/api/jobs/fundamentals-refresh');$$
+);
+
 select cron.schedule(
   'app-weekly-news-reconciliation',
   '0 0 * * 1',
@@ -169,13 +175,7 @@ select cron.schedule(
   $$select public.invoke_scheduled_app_job('/api/jobs/telemetry-evaluation');$$
 );
 
--- Monthly slower refreshes: first day of each month from 8:30 AM SGT.
-select cron.schedule(
-  'app-monthly-fundamentals-refresh',
-  '30 0 1 * *',
-  $$select public.invoke_scheduled_app_job('/api/jobs/fundamentals-refresh');$$
-);
-
+-- Monthly slower refreshes: first day of each month from 8:45 AM SGT.
 select cron.schedule(
   'app-monthly-etf-lookthrough-refresh',
   '45 0 1 * *',

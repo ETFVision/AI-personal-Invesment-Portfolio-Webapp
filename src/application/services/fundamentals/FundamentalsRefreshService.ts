@@ -4,6 +4,9 @@ import { FundamentalScoringService } from "@/application/services/fundamentals/F
 import { FundamentalTrendCalculationService } from "@/application/services/fundamentals/FundamentalTrendCalculationService";
 import type { CompanyProfile, FinancialRatio, FinancialStatement } from "@/domain/fundamentals/types";
 
+const ANNUAL_FUNDAMENTALS_PERIOD_LIMIT = 5;
+const QUARTERLY_FUNDAMENTALS_PERIOD_LIMIT = 12;
+
 export type FundamentalsRefreshResult = {
   ok: boolean;
   status: "success" | "partial_success" | "failed";
@@ -247,8 +250,8 @@ export class FundamentalsRefreshService {
       if (!symbol) continue;
       try {
         const [annualResult, quarterlyResult] = await Promise.all([
-          this.provider.getFundamentals(symbol, { period: "annual", limit: 5 }),
-          this.provider.getFundamentals(symbol, { period: "quarterly", limit: 9 })
+          this.provider.getFundamentals(symbol, { period: "annual", limit: ANNUAL_FUNDAMENTALS_PERIOD_LIMIT }),
+          this.provider.getFundamentals(symbol, { period: "quarterly", limit: QUARTERLY_FUNDAMENTALS_PERIOD_LIMIT })
         ]);
         const providerProfile = annualResult.profile ?? quarterlyResult.profile;
         const profile: CompanyProfile | null = providerProfile
@@ -342,6 +345,8 @@ export class FundamentalsRefreshService {
         requestedSymbol: options.symbol ?? null,
         staleAfterDays: this.config.staleAfterDays,
         provider: this.provider.name,
+        annualPeriodLimit: ANNUAL_FUNDAMENTALS_PERIOD_LIMIT,
+        quarterlyPeriodLimit: QUARTERLY_FUNDAMENTALS_PERIOD_LIMIT,
         trendsUpdated
       }
     });

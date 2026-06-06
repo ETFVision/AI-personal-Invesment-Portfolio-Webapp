@@ -56,6 +56,7 @@ Runs every Monday.
 
 | Supabase Cron job | UTC Cron | Singapore time | Endpoint | Purpose |
 |---|---:|---:|---|---|
+| `app-weekly-fundamentals-refresh` | `30 23 * * 0` | 7:30 AM Monday | `/api/jobs/fundamentals-refresh` | Refresh due fundamentals before weekly intelligence and recommendation jobs. |
 | `app-weekly-news-reconciliation` | `0 0 * * 1` | 8:00 AM Monday | `/api/jobs/weekly-news-reconciliation` | Build weekly asset and theme news summaries. |
 | `app-weekly-market-vision` | `10 0 * * 1` | 8:10 AM Monday | `/api/jobs/weekly-market-vision` | Generate the weekly CIO-style Market Vision draft and capture Market Vision telemetry snapshots. |
 | `app-weekly-recommendation-run` | `25 0 * * 1` | 8:25 AM Monday | `/api/jobs/recommendation-run` | Refresh recommendation outputs and capture recommendation telemetry snapshots. |
@@ -70,11 +71,19 @@ Runs on the first day of each month.
 
 | Supabase Cron job | UTC Cron | Singapore time | Endpoint | Purpose |
 |---|---:|---:|---|---|
-| `app-monthly-fundamentals-refresh` | `30 0 1 * *` | 8:30 AM first day monthly | `/api/jobs/fundamentals-refresh` | Refresh fundamentals, statements, ratios and trend inputs. |
 | `app-monthly-etf-lookthrough-refresh` | `45 0 1 * *` | 8:45 AM first day monthly | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data. |
 | `app-monthly-universe-validation` | `15 1 1 * *` | 9:15 AM first day monthly | `/api/jobs/universe-validation` | Revalidate universe metadata and data availability. |
 
-Benchmarks are no longer monthly. Recent benchmark data is refreshed daily, and long benchmark history is handled by the manual market-history backfill.
+Benchmarks and fundamentals are no longer monthly. Recent benchmark data is refreshed daily, fundamentals are refreshed weekly, and long benchmark history is handled by the manual market-history backfill.
+
+## Fundamentals Refresh Window
+
+The regular fundamentals refresh refetches overlapping recent statement windows:
+
+- 5 annual periods
+- 12 quarterly periods
+
+Existing fiscal periods are upserted, so provider corrections refill/update stored rows rather than creating duplicates. New fiscal periods are inserted when companies report.
 
 ## Manual Backfills
 
