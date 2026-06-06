@@ -7,6 +7,8 @@ const blockedPatterns = [
   /\b(is|looks like|appears to be)\s+(a\s+)?buy\b/i,
   /\bshould be purchased\b/i,
   /\bworth buying\b/i,
+  /\bbest idea\b/i,
+  /\btop opportunity\b/i,
   /\ballocate\s+\d+(\.\d+)?%/i,
   /\btarget allocation\b/i,
   /\btarget weight\b/i,

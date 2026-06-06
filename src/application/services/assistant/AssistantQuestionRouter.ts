@@ -53,6 +53,22 @@ const categoryRules: Array<{ category: AssistantQuestionCategory; confidence: nu
   }
 ];
 
+const ambiguousFollowUpPatterns = [
+  /^\s*why\??\s*$/i,
+  /^\s*why does that matter\??\s*$/i,
+  /^\s*how does that affect\b/i,
+  /^\s*which holdings?\b/i,
+  /^\s*which one\b/i,
+  /^\s*what is the biggest (issue|factor|negative factor|positive factor|driver)\??\s*$/i,
+  /^\s*what contributed most\??\s*$/i,
+  /^\s*what reduced (it|my score|the score)\??\s*$/i,
+  /^\s*what if\b/i
+];
+
+function isAmbiguousFollowUp(question: string) {
+  return ambiguousFollowUpPatterns.some((pattern) => pattern.test(question.trim()));
+}
+
 export class AssistantQuestionRouter {
   constructor(private readonly intentGuardrails = new AssistantIntentGuardrailService()) {}
 
@@ -78,6 +94,15 @@ export class AssistantQuestionRouter {
         confidence: 0.95,
         reason: "Question is outside ETFVision portfolio-intelligence scope.",
         blockedIntent: "unsupported_scope"
+      };
+    }
+
+    if (previousCategory && previousCategory !== "unsupported" && isAmbiguousFollowUp(trimmed)) {
+      return {
+        category: previousCategory as AssistantQuestionCategory,
+        supported: true,
+        confidence: 0.72,
+        reason: "Using prior conversation category for ambiguous follow-up question."
       };
     }
 

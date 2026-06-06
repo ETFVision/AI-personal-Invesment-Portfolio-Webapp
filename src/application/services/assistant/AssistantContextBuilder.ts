@@ -8,6 +8,7 @@ import type { AssistantContextPackage, AssistantMessage, AssistantQuestionCatego
 import type { PortfolioDashboard } from "@/domain/portfolio/types";
 import type { PortfolioReviewReport } from "@/domain/portfolioReview/types";
 import type { InstrumentRecommendation } from "@/domain/recommendations/types";
+import { assistantRecommendationLabel } from "./AssistantRecommendationLabels";
 
 function rounded(value: number | null | undefined) {
   return value == null || !Number.isFinite(value) ? null : Number(value.toFixed(4));
@@ -61,7 +62,8 @@ function scoreFromSection(section: { score?: number } | null | undefined) {
 
 function recommendationDistribution(recommendations: InstrumentRecommendation[]) {
   return recommendations.reduce<Record<string, number>>((counts, item) => {
-    counts[item.recommendationLabel] = (counts[item.recommendationLabel] ?? 0) + 1;
+    const label = assistantRecommendationLabel(item.recommendationLabel);
+    counts[label] = (counts[label] ?? 0) + 1;
     return counts;
   }, {});
 }
@@ -142,7 +144,7 @@ export class AssistantContextBuilder {
       .slice(0, symbols.length > 0 ? 8 : 12)
       .map((item) => ({
         symbol: item.symbol,
-        label: item.recommendationLabel,
+        label: assistantRecommendationLabel(item.recommendationLabel),
         score: item.overallScore,
         confidence: item.confidenceScore,
         positiveDrivers: item.positiveDrivers.slice(0, 4),
