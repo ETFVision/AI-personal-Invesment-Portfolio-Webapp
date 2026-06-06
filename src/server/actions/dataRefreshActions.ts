@@ -47,7 +47,7 @@ export async function refreshAllDataAction(formData?: FormData) {
       await container.portfolioService.createAnalyticsSnapshot(portfolio.id);
     }
 
-    const benchmarks = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 1825 });
+    const benchmarks = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 30 });
     appendMessage(messages, "Benchmarks", benchmarks.message);
     if (!benchmarks.ok) errors.push(benchmarks.message);
   }
@@ -107,6 +107,7 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
     maxBatches: 2,
     includeBackfill: true
   });
+  const benchmarks = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 1825 });
   const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
   if (portfolio) {
     const dashboard = await container.portfolioService.getDashboard(portfolio.id);
@@ -120,12 +121,15 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
 
   revalidatePath("/universe");
   revalidatePath("/watchlists");
+  revalidatePath("/portfolio");
   revalidatePath("/risk");
 
   const params = new URLSearchParams({
-    refreshMessage: `History backfill: ${result.message}`
+    refreshMessage: `History backfill: ${result.message} Benchmarks: ${benchmarks.message}`
   });
-  if (result.errors.length > 0) params.set("refreshError", result.errors.join(" | "));
+  const errors = [...result.errors];
+  if (!benchmarks.ok) errors.push(benchmarks.message);
+  if (errors.length > 0) params.set("refreshError", errors.join(" | "));
 
   redirect(`${destination}?${params.toString()}`);
 }

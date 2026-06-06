@@ -282,7 +282,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
             </form>
             <form action={backfillUniverseHistoryAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
-              <SubmitButton variant="secondary" pendingLabel="Backfilling universe history...">Backfill universe history</SubmitButton>
+              <SubmitButton variant="secondary" pendingLabel="Backfilling market and benchmark history...">Backfill market history</SubmitButton>
             </form>
             <form action={refreshEtfLookthroughExposureAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />

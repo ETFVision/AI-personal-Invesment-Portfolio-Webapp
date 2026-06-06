@@ -75,6 +75,7 @@ declare
   job_name text;
   job_names text[] := array[
     'app-daily-instrument-price-refresh',
+    'app-daily-benchmark-refresh',
     'app-daily-portfolio-valuation-refresh',
     'app-daily-fred-macro-ingestion',
     'app-daily-fmp-news-ingestion',
@@ -86,7 +87,6 @@ declare
     'app-weekly-telemetry-evaluation',
     'app-monthly-fundamentals-refresh',
     'app-monthly-etf-lookthrough-refresh',
-    'app-monthly-benchmark-refresh',
     'app-monthly-universe-validation'
   ];
 begin
@@ -106,6 +106,12 @@ select cron.schedule(
   'app-daily-instrument-price-refresh',
   '30 22 * * *',
   $$select public.invoke_scheduled_app_job('/api/jobs/instrument-price-refresh');$$
+);
+
+select cron.schedule(
+  'app-daily-benchmark-refresh',
+  '35 22 * * *',
+  $$select public.invoke_scheduled_app_job('/api/jobs/benchmark-refresh?lookbackDays=30');$$
 );
 
 select cron.schedule(
@@ -174,12 +180,6 @@ select cron.schedule(
   'app-monthly-etf-lookthrough-refresh',
   '45 0 1 * *',
   $$select public.invoke_scheduled_app_job('/api/jobs/etf-lookthrough-refresh');$$
-);
-
-select cron.schedule(
-  'app-monthly-benchmark-refresh',
-  '0 1 1 * *',
-  $$select public.invoke_scheduled_app_job('/api/jobs/benchmark-refresh');$$
 );
 
 select cron.schedule(

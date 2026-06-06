@@ -25,8 +25,5 @@ jobs:
       - name: ETF look-through refresh
         run: bash scripts/call-job-endpoint.sh /api/jobs/etf-lookthrough-refresh
 
-      - name: Benchmark refresh
-        run: bash scripts/call-job-endpoint.sh /api/jobs/benchmark-refresh
-
       - name: Universe validation
         run: bash scripts/call-job-endpoint.sh /api/jobs/universe-validation

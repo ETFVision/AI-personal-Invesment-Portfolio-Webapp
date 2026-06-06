@@ -22,6 +22,9 @@ jobs:
       - name: Master instrument and portfolio price refresh
         run: bash scripts/call-job-endpoint.sh /api/jobs/instrument-price-refresh
 
+      - name: Benchmark recent refresh
+        run: bash scripts/call-job-endpoint.sh "/api/jobs/benchmark-refresh?lookbackDays=30"
+
       - name: Portfolio valuation refresh
         run: bash scripts/call-job-endpoint.sh /api/jobs/portfolio-valuation-refresh
 
