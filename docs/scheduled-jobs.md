@@ -1,15 +1,25 @@
 # Scheduled Data Refresh Jobs
 
-GitHub Actions triggers protected Next.js job endpoints. The workflows do not call FMP, FRED, NewsData.io, OpenAI, or Supabase directly. Provider keys stay in Vercel/app environment variables.
+Supabase Cron is the production scheduler. It calls protected Next.js job endpoints on the deployed Vercel app through `pg_net`.
 
-## Required GitHub Secrets
+GitHub Actions workflows are retained only as manual fallback runs through `workflow_dispatch`.
+
+## Required Supabase Vault Secrets
+
+Supabase Cron uses Vault secrets to call the app:
 
 - `APP_URL`: deployed Vercel app URL, for example `https://your-app.vercel.app`
 - `CRON_SECRET`: same value configured in Vercel as `CRON_SECRET`
 
+The helper function is:
+
+```sql
+select public.invoke_scheduled_app_job('/api/jobs/fred-macro-ingestion');
+```
+
 ## Required Vercel Environment Variables
 
-Provider and database variables remain in Vercel as usual:
+Provider and database variables remain in Vercel:
 
 - `FMP_API_KEY`
 - `FRED_API_KEY`
@@ -23,49 +33,61 @@ Portfolio-specific scheduled jobs also need:
 - `SCHEDULED_USER_ID`
 - `SCHEDULED_PORTFOLIO_ID`
 
-These are used by `/api/jobs/price-refresh`, `/api/jobs/portfolio-valuation-refresh`, `/api/jobs/recommendation-run`, and `/api/jobs/portfolio-review-run` when GitHub Actions does not pass query parameters.
+These are used by `/api/jobs/portfolio-valuation-refresh`, `/api/jobs/recommendation-run`, and `/api/jobs/portfolio-review-run` when the job endpoint does not receive query parameters.
 
-## Schedule Table
+## Supabase Schedule
 
-| Workflow | UTC Cron | Singapore Time | Purpose |
-|---|---:|---:|---|
-| `daily-data-refresh.yml` | `30 22 * * *` | 6:30 AM daily | Master instrument prices, portfolio price sync, portfolio valuation, FRED, FMP news, NewsData.io |
-| `daily-data-refresh.yml` backup | `15 23 * * *` | 7:15 AM daily | Catch-up run if GitHub drops or delays the primary daily schedule |
-| `weekly-intelligence-refresh.yml` | `0 0 * * 1` | 8:00 AM Monday | News reconciliation, Market Vision, Recommendations, Portfolio Review, Telemetry evaluation |
-| `weekly-intelligence-refresh.yml` backup | `45 0 * * 1` | 8:45 AM Monday | Catch-up run if GitHub drops or delays the primary weekly schedule |
-| `monthly-slow-refresh.yml` | `30 0 1 * *` | 8:30 AM first day monthly | Fundamentals, ETF look-through, benchmarks, universe validation |
-| `monthly-slow-refresh.yml` backup | `15 1 1 * *` | 9:15 AM first day monthly | Catch-up run if GitHub drops or delays the primary monthly schedule |
+All cron expressions are UTC. Singapore time is UTC+8.
 
-GitHub Actions cron uses UTC. Backup triggers are safe because app-side jobs use locks and freshness checks.
+### Daily
 
-## Endpoint Order
+| Supabase Cron job | UTC Cron | Singapore time | Endpoint | Purpose |
+|---|---:|---:|---|---|
+| `app-daily-instrument-price-refresh` | `30 22 * * *` | 6:30 AM daily | `/api/jobs/instrument-price-refresh` | Refresh master instrument prices. |
+| `app-daily-benchmark-refresh` | `35 22 * * *` | 6:35 AM daily | `/api/jobs/benchmark-refresh?lookbackDays=30` | Keep benchmark comparison series current. |
+| `app-daily-portfolio-valuation-refresh` | `40 22 * * *` | 6:40 AM daily | `/api/jobs/portfolio-valuation-refresh` | Create current portfolio valuation snapshots. |
+| `app-daily-fred-macro-ingestion` | `50 22 * * *` | 6:50 AM daily | `/api/jobs/fred-macro-ingestion` | Refresh FRED macro indicators and macro signals. |
+| `app-daily-fmp-news-ingestion` | `0 23 * * *` | 7:00 AM daily | `/api/jobs/daily-news-ingestion` | Refresh FMP instrument and general market news. |
+| `app-daily-newsdata-ingestion` | `10 23 * * *` | 7:10 AM daily | `/api/jobs/newsdata-news-ingestion` | Refresh NewsData macro and world-news query groups. |
 
-Daily:
+### Weekly
 
-1. `/api/jobs/price-refresh`
-2. `/api/jobs/portfolio-valuation-refresh`
-3. `/api/jobs/fred-macro-ingestion`
-4. `/api/jobs/daily-news-ingestion`
-5. `/api/jobs/newsdata-news-ingestion`
+Runs every Monday.
 
-`/api/jobs/price-refresh` refreshes the master active instrument price universe first, then syncs matching portfolio holdings into `daily_prices` for existing portfolio valuation and snapshot calculations. `/api/jobs/instrument-price-refresh` remains available for manual universe/watchlist catch-up runs, but the daily automation does not call it separately.
+| Supabase Cron job | UTC Cron | Singapore time | Endpoint | Purpose |
+|---|---:|---:|---|---|
+| `app-weekly-news-reconciliation` | `0 0 * * 1` | 8:00 AM Monday | `/api/jobs/weekly-news-reconciliation` | Build weekly asset and theme news summaries. |
+| `app-weekly-market-vision` | `10 0 * * 1` | 8:10 AM Monday | `/api/jobs/weekly-market-vision` | Generate the weekly CIO-style Market Vision draft and capture Market Vision telemetry snapshots. |
+| `app-weekly-recommendation-run` | `25 0 * * 1` | 8:25 AM Monday | `/api/jobs/recommendation-run` | Refresh recommendation outputs and capture recommendation telemetry snapshots. |
+| `app-weekly-portfolio-review-run` | `35 0 * * 1` | 8:35 AM Monday | `/api/jobs/portfolio-review-run` | Refresh Portfolio Review and capture Portfolio Review telemetry snapshots. |
+| `app-weekly-telemetry-evaluation` | `45 0 * * 1` | 8:45 AM Monday | `/api/jobs/telemetry-evaluation` | Check whether any 1m, 3m, 6m or 12m telemetry horizons have matured and evaluate only those ready observations. |
 
-Weekly:
+Telemetry evaluation is scheduled weekly, but the evaluation horizons are not weekly. The job checks all stored snapshots and evaluates only observations whose configured 1m, 3m, 6m or 12m maturity date has arrived.
 
-1. `/api/jobs/weekly-news-reconciliation`
-2. `/api/jobs/weekly-market-vision`
-3. `/api/jobs/recommendation-run`
-4. `/api/jobs/portfolio-review-run`
-5. `/api/jobs/telemetry-evaluation`
+### Monthly
 
-Monthly:
+Runs on the first day of each month.
 
-1. `/api/jobs/fundamentals-refresh`
-2. `/api/jobs/etf-lookthrough-refresh`
-3. `/api/jobs/benchmark-refresh`
-4. `/api/jobs/universe-validation`
+| Supabase Cron job | UTC Cron | Singapore time | Endpoint | Purpose |
+|---|---:|---:|---|---|
+| `app-monthly-fundamentals-refresh` | `30 0 1 * *` | 8:30 AM first day monthly | `/api/jobs/fundamentals-refresh` | Refresh fundamentals, statements, ratios and trend inputs. |
+| `app-monthly-etf-lookthrough-refresh` | `45 0 1 * *` | 8:45 AM first day monthly | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data. |
+| `app-monthly-universe-validation` | `15 1 1 * *` | 9:15 AM first day monthly | `/api/jobs/universe-validation` | Revalidate universe metadata and data availability. |
 
-GDELT is intentionally not automated because its public endpoint has unstable rate-limit behavior. Keep GDELT as manual-only unless a future provider queue makes it reliable.
+Benchmarks are no longer monthly. Recent benchmark data is refreshed daily, and long benchmark history is handled by the manual market-history backfill.
+
+## Manual Backfills
+
+Admin > Data Sources > Backfill market history runs:
+
+- instrument market history backfill
+- benchmark history backfill using roughly five years of history
+
+This is intentionally manual because historical backfills are heavier than daily freshness jobs.
+
+## Excluded From Automation
+
+GDELT is intentionally not automated because its public endpoint has unstable rate-limit behavior. Keep GDELT as manual-only unless a future provider queue makes it reliable enough for unattended scheduling.
 
 ## Job Summaries
 
@@ -74,13 +96,14 @@ Each protected job endpoint writes to `job_runs`.
 The Admin Jobs page shows:
 
 - job name
+- source, such as `supabase cron`, `manual ui`, or fallback `github actions`
 - status
 - started time in Singapore time
 - duration
 - summary payload
 - error message
 
-Specific provider logs still remain in their provider-specific tables, such as `news_ingestion_logs`, `newsdata_ingestion_logs`, `macro_ingestion_logs`, `fundamentals_refresh_logs`, and `etf_exposure_refresh_logs`.
+Specific provider logs remain in their provider-specific tables, such as `news_ingestion_logs`, `newsdata_ingestion_logs`, `macro_ingestion_logs`, `fundamentals_refresh_logs`, and `etf_exposure_refresh_logs`.
 
 ## Overlap Prevention
 
@@ -88,18 +111,13 @@ Each protected job endpoint uses `job_locks`.
 
 If the same job is already running, the endpoint returns a structured `skipped` response and records that skip in `job_runs`.
 
-Locks expire automatically based on the route TTL, and are removed when the route finishes normally.
+Locks expire automatically based on the route TTL and are removed when the route finishes normally.
 
-## Manual Run
+## Manual Fallback Runs
 
-In GitHub:
+GitHub Actions workflows keep `workflow_dispatch` only.
 
-1. Open the repository.
-2. Go to Actions.
-3. Select the workflow.
-4. Choose **Run workflow**.
-
-The same protected endpoints can also be tested with:
+Use them when Supabase Cron needs a manual fallback, or call the endpoint helper directly:
 
 ```bash
 APP_URL=https://your-app.vercel.app CRON_SECRET=... bash scripts/call-job-endpoint.sh /api/jobs/fred-macro-ingestion
@@ -109,25 +127,21 @@ APP_URL=https://your-app.vercel.app CRON_SECRET=... bash scripts/call-job-endpoi
 
 Check in this order:
 
-1. GitHub Actions run logs.
-2. `Admin -> Jobs` in the app.
-3. Provider-specific logs on the relevant page.
+1. `Admin -> Jobs` in the app.
+2. Provider-specific logs under `Admin -> Data Sources`.
+3. Supabase `cron.job_run_details` and `net._http_response`.
 4. Vercel function logs.
+5. GitHub Actions logs only for manually triggered fallback workflows.
 
 Unauthorized requests should return `401`. Missing `CRON_SECRET` in Vercel returns `503`.
-
-## Disable A Workflow
-
-In GitHub Actions, disable the workflow from the workflow page.
-
-Alternatively, remove or comment the `schedule` block and keep `workflow_dispatch` for manual runs.
 
 ## Adding A New Scheduled Job
 
 1. Keep business logic in an app service/job.
 2. Add a protected route under `/api/jobs/...`.
 3. Wrap the route with `runCronJob`.
-4. Add the endpoint to the appropriate workflow in dependency order.
-5. Document the route here.
+4. Add or update a Supabase migration using `cron.schedule`.
+5. Stagger the endpoint in dependency order.
+6. Document the route here.
 
 Do not put provider API keys or business logic into GitHub Actions.

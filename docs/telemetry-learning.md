@@ -29,6 +29,23 @@ Evaluation horizons:
 - 6 months
 - 12 months
 
+## Capture And Evaluation Cadence
+
+Telemetry has two separate cadences:
+
+- Snapshot capture happens when the source intelligence job runs.
+- Outcome evaluation happens when a stored snapshot reaches a fixed maturity horizon.
+
+Current snapshot capture cadence:
+
+- Recommendation snapshots are captured during the weekly recommendation run.
+- Market Vision snapshots are captured during weekly Market Vision generation.
+- Portfolio Review snapshots are captured during the weekly Portfolio Review run.
+
+The telemetry evaluation job currently runs weekly after the Portfolio Review job. This does not create a weekly evaluation horizon. It checks whether any stored observations have reached their `1m`, `3m`, `6m`, or `12m` maturity date and evaluates only those ready observations.
+
+Manual telemetry evaluation from Admin > Jobs uses the same maturity rules.
+
 ## Database Tables
 
 Migration:
@@ -132,7 +149,7 @@ Each snapshot stores a deterministic directional proxy:
 
 This is currently prepared for future outcome evaluation. It is not yet used to tune Market Vision generation or recommendations.
 
-V1.5 evaluates matured Market Vision snapshots at 1m, 3m, 6m and 12m.
+V1.5 evaluates matured Market Vision snapshots at 1m, 3m, 6m and 12m. The weekly evaluation job only processes Market Vision snapshots whose horizon has matured.
 
 Evaluation uses a deterministic theme-to-proxy mapping. Examples:
 
@@ -181,7 +198,7 @@ When Portfolio Review runs, the app captures:
 
 This supports future longitudinal review of whether suggestions and risk warnings were useful.
 
-V1.5 evaluates matured Portfolio Review snapshots by comparing the old review snapshot with a later review snapshot for the same portfolio.
+V1.5 evaluates matured Portfolio Review snapshots by comparing the old review snapshot with a later review snapshot for the same portfolio. The weekly evaluation job only processes Portfolio Review snapshots whose horizon has matured.
 
 Stored outcome metrics:
 

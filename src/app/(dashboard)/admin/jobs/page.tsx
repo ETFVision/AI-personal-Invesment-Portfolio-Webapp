@@ -76,13 +76,13 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
         </CardHeader>
         <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-950">Telemetry evaluation</p>
+            <p className="text-sm font-medium text-slate-950">Telemetry maturity check</p>
             <p className="mt-1 max-w-3xl text-sm text-slate-500">
-              Checks matured telemetry snapshots, evaluates ready horizons and refreshes factor evidence. This does not change recommendations or portfolio review logic.
+              Checks whether 1m, 3m, 6m or 12m telemetry horizons have matured, evaluates only ready observations and refreshes factor evidence. This does not change recommendations or portfolio review logic.
             </p>
           </div>
           <form action={runTelemetryEvaluationAction}>
-            <SubmitButton pendingLabel="Evaluating telemetry...">Run telemetry evaluation</SubmitButton>
+            <SubmitButton pendingLabel="Checking matured horizons...">Run telemetry maturity check</SubmitButton>
           </form>
         </CardContent>
       </Card>
