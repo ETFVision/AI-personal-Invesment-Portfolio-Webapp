@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ETFVisionLogo } from "@/components/brand/etfvision-logo";
 
 type LoginPageProps = {
   searchParams?: Promise<{ error?: string; redirectTo?: string }>;
@@ -12,11 +13,14 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-muted px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>AI Portfolio Intelligence</CardTitle>
-          <CardDescription>Sign in to manage your ETF-first portfolio workspace.</CardDescription>
+    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-10">
+      <Card className="w-full max-w-md overflow-hidden border-slate-200 shadow-xl">
+        <div className="border-b border-slate-200 bg-white px-8 pt-8">
+          <ETFVisionLogo variant="light" priority className="mx-auto w-64 object-contain object-center" />
+        </div>
+        <CardHeader className="pt-6">
+          <CardTitle>ETFVision</CardTitle>
+          <CardDescription>Sign in to manage your ETF-first portfolio intelligence workspace.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           {params?.error ? (
