@@ -138,52 +138,52 @@ select cron.schedule(
   $$select public.invoke_scheduled_app_job('/api/jobs/newsdata-news-ingestion');$$
 );
 
--- Weekly intelligence refreshes: every Monday from 7:30 AM SGT.
+-- Weekly intelligence refreshes: every Monday from 7:20 AM SGT.
 select cron.schedule(
   'app-weekly-fundamentals-refresh',
-  '30 23 * * 0',
+  '20 23 * * 0',
   $$select public.invoke_scheduled_app_job('/api/jobs/fundamentals-refresh');$$
 );
 
 select cron.schedule(
   'app-weekly-news-reconciliation',
-  '0 0 * * 1',
+  '45 23 * * 0',
   $$select public.invoke_scheduled_app_job('/api/jobs/weekly-news-reconciliation');$$
 );
 
 select cron.schedule(
   'app-weekly-market-vision',
-  '10 0 * * 1',
+  '55 23 * * 0',
   $$select public.invoke_scheduled_app_job('/api/jobs/weekly-market-vision');$$
 );
 
 select cron.schedule(
   'app-weekly-recommendation-run',
-  '25 0 * * 1',
+  '10 0 * * 1',
   $$select public.invoke_scheduled_app_job('/api/jobs/recommendation-run');$$
 );
 
 select cron.schedule(
   'app-weekly-portfolio-review-run',
-  '35 0 * * 1',
+  '25 0 * * 1',
   $$select public.invoke_scheduled_app_job('/api/jobs/portfolio-review-run');$$
 );
 
 select cron.schedule(
   'app-weekly-telemetry-evaluation',
-  '45 0 * * 1',
+  '35 0 * * 1',
   $$select public.invoke_scheduled_app_job('/api/jobs/telemetry-evaluation');$$
 );
 
--- Monthly slower refreshes: first day of each month from 8:45 AM SGT.
+-- Monthly slower refreshes: first day of each month from 8:40 AM SGT.
 select cron.schedule(
   'app-monthly-etf-lookthrough-refresh',
-  '45 0 1 * *',
+  '40 0 1 * *',
   $$select public.invoke_scheduled_app_job('/api/jobs/etf-lookthrough-refresh');$$
 );
 
 select cron.schedule(
   'app-monthly-universe-validation',
-  '15 1 1 * *',
+  '5 1 1 * *',
   $$select public.invoke_scheduled_app_job('/api/jobs/universe-validation');$$
 );
