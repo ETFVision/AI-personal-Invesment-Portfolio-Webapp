@@ -40,7 +40,7 @@ function summarize(summary: Record<string, unknown>) {
     .filter(([, value]) => typeof value === "string" || typeof value === "number" || typeof value === "boolean")
     .slice(0, 4);
   if (entries.length === 0) return "No summary payload.";
-  return entries.map(([key, value]) => `${key}: ${String(value)}`).join(" · ");
+  return entries.map(([key, value]) => `${key}: ${String(value)}`).join(" | ");
 }
 
 export default async function JobsPage({ searchParams }: JobsPageProps) {
@@ -71,7 +71,7 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
         <CardHeader>
           <CardTitle>Manual evaluation controls</CardTitle>
           <CardDescription>
-            Operational controls for admin-only catch-up runs. Scheduled workflows remain the normal automation path.
+            Operational controls for admin-only catch-up runs. Supabase Cron is the normal automation path; GitHub workflows remain manual fallbacks.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -89,7 +89,7 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
       <Card>
         <CardHeader>
           <CardTitle>Recent job runs</CardTitle>
-          <CardDescription>Stored from protected refresh endpoints called by GitHub Actions or manual controls.</CardDescription>
+          <CardDescription>Stored from protected refresh endpoints called by Supabase Cron, manual controls or fallback GitHub workflows.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           {runs.length === 0 ? (
@@ -101,6 +101,7 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
               <thead>
                 <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="py-2 pr-4 font-medium">Job</th>
+                  <th className="py-2 pr-4 font-medium">Source</th>
                   <th className="py-2 pr-4 font-medium">Status</th>
                   <th className="py-2 pr-4 font-medium">Started</th>
                   <th className="py-2 pr-4 font-medium">Duration</th>
@@ -112,6 +113,7 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
                 {runs.map((run) => (
                   <tr key={run.id} className="border-b last:border-0">
                     <td className="py-3 pr-4 font-medium">{run.jobName}</td>
+                    <td className="py-3 pr-4 text-muted-foreground">{run.runSource.replace("_", " ")}</td>
                     <td className="py-3 pr-4">
                       <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusClass(run.status)}`}>
                         {run.status.replace("_", " ")}

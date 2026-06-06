@@ -1,11 +1,7 @@
 name: Monthly Slow Refresh
 
 on:
-  schedule:
-    # First day of month, 8:30 AM Singapore time.
-    - cron: "30 0 1 * *"
-    # First day of month, 9:15 AM Singapore time backup trigger.
-    - cron: "15 1 1 * *"
+  # Production scheduling moved to Supabase Cron. Keep this as a manual fallback.
   workflow_dispatch:
 
 concurrency:
