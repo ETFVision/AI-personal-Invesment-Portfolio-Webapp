@@ -91,7 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
           {navGroups.map((group) => (
             <div key={group.label} className="space-y-1">
-              <p className="px-3 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">{group.label}</p>
+              <p className="px-3 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-teal-200">{group.label}</p>
               {group.items.map((item) => {
                 const Icon = item.icon;
                 return (
