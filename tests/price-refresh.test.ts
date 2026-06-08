@@ -149,7 +149,7 @@ test("history coverage tracks crypto against a shorter 2Y target", async () => {
   assert.equal(coverage.estimatedBackfillClicks, 1);
 });
 
-test("history backfill refreshes derived metrics one instrument at a time", async () => {
+test("history backfill refreshes coverage metrics without running heavy risk metrics", async () => {
   const marketMetricRefreshes: string[][] = [];
   const riskMetricRefreshes: string[][] = [];
   const repository = {
@@ -182,5 +182,5 @@ test("history backfill refreshes derived metrics one instrument at a time", asyn
 
   assert.equal(result.updatedCount, 4);
   assert.deepEqual(marketMetricRefreshes, [["inst-MSFT"], ["inst-VOO"]]);
-  assert.deepEqual(riskMetricRefreshes, [["inst-MSFT"], ["inst-VOO"]]);
+  assert.deepEqual(riskMetricRefreshes, []);
 });

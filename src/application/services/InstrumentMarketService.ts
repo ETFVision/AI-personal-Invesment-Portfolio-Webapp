@@ -119,18 +119,18 @@ function safeReturn(latest: number | null, baseline: number | null) {
 async function refreshDerivedMetrics(
   repository: UniverseRepository,
   instrumentIds: string[],
-  options?: { oneInstrumentAtATime?: boolean }
+  options?: { oneInstrumentAtATime?: boolean; skipRiskMetrics?: boolean }
 ) {
   if (instrumentIds.length === 0) return;
   if (!options?.oneInstrumentAtATime) {
     await repository.refreshInstrumentMarketMetrics(instrumentIds);
-    await repository.refreshInstrumentRiskMetrics(instrumentIds);
+    if (!options?.skipRiskMetrics) await repository.refreshInstrumentRiskMetrics(instrumentIds);
     return;
   }
 
   for (const instrumentId of instrumentIds) {
     await repository.refreshInstrumentMarketMetrics([instrumentId]);
-    await repository.refreshInstrumentRiskMetrics([instrumentId]);
+    if (!options?.skipRiskMetrics) await repository.refreshInstrumentRiskMetrics([instrumentId]);
   }
 }
 
@@ -364,7 +364,7 @@ export class InstrumentMarketService {
     if (rows.length > 0) {
       const updatedInstrumentIds = Array.from(new Set(rows.map((row) => row.instrumentId)));
       await this.repository.upsertInstrumentPrices(rows);
-      await refreshDerivedMetrics(this.repository, updatedInstrumentIds, { oneInstrumentAtATime: includeBackfill });
+      await refreshDerivedMetrics(this.repository, updatedInstrumentIds, { oneInstrumentAtATime: includeBackfill, skipRiskMetrics: includeBackfill });
     }
 
     return {
