@@ -25,8 +25,10 @@ export type EtfCategory =
   | "VALUE"
   | "SMALL_CAP"
   | "BOND"
+  | "CASH_EQUIVALENT"
   | "COMMODITY"
   | "GOLD_PRECIOUS_METALS"
+  | "CRYPTO_ETF"
   | "INTERNATIONAL_DIVIDEND"
   | "COUNTRY"
   | "INFRASTRUCTURE"
@@ -57,8 +59,10 @@ export const ETF_CATEGORY_LABELS: Record<EtfCategory, string> = {
   VALUE: "Value",
   SMALL_CAP: "Small cap",
   BOND: "Bond",
+  CASH_EQUIVALENT: "Cash equivalent",
   COMMODITY: "Commodity",
   GOLD_PRECIOUS_METALS: "Gold / precious metals",
+  CRYPTO_ETF: "Crypto ETF",
   INTERNATIONAL_DIVIDEND: "International dividend",
   COUNTRY: "Country",
   INFRASTRUCTURE: "Infrastructure",
@@ -96,13 +100,15 @@ export const ALPHA_ETF_CATEGORIES: Record<EtfCategory, string[]> = {
   UTILITIES: ["XLU", "VPU", "IDU", "FXU", "JXI"],
   COMMUNICATION_SERVICES: ["XLC", "VOX", "FCOM", "IXP", "EWCO"],
   REAL_ESTATE: ["VNQ", "XLRE", "SCHH", "IYR", "RWR", "FREL", "REET", "VNQI", "USRT", "REM"],
-  DIVIDEND: ["SCHD", "VYM", "DGRO", "HDV", "SDY", "DVY", "NOBL", "DGRW", "SPYD", "FDVV"],
+  DIVIDEND: ["SCHD", "VYM", "DGRO", "HDV", "SDY", "DVY", "NOBL", "DGRW", "SPYD", "FDVV", "VIG"],
   GROWTH: ["VUG", "SCHG", "IWF", "RPG", "MGK"],
   VALUE: ["VTV", "IWD", "SCHV", "RPV", "VLUE"],
   SMALL_CAP: ["IWM", "VB", "SCHA", "IJR", "VTWO", "SLY", "SPSM", "AVUV"],
   BOND: ["AGG", "BND", "BNDW", "TLT", "SHY", "IEI", "IEF", "VGIT", "GOVT", "TIP", "STIP", "LQD", "VCIT", "HYG", "JNK"],
+  CASH_EQUIVALENT: ["BIL", "SGOV", "SHV", "GBIL", "CLIP"],
   COMMODITY: ["DBC", "PDBC", "COMT"],
   GOLD_PRECIOUS_METALS: ["GLD", "IAU", "SGOL"],
+  CRYPTO_ETF: ["IBIT", "FBTC", "ETHA", "FETH", "BSOL"],
   INTERNATIONAL_DIVIDEND: ["IDV", "DWX", "VYMI", "SCHY", "IGRO"],
   COUNTRY: ["EWJ", "DXJ", "JPXN", "MCHI", "FXI", "KWEB", "INDA", "INDY", "EWU", "EWC"],
   INFRASTRUCTURE: ["PAVE", "IFRA", "IGF", "GRID"],
@@ -110,12 +116,12 @@ export const ALPHA_ETF_CATEGORIES: Record<EtfCategory, string[]> = {
 };
 
 export const ALPHA_STOCK_SECTORS: Record<string, string[]> = {
-  Technology: ["AAPL", "MSFT", "NVDA", "AVGO", "ORCL", "CRM", "ADBE", "CSCO", "AMD", "INTC", "QCOM", "TXN", "NOW", "PLTR", "IBM", "MU", "PANW", "CRWD", "SNOW", "SHOP"],
+  Technology: ["AAPL", "MSFT", "NVDA", "AVGO", "ORCL", "CRM", "ADBE", "CSCO", "AMD", "INTC", "QCOM", "TXN", "NOW", "PLTR", "IBM", "MU", "PANW", "CRWD", "SNOW", "SHOP", "ANET", "ASML", "TSM"],
   "Communication Services": ["GOOGL", "META", "NFLX", "DIS", "TMUS", "VZ", "CMCSA", "CHTR", "SPOT"],
   "Consumer Discretionary": ["AMZN", "TSLA", "HD", "MCD", "NKE", "BKNG", "LOW", "SBUX", "TJX", "MAR", "RCL", "GM", "F", "EBAY"],
-  Financials: ["JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "BLK", "SCHW", "USB", "C", "PNC", "CB", "BRK.B"],
+  Financials: ["JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "BLK", "SCHW", "USB", "C", "PNC", "CB", "BRK.B", "PYPL"],
   Healthcare: ["LLY", "JNJ", "ABBV", "MRK", "UNH", "PFE", "ABT", "TMO", "DHR", "AMGN", "GILD", "BMY", "ISRG", "SYK"],
-  Industrials: ["CAT", "HON", "RTX", "UNP", "UPS", "GE", "DE", "LMT", "NOC", "ETN"],
+  Industrials: ["CAT", "HON", "RTX", "UNP", "UPS", "GE", "DE", "LMT", "NOC", "ETN", "BA"],
   Energy: ["XOM", "CVX", "COP", "SLB", "EOG"],
   "Consumer Staples": ["PG", "KO", "PEP", "COST", "WMT"],
   "Real Estate": ["PLD", "O", "AMT"],
@@ -125,8 +131,10 @@ export const ALPHA_STOCK_SECTORS: Record<string, string[]> = {
 
 const ETF_ASSET_CATEGORY: Partial<Record<EtfCategory, AssetCategory>> = {
   BOND: "BOND",
+  CASH_EQUIVALENT: "BOND",
   COMMODITY: "COMMODITY",
   GOLD_PRECIOUS_METALS: "COMMODITY",
+  CRYPTO_ETF: "CRYPTO",
   REAL_ESTATE: "REAL_ESTATE"
 };
 

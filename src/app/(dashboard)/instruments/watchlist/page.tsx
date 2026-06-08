@@ -13,6 +13,9 @@ type WatchlistPageProps = {
     refreshMessage?: string;
     refreshError?: string;
     q?: string;
+    asset?: string;
+    type?: string;
+    sector?: string;
     tier?: WatchlistTier | "";
   }>;
 };
@@ -38,6 +41,15 @@ function sortRows(rows: Array<InstrumentMarketView & { watchlistTierLabel?: stri
 
 function assetClassGroupKey(row: InstrumentMarketView) {
   return row.instrument.assetCategory ?? "UNKNOWN";
+}
+
+function instrumentBucket(row: InstrumentMarketView) {
+  const instrument = row.instrument;
+  if (instrument.assetClass === "benchmark" || instrument.benchmarkTags.length > 0) return "benchmark";
+  if (instrument.assetClass === "stock") return "stock";
+  if (instrument.assetClass === "crypto" && instrument.instrumentType !== "crypto_etf") return "crypto";
+  if (instrument.instrumentType.includes("etf") || instrument.assetClass.endsWith("_etf") || instrument.assetClass === "etf") return "etf";
+  return "other";
 }
 
 function assetClassTitle(key: string) {
@@ -91,12 +103,40 @@ function productCategoryTitle(key: string) {
   return ETF_CATEGORY_LABELS[key as keyof typeof ETF_CATEGORY_LABELS] ?? key.replaceAll("_", " ").toLowerCase();
 }
 
+function sectorFilterValue(row: InstrumentMarketView) {
+  if (row.instrument.assetClass === "stock") return row.instrument.canonicalSector ?? row.instrument.sector ?? "Unclassified";
+  if (instrumentBucket(row) === "etf") return row.instrument.etfCategory ?? (row.instrument.instrumentType === "crypto_etf" ? "CRYPTO_ETF" : "UNCATEGORIZED_ETF");
+  return row.instrument.canonicalSector ?? row.instrument.sector ?? row.instrument.assetCategory ?? "Unclassified";
+}
+
+function sectorFilterLabel(value: string) {
+  if (value === "UNCATEGORIZED_ETF") return "Uncategorized ETFs";
+  return ETF_CATEGORY_LABELS[value as keyof typeof ETF_CATEGORY_LABELS] ?? value;
+}
+
+function uniqueOptions(
+  rows: Array<InstrumentMarketView & { watchlistTierLabel?: string; thesis?: string | null }>,
+  getValue: (row: InstrumentMarketView & { watchlistTierLabel?: string; thesis?: string | null }) => string | null | undefined,
+  getLabel: (value: string) => string = (value) => value
+) {
+  const options = new Map<string, string>();
+  for (const row of rows) {
+    const value = getValue(row);
+    if (!value) continue;
+    options.set(value, getLabel(value));
+  }
+  return Array.from(options.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+}
+
 export default async function InstrumentWatchlistPage({ searchParams }: WatchlistPageProps) {
   const params = await searchParams;
   const container = createContainer();
   await container.authProvider.requireUser();
 
   const q = params?.q?.trim() ?? "";
+  const asset = params?.asset?.trim() ?? "";
+  const type = params?.type?.trim() ?? "";
+  const sector = params?.sector?.trim() ?? "";
   const tier = params?.tier ?? "";
   const [watchlists, watchlistItems, instruments] = await Promise.all([
     container.watchlistService.listWatchlists(),
@@ -126,7 +166,16 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
       thesis: item?.rationale ?? null
     };
   });
-  const groupedRows = groupByAssetClass(rows);
+  const assetOptions = uniqueOptions(rows, (row) => row.instrument.assetCategory ?? "UNKNOWN", (value) => ASSET_CATEGORY_LABELS[value as keyof typeof ASSET_CATEGORY_LABELS] ?? value);
+  const rowsForSectorOptions = rows.filter((row) => (!asset || assetClassGroupKey(row) === asset) && (!type || instrumentBucket(row) === type));
+  const sectorOptions = uniqueOptions(rowsForSectorOptions, sectorFilterValue, sectorFilterLabel);
+  const filteredRows = rows.filter((row) => {
+    if (asset && assetClassGroupKey(row) !== asset) return false;
+    if (type && instrumentBucket(row) !== type) return false;
+    if (sector && sectorFilterValue(row) !== sector) return false;
+    return true;
+  });
+  const groupedRows = groupByAssetClass(filteredRows);
 
   return (
     <PageContainer>
@@ -136,7 +185,7 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
         description="Curated watchlist instruments with tiers, thesis context, market metrics and canonical instrument drilldowns."
         meta={
           <>
-            <StatusBadge tone="info">{rows.length} active items</StatusBadge>
+            <StatusBadge tone="info">{filteredRows.length} active items</StatusBadge>
             <StatusBadge tone="neutral">{Object.keys(groupedRows).length} groups</StatusBadge>
           </>
         }
@@ -156,8 +205,28 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
           <CardDescription>Watchlist is a summary directory; instrument-level tabs live on `/instruments/[symbol]`.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form method="get" className="grid gap-3 md:grid-cols-3">
+          <form method="get" className="grid gap-3 md:grid-cols-6">
             <Input name="q" placeholder="Search symbol or name" defaultValue={q} />
+            <select name="asset" defaultValue={asset} className="h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="">All assets</option>
+              {assetOptions.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+            <select name="type" defaultValue={type} className="h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="">All types</option>
+              <option value="etf">ETFs</option>
+              <option value="stock">Stocks</option>
+              <option value="crypto">Crypto references</option>
+              <option value="benchmark">Benchmarks</option>
+              <option value="other">Other</option>
+            </select>
+            <select name="sector" defaultValue={sector} className="h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="">All sectors/categories</option>
+              {sectorOptions.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
             <select name="tier" defaultValue={tier} className="h-10 rounded-md border bg-background px-3 text-sm">
               <option value="">All tiers</option>
               <option value="core_quality">Core Quality</option>
@@ -242,7 +311,7 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
               </Card>
             );
           })}
-        {rows.length === 0 ? (
+        {filteredRows.length === 0 ? (
           <Card>
             <CardContent className="p-4 text-sm text-muted-foreground">No watchlist instruments matched your filters.</CardContent>
           </Card>

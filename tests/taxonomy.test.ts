@@ -60,26 +60,33 @@ test("maps FMP stock sectors into canonical sectors", () => {
   assert.ok(result.canonicalThemes.includes("Financial Services"));
 });
 
-test("alpha universe contains the approved 204 ETF and 100 stock source-of-truth counts", () => {
-  assert.equal(ALPHA_ETF_SYMBOLS.length, 204);
-  assert.equal(new Set(ALPHA_ETF_SYMBOLS).size, 204);
-  assert.equal(ALPHA_STOCK_SYMBOLS.length, 100);
-  assert.equal(new Set(ALPHA_STOCK_SYMBOLS).size, 100);
+test("alpha universe contains the approved ETF and stock source-of-truth counts", () => {
+  assert.equal(ALPHA_ETF_SYMBOLS.length, 215);
+  assert.equal(new Set(ALPHA_ETF_SYMBOLS).size, 215);
+  assert.equal(ALPHA_STOCK_SYMBOLS.length, 105);
+  assert.equal(new Set(ALPHA_STOCK_SYMBOLS).size, 105);
 
   const etfCategoryCounts = Object.fromEntries(Object.entries(ALPHA_ETF_CATEGORIES).map(([category, symbols]) => [category, symbols.length]));
   assert.equal(etfCategoryCounts.US_BROAD_MARKET, 10);
   assert.equal(etfCategoryCounts.BOND, 15);
+  assert.equal(etfCategoryCounts.CASH_EQUIVALENT, 5);
+  assert.equal(etfCategoryCounts.CRYPTO_ETF, 5);
+  assert.equal(etfCategoryCounts.DIVIDEND, 11);
   assert.equal(etfCategoryCounts.INFRASTRUCTURE, 4);
   assert.equal(etfCategoryCounts.CLEAN_ENERGY, 4);
 
   const stockSectorCounts = Object.fromEntries(Object.entries(ALPHA_STOCK_SECTORS).map(([sector, symbols]) => [sector, symbols.length]));
-  assert.equal(stockSectorCounts.Technology, 20);
-  assert.equal(stockSectorCounts.Financials, 15);
+  assert.equal(stockSectorCounts.Technology, 23);
+  assert.equal(stockSectorCounts.Financials, 16);
+  assert.equal(stockSectorCounts.Industrials, 11);
   assert.equal(stockSectorCounts.Utilities, 1);
 });
 
 test("ETF product category is separate from portfolio sector taxonomy", () => {
   assert.equal(alphaEtfCategoryForSymbol("VOO"), "US_BROAD_MARKET");
+  assert.equal(alphaEtfCategoryForSymbol("VIG"), "DIVIDEND");
+  assert.equal(alphaEtfCategoryForSymbol("SHV"), "CASH_EQUIVALENT");
+  assert.equal(alphaEtfCategoryForSymbol("IBIT"), "CRYPTO_ETF");
 
   const result = taxonomy.normalize({
     symbol: "VOO",
@@ -96,6 +103,9 @@ test("ETF product category is separate from portfolio sector taxonomy", () => {
 
 test("stock sector taxonomy maps approved alpha stocks by symbol", () => {
   assert.equal(alphaStockSectorForSymbol("MSFT"), "Technology");
+  assert.equal(alphaStockSectorForSymbol("TSM"), "Technology");
   assert.equal(alphaStockSectorForSymbol("JPM"), "Financials");
+  assert.equal(alphaStockSectorForSymbol("PYPL"), "Financials");
+  assert.equal(alphaStockSectorForSymbol("BA"), "Industrials");
   assert.equal(alphaStockSectorForSymbol("NEE"), "Utilities");
 });

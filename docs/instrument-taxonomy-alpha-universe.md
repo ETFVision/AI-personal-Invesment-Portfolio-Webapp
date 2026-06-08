@@ -6,14 +6,15 @@ The Alpha instrument universe is now represented by ETFVision-owned taxonomy fie
 
 ## Source Of Truth
 
-- ETF universe: 204 approved ETFs in `src/domain/universe/alphaUniverse.ts`
-- Stock universe: 100 approved stocks in `src/domain/universe/alphaUniverse.ts`
+- ETF universe: 215 approved ETF-style products in `src/domain/universe/alphaUniverse.ts`
+- Stock universe: 105 approved stocks in `src/domain/universe/alphaUniverse.ts`
+- Crypto references: BTC, ETH and SOL are active raw crypto references for the Crypto universe. Crypto ETF proxies remain ETF-style products.
 - Provider categories from FMP remain raw metadata and are not the product taxonomy source of truth.
 
 ## Taxonomy Fields
 
 - `asset_category`: high-level calculation/listing category such as `EQUITY`, `BOND`, `COMMODITY`, `REAL_ESTATE`, `CASH`, `CRYPTO`, `MULTI_ASSET`, `UNKNOWN`.
-- `etf_category`: ETF product category such as `US_BROAD_MARKET`, `GLOBAL_EQUITY`, `TECHNOLOGY`, `BOND`, or `GOLD_PRECIOUS_METALS`.
+- `etf_category`: ETF product category such as `US_BROAD_MARKET`, `GLOBAL_EQUITY`, `TECHNOLOGY`, `BOND`, `CASH_EQUIVALENT`, `GOLD_PRECIOUS_METALS`, or `CRYPTO_ETF`.
 - `sector` / `canonical_sector`: stock sector taxonomy and broad instrument classification.
 
 ## Important Allocation Rule
@@ -33,6 +34,8 @@ Example: VOO is classified as `US_BROAD_MARKET` as an ETF product, but portfolio
 - Universe and Watchlist top-level grouping uses `asset_category`.
 - ETFs are subgrouped by `etf_category`.
 - Stocks are subgrouped by canonical sector.
+- Cash-equivalent ETFs are grouped under the Bond asset category with `CASH_EQUIVALENT` as the ETF product category.
+- Crypto ETF proxies and raw crypto references are grouped under the Crypto asset category.
 - Dashboard and Portfolio Review sector charts remain look-through exposure views, not ETF product-category views.
 
 ## Notes

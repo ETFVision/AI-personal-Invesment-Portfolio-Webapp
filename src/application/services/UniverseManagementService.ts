@@ -82,10 +82,10 @@ const legacySeededInstruments: InstrumentSeed[] = [
   cryptoEtf("FETH", "Fidelity Ethereum Fund", "Ethereum", "spot-ethereum", "Cboe BZX"),
   cryptoEtf("BSOL", "Bitwise Solana Staking ETF", "Solana", "spot-solana", "NYSE Arca"),
 
-  // Raw crypto references kept inactive by default; ETF proxies are the primary investable universe.
-  crypto("BTC", "Bitcoin", "Bitcoin", "store-of-value", "high", false),
-  crypto("ETH", "Ethereum", "Ethereum", "smart-contract", "high", false),
-  crypto("SOL", "Solana", "Solana", "smart-contract", "high", false),
+  // Raw crypto references are kept in the Crypto universe for market context; ETF proxies remain the primary investable coverage.
+  crypto("BTC", "Bitcoin", "Bitcoin", "store-of-value", "high", true),
+  crypto("ETH", "Ethereum", "Ethereum", "smart-contract", "high", true),
+  crypto("SOL", "Solana", "Solana", "smart-contract", "high", true),
 
   // Core quality watchlist stocks
   stock("AAPL", "Apple", "core_quality", ["quality", "technology"], "Technology", "Consumer Electronics", "United States", "USD", "NASDAQ"),
@@ -211,7 +211,10 @@ const bondProfiles = [
   bondProfile("LQD", "intermediate", "corporate", "investment grade", "US", "medium", "moderate negative", "negative", "income", "USD"),
   bondProfile("HYG", "short/intermediate", "high yield", "high yield", "US", "medium", "moderate", "negative", "income with credit risk", "USD"),
   bondProfile("SGOV", "ultra-short", "treasury", "government", "US", "low", "low", "positive", "cash-like stability", "USD"),
-  bondProfile("BIL", "ultra-short", "treasury", "government", "US", "low", "low", "positive", "cash-like stability", "USD")
+  bondProfile("BIL", "ultra-short", "treasury", "government", "US", "low", "low", "positive", "cash-like stability", "USD"),
+  bondProfile("SHV", "ultra-short", "treasury", "government", "US", "low", "low", "positive", "cash-like stability", "USD"),
+  bondProfile("GBIL", "ultra-short", "treasury", "government", "US", "low", "low", "positive", "cash-like stability", "USD"),
+  bondProfile("CLIP", "ultra-short", "treasury", "government", "US", "low", "low", "positive", "cash-like stability", "USD")
 ];
 
 const cryptoProfiles = [
@@ -300,22 +303,24 @@ function alphaEtf(symbol: string, etfCategory: EtfCategory): InstrumentSeed {
   const assetCategory = assetCategoryForEtfCategory(etfCategory);
   const isBond = assetCategory === "BOND";
   const isGold = etfCategory === "GOLD_PRECIOUS_METALS";
+  const isCrypto = etfCategory === "CRYPTO_ETF";
   return instrument(
     symbol,
     `${toTitleFromSymbol(symbol)} ETF`,
     isBond ? "bond_etf" : isGold ? "gold_etf" : "etf",
-    "etf",
+    isCrypto ? "crypto_etf" : "etf",
     etfCategory === "GLOBAL_EQUITY" ? "Global" : etfCategory === "DEVELOPED_MARKETS" || etfCategory === "EMERGING_MARKETS" || etfCategory === "INTERNATIONAL_DIVIDEND" || etfCategory === "COUNTRY" ? "International" : "United States",
     "USD",
     "US-listed",
     {
       assetCategory,
       etfCategory,
-      sector: isBond ? "Fixed Income" : isGold || etfCategory === "COMMODITY" ? "Commodities" : etfCategory === "REAL_ESTATE" ? "Real Estate" : "ETF",
-      industry: "ETF",
+      sector: isBond ? "Fixed Income" : isGold || etfCategory === "COMMODITY" ? "Commodities" : isCrypto ? "Digital Assets" : etfCategory === "REAL_ESTATE" ? "Real Estate" : "ETF",
+      industry: isCrypto ? "Crypto ETF" : "ETF",
       thematicTags: [categoryTheme(etfCategory)],
-      riskCategory: isBond ? "fixed_income" : isGold || etfCategory === "COMMODITY" ? "commodity" : etfCategory === "REAL_ESTATE" ? "real_estate" : "equity",
-      volatilityBucket: isBond ? "low" : "medium",
+      riskCategory: isBond ? "fixed_income" : isGold || etfCategory === "COMMODITY" ? "commodity" : isCrypto ? "crypto" : etfCategory === "REAL_ESTATE" ? "real_estate" : "equity",
+      volatilityBucket: isBond ? "low" : isCrypto ? "high" : "medium",
+      cryptoClassification: isCrypto ? "crypto-etf" : null,
       providerMetadata: {
         etfvision: {
           etfCategory,

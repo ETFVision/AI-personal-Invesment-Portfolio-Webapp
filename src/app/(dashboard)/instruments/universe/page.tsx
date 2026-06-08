@@ -13,7 +13,9 @@ type UniversePageProps = {
     refreshMessage?: string;
     refreshError?: string;
     q?: string;
+    asset?: string;
     type?: string;
+    sector?: string;
     status?: string;
   }>;
 };
@@ -22,10 +24,9 @@ function instrumentBucket(row: InstrumentMarketView) {
   const instrument = row.instrument;
   if (instrument.assetClass === "benchmark" || instrument.benchmarkTags.length > 0) return "benchmark";
   if (instrument.assetClass === "stock") return "stock";
-  if (instrument.assetClass === "bond_etf") return "bond_etf";
-  if (instrument.assetClass === "gold_etf") return "gold_etf";
-  if (instrument.assetClass === "crypto" || instrument.instrumentType === "crypto_etf") return "crypto";
-  return "etf";
+  if (instrument.assetClass === "crypto" && instrument.instrumentType !== "crypto_etf") return "crypto";
+  if (instrument.instrumentType.includes("etf") || instrument.assetClass.endsWith("_etf") || instrument.assetClass === "etf") return "etf";
+  return "other";
 }
 
 function sortRows(rows: InstrumentMarketView[]) {
@@ -94,13 +95,36 @@ function productCategoryTitle(key: string) {
   return ETF_CATEGORY_LABELS[key as keyof typeof ETF_CATEGORY_LABELS] ?? key.replaceAll("_", " ").toLowerCase();
 }
 
+function sectorFilterValue(row: InstrumentMarketView) {
+  if (row.instrument.assetClass === "stock") return row.instrument.canonicalSector ?? row.instrument.sector ?? "Unclassified";
+  if (instrumentBucket(row) === "etf") return row.instrument.etfCategory ?? (row.instrument.instrumentType === "crypto_etf" ? "CRYPTO_ETF" : "UNCATEGORIZED_ETF");
+  return row.instrument.canonicalSector ?? row.instrument.sector ?? row.instrument.assetCategory ?? "Unclassified";
+}
+
+function sectorFilterLabel(value: string) {
+  if (value === "UNCATEGORIZED_ETF") return "Uncategorized ETFs";
+  return ETF_CATEGORY_LABELS[value as keyof typeof ETF_CATEGORY_LABELS] ?? value;
+}
+
+function uniqueOptions(rows: InstrumentMarketView[], getValue: (row: InstrumentMarketView) => string | null | undefined, getLabel: (value: string) => string = (value) => value) {
+  const options = new Map<string, string>();
+  for (const row of rows) {
+    const value = getValue(row);
+    if (!value) continue;
+    options.set(value, getLabel(value));
+  }
+  return Array.from(options.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+}
+
 export default async function InstrumentUniversePage({ searchParams }: UniversePageProps) {
   const params = await searchParams;
   const container = createContainer();
   await container.authProvider.requireUser();
 
   const q = params?.q?.trim() ?? "";
+  const asset = params?.asset?.trim() ?? "";
   const type = params?.type?.trim() ?? "";
+  const sector = params?.sector?.trim() ?? "";
   const status = params?.status?.trim() ?? "";
   const instruments = await container.instrumentService.listInstruments({
     query: q || undefined,
@@ -111,7 +135,15 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
     container.fundamentalsRepository.listSummaryRows()
   ]);
   const fundamentalsByInstrumentId = new Map(fundamentalsRows.map((row) => [row.instrument.id, row]));
-  const filteredRows = type ? rows.filter((row) => instrumentBucket(row) === type) : rows;
+  const assetOptions = uniqueOptions(rows, (row) => row.instrument.assetCategory ?? "UNKNOWN", (value) => ASSET_CATEGORY_LABELS[value as keyof typeof ASSET_CATEGORY_LABELS] ?? value);
+  const rowsForSectorOptions = rows.filter((row) => (!asset || assetClassGroupKey(row) === asset) && (!type || instrumentBucket(row) === type));
+  const sectorOptions = uniqueOptions(rowsForSectorOptions, sectorFilterValue, sectorFilterLabel);
+  const filteredRows = rows.filter((row) => {
+    if (asset && assetClassGroupKey(row) !== asset) return false;
+    if (type && instrumentBucket(row) !== type) return false;
+    if (sector && sectorFilterValue(row) !== sector) return false;
+    return true;
+  });
   const groupedRows = groupByAssetClass(filteredRows);
 
   return (
@@ -142,16 +174,27 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
           <CardDescription>Directory filters keep the page tight. Instrument details live on `/instruments/[symbol]`.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form method="get" className="grid gap-3 md:grid-cols-4">
+          <form method="get" className="grid gap-3 md:grid-cols-6">
             <Input name="q" placeholder="Search symbol or name" defaultValue={q} />
+            <select name="asset" defaultValue={asset} className="h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="">All assets</option>
+              {assetOptions.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
             <select name="type" defaultValue={type} className="h-10 rounded-md border bg-background px-3 text-sm">
               <option value="">All types</option>
-              <option value="stock">Stocks</option>
               <option value="etf">ETFs</option>
-              <option value="bond_etf">Bond ETFs</option>
-              <option value="gold_etf">Gold ETFs</option>
-              <option value="crypto">Crypto</option>
+              <option value="stock">Stocks</option>
+              <option value="crypto">Crypto references</option>
               <option value="benchmark">Benchmarks</option>
+              <option value="other">Other</option>
+            </select>
+            <select name="sector" defaultValue={sector} className="h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="">All sectors/categories</option>
+              {sectorOptions.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
             <select name="status" defaultValue={status || "active"} className="h-10 rounded-md border bg-background px-3 text-sm">
               <option value="active">Active</option>
