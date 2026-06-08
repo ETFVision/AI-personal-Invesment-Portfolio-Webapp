@@ -45,7 +45,7 @@ test("portfolio price refresh is driven by the master instrument price refresh",
   assert.equal(result.metadata.portfolioPriceSync.storedCount, 1);
 });
 
-function instrument(symbol: string): Instrument {
+function instrument(symbol: string, overrides: Partial<Instrument> = {}): Instrument {
   return {
     id: `inst-${symbol}`,
     symbol,
@@ -82,7 +82,8 @@ function instrument(symbol: string): Instrument {
     providerPrimary: null,
     providerMetadata: {},
     sourceType: "seeded",
-    isActive: true
+    isActive: true,
+    ...overrides
   };
 }
 
@@ -117,4 +118,33 @@ test("instrument price refresh maps BRK.B to the FMP provider symbol BRK-B", asy
   assert.equal(result.updatedCount, 1);
   assert.equal(storedRows[0]?.instrumentId, "inst-BRK.B");
   assert.equal(storedRows[0]?.symbol, "BRK-B");
+});
+
+test("history coverage tracks crypto against a shorter 2Y target", async () => {
+  const stock = instrument("VOO", { assetClass: "etf", instrumentType: "etf", assetCategory: "EQUITY" });
+  const completeCryptoEtf = instrument("IBIT", { assetClass: "etf", instrumentType: "crypto_etf", assetCategory: "CRYPTO" });
+  const incompleteRawCrypto = instrument("BTC", { assetClass: "crypto", instrumentType: "crypto", assetCategory: "CRYPTO" });
+  const repository = {
+    async listInstrumentMarketMetrics() {
+      return [
+        { instrumentId: stock.id, historyStartDate: "2020-01-01" },
+        { instrumentId: completeCryptoEtf.id, historyStartDate: "2024-01-01" },
+        { instrumentId: incompleteRawCrypto.id, historyStartDate: "2025-01-01" }
+      ];
+    },
+    async listInstrumentPriceStats() {
+      return [];
+    }
+  } as unknown as UniverseRepository;
+  const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const coverage = await service.getHistoryCoverageSummary([stock, completeCryptoEtf, incompleteRawCrypto], 12);
+
+  assert.equal(coverage.totalEligible, 1);
+  assert.equal(coverage.completeFiveYear, 1);
+  assert.equal(coverage.cryptoEligible, 2);
+  assert.equal(coverage.completeTwoYearCrypto, 1);
+  assert.equal(coverage.missingTwoYearCrypto, 1);
+  assert.equal(coverage.estimatedBackfillClicks, 1);
 });

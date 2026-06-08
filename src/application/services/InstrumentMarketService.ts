@@ -23,7 +23,9 @@ export type InstrumentHistoryCoverageSummary = {
   completeThreeYear: number;
   missingThreeYear: number;
   oneYearOnly: number;
-  excludedCrypto: number;
+  cryptoEligible: number;
+  completeTwoYearCrypto: number;
+  missingTwoYearCrypto: number;
   estimatedBackfillClicks: number;
 };
 
@@ -78,9 +80,14 @@ function isStaleOrMissing(latestPriceDate: string | null, asOfDate: string) {
   return !latestPriceDate || latestPriceDate < asOfDate;
 }
 
-function needsLongHistoryBackfill(instrument: Instrument, earliestPriceDate: string | null, backfillStartDate: string) {
-  if (instrument.assetClass === "crypto" || instrument.instrumentType === "crypto_etf") return false;
-  return !earliestPriceDate || earliestPriceDate > daysAfterIso(backfillStartDate, 10);
+function needsLongHistoryBackfill(
+  instrument: Instrument,
+  earliestPriceDate: string | null,
+  backfillStartDate: string,
+  cryptoBackfillStartDate = daysAgoIso(730)
+) {
+  const targetStartDate = isCryptoHistoryExcluded(instrument) ? cryptoBackfillStartDate : backfillStartDate;
+  return !earliestPriceDate || earliestPriceDate > daysAfterIso(targetStartDate, 10);
 }
 
 function isCryptoHistoryExcluded(instrument: Instrument) {
@@ -173,13 +180,14 @@ export class InstrumentMarketService {
     const statsByInstrumentId = new Map(priceStats.map((item) => [item.instrumentId, item]));
     const refreshCutoff = latestExpectedEodDate();
     const backfillStartDate = daysAgoIso(lookbackDays);
+    const cryptoBackfillStartDate = daysAgoIso(Math.min(lookbackDays, 730));
     const symbols = uniqueSymbols(
       instruments
         .filter((instrument) => {
           const stats = statsByInstrumentId.get(instrument.id);
           return (
             isStaleOrMissing(stats?.latestPriceDate ?? null, refreshCutoff) ||
-            (includeBackfill && needsLongHistoryBackfill(instrument, stats?.earliestPriceDate ?? null, backfillStartDate))
+            (includeBackfill && needsLongHistoryBackfill(instrument, stats?.earliestPriceDate ?? null, backfillStartDate, cryptoBackfillStartDate))
           );
         })
         .slice()
@@ -189,8 +197,8 @@ export class InstrumentMarketService {
           const aNeedsRefresh = isStaleOrMissing(aStats?.latestPriceDate ?? null, refreshCutoff);
           const bNeedsRefresh = isStaleOrMissing(bStats?.latestPriceDate ?? null, refreshCutoff);
           if (aNeedsRefresh !== bNeedsRefresh) return aNeedsRefresh ? -1 : 1;
-          const aNeedsBackfill = includeBackfill && needsLongHistoryBackfill(a, aStats?.earliestPriceDate ?? null, backfillStartDate);
-          const bNeedsBackfill = includeBackfill && needsLongHistoryBackfill(b, bStats?.earliestPriceDate ?? null, backfillStartDate);
+          const aNeedsBackfill = includeBackfill && needsLongHistoryBackfill(a, aStats?.earliestPriceDate ?? null, backfillStartDate, cryptoBackfillStartDate);
+          const bNeedsBackfill = includeBackfill && needsLongHistoryBackfill(b, bStats?.earliestPriceDate ?? null, backfillStartDate, cryptoBackfillStartDate);
           if (aNeedsBackfill !== bNeedsBackfill) return aNeedsBackfill ? -1 : 1;
           const aCount = aStats?.observationCount ?? 0;
           const bCount = bStats?.observationCount ?? 0;
@@ -302,8 +310,9 @@ export class InstrumentMarketService {
             };
           }
           const stats = statsByInstrumentId.get(instrument.id);
-          const shouldBackfill = includeBackfill && needsLongHistoryBackfill(instrument, stats?.earliestPriceDate ?? null, defaultFrom);
-          const from = shouldBackfill ? defaultFrom : stats?.latestPriceDate ? daysBeforeIso(stats.latestPriceDate, 7) : defaultFrom;
+          const targetBackfillStart = isCryptoHistoryExcluded(instrument) ? cryptoBackfillStartDate : defaultFrom;
+          const shouldBackfill = includeBackfill && needsLongHistoryBackfill(instrument, stats?.earliestPriceDate ?? null, defaultFrom, cryptoBackfillStartDate);
+          const from = shouldBackfill ? targetBackfillStart : stats?.latestPriceDate ? daysBeforeIso(stats.latestPriceDate, 7) : targetBackfillStart;
         const quotes = await this.provider.getHistoricalPrices(symbol, from, to, { assetClass: instrument.assetClass });
         if (quotes.length === 0) {
             return { rows: [], missingSymbol: symbol, error: null };
@@ -527,15 +536,24 @@ export class InstrumentMarketService {
     const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
     const threeYearCompleteBy = daysAfterIso(yearsAgoIso(3), 10);
     const fiveYearCompleteBy = daysAfterIso(yearsAgoIso(5), 10);
+    const twoYearCryptoCompleteBy = daysAfterIso(yearsAgoIso(2), 10);
     let totalEligible = 0;
     let completeFiveYear = 0;
     let completeThreeYear = 0;
     let oneYearOnly = 0;
-    let excludedCrypto = 0;
+    let cryptoEligible = 0;
+    let completeTwoYearCrypto = 0;
 
     for (const instrument of activeInstruments) {
       if (isCryptoHistoryExcluded(instrument)) {
-        excludedCrypto += 1;
+        cryptoEligible += 1;
+        const earliestDate =
+          metricsByInstrumentId.get(instrument.id)?.historyStartDate ??
+          statsByInstrumentId.get(instrument.id)?.earliestPriceDate ??
+          null;
+        if (earliestDate && earliestDate <= twoYearCryptoCompleteBy) {
+          completeTwoYearCrypto += 1;
+        }
         continue;
       }
 
@@ -560,6 +578,7 @@ export class InstrumentMarketService {
 
     const missingFiveYear = Math.max(0, totalEligible - completeFiveYear);
     const missingThreeYear = Math.max(0, totalEligible - completeThreeYear);
+    const missingTwoYearCrypto = Math.max(0, cryptoEligible - completeTwoYearCrypto);
 
     return {
       totalEligible,
@@ -568,8 +587,10 @@ export class InstrumentMarketService {
       completeThreeYear,
       missingThreeYear,
       oneYearOnly,
-      excludedCrypto,
-      estimatedBackfillClicks: Math.ceil(missingFiveYear / Math.max(1, backfillBatchSize))
+      cryptoEligible,
+      completeTwoYearCrypto,
+      missingTwoYearCrypto,
+      estimatedBackfillClicks: Math.ceil((missingFiveYear + missingTwoYearCrypto) / Math.max(1, backfillBatchSize))
     };
   }
 
