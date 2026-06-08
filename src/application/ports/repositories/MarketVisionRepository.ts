@@ -40,6 +40,7 @@ export type UpsertMarketVisionReportInput = {
   tokenUsage?: Record<string, unknown>;
   costEstimate?: number | null;
   sourceSnapshot?: Record<string, unknown>;
+  marketVisionMetadata?: Record<string, unknown>;
   generationDurationMs?: number | null;
 };
 

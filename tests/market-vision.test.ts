@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MarketVisionService, emptyPortfolioImplications } from "../src/application/services/marketVision/MarketVisionService";
-import { MarketVisionGenerationService, normalizeGeneratedText, validateMarketVisionGenerationOutput } from "../src/application/services/marketVision/MarketVisionGenerationService";
+import { emptyMarketVisionMetadata, MarketVisionGenerationService, normalizeGeneratedText, validateMarketVisionGenerationOutput } from "../src/application/services/marketVision/MarketVisionGenerationService";
 import { MacroIndicatorService } from "../src/application/services/marketVision/MacroIndicatorService";
 import { MarketThemeService } from "../src/application/services/marketVision/MarketThemeService";
 import type {
@@ -78,6 +78,7 @@ class FakeMarketVisionRepository implements MarketVisionRepository {
       tokenUsage: input.tokenUsage ?? existing?.tokenUsage ?? {},
       costEstimate: input.costEstimate ?? existing?.costEstimate ?? null,
       sourceSnapshot: input.sourceSnapshot ?? existing?.sourceSnapshot ?? {},
+      marketVisionMetadata: (input.marketVisionMetadata as MarketVisionReport["marketVisionMetadata"] | undefined) ?? existing?.marketVisionMetadata ?? emptyMarketVisionMetadata(),
       generationDurationMs: input.generationDurationMs ?? existing?.generationDurationMs ?? null,
       createdAt: now,
       updatedAt: now
@@ -193,12 +194,65 @@ class FakeAiMarketVisionProvider implements AiMarketVisionProvider {
         ...emptyPortfolioImplications,
         riskImplication: "Concentration and volatility context should be monitored."
       },
+      marketVisionMetadata: marketVisionMetadataFixture(),
       confidenceScore: 78,
       tokenUsage: { input_tokens: 1000, output_tokens: 500 },
       costEstimate: 0.001,
       ...this.output
     };
   }
+}
+
+function marketVisionMetadataFixture(): MarketVisionReport["marketVisionMetadata"] {
+  return {
+    regimeScorecard: [
+      { label: "Growth", regime: "mixed", supportingIndicators: ["weekly growth evidence mixed"], confidence: "Medium", explanation: "Growth evidence is mixed." },
+      { label: "Inflation", regime: "cooling", supportingIndicators: ["inflation summary moderated"], confidence: "Medium", explanation: "Inflation evidence points to moderation." },
+      { label: "Rates", regime: "restrictive", supportingIndicators: ["rates remained restrictive"], confidence: "Medium", explanation: "Rates remain a central macro driver." },
+      { label: "Yield curve", regime: "mixed", supportingIndicators: ["stored curve inputs mixed"], confidence: "Low", explanation: "Curve evidence is limited." },
+      { label: "Liquidity", regime: "neutral", supportingIndicators: ["crypto quiet"], confidence: "Low", explanation: "Liquidity evidence is limited." },
+      { label: "USD", regime: "stable", supportingIndicators: ["USD was stable"], confidence: "Medium", explanation: "USD evidence is stable." },
+      { label: "Commodities", regime: "mixed", supportingIndicators: ["gold reacted to uncertainty"], confidence: "Medium", explanation: "Commodity evidence is mixed." },
+      { label: "Overall market", regime: "balanced", supportingIndicators: ["mixed cross-asset signals"], confidence: "Medium", explanation: "Overall evidence points to balance." }
+    ],
+    evidencePanels: [
+      { section: "Equity Market View", view: "Mixed", confidence: "Medium", supportingIndicators: ["technology leadership"], conflictingIndicators: ["macro uncertainty"], evidenceGaps: [] },
+      { section: "Bond Market View", view: "Neutral", confidence: "Medium", supportingIndicators: ["rates shaped bonds"], conflictingIndicators: [], evidenceGaps: [] },
+      { section: "Gold / Commodities View", view: "Mixed", confidence: "Medium", supportingIndicators: ["gold reacted to macro uncertainty"], conflictingIndicators: [], evidenceGaps: [] },
+      { section: "Crypto Market View", view: "Neutral", confidence: "Low", supportingIndicators: ["crypto quiet"], conflictingIndicators: [], evidenceGaps: ["Limited crypto evidence."] },
+      { section: "Interest Rates", view: "Cautious", confidence: "Medium", supportingIndicators: ["rates restrictive"], conflictingIndicators: [], evidenceGaps: [] },
+      { section: "Inflation", view: "Mixed", confidence: "Medium", supportingIndicators: ["inflation moderated"], conflictingIndicators: [], evidenceGaps: [] },
+      { section: "Growth", view: "Mixed", confidence: "Low", supportingIndicators: ["growth mixed"], conflictingIndicators: [], evidenceGaps: ["Limited growth evidence."] },
+      { section: "Employment", view: "Neutral", confidence: "Low", supportingIndicators: [], conflictingIndicators: [], evidenceGaps: ["Limited employment evidence."] },
+      { section: "USD", view: "Neutral", confidence: "Medium", supportingIndicators: ["USD stable"], conflictingIndicators: [], evidenceGaps: [] },
+      { section: "Geopolitical Risks", view: "Cautious", confidence: "Medium", supportingIndicators: ["geopolitical risks persisted"], conflictingIndicators: [], evidenceGaps: [] }
+    ],
+    structuralThemes: [{ name: "AI infrastructure", evidence: ["AI theme visible"], persistence: "long", confidence: "Medium" }],
+    tacticalThemes: [{ name: "restrictive rates", evidence: ["rates remained restrictive"], persistence: "short", confidence: "Medium" }],
+    keyWatchItems: ["Inflation persistence", "Technology concentration"],
+    evidenceGaps: ["Employment evidence is limited."],
+    telemetryMetadata: {
+      overallRegime: "balanced",
+      growthRegime: "mixed",
+      inflationRegime: "cooling",
+      ratesRegime: "restrictive",
+      liquidityRegime: "neutral",
+      usdRegime: "stable",
+      commoditiesRegime: "mixed",
+      equityView: "Mixed",
+      equityConfidence: "Medium",
+      bondView: "Neutral",
+      bondConfidence: "Medium",
+      goldView: "Mixed",
+      goldConfidence: "Medium",
+      cryptoView: "Neutral",
+      cryptoConfidence: "Low",
+      keyWatchItems: ["Inflation persistence", "Technology concentration"],
+      structuralThemes: ["AI infrastructure"],
+      tacticalThemes: ["restrictive rates"],
+      evidenceGaps: ["Employment evidence is limited."]
+    }
+  };
 }
 
 class FailingAiMarketVisionProvider implements AiMarketVisionProvider {
@@ -398,8 +452,27 @@ test("AI Market Vision generation creates a generated draft with usage metadata"
   assert.equal(report.growthView, "Growth signals are mixed.");
   assert.equal(report.confidenceScore, 78);
   assert.equal(report.costEstimate, 0.001);
+  assert.equal(report.marketVisionMetadata.regimeScorecard[0]?.label, "Growth");
+  assert.equal(report.marketVisionMetadata.evidencePanels.every((panel) => Boolean(panel.confidence)), true);
+  assert.equal(report.marketVisionMetadata.telemetryMetadata.overallRegime, "balanced");
+  assert.equal(typeof report.marketVisionMetadata.telemetryMetadata.visionId, "string");
+  assert.equal(typeof report.marketVisionMetadata.telemetryMetadata.generatedAt, "string");
   assert.equal(repository.logs[0]?.status, "success");
   assert.equal(ai.calls.length, 1);
+});
+
+test("AI Market Vision validation provides structured metadata defaults and evidence gaps", () => {
+  const validated = validateMarketVisionGenerationOutput({
+    title: "Sparse report",
+    executiveSummary: "Evidence is limited.",
+    portfolioImplications: {},
+    confidenceScore: 20
+  });
+
+  assert.equal(validated.marketVisionMetadata.regimeScorecard.length, 8);
+  assert.equal(validated.marketVisionMetadata.evidencePanels.length, 10);
+  assert.equal(validated.marketVisionMetadata.evidenceGaps[0], "Evidence is limited.");
+  assert.equal(validated.marketVisionMetadata.telemetryMetadata.equityConfidence, "Low");
 });
 
 test("AI Market Vision validation normalizes smart and mojibake punctuation", () => {

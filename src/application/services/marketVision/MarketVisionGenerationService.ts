@@ -2,10 +2,19 @@ import type { AiMarketVisionOutput, AiMarketVisionProvider } from "@/application
 import type { MacroIndicatorRepository } from "@/application/ports/repositories/MacroIndicatorRepository";
 import type { MarketVisionRepository } from "@/application/ports/repositories/MarketVisionRepository";
 import type { NewsRepository } from "@/application/ports/repositories/NewsRepository";
+import type {
+  MarketVisionConfidenceLevel,
+  MarketVisionEvidencePanel,
+  MarketVisionMetadata,
+  MarketVisionRegimeEntry,
+  MarketVisionTelemetryMetadata,
+  MarketVisionThemeSummary,
+  MarketVisionViewLabel
+} from "@/domain/marketVision/types";
 import type { PortfolioDashboard } from "@/domain/portfolio/types";
 import { emptyPortfolioImplications } from "./MarketVisionService";
 
-export const MARKET_VISION_PROMPT_VERSION = "market-vision-v1";
+export const MARKET_VISION_PROMPT_VERSION = "market-vision-v2";
 
 type OptionalPortfolioServices = {
   getPortfolioDashboard?: (portfolioId: string) => Promise<PortfolioDashboard>;
@@ -21,10 +30,159 @@ function toStringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, 8) : [];
 }
 
+function toLongStringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, 16) : [];
+}
+
 function toScore(value: unknown) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return 50;
   return Math.max(0, Math.min(100, Math.round(numeric)));
+}
+
+const confidenceLevels = new Set(["High", "Medium", "Low"]);
+const viewLabels = new Set(["Constructive", "Mixed", "Cautious", "Defensive", "Neutral"]);
+
+function toConfidence(value: unknown): MarketVisionConfidenceLevel {
+  return confidenceLevels.has(String(value)) ? String(value) as MarketVisionConfidenceLevel : "Low";
+}
+
+function toView(value: unknown): MarketVisionViewLabel | string {
+  const label = String(value ?? "Mixed").trim();
+  return viewLabels.has(label) ? label as MarketVisionViewLabel : label || "Mixed";
+}
+
+function toRegimeEntry(value: unknown, fallbackLabel: string): MarketVisionRegimeEntry {
+  const row = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
+  return {
+    label: toString(row.label, fallbackLabel),
+    regime: toString(row.regime, "mixed"),
+    supportingIndicators: toLongStringArray(row.supportingIndicators),
+    confidence: toConfidence(row.confidence),
+    explanation: toString(row.explanation, "Evidence is limited. This should be treated as context rather than a strong conclusion.")
+  };
+}
+
+function toEvidencePanel(value: unknown, fallbackSection: string): MarketVisionEvidencePanel {
+  const row = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
+  const supportingIndicators = toLongStringArray(row.supportingIndicators);
+  const evidenceGaps = toLongStringArray(row.evidenceGaps);
+  return {
+    section: toString(row.section, fallbackSection),
+    view: toView(row.view),
+    confidence: toConfidence(row.confidence),
+    supportingIndicators,
+    conflictingIndicators: toLongStringArray(row.conflictingIndicators),
+    evidenceGaps: evidenceGaps.length > 0 || supportingIndicators.length > 0 ? evidenceGaps : ["Evidence is limited."]
+  };
+}
+
+function toThemeSummary(value: unknown): MarketVisionThemeSummary {
+  const row = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
+  return {
+    name: toString(row.name, "Unspecified theme"),
+    evidence: toLongStringArray(row.evidence),
+    persistence: toString(row.persistence, "medium"),
+    confidence: toConfidence(row.confidence)
+  };
+}
+
+function emptyTelemetryMetadata(): MarketVisionTelemetryMetadata {
+  return {
+    overallRegime: "mixed",
+    growthRegime: "mixed",
+    inflationRegime: "mixed",
+    ratesRegime: "mixed",
+    liquidityRegime: "mixed",
+    usdRegime: "mixed",
+    commoditiesRegime: "mixed",
+    equityView: "Mixed",
+    equityConfidence: "Low",
+    bondView: "Mixed",
+    bondConfidence: "Low",
+    goldView: "Mixed",
+    goldConfidence: "Low",
+    cryptoView: "Mixed",
+    cryptoConfidence: "Low",
+    keyWatchItems: [],
+    structuralThemes: [],
+    tacticalThemes: [],
+    evidenceGaps: ["Evidence is limited."]
+  };
+}
+
+export function emptyMarketVisionMetadata(): MarketVisionMetadata {
+  return {
+    regimeScorecard: [
+      "Growth",
+      "Inflation",
+      "Rates",
+      "Yield curve",
+      "Liquidity",
+      "USD",
+      "Commodities",
+      "Overall market"
+    ].map((label) => toRegimeEntry({}, label)),
+    evidencePanels: [
+      "Equity Market View",
+      "Bond Market View",
+      "Gold / Commodities View",
+      "Crypto Market View",
+      "Interest Rates",
+      "Inflation",
+      "Growth",
+      "Employment",
+      "USD",
+      "Geopolitical Risks"
+    ].map((section) => toEvidencePanel({}, section)),
+    structuralThemes: [],
+    tacticalThemes: [],
+    keyWatchItems: [],
+    evidenceGaps: ["Evidence is limited."],
+    telemetryMetadata: emptyTelemetryMetadata()
+  };
+}
+
+function toMarketVisionMetadata(value: unknown): MarketVisionMetadata {
+  const row = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
+  const fallback = emptyMarketVisionMetadata();
+  const telemetryRow = typeof row.telemetryMetadata === "object" && row.telemetryMetadata !== null
+    ? row.telemetryMetadata as Record<string, unknown>
+    : {};
+  const telemetryFallback = fallback.telemetryMetadata;
+  return {
+    regimeScorecard: Array.isArray(row.regimeScorecard) && row.regimeScorecard.length > 0
+      ? row.regimeScorecard.map((item, index) => toRegimeEntry(item, fallback.regimeScorecard[index]?.label ?? "Regime"))
+      : fallback.regimeScorecard,
+    evidencePanels: Array.isArray(row.evidencePanels) && row.evidencePanels.length > 0
+      ? row.evidencePanels.map((item, index) => toEvidencePanel(item, fallback.evidencePanels[index]?.section ?? "Market View"))
+      : fallback.evidencePanels,
+    structuralThemes: Array.isArray(row.structuralThemes) ? row.structuralThemes.map(toThemeSummary).slice(0, 8) : [],
+    tacticalThemes: Array.isArray(row.tacticalThemes) ? row.tacticalThemes.map(toThemeSummary).slice(0, 8) : [],
+    keyWatchItems: toLongStringArray(row.keyWatchItems),
+    evidenceGaps: toLongStringArray(row.evidenceGaps).length > 0 ? toLongStringArray(row.evidenceGaps) : fallback.evidenceGaps,
+    telemetryMetadata: {
+      overallRegime: toString(telemetryRow.overallRegime, telemetryFallback.overallRegime),
+      growthRegime: toString(telemetryRow.growthRegime, telemetryFallback.growthRegime),
+      inflationRegime: toString(telemetryRow.inflationRegime, telemetryFallback.inflationRegime),
+      ratesRegime: toString(telemetryRow.ratesRegime, telemetryFallback.ratesRegime),
+      liquidityRegime: toString(telemetryRow.liquidityRegime, telemetryFallback.liquidityRegime),
+      usdRegime: toString(telemetryRow.usdRegime, telemetryFallback.usdRegime),
+      commoditiesRegime: toString(telemetryRow.commoditiesRegime, telemetryFallback.commoditiesRegime),
+      equityView: toString(telemetryRow.equityView, telemetryFallback.equityView),
+      equityConfidence: toConfidence(telemetryRow.equityConfidence),
+      bondView: toString(telemetryRow.bondView, telemetryFallback.bondView),
+      bondConfidence: toConfidence(telemetryRow.bondConfidence),
+      goldView: toString(telemetryRow.goldView, telemetryFallback.goldView),
+      goldConfidence: toConfidence(telemetryRow.goldConfidence),
+      cryptoView: toString(telemetryRow.cryptoView, telemetryFallback.cryptoView),
+      cryptoConfidence: toConfidence(telemetryRow.cryptoConfidence),
+      keyWatchItems: toLongStringArray(telemetryRow.keyWatchItems),
+      structuralThemes: toLongStringArray(telemetryRow.structuralThemes),
+      tacticalThemes: toLongStringArray(telemetryRow.tacticalThemes),
+      evidenceGaps: toLongStringArray(telemetryRow.evidenceGaps).length > 0 ? toLongStringArray(telemetryRow.evidenceGaps) : fallback.evidenceGaps
+    }
+  };
 }
 
 function roundedPercent(value: number) {
@@ -72,13 +230,15 @@ function allText(output: AiMarketVisionOutput) {
     output.geopoliticalOutlook,
     ...output.keyRisks,
     ...output.keyOpportunities,
-    ...Object.values(output.portfolioImplications)
+    ...Object.values(output.portfolioImplications),
+    ...output.marketVisionMetadata.keyWatchItems,
+    ...output.marketVisionMetadata.evidenceGaps
   ].join(" ").toLowerCase();
 }
 
 function assertNoRecommendations(output: AiMarketVisionOutput) {
   const text = allText(output);
-  const prohibited = /\b(buy|sell|trim|add to|increase allocation|decrease allocation|overweight|underweight|rebalance into|rotate into)\b/;
+  const prohibited = /\b(buy|sell|trim|add to|hold recommendation|reduce position|reduce allocation|increase allocation|decrease allocation|overweight|underweight|rebalance into|rotate into)\b/;
   if (prohibited.test(text)) {
     throw new Error("AI Market Vision output contained recommendation language and was not saved.");
   }
@@ -172,7 +332,8 @@ function removeUnsupportedExposureClaims(output: AiMarketVisionOutput, exposureF
       cryptoImplication: patchText(output.portfolioImplications.cryptoImplication),
       cashImplication: patchText(output.portfolioImplications.cashImplication),
       riskImplication: patchText(output.portfolioImplications.riskImplication)
-    }
+    },
+    marketVisionMetadata: output.marketVisionMetadata
   };
 }
 
@@ -198,6 +359,7 @@ export function validateMarketVisionGenerationOutput(input: unknown): AiMarketVi
     keyRisks: toStringArray(row.keyRisks),
     keyOpportunities: toStringArray(row.keyOpportunities),
     portfolioImplications: toPortfolioImplications(row.portfolioImplications),
+    marketVisionMetadata: toMarketVisionMetadata(row.marketVisionMetadata),
     confidenceScore: toScore(row.confidenceScore),
     tokenUsage: {},
     costEstimate: null
@@ -291,6 +453,63 @@ function portfolioSnapshot(dashboard: PortfolioDashboard | null) {
   };
 }
 
+function evidencePack(input: {
+  weekly: {
+    equitiesSummary: string;
+    bondsSummary: string;
+    goldSummary: string;
+    cryptoSummary: string;
+    macroSummary: string;
+    ratesSummary: string;
+    inflationSummary: string;
+    currencySummary: string;
+    geopoliticalSummary: string;
+    keyRisks: string[];
+    keyOpportunities: string[];
+    coverageMetadata: Record<string, unknown>;
+  };
+  macroDashboard: { latestRegime?: unknown; indicators?: unknown[] };
+  macroSignals: Array<{
+    theme: string;
+    direction: string;
+    regimeLabel: string;
+    severityScore: number;
+    persistenceScore: number;
+    confidenceScore: number;
+    explanation: string;
+  }>;
+}) {
+  const themeSummaries = Array.isArray(input.weekly.coverageMetadata.themeSummaries)
+    ? input.weekly.coverageMetadata.themeSummaries
+    : [];
+  return {
+    instruction: "Use these structured inputs as the source of truth. If a section has weak or missing evidence, mark confidence Low and include an evidence gap. Do not invent regimes or unsupported conclusions.",
+    regimeInputs: {
+      latestRegime: input.macroDashboard.latestRegime ?? null,
+      macroSignals: input.macroSignals
+    },
+    weeklyNewsEvidence: {
+      equities: input.weekly.equitiesSummary,
+      bonds: input.weekly.bondsSummary,
+      gold: input.weekly.goldSummary,
+      crypto: input.weekly.cryptoSummary,
+      macro: input.weekly.macroSummary,
+      rates: input.weekly.ratesSummary,
+      inflation: input.weekly.inflationSummary,
+      currency: input.weekly.currencySummary,
+      geopolitical: input.weekly.geopoliticalSummary,
+      risks: input.weekly.keyRisks,
+      opportunitiesToMonitor: input.weekly.keyOpportunities,
+      themeSummaries
+    },
+    requiredEvidenceDiscipline: [
+      "Every major view needs supporting indicators, conflicting indicators, confidence and evidence gaps.",
+      "Use Low confidence when evidence is thin, stale, missing, or conflicting.",
+      "Portfolio Context must explain relevance only and never recommend trades or allocation changes."
+    ]
+  };
+}
+
 export class MarketVisionGenerationService {
   constructor(
     private readonly marketVisionRepository: MarketVisionRepository,
@@ -340,8 +559,35 @@ export class MarketVisionGenerationService {
     ]);
 
     const exposureFlags = portfolioExposureFlags(dashboard);
+    const structuredEvidencePack = evidencePack({
+      weekly: {
+        equitiesSummary: weekly.equitiesSummary ?? "",
+        bondsSummary: weekly.bondsSummary ?? "",
+        goldSummary: weekly.goldSummary ?? "",
+        cryptoSummary: weekly.cryptoSummary ?? "",
+        macroSummary: weekly.macroSummary ?? "",
+        ratesSummary: weekly.ratesSummary ?? "",
+        inflationSummary: weekly.inflationSummary ?? "",
+        currencySummary: weekly.currencySummary ?? "",
+        geopoliticalSummary: weekly.geopoliticalSummary ?? "",
+        keyRisks: weekly.keyRisks,
+        keyOpportunities: weekly.keyOpportunities,
+        coverageMetadata: weekly.coverageMetadata
+      },
+      macroDashboard,
+      macroSignals: macroSignals.map((signal) => ({
+        theme: signal.theme,
+        direction: signal.direction,
+        regimeLabel: signal.regimeLabel,
+        severityScore: signal.severityScore,
+        persistenceScore: signal.persistenceScore,
+        confidenceScore: signal.confidenceScore,
+        explanation: signal.explanation
+      }))
+    });
     const sourceSnapshot = {
       promptVersion: MARKET_VISION_PROMPT_VERSION,
+      structuredEvidencePack,
       weeklyReconciliation: {
         id: weekly.id,
         periodStart,
@@ -388,6 +634,14 @@ export class MarketVisionGenerationService {
       }), exposureFlags);
       const completedAt = new Date();
       const duration = completedAt.getTime() - startedAt.getTime();
+      const marketVisionMetadata: MarketVisionMetadata = {
+        ...aiOutput.marketVisionMetadata,
+        telemetryMetadata: {
+          ...aiOutput.marketVisionMetadata.telemetryMetadata,
+          visionId: aiOutput.marketVisionMetadata.telemetryMetadata.visionId ?? crypto.randomUUID(),
+          generatedAt: completedAt.toISOString()
+        }
+      };
       const report = await this.marketVisionRepository.upsertReport({
         reportDate: periodEnd,
         reportPeriodStart: periodStart,
@@ -417,6 +671,7 @@ export class MarketVisionGenerationService {
         tokenUsage: aiOutput.tokenUsage ?? {},
         costEstimate: aiOutput.costEstimate ?? null,
         sourceSnapshot,
+        marketVisionMetadata,
         generationDurationMs: duration
       });
       await this.marketVisionRepository.insertGenerationLog({

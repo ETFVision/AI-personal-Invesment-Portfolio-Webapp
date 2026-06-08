@@ -33,6 +33,7 @@ const marketVisionJsonSchema = {
     "keyRisks",
     "keyOpportunities",
     "portfolioImplications",
+    "marketVisionMetadata",
     "confidenceScore"
   ],
   properties: {
@@ -74,6 +75,128 @@ const marketVisionJsonSchema = {
         cashImplication: { type: "string" },
         riskImplication: { type: "string" },
         watchlistImplication: { type: "string" }
+      }
+    },
+    marketVisionMetadata: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "regimeScorecard",
+        "evidencePanels",
+        "structuralThemes",
+        "tacticalThemes",
+        "keyWatchItems",
+        "evidenceGaps",
+        "telemetryMetadata"
+      ],
+      properties: {
+        regimeScorecard: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["label", "regime", "supportingIndicators", "confidence", "explanation"],
+            properties: {
+              label: { type: "string" },
+              regime: { type: "string" },
+              supportingIndicators: { type: "array", items: { type: "string" } },
+              confidence: { type: "string", enum: ["High", "Medium", "Low"] },
+              explanation: { type: "string" }
+            }
+          }
+        },
+        evidencePanels: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["section", "view", "confidence", "supportingIndicators", "conflictingIndicators", "evidenceGaps"],
+            properties: {
+              section: { type: "string" },
+              view: { type: "string" },
+              confidence: { type: "string", enum: ["High", "Medium", "Low"] },
+              supportingIndicators: { type: "array", items: { type: "string" } },
+              conflictingIndicators: { type: "array", items: { type: "string" } },
+              evidenceGaps: { type: "array", items: { type: "string" } }
+            }
+          }
+        },
+        structuralThemes: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["name", "evidence", "persistence", "confidence"],
+            properties: {
+              name: { type: "string" },
+              evidence: { type: "array", items: { type: "string" } },
+              persistence: { type: "string" },
+              confidence: { type: "string", enum: ["High", "Medium", "Low"] }
+            }
+          }
+        },
+        tacticalThemes: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["name", "evidence", "persistence", "confidence"],
+            properties: {
+              name: { type: "string" },
+              evidence: { type: "array", items: { type: "string" } },
+              persistence: { type: "string" },
+              confidence: { type: "string", enum: ["High", "Medium", "Low"] }
+            }
+          }
+        },
+        keyWatchItems: { type: "array", items: { type: "string" } },
+        evidenceGaps: { type: "array", items: { type: "string" } },
+        telemetryMetadata: {
+          type: "object",
+          additionalProperties: false,
+          required: [
+            "overallRegime",
+            "growthRegime",
+            "inflationRegime",
+            "ratesRegime",
+            "liquidityRegime",
+            "usdRegime",
+            "commoditiesRegime",
+            "equityView",
+            "equityConfidence",
+            "bondView",
+            "bondConfidence",
+            "goldView",
+            "goldConfidence",
+            "cryptoView",
+            "cryptoConfidence",
+            "keyWatchItems",
+            "structuralThemes",
+            "tacticalThemes",
+            "evidenceGaps"
+          ],
+          properties: {
+            overallRegime: { type: "string" },
+            growthRegime: { type: "string" },
+            inflationRegime: { type: "string" },
+            ratesRegime: { type: "string" },
+            liquidityRegime: { type: "string" },
+            usdRegime: { type: "string" },
+            commoditiesRegime: { type: "string" },
+            equityView: { type: "string" },
+            equityConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
+            bondView: { type: "string" },
+            bondConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
+            goldView: { type: "string" },
+            goldConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
+            cryptoView: { type: "string" },
+            cryptoConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
+            keyWatchItems: { type: "array", items: { type: "string" } },
+            structuralThemes: { type: "array", items: { type: "string" } },
+            tacticalThemes: { type: "array", items: { type: "string" } },
+            evidenceGaps: { type: "array", items: { type: "string" } }
+          }
+        }
       }
     },
     confidenceScore: { type: "number", minimum: 0, maximum: 100 }

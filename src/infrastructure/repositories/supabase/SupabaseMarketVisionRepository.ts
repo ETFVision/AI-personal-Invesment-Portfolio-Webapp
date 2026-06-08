@@ -1,6 +1,7 @@
 import type {
   MacroIndicator,
   MarketVisionGenerationLog,
+  MarketVisionMetadata,
   MarketThemeEvent,
   MarketVisionReport,
   PortfolioImplications
@@ -46,6 +47,42 @@ function mapPortfolioImplications(value: unknown): PortfolioImplications {
   };
 }
 
+function mapMarketVisionMetadata(value: unknown): MarketVisionMetadata {
+  const row = typeof value === "object" && value !== null ? value as Partial<MarketVisionMetadata> : {};
+  const telemetry = typeof row.telemetryMetadata === "object" && row.telemetryMetadata !== null
+    ? row.telemetryMetadata
+    : {};
+  return {
+    regimeScorecard: Array.isArray(row.regimeScorecard) ? row.regimeScorecard as MarketVisionMetadata["regimeScorecard"] : [],
+    evidencePanels: Array.isArray(row.evidencePanels) ? row.evidencePanels as MarketVisionMetadata["evidencePanels"] : [],
+    structuralThemes: Array.isArray(row.structuralThemes) ? row.structuralThemes as MarketVisionMetadata["structuralThemes"] : [],
+    tacticalThemes: Array.isArray(row.tacticalThemes) ? row.tacticalThemes as MarketVisionMetadata["tacticalThemes"] : [],
+    keyWatchItems: toStringArray(row.keyWatchItems),
+    evidenceGaps: toStringArray(row.evidenceGaps),
+    telemetryMetadata: {
+      overallRegime: String((telemetry as Record<string, unknown>).overallRegime ?? ""),
+      growthRegime: String((telemetry as Record<string, unknown>).growthRegime ?? ""),
+      inflationRegime: String((telemetry as Record<string, unknown>).inflationRegime ?? ""),
+      ratesRegime: String((telemetry as Record<string, unknown>).ratesRegime ?? ""),
+      liquidityRegime: String((telemetry as Record<string, unknown>).liquidityRegime ?? ""),
+      usdRegime: String((telemetry as Record<string, unknown>).usdRegime ?? ""),
+      commoditiesRegime: String((telemetry as Record<string, unknown>).commoditiesRegime ?? ""),
+      equityView: String((telemetry as Record<string, unknown>).equityView ?? ""),
+      equityConfidence: ((telemetry as Record<string, unknown>).equityConfidence as MarketVisionMetadata["telemetryMetadata"]["equityConfidence"]) ?? "Low",
+      bondView: String((telemetry as Record<string, unknown>).bondView ?? ""),
+      bondConfidence: ((telemetry as Record<string, unknown>).bondConfidence as MarketVisionMetadata["telemetryMetadata"]["bondConfidence"]) ?? "Low",
+      goldView: String((telemetry as Record<string, unknown>).goldView ?? ""),
+      goldConfidence: ((telemetry as Record<string, unknown>).goldConfidence as MarketVisionMetadata["telemetryMetadata"]["goldConfidence"]) ?? "Low",
+      cryptoView: String((telemetry as Record<string, unknown>).cryptoView ?? ""),
+      cryptoConfidence: ((telemetry as Record<string, unknown>).cryptoConfidence as MarketVisionMetadata["telemetryMetadata"]["cryptoConfidence"]) ?? "Low",
+      keyWatchItems: toStringArray((telemetry as Record<string, unknown>).keyWatchItems),
+      structuralThemes: toStringArray((telemetry as Record<string, unknown>).structuralThemes),
+      tacticalThemes: toStringArray((telemetry as Record<string, unknown>).tacticalThemes),
+      evidenceGaps: toStringArray((telemetry as Record<string, unknown>).evidenceGaps)
+    }
+  };
+}
+
 function mapReport(row: any): MarketVisionReport {
   const summary = row.classification_summary ?? {};
   return {
@@ -82,6 +119,7 @@ function mapReport(row: any): MarketVisionReport {
     tokenUsage: row.token_usage ?? {},
     costEstimate: row.cost_estimate == null ? null : Number(row.cost_estimate),
     sourceSnapshot: row.source_snapshot ?? {},
+    marketVisionMetadata: mapMarketVisionMetadata(row.market_vision_metadata),
     generationDurationMs: row.generation_duration_ms == null ? null : Number(row.generation_duration_ms),
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -176,6 +214,7 @@ function reportPayload(input: UpsertMarketVisionReportInput) {
     token_usage: input.tokenUsage,
     cost_estimate: input.costEstimate,
     source_snapshot: input.sourceSnapshot,
+    market_vision_metadata: input.marketVisionMetadata,
     generation_duration_ms: input.generationDurationMs
   };
   return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));

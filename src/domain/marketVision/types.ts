@@ -12,6 +12,67 @@ export type PortfolioImplications = {
   watchlistImplication: string;
 };
 
+export type MarketVisionConfidenceLevel = "High" | "Medium" | "Low";
+export type MarketVisionViewLabel = "Constructive" | "Mixed" | "Cautious" | "Defensive" | "Neutral";
+
+export type MarketVisionRegimeEntry = {
+  label: string;
+  regime: string;
+  supportingIndicators: string[];
+  confidence: MarketVisionConfidenceLevel;
+  explanation: string;
+};
+
+export type MarketVisionEvidencePanel = {
+  section: string;
+  view: MarketVisionViewLabel | string;
+  confidence: MarketVisionConfidenceLevel;
+  supportingIndicators: string[];
+  conflictingIndicators: string[];
+  evidenceGaps: string[];
+};
+
+export type MarketVisionThemeSummary = {
+  name: string;
+  evidence: string[];
+  persistence: "short" | "medium" | "long" | string;
+  confidence: MarketVisionConfidenceLevel;
+};
+
+export type MarketVisionTelemetryMetadata = {
+  visionId?: string;
+  generatedAt?: string;
+  overallRegime: string;
+  growthRegime: string;
+  inflationRegime: string;
+  ratesRegime: string;
+  liquidityRegime: string;
+  usdRegime: string;
+  commoditiesRegime: string;
+  equityView: string;
+  equityConfidence: MarketVisionConfidenceLevel;
+  bondView: string;
+  bondConfidence: MarketVisionConfidenceLevel;
+  goldView: string;
+  goldConfidence: MarketVisionConfidenceLevel;
+  cryptoView: string;
+  cryptoConfidence: MarketVisionConfidenceLevel;
+  keyWatchItems: string[];
+  structuralThemes: string[];
+  tacticalThemes: string[];
+  evidenceGaps: string[];
+};
+
+export type MarketVisionMetadata = {
+  regimeScorecard: MarketVisionRegimeEntry[];
+  evidencePanels: MarketVisionEvidencePanel[];
+  structuralThemes: MarketVisionThemeSummary[];
+  tacticalThemes: MarketVisionThemeSummary[];
+  keyWatchItems: string[];
+  evidenceGaps: string[];
+  telemetryMetadata: MarketVisionTelemetryMetadata;
+};
+
 export type ClassificationSummary = {
   shortTermNoise: number;
   mediumTermThemes: number;
@@ -48,6 +109,7 @@ export type MarketVisionReport = {
   tokenUsage: Record<string, unknown>;
   costEstimate: number | null;
   sourceSnapshot: Record<string, unknown>;
+  marketVisionMetadata: MarketVisionMetadata;
   generationDurationMs: number | null;
   createdAt: string;
   updatedAt: string;

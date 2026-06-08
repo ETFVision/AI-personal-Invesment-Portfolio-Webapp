@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { NewsSummaryEligibilityService } from "@/application/services/news/NewsSummaryEligibilityService";
 import type { MacroContextCard, MacroContextIndicator } from "@/application/services/macro/MacroContextService";
 import type { NewsClassification, NewsItem } from "@/domain/news/types";
-import type { MarketThemeEvent, MarketVisionReport } from "@/domain/marketVision/types";
+import type { MarketThemeEvent, MarketVisionEvidencePanel, MarketVisionReport, MarketVisionThemeSummary } from "@/domain/marketVision/types";
 
 type MarketVisionPageProps = {
   searchParams?: Promise<{ reportId?: string; message?: string; error?: string }>;
@@ -27,7 +27,7 @@ const reportSections: Array<{ key: keyof MarketVisionReport; title: string; desc
   { key: "executiveSummary", title: "Executive Summary", description: "Top-level CIO-style readout." },
   { key: "globalMarketSummary", title: "Global Market Summary", description: "Cross-asset and regional backdrop." },
   { key: "equityView", title: "Equity Market View", description: "Equity tone, leadership, breadth, valuation, and style." },
-  { key: "bondView", title: "Bond Market View", description: "Yield/rate outlook, duration preference, treasury versus corporate view, TIPS, and recession hedge role." },
+  { key: "bondView", title: "Bond Market View", description: "Yield/rate context, duration sensitivity, treasury versus corporate conditions, TIPS, and recession hedge role." },
   { key: "goldView", title: "Gold / Commodities View", description: "Gold, commodities, inflation hedge, and real-rate context." },
   { key: "cryptoView", title: "Crypto Market View", description: "Bitcoin/crypto trend, liquidity sensitivity, and risk appetite." },
   { key: "ratesView", title: "Interest Rates", description: "Central-bank stance and yield curve implications." },
@@ -39,13 +39,13 @@ const reportSections: Array<{ key: keyof MarketVisionReport; title: string; desc
 ];
 
 const implicationFields = [
-  ["equityAllocationImplication", "Equity allocation"] as const,
-  ["bondAllocationImplication", "Bond allocation"] as const,
+  ["equityAllocationImplication", "Equity context"] as const,
+  ["bondAllocationImplication", "Bond context"] as const,
   ["goldImplication", "Gold"] as const,
   ["cryptoImplication", "Crypto"] as const,
   ["cashImplication", "Cash"] as const,
   ["riskImplication", "Risk"] as const,
-  ["watchlistImplication", "Watchlist"] as const
+  ["watchlistImplication", "Watch items"] as const
 ];
 
 function ReportSelector({ reports, selectedReport }: { reports: MarketVisionReport[]; selectedReport: MarketVisionReport | null }) {
@@ -108,7 +108,39 @@ function MacroContextList({ items }: { items: string[] }) {
   );
 }
 
-function SectionCard({ title, description, value }: { title: string; description: string; value: string }) {
+function confidenceTone(confidence: string) {
+  if (confidence === "High") return "positive";
+  if (confidence === "Medium") return "warning";
+  return "neutral";
+}
+
+function EvidencePanel({ panel }: { panel: MarketVisionEvidencePanel | null }) {
+  if (!panel) return null;
+  return (
+    <div className="mb-4 rounded-md border bg-muted/25 p-3 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusBadge tone="info">{panel.view}</StatusBadge>
+        <StatusBadge tone={confidenceTone(panel.confidence)}>{panel.confidence} confidence</StatusBadge>
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-3">
+        <div>
+          <p className="font-medium text-foreground">Supporting evidence</p>
+          <p className="mt-1 text-muted-foreground">{panel.supportingIndicators.length ? panel.supportingIndicators.join("; ") : "Evidence is limited."}</p>
+        </div>
+        <div>
+          <p className="font-medium text-foreground">Conflicting evidence</p>
+          <p className="mt-1 text-muted-foreground">{panel.conflictingIndicators.length ? panel.conflictingIndicators.join("; ") : "No major conflict captured."}</p>
+        </div>
+        <div>
+          <p className="font-medium text-foreground">Evidence gaps</p>
+          <p className="mt-1 text-muted-foreground">{panel.evidenceGaps.length ? panel.evidenceGaps.join("; ") : "No major gap captured."}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionCard({ title, description, value, evidencePanel }: { title: string; description: string; value: string; evidencePanel?: MarketVisionEvidencePanel | null }) {
   return (
     <Card>
       <CardHeader>
@@ -116,12 +148,82 @@ function SectionCard({ title, description, value }: { title: string; description
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
+        <EvidencePanel panel={evidencePanel ?? null} />
         <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
           {value || "No manual notes yet."}
         </p>
       </CardContent>
     </Card>
   );
+}
+
+function RegimeScorecard({ report }: { report: MarketVisionReport }) {
+  const scorecard = report.marketVisionMetadata.regimeScorecard;
+  if (scorecard.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Regime Scorecard</CardTitle>
+        <CardDescription>Structured macro regime classification derived from stored FRED, news, theme, risk and portfolio inputs.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {scorecard.map((item) => (
+          <div key={item.label} className="rounded-md border p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs uppercase text-muted-foreground">{item.label}</p>
+                <p className="mt-1 text-sm font-semibold">{item.regime}</p>
+              </div>
+              <StatusBadge tone={confidenceTone(item.confidence)}>{item.confidence}</StatusBadge>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.explanation}</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {item.supportingIndicators.length ? item.supportingIndicators.join("; ") : "Evidence is limited."}
+            </p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ThemeSummaryCard({ title, themes }: { title: string; themes: MarketVisionThemeSummary[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>Evidence-tagged themes prepared for Market Vision telemetry.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {themes.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No themes captured yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {themes.map((theme) => (
+              <div key={theme.name} className="rounded-md border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium">{theme.name}</p>
+                  <div className="flex gap-2">
+                    <StatusBadge tone="info">{theme.persistence}</StatusBadge>
+                    <StatusBadge tone={confidenceTone(theme.confidence)}>{theme.confidence}</StatusBadge>
+                  </div>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">{theme.evidence.length ? theme.evidence.join("; ") : "Evidence is limited."}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function evidenceFor(report: MarketVisionReport, title: string) {
+  return report.marketVisionMetadata.evidencePanels.find((panel) =>
+    panel.section.toLowerCase() === title.toLowerCase() ||
+    title.toLowerCase().includes(panel.section.toLowerCase()) ||
+    panel.section.toLowerCase().includes(title.toLowerCase())
+  ) ?? null;
 }
 
 function ListCard({ title, items, emptyText }: { title: string; items: string[]; emptyText: string }) {
@@ -241,7 +343,7 @@ function ReportEditor({ report }: { report: MarketVisionReport }) {
           <div className="grid gap-4 lg:grid-cols-2">
             {implicationFields.map(([key, label]) => (
               <div key={key} className="space-y-2">
-                <Label htmlFor={key}>{label} implication</Label>
+                <Label htmlFor={key}>{label}</Label>
                 <Textarea id={key} name={key} defaultValue={report.portfolioImplications[key]} />
               </div>
             ))}
@@ -377,6 +479,8 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             <ReportActions report={report} />
           </div>
 
+          <RegimeScorecard report={report} />
+
           <Card>
             <CardHeader>
               <CardTitle>FRED macro context</CardTitle>
@@ -396,13 +500,24 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
                 title={section.title}
                 description={section.description}
                 value={String(report[section.key] ?? "")}
+                evidencePanel={evidenceFor(report, section.title)}
               />
             ))}
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
-            <ListCard title="Key Opportunities" items={report.opportunities} emptyText="No opportunities entered yet." />
+            <ListCard title="Market Opportunities To Monitor" items={report.opportunities} emptyText="No opportunities entered yet." />
             <ListCard title="Key Risks" items={report.risks} emptyText="No risks entered yet." />
+          </section>
+
+          <section className="grid gap-4 lg:grid-cols-2">
+            <ThemeSummaryCard title="Structural Themes" themes={report.marketVisionMetadata.structuralThemes} />
+            <ThemeSummaryCard title="Tactical Themes" themes={report.marketVisionMetadata.tacticalThemes} />
+          </section>
+
+          <section className="grid gap-4 lg:grid-cols-2">
+            <ListCard title="Watch Items" items={report.marketVisionMetadata.keyWatchItems} emptyText="No watch items captured yet." />
+            <ListCard title="Evidence Gaps" items={report.marketVisionMetadata.evidenceGaps} emptyText="No evidence gaps captured yet." />
           </section>
 
           <Card>
@@ -417,8 +532,8 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
 
           <Card>
             <CardHeader>
-              <CardTitle>Portfolio implications</CardTitle>
-              <CardDescription>Generated implications explain context only; they do not recommend trades or allocation changes.</CardDescription>
+              <CardTitle>Portfolio Context</CardTitle>
+              <CardDescription>Generated context explains relevance only; it does not recommend trades or allocation changes.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2">
               {implicationFields.map(([key, label]) => (

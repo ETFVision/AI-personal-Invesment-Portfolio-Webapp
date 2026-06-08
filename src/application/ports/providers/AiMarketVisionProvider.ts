@@ -1,4 +1,4 @@
-import type { PortfolioImplications } from "@/domain/marketVision/types";
+import type { MarketVisionMetadata, PortfolioImplications } from "@/domain/marketVision/types";
 
 export type AiMarketVisionInput = {
   periodStart: string;
@@ -26,6 +26,7 @@ export type AiMarketVisionOutput = {
   keyRisks: string[];
   keyOpportunities: string[];
   portfolioImplications: PortfolioImplications;
+  marketVisionMetadata: MarketVisionMetadata;
   confidenceScore: number;
   tokenUsage?: Record<string, unknown>;
   costEstimate?: number | null;

@@ -6,6 +6,7 @@ import { EtfRecommendationService } from "../src/application/services/recommenda
 import { BondEtfRecommendationService } from "../src/application/services/recommendations/BondEtfRecommendationService";
 import { GoldRecommendationService } from "../src/application/services/recommendations/GoldRecommendationService";
 import { CryptoRecommendationService } from "../src/application/services/recommendations/CryptoRecommendationService";
+import { emptyMarketVisionMetadata } from "../src/application/services/marketVision/MarketVisionGenerationService";
 import type { RecommendationInput } from "../src/application/services/recommendations/recommendationScoring";
 import type { Instrument, InstrumentMarketMetric, InstrumentRiskMetric } from "../src/domain/universe/types";
 import type { FundamentalsSummaryRow } from "../src/domain/fundamentals/types";
@@ -216,6 +217,7 @@ function marketVisionReport(overrides: Partial<MarketVisionReport> = {}): Market
     tokenUsage: {},
     costEstimate: null,
     sourceSnapshot: {},
+    marketVisionMetadata: emptyMarketVisionMetadata(),
     generationDurationMs: null,
     createdAt: "2026-06-01",
     updatedAt: "2026-06-01",
