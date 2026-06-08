@@ -91,8 +91,12 @@ function isStaleOrMissing(latestPriceDate: string | null, asOfDate: string) {
   return !latestPriceDate || latestPriceDate < asOfDate;
 }
 
+function historyFreshnessCutoff(asOfDate: string) {
+  return daysBeforeIso(asOfDate, 1);
+}
+
 function isHistoryCurrent(latestPriceDate: string | null, asOfDate: string) {
-  return !isStaleOrMissing(latestPriceDate, asOfDate);
+  return Boolean(latestPriceDate && latestPriceDate >= historyFreshnessCutoff(asOfDate));
 }
 
 function needsLongHistoryBackfill(

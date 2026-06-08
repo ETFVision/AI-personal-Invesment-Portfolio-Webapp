@@ -7,6 +7,21 @@ import type { UniverseRepository } from "../src/application/ports/repositories/U
 import type { MarketDataProvider } from "../src/application/ports/providers/MarketDataProvider";
 import type { Instrument } from "../src/domain/universe/types";
 
+function testDaysBeforeIso(isoDate: string, days: number) {
+  const date = new Date(`${isoDate}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
+function testLatestExpectedEodDate() {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - 1);
+  while (date.getUTCDay() === 0 || date.getUTCDay() === 6) {
+    date.setUTCDate(date.getUTCDate() - 1);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
 test("portfolio price refresh is driven by the master instrument price refresh", async () => {
   const calls: string[] = [];
   const instrumentMarketService = {
@@ -319,6 +334,41 @@ test("history backfill skips current shorter-lived instruments with available hi
 
   assert.deepEqual(result.requestedSymbols, ["SYK"]);
   assert.deepEqual(requested, ["SYK"]);
+});
+
+test("history backfill tolerates one-day historical EOD lag and fills the batch with empty instruments", async () => {
+  const oneDayLag = instrument("SPLG", { assetClass: "etf", instrumentType: "etf" });
+  const emptySymbols = ["STIP", "SYK", "TJX", "TMO", "TMUS", "TSLA", "UNP", "UPS", "USB", "USRT"];
+  const emptyInstruments = emptySymbols.map((symbol) => instrument(symbol, { assetClass: symbol === "STIP" || symbol === "USRT" ? "etf" : "stock", instrumentType: symbol === "STIP" || symbol === "USRT" ? "etf" : "stock" }));
+  const requested: string[] = [];
+  const toleratedLatestDate = testDaysBeforeIso(testLatestExpectedEodDate(), 1);
+  const repository = {
+    async listInstruments() {
+      return [oneDayLag, ...emptyInstruments];
+    },
+    async listInstrumentPriceStats() {
+      return [
+        { instrumentId: oneDayLag.id, earliestPriceDate: "2021-01-01", latestPriceDate: toleratedLatestDate, observationCount: 1200 },
+        ...emptyInstruments.map((empty) => ({ instrumentId: empty.id, earliestPriceDate: null, latestPriceDate: null, observationCount: 0 }))
+      ];
+    },
+    async upsertInstrumentPrices() {},
+    async refreshInstrumentMarketMetrics() {},
+    async refreshInstrumentRiskMetrics() {}
+  } as unknown as UniverseRepository;
+  const provider = {
+    name: "financial_modeling_prep",
+    async getHistoricalPrices(symbol: string) {
+      requested.push(symbol);
+      return [{ symbol, price: 110, currency: "USD", asOfDate: "2026-01-01", raw: {} }];
+    }
+  } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const result = await service.refreshInstrumentPrices({ lookbackDays: 1825, maxSymbols: 10, includeBackfill: true });
+
+  assert.deepEqual(result.requestedSymbols, emptySymbols);
+  assert.deepEqual(requested, emptySymbols);
 });
 
 test("instrument risk refresh batches missing and oldest risk metrics only", async () => {
