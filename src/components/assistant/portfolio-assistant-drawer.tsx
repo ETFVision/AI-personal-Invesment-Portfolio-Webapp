@@ -17,7 +17,7 @@ const suggestedQuestions = [
   "What changed this week?",
   "What are my biggest risks?",
   "How does Market Vision affect me?",
-  "Why is VOO a Buy?",
+  "Why is VOO Favorable?",
   "Which factors have worked best?",
   "How diversified am I?"
 ];
@@ -88,7 +88,7 @@ export function PortfolioAssistantDrawer({
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-200">Portfolio Assistant</p>
             <h2 className="mt-1 text-lg font-semibold">ETFVision intelligence interface</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-300">Ask about your portfolio, reviews, risk, Market Vision, recommendations, telemetry and ETF exposures.</p>
+            <p className="mt-1 text-xs leading-5 text-slate-300">Ask about your portfolio, reviews, risk, Market Vision, insights, telemetry and ETF exposures.</p>
           </div>
           {mode === "floating" ? (
             <Button type="button" variant="ghost" size="icon" className="text-white hover:bg-white/10 hover:text-white" onClick={() => setOpen(false)} aria-label="Close assistant">
@@ -117,7 +117,7 @@ export function PortfolioAssistantDrawer({
         {messages.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
             <p className="font-semibold text-slate-950">Learning interface ready</p>
-            <p className="mt-2 leading-6">The assistant explains ETFVision intelligence. It does not create trades, target allocations, or new recommendations.</p>
+            <p className="mt-2 leading-6">The assistant explains ETFVision intelligence. It does not create trades, target allocations, or new investment recommendations.</p>
           </div>
         ) : null}
         {messages.map((message) => (
@@ -148,7 +148,7 @@ export function PortfolioAssistantDrawer({
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             rows={2}
-            placeholder="Ask about your portfolio, risk, recommendations or ETF exposures..."
+            placeholder="Ask about your portfolio, risk, insights or ETF exposures..."
             className="min-h-12 flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/15"
           />
           <Button type="submit" size="icon" disabled={isPending || !question.trim()} aria-label="Send assistant question">

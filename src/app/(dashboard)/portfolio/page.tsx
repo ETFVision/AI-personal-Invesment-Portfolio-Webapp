@@ -205,7 +205,7 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
             <div>
               <CardTitle>Portfolio Review Snapshot</CardTitle>
               <CardDescription>
-                Deterministic review across allocation, concentration, risk, macro, recommendations and themes.
+                Deterministic review across allocation, concentration, risk, macro, insights and themes.
               </CardDescription>
             </div>
             <Link className="rounded-md border px-3 py-2 text-sm hover:bg-muted" href="/portfolio-review">Open review</Link>

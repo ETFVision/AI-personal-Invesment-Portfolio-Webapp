@@ -1,10 +1,10 @@
 export const ASSISTANT_RECOMMENDATION_LABELS = {
-  strongBuy: "Strong Buy",
-  buy: "Buy",
-  hold: "Hold",
-  watch: "Watch",
-  reduce: "Reduce",
-  sell: "Sell"
+  strongBuy: "Very Favorable Characteristics",
+  buy: "Favorable Characteristics",
+  hold: "Balanced Characteristics",
+  watch: "Review Area",
+  reduce: "Elevated Concerns",
+  sell: "Significant Concerns"
 } as const;
 
 export type AssistantRecommendationLabel = typeof ASSISTANT_RECOMMENDATION_LABELS[keyof typeof ASSISTANT_RECOMMENDATION_LABELS];

@@ -3,6 +3,7 @@ import { createContainer } from "@/server/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
 import { cn, formatPercent } from "@/lib/utils";
+import { assessmentLabel } from "@/application/services/recommendations/recommendationPresentation";
 import type {
   TelemetryEvidenceBucket,
   TelemetryMarketVisionOutcome,
@@ -154,7 +155,7 @@ function MutedBadge({ children, tone = "neutral", className }: { children: React
 
 function LifecyclePanel() {
   const steps = [
-    { title: "Capture", description: "Recommendations, Market Vision reports and Portfolio Reviews are archived.", icon: Database },
+    { title: "Capture", description: "Instrument insight snapshots, Market Vision reports and Portfolio Reviews are archived.", icon: Database },
     { title: "Wait", description: "Telemetry waits for 1m, 3m, 6m and 12m horizons to mature.", icon: Clock3 },
     { title: "Evaluate", description: "Outcomes are compared with later prices, benchmarks and review scores.", icon: SearchCheck },
     { title: "Learn", description: "Evidence accumulates into accuracy, calibration and effectiveness diagnostics.", icon: LineChart }
@@ -197,15 +198,15 @@ function LifecyclePanel() {
 function ReadinessPanel({ overview }: { overview: TelemetryOverview }) {
   const rows: Array<{ metric: string; status: ReadinessStatus; availability: string; detail: string }> = [
     {
-      metric: "Recommendation Accuracy",
+      metric: "Insight Outcome Tracking",
       status: overview.evaluatedOutcomes > 0 ? "Available" : overview.recommendationSnapshots > 0 ? "Collecting" : "Building History",
       availability: overview.evaluatedOutcomes > 0 ? "Active" : "After first 1m horizon",
-      detail: progressLabel(overview.recommendationSnapshots, "recommendation snapshots collected")
+      detail: progressLabel(overview.recommendationSnapshots, "insight snapshots collected")
     },
     {
       metric: "Confidence Calibration",
       status: overview.evaluatedOutcomes > 0 ? "Available" : "Awaiting Evidence",
-      availability: overview.evaluatedOutcomes > 0 ? "Active" : "After matured recommendation outcomes",
+      availability: overview.evaluatedOutcomes > 0 ? "Active" : "After matured insight outcomes",
       detail: `${overview.evaluatedOutcomes} evaluated outcomes`
     },
     {
@@ -356,10 +357,10 @@ export default async function TelemetryPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <TelemetryStatusCard
-          title="Recommendation Snapshots"
+          title="Insight Snapshots"
           count={overview.recommendationSnapshots}
           status={recommendationStatus}
-          description="Recommendations are being captured and stored for future evaluation."
+          description="Instrument insight classifications are being captured and stored for future evaluation."
           footer="Evaluated after 1m, 3m, 6m and 12m horizons."
         />
         <TelemetryStatusCard
@@ -395,7 +396,7 @@ export default async function TelemetryPage() {
             <CardDescription>Real snapshot counts currently available for evaluation later.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <MiniStat title="Recommendation Telemetry" value={overview.recommendationSnapshots} detail={progressLabel(overview.recommendationSnapshots, "snapshots collected")} />
+            <MiniStat title="Insight Telemetry" value={overview.recommendationSnapshots} detail={progressLabel(overview.recommendationSnapshots, "snapshots collected")} />
             <MiniStat title="Market Vision" value={overview.marketVisionSnapshots} detail={progressLabel(overview.marketVisionSnapshots, "signals collected")} />
             <MiniStat title="Portfolio Reviews" value={overview.portfolioReviewSnapshots} detail={progressLabel(overview.portfolioReviewSnapshots, "review snapshots collected")} />
             <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
@@ -413,7 +414,7 @@ export default async function TelemetryPage() {
         <SectionHeader title="Coverage" description="Coverage becomes meaningful once observations reach their first evaluation horizon." />
         <div className="grid gap-4 md:grid-cols-3">
           <CoverageCard
-            title="Recommendation Coverage"
+            title="Insight Coverage"
             value={overview.coverage.recommendationCoverage}
             evaluated={overview.coverage.evaluatedRecommendationObservations}
             matured={overview.coverage.maturedRecommendationObservations}
@@ -435,8 +436,8 @@ export default async function TelemetryPage() {
 
       <section className="space-y-3">
         <SectionHeader
-          title="Recommendation Outcomes"
-          description="Hit rates and average excess returns by recommendation label and horizon."
+          title="Insight Outcomes"
+          description="Hit rates and average excess returns by assessment label and horizon."
         />
         <Card>
           <CardContent className="pt-5">
@@ -445,7 +446,7 @@ export default async function TelemetryPage() {
                 <table className="w-full min-w-[760px] text-left text-sm">
                   <thead className="border-b border-slate-200 text-xs uppercase tracking-[0.14em] text-slate-500">
                     <tr>
-                      <th className="pb-3">Recommendation</th>
+                      <th className="pb-3">Assessment</th>
                       <th className="pb-3">Horizon</th>
                       <th className="pb-3 text-right">Observed</th>
                       <th className="pb-3 text-right">Evaluated</th>
@@ -458,7 +459,7 @@ export default async function TelemetryPage() {
                   <tbody className="divide-y divide-slate-100">
                     {dashboard.recommendationSummary.map((row) => (
                       <tr key={`${row.recommendation}-${row.horizon}`}>
-                        <td className="py-3 font-medium text-slate-950">{row.recommendation}</td>
+                        <td className="py-3 font-medium text-slate-950">{assessmentLabel(row.recommendation)}</td>
                         <td className="py-3 text-slate-600">{row.horizon}</td>
                         <td className="py-3 text-right text-slate-600">{row.observationCount}</td>
                         <td className="py-3 text-right text-slate-600">{row.evaluatedCount}</td>
@@ -474,9 +475,9 @@ export default async function TelemetryPage() {
             ) : (
               <LearningEmptyState
                 title="No matured observations yet"
-                description="Recommendation snapshots have been captured successfully when recommendations run. Outcome evaluation begins automatically once observations reach the selected horizon."
+                description="Insight snapshots are captured when the deterministic insight engine runs. Outcome evaluation begins automatically once observations reach the selected horizon."
                 badge="Collecting Data"
-                note="Expected first results: approximately 30 days after the first recommendation run."
+                note="Expected first results: approximately 30 days after the first insight run."
               />
             )}
           </CardContent>
@@ -486,7 +487,7 @@ export default async function TelemetryPage() {
       <section className="space-y-3">
         <SectionHeader
           title="Confidence Calibration"
-          description="Compares recommendation confidence buckets with later hit rates and excess returns."
+          description="Compares insight confidence buckets with later hit rates and excess returns."
         />
         <Card>
           <CardContent className="pt-5">
@@ -518,7 +519,7 @@ export default async function TelemetryPage() {
             ) : (
               <LearningEmptyState
                 title="Waiting for sufficient observations"
-                description="Confidence calibration compares historical success rates against recommendation confidence levels. Results will appear once enough recommendation outcomes have matured."
+                description="Confidence calibration compares historical success rates against insight confidence levels. Results will appear once enough outcomes have matured."
                 badge="Awaiting Evidence"
               />
             )}
@@ -612,7 +613,7 @@ export default async function TelemetryPage() {
             <CardContent className="pt-5">
               <LearningEmptyState
                 title="Learning in progress"
-                description="Factor effectiveness is calculated after recommendation outcomes mature. Evidence strength improves as more observations are collected."
+                description="Factor effectiveness is calculated after insight outcomes mature. Evidence strength improves as more observations are collected."
                 badge="Awaiting Evidence"
                 note="Early observations should be interpreted cautiously."
               />

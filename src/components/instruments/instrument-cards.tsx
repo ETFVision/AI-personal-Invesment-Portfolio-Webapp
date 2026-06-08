@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { MiniRangeBar } from "@/components/ui/charts";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 import { DataFreshnessBadge, InstrumentTypeBadge, ThemeBadgeList } from "./instrument-badges";
+import { assessmentClassName, assessmentLabel } from "@/application/services/recommendations/recommendationPresentation";
 
 export function InstrumentHeader({
   instrument,
@@ -81,14 +82,6 @@ function riskPercent(value: number | null | undefined) {
   return value == null ? "-" : formatPercent(value);
 }
 
-function recommendationTone(label: string) {
-  if (label === "Strong Buy" || label === "Buy") return "border-emerald-200 bg-emerald-50 text-emerald-900";
-  if (label === "Hold") return "border-blue-200 bg-blue-50 text-blue-900";
-  if (label === "Watch") return "border-amber-200 bg-amber-50 text-amber-900";
-  if (label === "Reduce" || label === "Sell") return "border-red-200 bg-red-50 text-red-900";
-  return "border-border bg-muted text-muted-foreground";
-}
-
 function scoreValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value)}/100` : "-";
 }
@@ -111,7 +104,7 @@ function scoreComponents(recommendation: InstrumentRecommendation) {
       label: "Market Vision Alignment",
       score: null,
       weight,
-      reason: "Not stored in this recommendation run yet. Run recommendations again after the hardening migration."
+      reason: "Not stored in this insight run yet. Run insights again after the hardening migration."
     });
   }
 
@@ -132,7 +125,7 @@ function componentDisplayReason(component: { key: string; label: string; score: 
 
 function scoringLabel(recommendation: InstrumentRecommendation, key: "baseLabel" | "finalLabel") {
   const value = recommendation.scoringBreakdown[key];
-  return typeof value === "string" ? value : "-";
+  return typeof value === "string" ? assessmentLabel(value) : "-";
 }
 
 function normalizeNegativeDriver(item: string) {
@@ -188,42 +181,45 @@ export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMe
 
 export function RecommendationSummaryCard({ recommendation, history = [] }: { recommendation: InstrumentRecommendation | null; history?: RecommendationHistoryItem[] }) {
   if (!recommendation) {
-    return <PlaceholderPanel title="Recommendations" description="No recommendation has been generated for this instrument yet. Run the deterministic recommendation engine from Research." />;
+    return <PlaceholderPanel title="Insights" description="No instrument insight has been generated for this instrument yet. Run the deterministic insights engine from Research." />;
   }
   const components = scoreComponents(recommendation);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Recommendation</CardTitle>
-        <CardDescription>Deterministic V1 score with explainable drivers and guardrails. This does not place trades.</CardDescription>
+        <CardTitle>Instrument Insights</CardTitle>
+        <CardDescription>Deterministic characteristics assessment with explainable drivers and guardrails. This is not investment advice or a trade instruction.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-md border bg-background p-3">
-            <p className="text-xs uppercase text-muted-foreground">Label</p>
-            <span className={`mt-2 inline-flex rounded-md border px-2 py-1 text-sm font-medium ${recommendationTone(recommendation.recommendationLabel)}`}>
-              {recommendation.recommendationLabel}
+            <p className="text-xs uppercase text-muted-foreground">Assessment</p>
+            <span className={`mt-2 inline-flex rounded-md border px-2 py-1 text-sm font-medium ${assessmentClassName(recommendation.recommendationLabel)}`}>
+              {assessmentLabel(recommendation.recommendationLabel)}
             </span>
           </div>
-          <SummaryMetric label="Score" value={recommendation.overallScore == null ? "-" : `${Math.round(recommendation.overallScore)}/100`} />
+          <SummaryMetric label="Characteristics score" value={recommendation.overallScore == null ? "-" : `${Math.round(recommendation.overallScore)}/100`} />
           <SummaryMetric label="Confidence" value={formatPercent(recommendation.confidenceScore / 100)} />
           <SummaryMetric label="Risk level" value={recommendation.riskLevel.replaceAll("_", " ")} />
           <SummaryMetric label="Time horizon" value={recommendation.timeHorizon.replaceAll("_", " ")} />
           <SummaryMetric label="Last updated" value={recommendation.updatedAt?.slice(0, 10) ?? "-"} />
-          <SummaryMetric label="Base label" value={scoringLabel(recommendation, "baseLabel")} />
-          <SummaryMetric label="Final label" value={scoringLabel(recommendation, "finalLabel")} />
+          <SummaryMetric label="Base assessment" value={scoringLabel(recommendation, "baseLabel")} />
+          <SummaryMetric label="Final assessment" value={scoringLabel(recommendation, "finalLabel")} />
         </div>
+        <p className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
+          ETFVision explains instrument characteristics and portfolio fit. It does not tell you to buy, sell, add, reduce or size a position.
+        </p>
         <p className="rounded-md border bg-muted p-3 text-sm text-muted-foreground">{recommendation.recommendationReasoningSummary}</p>
         <div className="grid gap-3 lg:grid-cols-2">
           <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Positive drivers</p>
+            <p className="text-xs uppercase text-muted-foreground">Positive characteristics</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
               {(recommendation.positiveDrivers.length ? recommendation.positiveDrivers : ["-"]).map((item) => <li key={item}>{item}</li>)}
             </ul>
           </div>
           <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Negative drivers</p>
+            <p className="text-xs uppercase text-muted-foreground">Concern areas</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
               {(recommendation.negativeDrivers.length ? recommendation.negativeDrivers : ["-"]).map((item) => <li key={item}>{normalizeNegativeDriver(item)}</li>)}
             </ul>
@@ -241,20 +237,20 @@ export function RecommendationSummaryCard({ recommendation, history = [] }: { re
             </ul>
           </div>
           <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Upgrade triggers</p>
+            <p className="text-xs uppercase text-muted-foreground">Improvement triggers</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
               {(recommendation.recommendationChangeTriggers.upgrade.length ? recommendation.recommendationChangeTriggers.upgrade : ["-"]).map((item) => <li key={item}>{item}</li>)}
             </ul>
           </div>
           <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Downgrade triggers</p>
+            <p className="text-xs uppercase text-muted-foreground">Deterioration triggers</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
               {(recommendation.recommendationChangeTriggers.downgrade.length ? recommendation.recommendationChangeTriggers.downgrade : ["-"]).map((item) => <li key={item}>{item}</li>)}
             </ul>
           </div>
         </div>
         <div className="rounded-md border p-3">
-          <p className="text-xs uppercase text-muted-foreground">Score breakdown</p>
+          <p className="text-xs uppercase text-muted-foreground">Characteristics breakdown</p>
           {components.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">No component breakdown stored.</p>
           ) : (
@@ -283,15 +279,15 @@ export function RecommendationSummaryCard({ recommendation, history = [] }: { re
           )}
         </div>
         <div className="rounded-md border p-3">
-          <p className="text-xs uppercase text-muted-foreground">Recent history</p>
+          <p className="text-xs uppercase text-muted-foreground">Insight history</p>
           {history.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">No historical recommendation runs stored yet.</p>
+            <p className="mt-2 text-sm text-muted-foreground">No historical insight runs stored yet.</p>
           ) : (
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {history.map((item) => (
                 <div key={item.id} className="rounded-md border bg-background p-2 text-sm">
                   <p className="text-xs text-muted-foreground">{item.runDate}</p>
-                  <p className="font-medium">{item.recommendationLabel}</p>
+                  <p className="font-medium">{assessmentLabel(item.recommendationLabel)}</p>
                   <p className="text-xs text-muted-foreground">{item.overallScore == null ? "No score" : `${Math.round(item.overallScore)}/100`} - {formatPercent(item.confidenceScore / 100)} confidence</p>
                 </div>
               ))}

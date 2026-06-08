@@ -501,12 +501,12 @@ export class PortfolioImprovementSuggestionService {
       suggestions.push({
         category: "data_quality",
         issueCategory: "data_quality",
-        issueAddressed: "Recommendation coverage missing",
+        issueAddressed: "Insight coverage missing",
         priority: "medium",
-        title: "Run recommendations before final review",
-        rationale: "Portfolio Review can run without recommendation outputs, but alignment and candidate screening are limited.",
+        title: "Run insights before final review",
+        rationale: "Portfolio Review can run without insight outputs, but alignment and candidate screening are limited.",
         candidateInstruments: [],
-        expectedPortfolioBenefit: "Improves candidate screening and recommendation alignment review.",
+        expectedPortfolioBenefit: "Improves candidate screening and insight alignment review.",
         potentialTradeOff: "No portfolio exposure change; this is a data readiness action.",
         source: "deterministic_portfolio_review"
       });

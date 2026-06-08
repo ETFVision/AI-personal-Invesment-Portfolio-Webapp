@@ -8,7 +8,8 @@ type IntentGuardrailResult = {
 
 const explanationPatterns = [
   /\bwhy\s+is\s+[A-Z]{2,6}\s+(hold|watch|reduce|sell|buy|strong buy)\b/,
-  /\bexplain\s+(why\s+)?[A-Z]{2,6}('s)?\s+(recommendation|rating|score|watch|hold|reduce|buy)\b/i,
+  /\bwhy\s+is\s+[A-Z]{2,6}\s+(balanced|favorable|very favorable|review area|elevated concerns|significant concerns)\b/i,
+  /\bexplain\s+(why\s+)?[A-Z]{2,6}('s)?\s+(recommendation|rating|score|watch|hold|reduce|buy|assessment|insight|classification|characteristics)\b/i,
   /\bwhy\s+did\s+.+\s+(recommendation|rating|score)\s+(change|move)\b/i,
   /\bwhy\s+is\s+[A-Z]{2,6}\s+not\s+(a\s+)?buy\b/i,
   /\bwhy\s+is\s+[A-Z]{2,6}\s+(watch|hold|reduce)\s+instead\s+of\s+buy\b/i
@@ -25,6 +26,10 @@ const portfolioContextPatterns = [
   /\bMarket Vision\b/i,
   /\bETFVision\b/i,
   /\brecommendation\b/i,
+  /\binsights?\b/i,
+  /\bassessments?\b/i,
+  /\bclassification\b/i,
+  /\bcharacteristics\b/i,
   /\bhow does .+ affect my\b/i,
   /\bhow does .+ contribute\b/i
 ];

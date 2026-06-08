@@ -93,7 +93,7 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
       <Card>
         <CardHeader>
           <CardTitle>Fundamental Scores</CardTitle>
-          <CardDescription>Deterministic company fundamentals only. No buy/sell recommendation is generated.</CardDescription>
+          <CardDescription>Deterministic company fundamentals only. No buy/sell instructions are generated.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryMetric label="Overall" value={score(detail.latestScore?.overallFundamentalScore)} />
@@ -163,7 +163,7 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
       <Card>
         <CardHeader>
           <CardTitle>Fundamental Trends</CardTitle>
-          <CardDescription>Stored deterministic trend analysis from annual and quarterly fundamentals. No AI or recommendations are used.</CardDescription>
+          <CardDescription>Stored deterministic trend analysis from annual and quarterly fundamentals. No AI or investment recommendations are used.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {detail.trendSummary ? (
@@ -326,7 +326,7 @@ function tabsForType(
   if (type === "stock") {
     return [
       { label: "Overview", content: common.overview },
-      { label: "Recommendations", content: common.recommendations },
+      { label: "Insights", content: common.recommendations },
       { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
       { label: "News", content: common.news },
       { label: "Themes", content: common.themes },
@@ -340,7 +340,7 @@ function tabsForType(
   if (type === "bond_etf") {
     return [
       { label: "Overview", content: common.overview },
-      { label: "Recommendations", content: common.recommendations },
+      { label: "Insights", content: common.recommendations },
       { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
       { label: "Bond Profile", content: <BondProfilePanel profile={bondProfile} /> },
       { label: "Duration", content: <PlaceholderPanel title="Duration" description="Duration analytics are prepared here and remain calculated in the bond intelligence service." /> },
@@ -354,7 +354,7 @@ function tabsForType(
   if (type === "gold_etf") {
     return [
       { label: "Overview", content: common.overview },
-      { label: "Recommendations", content: common.recommendations },
+      { label: "Insights", content: common.recommendations },
       { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
       { label: "Commodity Profile", content: <PlaceholderPanel title="Commodity Profile" description="Prepared for commodity and inflation-hedge context." /> },
       { label: "News", content: common.news },
@@ -366,7 +366,7 @@ function tabsForType(
   if (type === "crypto") {
     return [
       { label: "Overview", content: common.overview },
-      { label: "Recommendations", content: common.recommendations },
+      { label: "Insights", content: common.recommendations },
       { label: "Price Context", content: <PerformancePanel marketView={marketView} /> },
       { label: "News", content: common.news },
       { label: "Themes", content: common.themes },
@@ -387,7 +387,7 @@ function tabsForType(
 
   return [
     { label: "Overview", content: common.overview },
-    { label: "Recommendations", content: common.recommendations },
+    { label: "Insights", content: common.recommendations },
     { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
     { label: "ETF Exposure", content: <PlaceholderPanel title="ETF Exposure" description="Prepared for ETF exposure detail and future fundamentals support." /> },
     { label: "Holdings", content: <PlaceholderPanel title="Holdings" description="Prepared for ETF underlying holdings once provider support is added." /> },

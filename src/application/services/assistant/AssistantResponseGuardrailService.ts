@@ -26,7 +26,7 @@ export class AssistantResponseGuardrailService {
     return {
       ok: false,
       answer:
-        "I can explain ETFVision's existing portfolio intelligence, but I cannot provide buy/sell instructions, target allocations, position sizes, or return predictions. Please review the relevant recommendation, risk, Market Vision, and portfolio review evidence before making any decision."
+        "I can explain ETFVision's existing portfolio intelligence, but I cannot provide buy/sell instructions, target allocations, position sizes, or return predictions. Please review the relevant insight, risk, Market Vision, and portfolio review evidence before making any decision."
     };
   }
 }

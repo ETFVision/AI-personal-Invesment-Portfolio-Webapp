@@ -16,6 +16,7 @@ import type {
 } from "@/domain/portfolioReview/types";
 import type { PortfolioLookthroughExposure, PortfolioLookthroughHolding, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
+import { assessmentLabel } from "@/application/services/recommendations/recommendationPresentation";
 
 type PortfolioReviewPageProps = {
   searchParams?: Promise<{
@@ -257,8 +258,8 @@ function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggest
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Portfolio Improvement Suggestions</CardTitle>
-        <CardDescription>Review prompts only. Candidate instruments are filtered to approved active universe items and exclude Reduce/Sell labels.</CardDescription>
+        <CardTitle>Portfolio Improvement Observations</CardTitle>
+        <CardDescription>Review prompts only. Candidate instruments are filtered to approved active universe items and exclude elevated-concern classifications.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {safeSuggestions.length === 0 ? (
@@ -298,8 +299,8 @@ function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggest
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{candidate.symbol}</span>
-                      <span>{candidate.recommendationLabel}</span>
-                      <span>{score(candidate.recommendationScore ?? candidate.score)}</span>
+                      <span>{assessmentLabel(candidate.recommendationLabel)}</span>
+                      <span>Characteristics {score(candidate.recommendationScore ?? candidate.score)}</span>
                       {candidate.confidenceScore != null ? <span>Conf {formatPercent(candidate.confidenceScore / 100)}</span> : null}
                       {candidate.relevanceScore != null ? <span>Rel {score(candidate.relevanceScore)}</span> : null}
                       {candidate.diversificationBenefitScore != null ? <span>Diversification {score(candidate.diversificationBenefitScore)}</span> : null}
@@ -460,7 +461,7 @@ function Actions({ actions }: { actions: PortfolioPotentialAction[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Potential Portfolio Actions</CardTitle>
+        <CardTitle>Potential Review Actions</CardTitle>
         <CardDescription>Non-trading review actions. No exact amounts, shares or order instructions are generated.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -517,7 +518,7 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
       <PageHeader
         eyebrow="Research"
         title="Portfolio Review"
-        description="Deterministic portfolio-level review across allocation, risk, macro, recommendations, fixed income and themes."
+        description="Deterministic portfolio-level review across allocation, risk, macro, insights, fixed income and themes."
         meta={
           <>
             <StatusBadge tone={report ? "positive" : "neutral"}>{report ? `Report ${report.reviewDate}` : "No report yet"}</StatusBadge>
@@ -548,7 +549,7 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
       {!report ? (
         <EmptyState
           title="No portfolio review yet"
-          description="Run the deterministic review after recommendation, risk, macro and news inputs have been refreshed."
+          description="Run the deterministic review after insight, risk, macro and news inputs have been refreshed."
         />
       ) : (
         <>
@@ -572,7 +573,7 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
             <SectionCard title="Diversification Review" section={report.diversificationReview} />
             <SectionCard title="Risk Review" section={report.riskReview} />
             <SectionCard title="Macro Fit Review" section={report.macroFitReview} />
-            <SectionCard title="Recommendation Alignment Review" section={report.recommendationAlignmentReview} />
+            <SectionCard title="Insight Alignment Review" section={report.recommendationAlignmentReview} />
             <SectionCard title="Fixed Income Review" section={report.fixedIncomeReview} />
             <SectionCard title="Theme Exposure Review" section={report.themeExposureReview} />
             <SectionCard title="Geography Review" section={report.geographyReview} />

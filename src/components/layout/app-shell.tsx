@@ -57,7 +57,7 @@ const navGroups = [
       { href: "/fundamentals", label: "Fundamentals", icon: BarChart3 },
       { href: "/risk", label: "Risk", icon: ShieldCheck },
       { href: "/bonds", label: "Fixed Income", icon: Landmark },
-      { href: "/recommendations", label: "Recommendations", icon: Sparkles },
+      { href: "/recommendations", label: "Insights", icon: Sparkles },
       { href: "/portfolio-review", label: "Portfolio Review", icon: ClipboardCheck },
       { href: "/assistant", label: "Assistant", icon: Bot },
       { href: "/telemetry", label: "Telemetry", icon: Activity }
@@ -85,7 +85,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <ETFVisionLogo variant="dark" priority className="w-full object-contain" />
           <div className="border-t border-white/10 px-4 py-3">
             <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-teal-200">Portfolio intelligence platform</p>
-            <p className="mt-1 text-xs leading-5 text-slate-300">Risk, research, recommendations and market context.</p>
+            <p className="mt-1 text-xs leading-5 text-slate-300">Risk, research, insights and market context.</p>
           </div>
         </div>
         <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">

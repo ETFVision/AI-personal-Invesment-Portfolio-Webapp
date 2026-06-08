@@ -369,14 +369,14 @@ test("assistant prompt builder carries telemetry and recommendation explanation 
   assert.match(requirements, /Evidence strength: Early \/ Moderate \/ Strong/);
   assert.match(requirements, /Evidence Strength: Insufficient/);
   assert.match(requirements, /analytical classification and not an investment recommendation/);
-  assert.match(requirements, /Never phrase a recommendation explanation as a good buy/);
+  assert.match(requirements, /Never phrase an insight explanation as a good buy/);
 });
 
-test("assistant recommendation labels are centralized without changing current labels", () => {
-  assert.equal(ASSISTANT_RECOMMENDATION_LABELS.strongBuy, "Strong Buy");
-  assert.equal(assistantRecommendationLabel("strong_buy"), "Strong Buy");
-  assert.equal(assistantRecommendationLabel("Hold"), "Hold");
-  assert.equal(assistantRecommendationLabel("watch"), "Watch");
+test("assistant assessment labels map internal labels to consumer-safe labels", () => {
+  assert.equal(ASSISTANT_RECOMMENDATION_LABELS.strongBuy, "Very Favorable Characteristics");
+  assert.equal(assistantRecommendationLabel("strong_buy"), "Very Favorable Characteristics");
+  assert.equal(assistantRecommendationLabel("Hold"), "Balanced Characteristics");
+  assert.equal(assistantRecommendationLabel("watch"), "Review Area");
 });
 
 test("assistant system prompt defines Personal CIO response contract", () => {
@@ -391,7 +391,7 @@ test("assistant system prompt defines Personal CIO response contract", () => {
   assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Market Vision placeholder handling/);
   assert.match(PORTFOLIO_ASSISTANT_PROMPT, /This is an explanation of ETFVision's analytical classification and not an investment recommendation/);
   assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Follow-up questions: inherit prior context/);
-  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Preserve current internal labels/);
+  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Use consumer-facing assessment labels/);
 });
 
 test("supported assistant questions pass response requirements to the AI provider", async () => {

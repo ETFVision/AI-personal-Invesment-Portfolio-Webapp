@@ -269,7 +269,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
       <OperationSection
         title="Market Data and ETF Look-Through"
         description="FMP-driven market metadata and ETF exposure refresh diagnostics."
-        whereUsed="portfolio, holdings, universe, watchlist, risk, portfolio review, recommendations"
+        whereUsed="portfolio, holdings, universe, watchlist, risk, portfolio review, insights"
         actions={
           <>
             <form action={seedUniverseAction}>
@@ -328,7 +328,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
       <OperationSection
         title="Fundamentals"
         description="FMP fundamentals refresh status for stock profiles, statements, ratios, scores and trend metrics."
-        whereUsed="fundamentals overview, instrument detail pages, recommendations"
+        whereUsed="fundamentals overview, instrument detail pages, insights"
         actions={
           <form action={refreshFundamentalsAction}>
             <input type="hidden" name="returnTo" value="/admin/data-sources" />
@@ -357,7 +357,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
       <OperationSection
         title="Macro Data"
         description="FRED indicator ingestion, backfill and macro regime diagnostics."
-        whereUsed="macro dashboard, Market Vision, bonds, risk, recommendations, theme intelligence"
+        whereUsed="macro dashboard, Market Vision, bonds, risk, insights, theme intelligence"
         actions={
           <>
             <form action={refreshMacroIndicatorsAction}>
@@ -389,7 +389,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
       <OperationSection
         title="News Sources"
         description="FMP instrument news plus NewsData and GDELT macro/world-news queues."
-        whereUsed="News & Themes, Market Vision, recommendations, portfolio review"
+        whereUsed="News & Themes, Market Vision, insights, portfolio review"
         actions={
           <>
             <form action={runDailyNewsIngestionAction}>
@@ -475,7 +475,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
       <OperationSection
         title="AI and Generated Outputs"
         description="Market Vision draft creation, AI generation logs and cost/status tracking."
-        whereUsed="Market Vision, recommendations, future portfolio assistant"
+        whereUsed="Market Vision, insights, future portfolio assistant"
         actions={
           <>
             <form action={createMarketVisionDraftAction}>

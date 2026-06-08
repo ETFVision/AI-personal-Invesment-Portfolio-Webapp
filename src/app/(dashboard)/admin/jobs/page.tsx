@@ -78,7 +78,7 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
           <div>
             <p className="text-sm font-medium text-slate-950">Telemetry maturity check</p>
             <p className="mt-1 max-w-3xl text-sm text-slate-500">
-              Checks whether 1m, 3m, 6m or 12m telemetry horizons have matured, evaluates only ready observations and refreshes factor evidence. This does not change recommendations or portfolio review logic.
+              Checks whether 1m, 3m, 6m or 12m telemetry horizons have matured, evaluates only ready observations and refreshes factor evidence. This does not change insight classifications or portfolio review logic.
             </p>
           </div>
           <form action={runTelemetryEvaluationAction}>

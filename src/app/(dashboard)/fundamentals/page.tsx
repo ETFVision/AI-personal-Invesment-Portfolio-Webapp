@@ -32,7 +32,7 @@ export default async function FundamentalsPage({ searchParams }: { searchParams:
       <PageHeader
         eyebrow="Research"
         title="Fundamentals"
-        description="Company fundamentals for individual stocks only. No recommendations are generated here."
+        description="Company fundamentals for individual stocks only. No investment recommendations are generated here."
         meta={
           <>
             <StatusBadge tone="info">{covered}/{rows.length} covered</StatusBadge>
@@ -53,7 +53,7 @@ export default async function FundamentalsPage({ searchParams }: { searchParams:
       <Card>
         <CardHeader>
           <CardTitle>Stock fundamentals</CardTitle>
-          <CardDescription>Deterministic score components used later by the recommendation engine.</CardDescription>
+          <CardDescription>Deterministic score components used later by the insights engine.</CardDescription>
         </CardHeader>
         <CardContent>
           {rows.length === 0 ? (

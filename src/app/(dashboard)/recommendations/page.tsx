@@ -6,6 +6,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { runRecommendationsAction } from "@/server/actions/recommendationActions";
 import { formatNumber, formatPercent } from "@/lib/utils";
 import type { InstrumentRecommendation } from "@/domain/recommendations/types";
+import { assessmentLabel, assessmentTone } from "@/application/services/recommendations/recommendationPresentation";
 
 type RecommendationsPageProps = {
   searchParams?: Promise<{
@@ -18,15 +19,7 @@ function score(value: number | null | undefined) {
   return value == null ? "-" : `${Math.round(value)}/100`;
 }
 
-function tone(label: string) {
-  if (label === "Strong Buy" || label === "Buy") return "positive";
-  if (label === "Hold") return "info";
-  if (label === "Watch") return "warning";
-  if (label === "Reduce" || label === "Sell") return "danger";
-  return "neutral";
-}
-
-function RecommendationTable({ title, description, rows }: { title: string; description: string; rows: InstrumentRecommendation[] }) {
+function InsightTable({ title, description, rows }: { title: string; description: string; rows: InstrumentRecommendation[] }) {
   return (
     <Card>
       <CardHeader>
@@ -35,18 +28,18 @@ function RecommendationTable({ title, description, rows }: { title: string; desc
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No recommendations in this section yet. Run the deterministic engine after applying the migration.</p>
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No instrument insights in this section yet. Run the deterministic analytics engine after applying the migration.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="p-3">Instrument</th>
-                  <th className="p-3">Label</th>
-                  <th className="p-3 text-right">Score</th>
+                  <th className="p-3">Assessment</th>
+                  <th className="p-3 text-right">Characteristics score</th>
                   <th className="p-3 text-right">Confidence</th>
                   <th className="p-3">Risk</th>
-                  <th className="p-3">Drivers</th>
+                  <th className="p-3">Characteristics</th>
                   <th className="p-3">Guardrails</th>
                 </tr>
               </thead>
@@ -54,11 +47,11 @@ function RecommendationTable({ title, description, rows }: { title: string; desc
                 {rows.map((row) => (
                   <tr key={row.id} className="border-b align-top last:border-0">
                     <td className="p-3">
-                      <Link href={`/instruments/${encodeURIComponent(row.symbol)}#recommendations`} className="font-medium hover:underline">{row.symbol}</Link>
+                      <Link href={`/instruments/${encodeURIComponent(row.symbol)}#insights`} className="font-medium hover:underline">{row.symbol}</Link>
                       <p className="text-xs text-muted-foreground">{row.instrumentType}</p>
                     </td>
                     <td className="p-3">
-                      <StatusBadge tone={tone(row.recommendationLabel)}>{row.recommendationLabel}</StatusBadge>
+                      <StatusBadge tone={assessmentTone(row.recommendationLabel)}>{assessmentLabel(row.recommendationLabel)}</StatusBadge>
                     </td>
                     <td className="p-3 text-right">{score(row.overallScore)}</td>
                     <td className="p-3 text-right">{formatPercent(row.confidenceScore / 100)}</td>
@@ -92,20 +85,20 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
     <PageContainer>
       <PageHeader
         eyebrow="Research"
-        title="Recommendations"
-        description="Deterministic scoring, explainable drivers and guardrails. No trades are placed."
+        title="Insights"
+        description="Deterministic portfolio intelligence, characteristics scoring and guardrails. No trades, target allocations or investment recommendations are generated."
         meta={
           <>
             <StatusBadge tone={dashboard.latestRun?.status === "success" ? "positive" : dashboard.latestRun ? "warning" : "neutral"}>
               {dashboard.latestRun?.status ?? "No run yet"}
             </StatusBadge>
-            <StatusBadge tone="info">{recommendations.length} latest recommendations</StatusBadge>
+            <StatusBadge tone="info">{recommendations.length} latest insights</StatusBadge>
           </>
         }
         actions={
         <form action={runRecommendationsAction} className="flex flex-wrap gap-2">
           <input type="hidden" name="returnTo" value="/recommendations" />
-          <SubmitButton pendingLabel="Running recommendations...">Run recommendations</SubmitButton>
+          <SubmitButton pendingLabel="Running insights...">Run insights</SubmitButton>
         </form>
         }
       />
@@ -116,14 +109,20 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard title="Latest run" value={dashboard.latestRun?.runDate ?? "-"} footer={dashboard.latestRun?.status ?? "No run yet"} />
         <MetricCard title="Evaluated" value={formatNumber(dashboard.latestRun?.instrumentsEvaluated ?? 0, 0)} footer="Approved active instruments" />
-        <MetricCard title="Buy / Strong Buy" value={formatNumber((labelCounts.Buy ?? 0) + (labelCounts["Strong Buy"] ?? 0), 0)} footer="After guardrails" />
+        <MetricCard title="Favorable" value={formatNumber((labelCounts.Buy ?? 0) + (labelCounts["Strong Buy"] ?? 0), 0)} footer="Favorable characteristics after guardrails" />
         <MetricCard title="Insufficient data" value={formatNumber(labelCounts["Insufficient Data"] ?? 0, 0)} footer="Needs more inputs" />
       </div>
 
-      <RecommendationTable title="Universe Opportunities" description="Highest-scoring approved instruments after deterministic guardrails." rows={dashboard.universeOpportunities} />
-      <RecommendationTable title="Portfolio Recommendations" description="Latest recommendations for instruments currently held in the default portfolio." rows={dashboard.portfolioRecommendations.slice(0, 50)} />
-      <RecommendationTable title="Watchlist Recommendations" description="Latest recommendations for active watchlist instruments." rows={dashboard.watchlistRecommendations.slice(0, 50)} />
-      <RecommendationTable title="All Recommendations" description="Full latest recommendation set for QA and traceability." rows={recommendations.slice(0, 100)} />
+      <Card>
+        <CardContent className="p-4 text-sm text-muted-foreground">
+          ETFVision Insights are analytical classifications based on stored data. They are not investment advice, trade instructions, or buy/sell recommendations.
+        </CardContent>
+      </Card>
+
+      <InsightTable title="Universe Characteristics" description="Highest-scoring approved instruments after deterministic guardrails." rows={dashboard.universeOpportunities} />
+      <InsightTable title="Portfolio Instrument Insights" description="Latest analytical assessments for instruments currently held in the default portfolio." rows={dashboard.portfolioRecommendations.slice(0, 50)} />
+      <InsightTable title="Watchlist Instrument Insights" description="Latest analytical assessments for active watchlist instruments." rows={dashboard.watchlistRecommendations.slice(0, 50)} />
+      <InsightTable title="All Instrument Insights" description="Full latest instrument insight set for QA and traceability." rows={recommendations.slice(0, 100)} />
     </PageContainer>
   );
 }

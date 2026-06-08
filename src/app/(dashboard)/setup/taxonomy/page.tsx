@@ -60,7 +60,7 @@ export default async function TaxonomyPage({ searchParams }: TaxonomyPageProps) 
 
       <section className="grid gap-4 lg:grid-cols-2">
         <TaxonomyList title="Canonical sectors" description="Controlled sector list used by allocation, risk and future scoring." items={sectors.map((item) => item.name)} />
-        <TaxonomyList title="Canonical themes" description="Controlled theme list used by watchlists, Market Vision and future recommendations." items={themes.map((item) => item.name)} />
+        <TaxonomyList title="Canonical themes" description="Controlled theme list used by watchlists, Market Vision and future insights." items={themes.map((item) => item.name)} />
       </section>
 
       <Card>

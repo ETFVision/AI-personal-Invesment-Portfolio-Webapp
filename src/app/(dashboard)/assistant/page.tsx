@@ -38,7 +38,7 @@ export default async function AssistantPage({ searchParams }: AssistantPageProps
       <PageHeader
         eyebrow="Research"
         title="Portfolio Assistant"
-        description="Ask portfolio-aware questions using ETFVision intelligence. The assistant explains existing evidence and does not create trades or new recommendations."
+        description="Ask portfolio-aware questions using ETFVision intelligence. The assistant explains existing evidence and does not create trades or new investment recommendations."
         meta={
           <>
             <StatusBadge tone="info">Scope-limited</StatusBadge>
@@ -91,7 +91,7 @@ export default async function AssistantPage({ searchParams }: AssistantPageProps
             <CardContent className="space-y-3 text-sm text-slate-600">
               <div className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <Bot className="mt-0.5 h-4 w-4 text-teal-700" />
-                <p>Explains portfolio reviews, risk, recommendations, Market Vision, telemetry, ETF exposures and monitoring.</p>
+                <p>Explains portfolio reviews, risk, insights, Market Vision, telemetry, ETF exposures and monitoring.</p>
               </div>
               <div className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <ShieldCheck className="mt-0.5 h-4 w-4 text-teal-700" />

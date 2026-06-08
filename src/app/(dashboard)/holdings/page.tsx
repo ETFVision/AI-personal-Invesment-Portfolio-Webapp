@@ -28,7 +28,7 @@ export default async function HoldingsPage({ searchParams }: { searchParams: Pro
       <PageHeader
         eyebrow="Portfolio"
         title="Holdings"
-        description="Maintain the current positions used by portfolio valuation, risk, recommendations and review analytics."
+        description="Maintain the current positions used by portfolio valuation, risk, insights and review analytics."
         meta={
           <>
             <StatusBadge tone={dashboard.latestPriceDate ? "positive" : "warning"}>

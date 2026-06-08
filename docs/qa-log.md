@@ -2506,3 +2506,122 @@ Validation performed:
 Production-readiness assessment:
 - READY TO MERGE after Vercel Preview visual approval.
 - Merge risk is low: latest UX hardening is isolated to the Telemetry page and full validation is green.
+
+## 2026-06-08 - Market Vision Follow-Up Backlog Checkpoint
+
+Scope:
+- Logged future Market Vision improvements after Phase A structured metadata was implemented.
+- Phase A added regime transition tracking, cross-currents, evidence-based confidence scores, and portfolio macro impact mapping inside existing `market_vision_metadata`.
+- This checkpoint is a revisit list, not a new QA pass.
+
+Current state:
+- Market Vision generation remains draft-first and requires review before publishing.
+- Phase A stores structured metadata in JSONB; no additional migration was required for the Phase A fields.
+- Latest test/build validation for Phase A passed before commit `64dd271`.
+- The latest generated draft and latest published report were deleted manually at user request, so the next scheduled/manual generation should create a fresh report.
+
+Things to revisit next:
+- Generate a fresh Market Vision report after the next weekly reconciliation and review whether Phase A panels are readable and useful in the UI.
+- Confirm the weekly scheduled Market Vision job creates the intended report period and status.
+- Decide whether scheduled generated reports should remain `draft` for review or auto-publish after stronger QA.
+- Review whether the Regime Transition Tracker compares against the right prior generated report when reports are deleted or regenerated.
+- Review the Cross-Currents panel for wording quality and whether positive/negative forces feel too mechanical.
+- Review the Evidence Confidence Scores for usefulness; tune the deterministic score formula only if repeated reports show scores are too flat or too harsh.
+- Review the Portfolio Macro Impact Matrix for portfolio specificity, especially USD, rates, inflation, commodities and geopolitics relevance.
+- Add source/citation display in Market Vision sections if the generated narrative still feels insufficiently auditable.
+- Improve portfolio-theme attribution: show which sectors, ETFs, holdings, geographies or risks are affected by each Market Vision theme.
+- Keep Market Vision as an input layer only; do not let it override recommendation guardrails or create buy/sell actions.
+
+Phase B timing:
+- Start Phase B after 2-3 generated reports have been reviewed, or sooner if the next fresh report clearly exposes wording/logic issues.
+- Phase B should refine interpretation quality, not add new providers.
+- Candidate Phase B work:
+  - Improve regime transition interpretation and labels.
+  - Make cross-current language more CIO-like and less mechanical.
+  - Improve evidence/provenance display.
+  - Tighten portfolio-specific implications.
+  - Add better stale/missing-input warnings.
+  - QA scheduled report generation against expected report periods.
+
+Phase C timing:
+- Start Phase C only after Market Vision telemetry has enough matured observations.
+- Prefer waiting for at least early 1M outcomes before judging directional usefulness.
+- Candidate Phase C work:
+  - Evaluate Market Vision accuracy by theme/proxy.
+  - Use telemetry to calibrate confidence display, not to auto-change recommendations.
+  - Build human-reviewed calibration suggestions.
+  - Add Market Vision historical comparison views.
+
+Validation needed when revisiting:
+- Generate a fresh weekly report.
+- Confirm Phase A panels are populated.
+- Confirm no investment recommendation language is generated.
+- Confirm Market Vision alignment still behaves as a bounded recommendation input.
+- Run `npm.cmd run typecheck`, `npm.cmd test`, `npm.cmd run lint`, and `npm.cmd run build` after any future code changes.
+
+## 2026-06-08 - Recommendation Language Refinement Checkpoint
+
+Scope:
+- Refined consumer-facing recommendation language into ETFVision `Insights`, `Assessments`, and `Characteristics`.
+- Added a presentation mapping layer so internal labels can remain stable while UI and assistant responses use safer, non-action labels.
+- No scoring weights, guardrails, recommendation engine logic, telemetry calculations, scheduled jobs, or database schema were changed.
+
+Public label mapping:
+- Strong Buy -> Very Favorable Characteristics
+- Buy -> Favorable Characteristics
+- Hold -> Balanced Characteristics
+- Watch -> Review Area
+- Reduce -> Elevated Concerns
+- Sell -> Significant Concerns
+
+Updated surfaces:
+- Main research nav and `/recommendations` page display `Insights`.
+- Instrument detail pages display an `Insights` tab and assessment labels.
+- Instrument insight cards use `Positive characteristics`, `Concern areas`, `Improvement triggers`, and `Deterioration triggers`.
+- Portfolio Review displays improvement observations and assessment labels for candidate instruments.
+- Telemetry displays insight snapshots/outcomes and assessment labels.
+- Portfolio Assistant prompt, drawer copy, and assistant label mapping now use analytical classification language.
+
+Intentionally preserved:
+- Internal route/API/domain names containing `recommendation`.
+- Transaction `buy`/`sell` wording.
+- Prompt guardrails that prohibit buy/sell recommendations.
+- Historical tests and service contracts where the term is an internal implementation detail.
+
+Remaining future option:
+- A deeper route/API/domain migration from `recommendation` to `insight` can be done later, but it should be handled as a separate schema/API migration.
+
+Validation:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd test` passed: 202 tests.
+- `npm.cmd run build` passed.
+
+## 2026-06-08 - Recommendation Language Refinement QA
+
+Scope:
+- Reviewed the recommendation-language operation after implementation.
+- Checked changed UI surfaces, assistant prompt wording, assessment-label mapping, generated driver text, and portfolio review suggestion text.
+- Confirmed scoring logic, guardrail thresholds, telemetry math, database schema, and scheduled jobs were not changed.
+
+Findings:
+- Critical issues: none.
+- Medium-priority issues: none.
+- Low-priority issues found and fixed:
+  - Portfolio Review data-readiness suggestion still said `Run recommendations before final review`; changed to `Run insights before final review`.
+  - Crypto generated concern text still said `Crypto recommendations are intentionally conservative in V1`; changed to `Crypto insight classifications are intentionally conservative in V1`.
+
+Residual terminology assessment:
+- Remaining `recommendation` terms are internal service/API/domain contracts, telemetry field names, test fixtures, or explicit no-recommendation guardrails.
+- Remaining `Buy`/`Sell` terms are transaction labels, old-question support in assistant tests/prompts, internal scoring labels, or explicit prohibited-language examples.
+- No remaining problematic public section titles such as `Portfolio Recommendations`, `All Recommendations`, `Run recommendations`, `Buy / Strong Buy`, or `Reduce/Sell labels` were found in the focused scan.
+
+Validation:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd test` passed: 202 tests.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY after visual review in the Vercel preview.
+- Risk is low: the changes are presentation and prompt-language focused; recommendation scoring and persistence contracts remain intact.

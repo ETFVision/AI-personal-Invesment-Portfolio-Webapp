@@ -20,7 +20,7 @@ export class CryptoRecommendationService {
     return buildEvaluation(input, this.rules, components, {
       baseConfidence: 62,
       timeHorizon: "long_term",
-      negativeDrivers: ["Crypto recommendations are intentionally conservative in V1"],
+      negativeDrivers: ["Crypto insight classifications are intentionally conservative in V1"],
       changeTriggers: {
         upgrade: ["Liquidity regime and Market Vision risk appetite improve"],
         downgrade: ["Crypto concentration rises or liquidity regime tightens"]
