@@ -29,6 +29,13 @@ export type InstrumentHistoryCoverageSummary = {
   estimatedBackfillClicks: number;
 };
 
+export type RefreshInstrumentRiskMetricsResult = {
+  requestedSymbols: string[];
+  updatedCount: number;
+  errors: string[];
+  message: string;
+};
+
 function uniqueSymbols(symbols: Array<string | null | undefined>) {
   return Array.from(
     new Set(
@@ -417,6 +424,56 @@ export class InstrumentMarketService {
         requestedSymbols.size === 0
           ? "Instrument prices are already fresh."
           : `Stored ${updatedCount} instrument price row${updatedCount === 1 ? "" : "s"} across ${requestedSymbols.size} instrument${requestedSymbols.size === 1 ? "" : "s"}.`
+    };
+  }
+
+  async refreshInstrumentRiskMetricsInBatches(input?: {
+    batchSize?: number;
+    minObservations?: number;
+  }): Promise<RefreshInstrumentRiskMetricsResult> {
+    const batchSize = Math.max(1, input?.batchSize ?? 10);
+    const minObservations = Math.max(1, input?.minObservations ?? 30);
+    const instruments = await this.repository.listInstruments({ isActive: true });
+    const stats = await this.repository.listInstrumentPriceStats(instruments.map((instrument) => instrument.id));
+    const riskMetrics = await this.repository.listInstrumentRiskMetrics(instruments.map((instrument) => instrument.id));
+    const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
+    const riskByInstrumentId = new Map(riskMetrics.map((item) => [item.instrumentId, item]));
+    const selected = instruments
+      .filter((instrument) => (statsByInstrumentId.get(instrument.id)?.observationCount ?? 0) >= minObservations)
+      .slice()
+      .sort((a, b) => {
+        const aRisk = riskByInstrumentId.get(a.id);
+        const bRisk = riskByInstrumentId.get(b.id);
+        if (Boolean(aRisk) !== Boolean(bRisk)) return aRisk ? 1 : -1;
+        const aCalculatedAt = aRisk?.calculatedAt ?? "";
+        const bCalculatedAt = bRisk?.calculatedAt ?? "";
+        if (aCalculatedAt !== bCalculatedAt) return aCalculatedAt.localeCompare(bCalculatedAt);
+        return (a.symbol ?? "").localeCompare(b.symbol ?? "");
+      })
+      .slice(0, batchSize);
+
+    const errors: string[] = [];
+    const requestedSymbols: string[] = [];
+    let updatedCount = 0;
+
+    for (const instrument of selected) {
+      try {
+        await this.repository.refreshInstrumentRiskMetrics([instrument.id]);
+        if (instrument.symbol) requestedSymbols.push(instrument.symbol);
+        updatedCount += 1;
+      } catch (error) {
+        errors.push(`${instrument.symbol}: ${error instanceof Error ? error.message : "Risk metrics refresh failed."}`);
+      }
+    }
+
+    return {
+      requestedSymbols,
+      updatedCount,
+      errors,
+      message:
+        selected.length === 0
+          ? "No instruments have enough price history for risk metric refresh."
+          : `Refreshed risk metrics for ${updatedCount}/${selected.length} instrument${selected.length === 1 ? "" : "s"}.`
     };
   }
 

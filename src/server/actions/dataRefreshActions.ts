@@ -120,7 +120,7 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
   const job = await container.jobRunService.runManual("backfill_market_history", async () => {
     const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
       lookbackDays: 1825,
-      batchSize: 8,
+      batchSize: 10,
       maxBatches: 1,
       includeBackfill: true
     });
@@ -154,6 +154,44 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
   revalidatePath("/watchlists");
   revalidatePath("/portfolio");
   revalidatePath("/risk");
+
+  const params = new URLSearchParams({
+    refreshMessage
+  });
+  if (errors.length > 0) params.set("refreshError", errors.join(" | "));
+
+  redirect(`${destination}?${params.toString()}`);
+}
+
+export async function refreshInstrumentRiskMetricsAction(formData?: FormData) {
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  const destination = returnPath(formData);
+  const errors: string[] = [];
+  let refreshMessage = "";
+
+  const job = await container.jobRunService.runManual("refresh_instrument_risk_metrics", async () => {
+    const result = await container.instrumentMarketService.refreshInstrumentRiskMetricsInBatches({
+      batchSize: 10,
+      minObservations: 30
+    });
+    refreshMessage = result.message;
+    errors.push(...result.errors);
+
+    return {
+      ok: errors.length === 0,
+      message: refreshMessage,
+      errors,
+      metadata: result
+    };
+  });
+  if (job.errors.length > 0 && errors.length === 0) errors.push(...job.errors);
+  if (!refreshMessage && job.errors.length > 0) refreshMessage = "Instrument risk metrics refresh failed.";
+
+  revalidatePath("/admin/data-sources");
+  revalidatePath("/instruments");
+  revalidatePath("/risk");
+  revalidatePath("/portfolio-review");
 
   const params = new URLSearchParams({
     refreshMessage

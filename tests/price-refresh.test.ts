@@ -184,3 +184,41 @@ test("history backfill refreshes coverage metrics without running heavy risk met
   assert.deepEqual(marketMetricRefreshes, [["inst-MSFT"], ["inst-VOO"]]);
   assert.deepEqual(riskMetricRefreshes, []);
 });
+
+test("instrument risk refresh batches missing and oldest risk metrics only", async () => {
+  const refreshedIds: string[][] = [];
+  const fresh = instrument("FRESH");
+  const missing = instrument("MISS");
+  const old = instrument("OLD");
+  const sparse = instrument("SPARSE");
+  const repository = {
+    async listInstruments() {
+      return [fresh, missing, old, sparse];
+    },
+    async listInstrumentPriceStats() {
+      return [
+        { instrumentId: fresh.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2026-01-01", observationCount: 500 },
+        { instrumentId: missing.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2026-01-01", observationCount: 500 },
+        { instrumentId: old.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2026-01-01", observationCount: 500 },
+        { instrumentId: sparse.id, earliestPriceDate: "2026-01-01", latestPriceDate: "2026-01-15", observationCount: 10 }
+      ];
+    },
+    async listInstrumentRiskMetrics() {
+      return [
+        { instrumentId: fresh.id, calculatedAt: "2026-06-08T00:00:00.000Z" },
+        { instrumentId: old.id, calculatedAt: "2026-01-01T00:00:00.000Z" }
+      ];
+    },
+    async refreshInstrumentRiskMetrics(ids: string[]) {
+      refreshedIds.push(ids);
+    }
+  } as unknown as UniverseRepository;
+  const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const result = await service.refreshInstrumentRiskMetricsInBatches({ batchSize: 2, minObservations: 30 });
+
+  assert.equal(result.updatedCount, 2);
+  assert.deepEqual(result.requestedSymbols, ["MISS", "OLD"]);
+  assert.deepEqual(refreshedIds, [["inst-MISS"], ["inst-OLD"]]);
+});
