@@ -227,18 +227,28 @@ function marketVisionMetadataFixture(): MarketVisionReport["marketVisionMetadata
       { section: "USD", view: "Neutral", confidence: "Medium", supportingIndicators: ["USD stable"], conflictingIndicators: [], evidenceGaps: [] },
       { section: "Geopolitical Risks", view: "Cautious", confidence: "Medium", supportingIndicators: ["geopolitical risks persisted"], conflictingIndicators: [], evidenceGaps: [] }
     ],
-    structuralThemes: [{ name: "AI infrastructure", evidence: ["AI theme visible"], persistence: "long", confidence: "Medium" }],
-    tacticalThemes: [{ name: "restrictive rates", evidence: ["rates remained restrictive"], persistence: "short", confidence: "Medium" }],
+    structuralThemes: [{ id: "THEME_AI_INFRASTRUCTURE", displayName: "AI infrastructure", type: "structural", name: "AI infrastructure", evidence: ["AI theme visible"], persistence: "long", confidence: "Medium" }],
+    tacticalThemes: [{ id: "TACTICAL_OTHER", displayName: "restrictive rates", type: "tactical", name: "restrictive rates", evidence: ["rates remained restrictive"], persistence: "short", confidence: "Medium" }],
     keyWatchItems: ["Inflation persistence", "Technology concentration"],
     evidenceGaps: ["Employment evidence is limited."],
+    portfolioRelevance: { equity: "Low", bond: "Low", gold: "Low", crypto: "Low", cash: "Low", risk: "Low" },
     telemetryMetadata: {
       overallRegime: "balanced",
+      overallConfidence: "Medium",
       growthRegime: "mixed",
+      growthConfidence: "Low",
       inflationRegime: "cooling",
+      inflationConfidence: "Medium",
       ratesRegime: "restrictive",
+      ratesConfidence: "Medium",
+      yieldCurveRegime: "mixed",
+      yieldCurveConfidence: "Low",
       liquidityRegime: "neutral",
+      liquidityConfidence: "Low",
       usdRegime: "stable",
+      usdConfidence: "Medium",
       commoditiesRegime: "mixed",
+      commoditiesConfidence: "Medium",
       equityView: "Mixed",
       equityConfidence: "Medium",
       bondView: "Neutral",
@@ -248,9 +258,12 @@ function marketVisionMetadataFixture(): MarketVisionReport["marketVisionMetadata
       cryptoView: "Neutral",
       cryptoConfidence: "Low",
       keyWatchItems: ["Inflation persistence", "Technology concentration"],
+      structuralThemeIds: ["THEME_AI_INFRASTRUCTURE"],
+      tacticalThemeIds: ["TACTICAL_OTHER"],
       structuralThemes: ["AI infrastructure"],
       tacticalThemes: ["restrictive rates"],
-      evidenceGaps: ["Employment evidence is limited."]
+      evidenceGaps: ["Employment evidence is limited."],
+      portfolioRelevance: { equity: "Low", bond: "Low", gold: "Low", crypto: "Low", cash: "Low", risk: "Low" }
     }
   };
 }
@@ -455,10 +468,41 @@ test("AI Market Vision generation creates a generated draft with usage metadata"
   assert.equal(report.marketVisionMetadata.regimeScorecard[0]?.label, "Growth");
   assert.equal(report.marketVisionMetadata.evidencePanels.every((panel) => Boolean(panel.confidence)), true);
   assert.equal(report.marketVisionMetadata.telemetryMetadata.overallRegime, "balanced");
+  assert.deepEqual(report.marketVisionMetadata.telemetryMetadata.structuralThemeIds, ["THEME_AI_INFRASTRUCTURE"]);
   assert.equal(typeof report.marketVisionMetadata.telemetryMetadata.visionId, "string");
   assert.equal(typeof report.marketVisionMetadata.telemetryMetadata.generatedAt, "string");
   assert.equal(repository.logs[0]?.status, "success");
   assert.equal(ai.calls.length, 1);
+});
+
+test("AI Market Vision generation recalibrates overconfident mixed evidence and portfolio relevance", async () => {
+  const metadata = marketVisionMetadataFixture();
+  metadata.evidencePanels = metadata.evidencePanels.map((panel) => panel.section === "Equity Market View"
+    ? { ...panel, confidence: "High", supportingIndicators: ["technology leadership"], conflictingIndicators: ["valuation pressure", "macro uncertainty"], evidenceGaps: [] }
+    : panel
+  );
+  metadata.regimeScorecard = metadata.regimeScorecard.map((entry) => entry.label === "Yield curve"
+    ? { ...entry, confidence: "High", supportingIndicators: [], explanation: "Evidence is limited." }
+    : entry
+  );
+  const repository = new FakeMarketVisionRepository();
+  const service = new MarketVisionGenerationService(
+    repository,
+    new FakeNewsRepository(weeklyReconciliation()) as unknown as NewsRepository,
+    new FakeMacroRepository() as unknown as MacroIndicatorRepository,
+    new FakeAiMarketVisionProvider({ marketVisionMetadata: metadata }),
+    { getPortfolioDashboard: async () => equityOnlyDashboard() }
+  );
+
+  const report = await service.generateWeeklyReport({ portfolioId: "portfolio-1" });
+  const equityPanel = report.marketVisionMetadata.evidencePanels.find((panel) => panel.section === "Equity Market View");
+  const yieldCurve = report.marketVisionMetadata.regimeScorecard.find((entry) => entry.label === "Yield curve");
+
+  assert.equal(equityPanel?.confidence, "Low");
+  assert.equal(yieldCurve?.confidence, "Low");
+  assert.equal(report.marketVisionMetadata.portfolioRelevance.equity, "High");
+  assert.equal(report.marketVisionMetadata.portfolioRelevance.crypto, "Low");
+  assert.equal(report.marketVisionMetadata.telemetryMetadata.portfolioRelevance.equity, "High");
 });
 
 test("AI Market Vision validation provides structured metadata defaults and evidence gaps", () => {
@@ -473,6 +517,7 @@ test("AI Market Vision validation provides structured metadata defaults and evid
   assert.equal(validated.marketVisionMetadata.evidencePanels.length, 10);
   assert.equal(validated.marketVisionMetadata.evidenceGaps[0], "Evidence is limited.");
   assert.equal(validated.marketVisionMetadata.telemetryMetadata.equityConfidence, "Low");
+  assert.deepEqual(validated.marketVisionMetadata.telemetryMetadata.tacticalThemeIds, []);
 });
 
 test("AI Market Vision validation normalizes smart and mojibake punctuation", () => {

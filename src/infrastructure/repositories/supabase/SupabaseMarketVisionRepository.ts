@@ -52,6 +52,21 @@ function mapMarketVisionMetadata(value: unknown): MarketVisionMetadata {
   const telemetry = typeof row.telemetryMetadata === "object" && row.telemetryMetadata !== null
     ? row.telemetryMetadata
     : {};
+  const relevance = typeof row.portfolioRelevance === "object" && row.portfolioRelevance !== null
+    ? row.portfolioRelevance as Record<string, unknown>
+    : {};
+  const telemetryRelevance = typeof (telemetry as Record<string, unknown>).portfolioRelevance === "object" && (telemetry as Record<string, unknown>).portfolioRelevance !== null
+    ? (telemetry as Record<string, unknown>).portfolioRelevance as Record<string, unknown>
+    : {};
+  const mapRelevance = (source: Record<string, unknown>) => ({
+    equity: (source.equity as MarketVisionMetadata["portfolioRelevance"]["equity"]) ?? "Low",
+    bond: (source.bond as MarketVisionMetadata["portfolioRelevance"]["bond"]) ?? "Low",
+    gold: (source.gold as MarketVisionMetadata["portfolioRelevance"]["gold"]) ?? "Low",
+    crypto: (source.crypto as MarketVisionMetadata["portfolioRelevance"]["crypto"]) ?? "Low",
+    cash: (source.cash as MarketVisionMetadata["portfolioRelevance"]["cash"]) ?? "Low",
+    risk: (source.risk as MarketVisionMetadata["portfolioRelevance"]["risk"]) ?? "Low"
+  });
+  const portfolioRelevance = mapRelevance(relevance);
   return {
     regimeScorecard: Array.isArray(row.regimeScorecard) ? row.regimeScorecard as MarketVisionMetadata["regimeScorecard"] : [],
     evidencePanels: Array.isArray(row.evidencePanels) ? row.evidencePanels as MarketVisionMetadata["evidencePanels"] : [],
@@ -59,14 +74,24 @@ function mapMarketVisionMetadata(value: unknown): MarketVisionMetadata {
     tacticalThemes: Array.isArray(row.tacticalThemes) ? row.tacticalThemes as MarketVisionMetadata["tacticalThemes"] : [],
     keyWatchItems: toStringArray(row.keyWatchItems),
     evidenceGaps: toStringArray(row.evidenceGaps),
+    portfolioRelevance,
     telemetryMetadata: {
       overallRegime: String((telemetry as Record<string, unknown>).overallRegime ?? ""),
+      overallConfidence: ((telemetry as Record<string, unknown>).overallConfidence as MarketVisionMetadata["telemetryMetadata"]["overallConfidence"]) ?? "Low",
       growthRegime: String((telemetry as Record<string, unknown>).growthRegime ?? ""),
+      growthConfidence: ((telemetry as Record<string, unknown>).growthConfidence as MarketVisionMetadata["telemetryMetadata"]["growthConfidence"]) ?? "Low",
       inflationRegime: String((telemetry as Record<string, unknown>).inflationRegime ?? ""),
+      inflationConfidence: ((telemetry as Record<string, unknown>).inflationConfidence as MarketVisionMetadata["telemetryMetadata"]["inflationConfidence"]) ?? "Low",
       ratesRegime: String((telemetry as Record<string, unknown>).ratesRegime ?? ""),
+      ratesConfidence: ((telemetry as Record<string, unknown>).ratesConfidence as MarketVisionMetadata["telemetryMetadata"]["ratesConfidence"]) ?? "Low",
+      yieldCurveRegime: String((telemetry as Record<string, unknown>).yieldCurveRegime ?? ""),
+      yieldCurveConfidence: ((telemetry as Record<string, unknown>).yieldCurveConfidence as MarketVisionMetadata["telemetryMetadata"]["yieldCurveConfidence"]) ?? "Low",
       liquidityRegime: String((telemetry as Record<string, unknown>).liquidityRegime ?? ""),
+      liquidityConfidence: ((telemetry as Record<string, unknown>).liquidityConfidence as MarketVisionMetadata["telemetryMetadata"]["liquidityConfidence"]) ?? "Low",
       usdRegime: String((telemetry as Record<string, unknown>).usdRegime ?? ""),
+      usdConfidence: ((telemetry as Record<string, unknown>).usdConfidence as MarketVisionMetadata["telemetryMetadata"]["usdConfidence"]) ?? "Low",
       commoditiesRegime: String((telemetry as Record<string, unknown>).commoditiesRegime ?? ""),
+      commoditiesConfidence: ((telemetry as Record<string, unknown>).commoditiesConfidence as MarketVisionMetadata["telemetryMetadata"]["commoditiesConfidence"]) ?? "Low",
       equityView: String((telemetry as Record<string, unknown>).equityView ?? ""),
       equityConfidence: ((telemetry as Record<string, unknown>).equityConfidence as MarketVisionMetadata["telemetryMetadata"]["equityConfidence"]) ?? "Low",
       bondView: String((telemetry as Record<string, unknown>).bondView ?? ""),
@@ -76,9 +101,12 @@ function mapMarketVisionMetadata(value: unknown): MarketVisionMetadata {
       cryptoView: String((telemetry as Record<string, unknown>).cryptoView ?? ""),
       cryptoConfidence: ((telemetry as Record<string, unknown>).cryptoConfidence as MarketVisionMetadata["telemetryMetadata"]["cryptoConfidence"]) ?? "Low",
       keyWatchItems: toStringArray((telemetry as Record<string, unknown>).keyWatchItems),
+      structuralThemeIds: toStringArray((telemetry as Record<string, unknown>).structuralThemeIds),
+      tacticalThemeIds: toStringArray((telemetry as Record<string, unknown>).tacticalThemeIds),
       structuralThemes: toStringArray((telemetry as Record<string, unknown>).structuralThemes),
       tacticalThemes: toStringArray((telemetry as Record<string, unknown>).tacticalThemes),
-      evidenceGaps: toStringArray((telemetry as Record<string, unknown>).evidenceGaps)
+      evidenceGaps: toStringArray((telemetry as Record<string, unknown>).evidenceGaps),
+      portfolioRelevance: mapRelevance(telemetryRelevance)
     }
   };
 }

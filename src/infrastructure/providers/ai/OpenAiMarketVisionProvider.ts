@@ -87,6 +87,7 @@ const marketVisionJsonSchema = {
         "tacticalThemes",
         "keyWatchItems",
         "evidenceGaps",
+        "portfolioRelevance",
         "telemetryMetadata"
       ],
       properties: {
@@ -126,8 +127,11 @@ const marketVisionJsonSchema = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["name", "evidence", "persistence", "confidence"],
+            required: ["id", "displayName", "type", "name", "evidence", "persistence", "confidence"],
             properties: {
+              id: { type: "string" },
+              displayName: { type: "string" },
+              type: { type: "string" },
               name: { type: "string" },
               evidence: { type: "array", items: { type: "string" } },
               persistence: { type: "string" },
@@ -140,8 +144,11 @@ const marketVisionJsonSchema = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["name", "evidence", "persistence", "confidence"],
+            required: ["id", "displayName", "type", "name", "evidence", "persistence", "confidence"],
             properties: {
+              id: { type: "string" },
+              displayName: { type: "string" },
+              type: { type: "string" },
               name: { type: "string" },
               evidence: { type: "array", items: { type: "string" } },
               persistence: { type: "string" },
@@ -151,17 +158,39 @@ const marketVisionJsonSchema = {
         },
         keyWatchItems: { type: "array", items: { type: "string" } },
         evidenceGaps: { type: "array", items: { type: "string" } },
+        portfolioRelevance: {
+          type: "object",
+          additionalProperties: false,
+          required: ["equity", "bond", "gold", "crypto", "cash", "risk"],
+          properties: {
+            equity: { type: "string", enum: ["High", "Medium", "Low"] },
+            bond: { type: "string", enum: ["High", "Medium", "Low"] },
+            gold: { type: "string", enum: ["High", "Medium", "Low"] },
+            crypto: { type: "string", enum: ["High", "Medium", "Low"] },
+            cash: { type: "string", enum: ["High", "Medium", "Low"] },
+            risk: { type: "string", enum: ["High", "Medium", "Low"] }
+          }
+        },
         telemetryMetadata: {
           type: "object",
           additionalProperties: false,
           required: [
             "overallRegime",
+            "overallConfidence",
             "growthRegime",
+            "growthConfidence",
             "inflationRegime",
+            "inflationConfidence",
             "ratesRegime",
+            "ratesConfidence",
+            "yieldCurveRegime",
+            "yieldCurveConfidence",
             "liquidityRegime",
+            "liquidityConfidence",
             "usdRegime",
+            "usdConfidence",
             "commoditiesRegime",
+            "commoditiesConfidence",
             "equityView",
             "equityConfidence",
             "bondView",
@@ -171,18 +200,30 @@ const marketVisionJsonSchema = {
             "cryptoView",
             "cryptoConfidence",
             "keyWatchItems",
+            "structuralThemeIds",
+            "tacticalThemeIds",
             "structuralThemes",
             "tacticalThemes",
-            "evidenceGaps"
+            "evidenceGaps",
+            "portfolioRelevance"
           ],
           properties: {
             overallRegime: { type: "string" },
+            overallConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
             growthRegime: { type: "string" },
+            growthConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
             inflationRegime: { type: "string" },
+            inflationConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
             ratesRegime: { type: "string" },
+            ratesConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
+            yieldCurveRegime: { type: "string" },
+            yieldCurveConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
             liquidityRegime: { type: "string" },
+            liquidityConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
             usdRegime: { type: "string" },
+            usdConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
             commoditiesRegime: { type: "string" },
+            commoditiesConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
             equityView: { type: "string" },
             equityConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
             bondView: { type: "string" },
@@ -192,9 +233,24 @@ const marketVisionJsonSchema = {
             cryptoView: { type: "string" },
             cryptoConfidence: { type: "string", enum: ["High", "Medium", "Low"] },
             keyWatchItems: { type: "array", items: { type: "string" } },
+            structuralThemeIds: { type: "array", items: { type: "string" } },
+            tacticalThemeIds: { type: "array", items: { type: "string" } },
             structuralThemes: { type: "array", items: { type: "string" } },
             tacticalThemes: { type: "array", items: { type: "string" } },
-            evidenceGaps: { type: "array", items: { type: "string" } }
+            evidenceGaps: { type: "array", items: { type: "string" } },
+            portfolioRelevance: {
+              type: "object",
+              additionalProperties: false,
+              required: ["equity", "bond", "gold", "crypto", "cash", "risk"],
+              properties: {
+                equity: { type: "string", enum: ["High", "Medium", "Low"] },
+                bond: { type: "string", enum: ["High", "Medium", "Low"] },
+                gold: { type: "string", enum: ["High", "Medium", "Low"] },
+                crypto: { type: "string", enum: ["High", "Medium", "Low"] },
+                cash: { type: "string", enum: ["High", "Medium", "Low"] },
+                risk: { type: "string", enum: ["High", "Medium", "Low"] }
+              }
+            }
           }
         }
       }

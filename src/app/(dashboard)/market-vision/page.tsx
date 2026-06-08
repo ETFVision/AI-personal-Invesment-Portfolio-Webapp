@@ -202,7 +202,10 @@ function ThemeSummaryCard({ title, themes }: { title: string; themes: MarketVisi
             {themes.map((theme) => (
               <div key={theme.name} className="rounded-md border p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium">{theme.name}</p>
+                <div>
+                  <p className="font-medium">{theme.displayName || theme.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{theme.id}</p>
+                </div>
                   <div className="flex gap-2">
                     <StatusBadge tone="info">{theme.persistence}</StatusBadge>
                     <StatusBadge tone={confidenceTone(theme.confidence)}>{theme.confidence}</StatusBadge>
@@ -216,6 +219,16 @@ function ThemeSummaryCard({ title, themes }: { title: string; themes: MarketVisi
       </CardContent>
     </Card>
   );
+}
+
+function relevanceForKey(report: MarketVisionReport, key: keyof MarketVisionReport["portfolioImplications"]) {
+  const relevance = report.marketVisionMetadata.portfolioRelevance;
+  if (key === "equityAllocationImplication") return relevance.equity;
+  if (key === "bondAllocationImplication") return relevance.bond;
+  if (key === "goldImplication") return relevance.gold;
+  if (key === "cryptoImplication") return relevance.crypto;
+  if (key === "cashImplication") return relevance.cash;
+  return relevance.risk;
 }
 
 function evidenceFor(report: MarketVisionReport, title: string) {
@@ -331,7 +344,7 @@ function ReportEditor({ report }: { report: MarketVisionReport }) {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="opportunities">Key opportunities</Label>
+              <Label htmlFor="opportunities">Market themes to monitor</Label>
               <Textarea id="opportunities" name="opportunities" defaultValue={report.opportunities.join("\n")} />
             </div>
             <div className="space-y-2">
@@ -506,7 +519,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
-            <ListCard title="Market Opportunities To Monitor" items={report.opportunities} emptyText="No opportunities entered yet." />
+            <ListCard title="Market Themes To Monitor" items={report.opportunities} emptyText="No themes entered yet." />
             <ListCard title="Key Risks" items={report.risks} emptyText="No risks entered yet." />
           </section>
 
@@ -538,7 +551,10 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             <CardContent className="grid gap-3 md:grid-cols-2">
               {implicationFields.map(([key, label]) => (
                 <div key={key} className="rounded-md border p-3">
-                  <p className="text-sm font-medium">{label}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium">{label}</p>
+                    <StatusBadge tone={confidenceTone(relevanceForKey(report, key))}>{relevanceForKey(report, key)} relevance</StatusBadge>
+                  </div>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
                     {report.portfolioImplications[key] || "No implication entered yet."}
                   </p>

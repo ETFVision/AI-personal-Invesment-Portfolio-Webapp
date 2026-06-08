@@ -33,22 +33,43 @@ export type MarketVisionEvidencePanel = {
 };
 
 export type MarketVisionThemeSummary = {
+  id: string;
+  displayName: string;
+  type: "structural" | "tactical" | string;
   name: string;
   evidence: string[];
   persistence: "short" | "medium" | "long" | string;
   confidence: MarketVisionConfidenceLevel;
 };
 
+export type MarketVisionPortfolioRelevance = {
+  equity: MarketVisionConfidenceLevel;
+  bond: MarketVisionConfidenceLevel;
+  gold: MarketVisionConfidenceLevel;
+  crypto: MarketVisionConfidenceLevel;
+  cash: MarketVisionConfidenceLevel;
+  risk: MarketVisionConfidenceLevel;
+};
+
 export type MarketVisionTelemetryMetadata = {
   visionId?: string;
   generatedAt?: string;
   overallRegime: string;
+  overallConfidence: MarketVisionConfidenceLevel;
   growthRegime: string;
+  growthConfidence: MarketVisionConfidenceLevel;
   inflationRegime: string;
+  inflationConfidence: MarketVisionConfidenceLevel;
   ratesRegime: string;
+  ratesConfidence: MarketVisionConfidenceLevel;
+  yieldCurveRegime: string;
+  yieldCurveConfidence: MarketVisionConfidenceLevel;
   liquidityRegime: string;
+  liquidityConfidence: MarketVisionConfidenceLevel;
   usdRegime: string;
+  usdConfidence: MarketVisionConfidenceLevel;
   commoditiesRegime: string;
+  commoditiesConfidence: MarketVisionConfidenceLevel;
   equityView: string;
   equityConfidence: MarketVisionConfidenceLevel;
   bondView: string;
@@ -58,9 +79,12 @@ export type MarketVisionTelemetryMetadata = {
   cryptoView: string;
   cryptoConfidence: MarketVisionConfidenceLevel;
   keyWatchItems: string[];
+  structuralThemeIds: string[];
+  tacticalThemeIds: string[];
   structuralThemes: string[];
   tacticalThemes: string[];
   evidenceGaps: string[];
+  portfolioRelevance: MarketVisionPortfolioRelevance;
 };
 
 export type MarketVisionMetadata = {
@@ -70,6 +94,7 @@ export type MarketVisionMetadata = {
   tacticalThemes: MarketVisionThemeSummary[];
   keyWatchItems: string[];
   evidenceGaps: string[];
+  portfolioRelevance: MarketVisionPortfolioRelevance;
   telemetryMetadata: MarketVisionTelemetryMetadata;
 };
 

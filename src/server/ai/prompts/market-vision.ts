@@ -49,6 +49,13 @@ Required report structure:
 20. Watch Items
 21. Telemetry Metadata
 
+Confidence calibration rules:
+- High confidence requires multiple supporting indicators, few or no conflicting indicators, and limited evidence gaps.
+- Medium confidence applies when supporting indicators exist but there is some conflict or some evidence gap.
+- Low confidence applies when evidence is weak, material gaps exist, or conflicting indicators dominate.
+- Do not assign High confidence merely because a regime exists.
+- If evidence is mixed, confidence should usually be Medium.
+
 Every major asset or macro view must have:
 - view: Constructive, Mixed, Cautious, Defensive, or Neutral
 - confidence: High, Medium, or Low
@@ -69,6 +76,28 @@ Regime Scorecard must include:
 Separate themes into:
 - structuralThemes: longer-duration themes such as AI infrastructure, deglobalization, energy security, strategic resources, defense/security spending
 - tacticalThemes: shorter-term market drivers such as falling yields, rising oil, weakening dollar, inflation reacceleration, liquidity tightening
+
+Choose theme IDs only from this controlled list when applicable:
+Structural:
+- THEME_AI_INFRASTRUCTURE
+- THEME_DEGLOBALIZATION
+- THEME_ENERGY_SECURITY
+- THEME_DEFENSE_SECURITY
+- THEME_STRATEGIC_RESOURCES
+- THEME_OTHER
+Tactical:
+- TACTICAL_FALLING_YIELDS
+- TACTICAL_RISING_OIL
+- TACTICAL_WEAKENING_USD
+- TACTICAL_TIGHTENING_LIQUIDITY
+- TACTICAL_AI_CAPEX_DIGESTION
+- TACTICAL_OTHER
+
+Portfolio Context must include relevance language using context.portfolioRelevance:
+- High relevance means the portfolio has meaningful exposure to that context.
+- Medium relevance means the context may matter but is not a dominant exposure.
+- Low relevance means exposure is limited or absent.
+Do not recommend increasing or reducing exposure.
 
 Return strict JSON only with keys:
 title,
@@ -109,6 +138,7 @@ structuralThemes,
 tacticalThemes,
 keyWatchItems,
 evidenceGaps,
+portfolioRelevance,
 telemetryMetadata.
 
 regimeScorecard items must include:
@@ -127,6 +157,9 @@ conflictingIndicators,
 evidenceGaps.
 
 structuralThemes and tacticalThemes items must include:
+id,
+displayName,
+type,
 name,
 evidence,
 persistence,
@@ -134,12 +167,21 @@ confidence.
 
 telemetryMetadata must include:
 overallRegime,
+overallConfidence,
 growthRegime,
+growthConfidence,
 inflationRegime,
+inflationConfidence,
 ratesRegime,
+ratesConfidence,
+yieldCurveRegime,
+yieldCurveConfidence,
 liquidityRegime,
+liquidityConfidence,
 usdRegime,
+usdConfidence,
 commoditiesRegime,
+commoditiesConfidence,
 equityView,
 equityConfidence,
 bondView,
@@ -149,8 +191,11 @@ goldConfidence,
 cryptoView,
 cryptoConfidence,
 keyWatchItems,
+structuralThemeIds,
+tacticalThemeIds,
 structuralThemes,
 tacticalThemes,
-evidenceGaps.
+evidenceGaps,
+portfolioRelevance.
 
 confidenceScore must be from 0 to 100.`;
