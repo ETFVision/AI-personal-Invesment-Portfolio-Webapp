@@ -230,7 +230,9 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
     container.jobRunService.listRecent(60)
   ]);
   const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 3);
-  const marketDataJobRuns = jobRuns.filter((run) => ["seed_universe", "refresh_market_data", "backfill_market_history"].includes(run.jobName)).slice(0, 8);
+  const marketDataJobRuns = jobRuns
+    .filter((run) => ["seed_universe", "refresh_market_data", "backfill_market_history", "market-history-backfill"].includes(run.jobName))
+    .slice(0, 8);
 
   const latestFmpLog = newsDashboard.ingestionLogs.find((log) => log.sourceProvider === "financial_modeling_prep" && log.jobName === "daily-news-ingestion") ?? null;
   const fmpSummary = fmpFetchSummary(latestFmpLog);
@@ -335,7 +337,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         <div className="mt-4 rounded-md border p-3">
           <p className="text-sm font-medium">Market data operation logs</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Recent manual runs for Seed Universe, Refresh market data and Backfill market history. Benchmark history runs after instrument history is complete.
+            Recent manual and scheduled runs for Seed Universe, Refresh market data and Backfill market history. Benchmark history runs after instrument history is complete.
           </p>
           <div className="mt-3 space-y-2 text-sm">
             {marketDataJobRuns.length === 0 ? (
