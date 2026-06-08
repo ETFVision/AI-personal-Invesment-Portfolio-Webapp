@@ -297,6 +297,15 @@ function uuidOrNull(value: string | null | undefined) {
 }
 
 const SUPABASE_PAGE_SIZE = 1000;
+const INSTRUMENT_PRICE_UPSERT_BATCH_SIZE = 500;
+
+function chunkArray<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
 
 export class SupabaseUniverseRepository implements UniverseRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
@@ -441,20 +450,22 @@ export class SupabaseUniverseRepository implements UniverseRepository {
   async upsertInstrumentPrices(input: UpsertInstrumentPriceInput[]) {
     if (input.length === 0) return;
 
-    const { error } = await this.db.from("instrument_prices").upsert(
-      input.map((item) => ({
-        instrument_id: uuidOrUndefined(item.instrumentId),
-        provider: item.provider,
-        symbol: item.symbol,
-        price_date: item.priceDate,
-        close_price: item.closePrice,
-        currency: item.currency,
-        raw_payload: item.rawPayload
-      })),
-      { onConflict: "instrument_id,provider,price_date" }
-    );
-    if (isMissingUniverseTable(error)) return;
-    if (error) throw new Error(error.message);
+    for (const batch of chunkArray(input, INSTRUMENT_PRICE_UPSERT_BATCH_SIZE)) {
+      const { error } = await this.db.from("instrument_prices").upsert(
+        batch.map((item) => ({
+          instrument_id: uuidOrUndefined(item.instrumentId),
+          provider: item.provider,
+          symbol: item.symbol,
+          price_date: item.priceDate,
+          close_price: item.closePrice,
+          currency: item.currency,
+          raw_payload: item.rawPayload
+        })),
+        { onConflict: "instrument_id,provider,price_date" }
+      );
+      if (isMissingUniverseTable(error)) return;
+      if (error) throw new Error(error.message);
+    }
   }
 
   async listInstrumentMarketMetrics(instrumentIds?: string[]) {

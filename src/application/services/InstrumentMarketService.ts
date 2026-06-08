@@ -116,6 +116,24 @@ function safeReturn(latest: number | null, baseline: number | null) {
   return latest / baseline - 1;
 }
 
+async function refreshDerivedMetrics(
+  repository: UniverseRepository,
+  instrumentIds: string[],
+  options?: { oneInstrumentAtATime?: boolean }
+) {
+  if (instrumentIds.length === 0) return;
+  if (!options?.oneInstrumentAtATime) {
+    await repository.refreshInstrumentMarketMetrics(instrumentIds);
+    await repository.refreshInstrumentRiskMetrics(instrumentIds);
+    return;
+  }
+
+  for (const instrumentId of instrumentIds) {
+    await repository.refreshInstrumentMarketMetrics([instrumentId]);
+    await repository.refreshInstrumentRiskMetrics([instrumentId]);
+  }
+}
+
 function freshnessTone(priceDate: string | null) {
   if (!priceDate) return { label: "Never", tone: "text-muted-foreground" };
   const days = Math.max(0, Math.floor((Date.now() - new Date(priceDate).getTime()) / 86_400_000));
@@ -268,8 +286,7 @@ export class InstrumentMarketService {
       if (rows.length > 0) {
         const updatedInstrumentIds = Array.from(new Set(rows.map((row) => row.instrumentId)));
         await this.repository.upsertInstrumentPrices(rows);
-        await this.repository.refreshInstrumentMarketMetrics(updatedInstrumentIds);
-        await this.repository.refreshInstrumentRiskMetrics(updatedInstrumentIds);
+        await refreshDerivedMetrics(this.repository, updatedInstrumentIds);
       }
 
       return {
@@ -347,8 +364,7 @@ export class InstrumentMarketService {
     if (rows.length > 0) {
       const updatedInstrumentIds = Array.from(new Set(rows.map((row) => row.instrumentId)));
       await this.repository.upsertInstrumentPrices(rows);
-      await this.repository.refreshInstrumentMarketMetrics(updatedInstrumentIds);
-      await this.repository.refreshInstrumentRiskMetrics(updatedInstrumentIds);
+      await refreshDerivedMetrics(this.repository, updatedInstrumentIds, { oneInstrumentAtATime: includeBackfill });
     }
 
     return {

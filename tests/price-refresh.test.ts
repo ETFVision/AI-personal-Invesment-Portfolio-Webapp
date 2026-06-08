@@ -148,3 +148,39 @@ test("history coverage tracks crypto against a shorter 2Y target", async () => {
   assert.equal(coverage.missingTwoYearCrypto, 1);
   assert.equal(coverage.estimatedBackfillClicks, 1);
 });
+
+test("history backfill refreshes derived metrics one instrument at a time", async () => {
+  const marketMetricRefreshes: string[][] = [];
+  const riskMetricRefreshes: string[][] = [];
+  const repository = {
+    async listInstruments() {
+      return [instrument("VOO", { assetClass: "etf", instrumentType: "etf" }), instrument("MSFT")];
+    },
+    async listInstrumentPriceStats() {
+      return [];
+    },
+    async upsertInstrumentPrices() {},
+    async refreshInstrumentMarketMetrics(ids: string[]) {
+      marketMetricRefreshes.push(ids);
+    },
+    async refreshInstrumentRiskMetrics(ids: string[]) {
+      riskMetricRefreshes.push(ids);
+    }
+  } as unknown as UniverseRepository;
+  const provider = {
+    name: "financial_modeling_prep",
+    async getHistoricalPrices(symbol: string) {
+      return [
+        { symbol, price: 100, currency: "USD", asOfDate: "2021-01-01", raw: {} },
+        { symbol, price: 110, currency: "USD", asOfDate: "2026-01-01", raw: {} }
+      ];
+    }
+  } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const result = await service.refreshInstrumentPrices({ lookbackDays: 1825, maxSymbols: 2, includeBackfill: true });
+
+  assert.equal(result.updatedCount, 4);
+  assert.deepEqual(marketMetricRefreshes, [["inst-MSFT"], ["inst-VOO"]]);
+  assert.deepEqual(riskMetricRefreshes, [["inst-MSFT"], ["inst-VOO"]]);
+});
