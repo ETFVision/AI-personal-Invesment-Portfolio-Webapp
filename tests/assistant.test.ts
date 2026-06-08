@@ -7,12 +7,15 @@ import type {
   CreateAssistantMessageInput,
   CreateAssistantUsageLogInput
 } from "../src/application/ports/repositories/AssistantRepository";
+import type { AssistantContextPackage } from "../src/domain/assistant/types";
 import type { AiPortfolioAssistantProvider } from "../src/application/ports/providers/AiPortfolioAssistantProvider";
 import { AssistantQuestionRouter } from "../src/application/services/assistant/AssistantQuestionRouter";
 import { AssistantResponseGuardrailService } from "../src/application/services/assistant/AssistantResponseGuardrailService";
 import { AssistantPromptBuilder } from "../src/application/services/assistant/AssistantPromptBuilder";
+import { ASSISTANT_RECOMMENDATION_LABELS, assistantRecommendationLabel } from "../src/application/services/assistant/AssistantRecommendationLabels";
 import { PortfolioAssistantService } from "../src/application/services/assistant/PortfolioAssistantService";
 import { AssistantContextBuilder } from "../src/application/services/assistant/AssistantContextBuilder";
+import { PORTFOLIO_ASSISTANT_PROMPT } from "../src/server/ai/prompts/portfolio-assistant";
 import {
   ASSISTANT_ADVICE_BLOCKED_RESPONSE,
   ASSISTANT_GENERAL_KNOWLEDGE_BLOCKED_RESPONSE,
@@ -176,6 +179,13 @@ const minimalAssistantContext = {
   dataLimitations: []
 };
 
+function contextWithRecentMessages(messages: AssistantContextPackage["recentMessages"]) {
+  return {
+    ...minimalAssistantContext,
+    recentMessages: messages
+  };
+}
+
 class CapturingAssistantProvider implements AiPortfolioAssistantProvider {
   input: unknown = null;
 
@@ -240,11 +250,42 @@ test("assistant router uses prior category for follow-up questions", () => {
   assert.equal(route.category, "risk");
 });
 
+test("assistant router keeps ambiguous factor follow-ups in prior recommendation context", () => {
+  const router = new AssistantQuestionRouter();
+  const route = router.route("What is the biggest negative factor?", "recommendation");
+  assert.equal(route.supported, true);
+  assert.equal(route.category, "recommendation");
+  assert.match(route.reason, /ambiguous follow-up/i);
+});
+
+test("assistant router keeps inflation-sensitive holdings follow-up in prior macro context", () => {
+  const router = new AssistantQuestionRouter();
+  const route = router.route("Which holdings are most sensitive?", "market_vision");
+  assert.equal(route.supported, true);
+  assert.equal(route.category, "market_vision");
+});
+
 test("assistant guardrail replaces prohibited investment instructions", () => {
   const guardrails = new AssistantResponseGuardrailService();
   const result = guardrails.validate("You should buy VOO and allocate 20%.");
   assert.equal(result.ok, false);
   assert.match(result.answer, /cannot provide buy\/sell instructions/i);
+});
+
+test("assistant guardrail blocks disguised recommendation language", () => {
+  const guardrails = new AssistantResponseGuardrailService();
+  const blocked = [
+    "NVDA is a good buy based on the score.",
+    "VOO should be purchased.",
+    "MSFT looks like a buy.",
+    "JPM is the top opportunity."
+  ];
+
+  for (const answer of blocked) {
+    const result = guardrails.validate(answer);
+    assert.equal(result.ok, false, answer);
+    assert.match(result.answer, /cannot provide buy\/sell instructions/i);
+  }
 });
 
 test("assistant prompt builder carries CIO response-quality requirements", () => {
@@ -254,10 +295,103 @@ test("assistant prompt builder carries CIO response-quality requirements", () =>
   });
   const requirements = payload.responseRequirements.join("\n");
   assert.match(requirements, /Most Important Thing Right Now/);
+  assert.match(requirements, /Executive Brief/);
+  assert.match(requirements, /Response mode: broad/);
+  assert.match(requirements, /Choose 'Most Important Thing Right Now' dynamically/);
+  assert.match(requirements, /Do not default to concentration/);
   assert.match(requirements, /Rank findings by priority/);
+  assert.match(requirements, /Why it matters/);
+  assert.match(requirements, /top indirect holdings/i);
   assert.match(requirements, /ETFVision View/);
+  assert.match(requirements, /250-400 words/);
   assert.match(requirements, /Executive summaries should be concise/);
   assert.match(requirements, /mention this only when evidence, changes, monitoring, or historical accuracy is relevant/);
+});
+
+test("assistant prompt builder shortens ambiguous follow-up response mode", () => {
+  const payload = new AssistantPromptBuilder().build({
+    question: "Why?",
+    context: contextWithRecentMessages([
+      { role: "user", content: "Why is my score 77?", questionCategory: "portfolio_review" },
+      { role: "assistant", content: "The score is limited by concentration.", questionCategory: "portfolio_review" },
+      { role: "user", content: "Why?", questionCategory: "portfolio_review" }
+    ])
+  });
+  const requirements = payload.responseRequirements.join("\n");
+  assert.match(requirements, /Response mode: follow_up/);
+  assert.match(requirements, /100-250 words/);
+  assert.match(requirements, /Do not repeat the full Executive Brief/);
+  assert.match(requirements, /Inherit the latest topic/);
+});
+
+test("assistant prompt builder uses focused mode for non-initial focused questions", () => {
+  const payload = new AssistantPromptBuilder().build({
+    question: "Explain the concentration review.",
+    context: contextWithRecentMessages([
+      { role: "user", content: "Why is my score 77?", questionCategory: "portfolio_review" },
+      { role: "user", content: "Explain the concentration review.", questionCategory: "portfolio_review" }
+    ])
+  });
+  const requirements = payload.responseRequirements.join("\n");
+  assert.match(requirements, /Response mode: focused/);
+  assert.match(requirements, /180-350 words/);
+});
+
+test("assistant prompt builder handles placeholder Market Vision with exposure fallback", () => {
+  const payload = new AssistantPromptBuilder().build({
+    question: "Explain the macro review.",
+    context: {
+      ...minimalAssistantContext,
+      category: "market_vision",
+      marketVision: {
+        title: "Weekly report",
+        executiveSummary: "test",
+        risks: ["test"],
+        opportunities: [],
+        portfolioImplications: { risk_implication: "test" }
+      }
+    }
+  });
+  const requirements = payload.responseRequirements.join("\n");
+  assert.match(requirements, /does not contain sufficient usable macro content/);
+  assert.match(requirements, /Do not interpret placeholder text/);
+  assert.match(requirements, /sector exposure, geography exposure, theme exposure/);
+});
+
+test("assistant prompt builder carries telemetry and recommendation explanation requirements", () => {
+  const payload = new AssistantPromptBuilder().build({
+    question: "Why is NVDA Hold?",
+    context: { ...minimalAssistantContext, category: "recommendation" }
+  });
+  const requirements = payload.responseRequirements.join("\n");
+
+  assert.match(requirements, /Current telemetry evidence suggests/);
+  assert.match(requirements, /Evidence strength: Early \/ Moderate \/ Strong/);
+  assert.match(requirements, /Evidence Strength: Insufficient/);
+  assert.match(requirements, /analytical classification and not an investment recommendation/);
+  assert.match(requirements, /Never phrase a recommendation explanation as a good buy/);
+});
+
+test("assistant recommendation labels are centralized without changing current labels", () => {
+  assert.equal(ASSISTANT_RECOMMENDATION_LABELS.strongBuy, "Strong Buy");
+  assert.equal(assistantRecommendationLabel("strong_buy"), "Strong Buy");
+  assert.equal(assistantRecommendationLabel("Hold"), "Hold");
+  assert.equal(assistantRecommendationLabel("watch"), "Watch");
+});
+
+test("assistant system prompt defines Personal CIO response contract", () => {
+  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Personal CIO briefing/);
+  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Target length: broad overview 300-500 words/);
+  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Executive Brief/);
+  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Choose response structure by conversation state/);
+  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Do not default to concentration/);
+  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Why it matters/);
+  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /top indirect holdings/i);
+  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Evidence Strength: Insufficient/);
+  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Market Vision placeholder handling/);
+  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /This is an explanation of ETFVision's analytical classification and not an investment recommendation/);
+  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Follow-up questions: inherit prior context/);
+  assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Preserve current internal labels/);
 });
 
 test("supported assistant questions pass response requirements to the AI provider", async () => {
