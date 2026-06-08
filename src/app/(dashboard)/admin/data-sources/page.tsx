@@ -229,7 +229,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
     container.instrumentService.listInstruments({ isActive: true }),
     container.jobRunService.listRecent(60)
   ]);
-  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 10);
+  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 8);
   const marketDataJobRuns = jobRuns
     .filter((run) => ["seed_universe", "refresh_market_data", "backfill_market_history"].includes(run.jobName))
     .slice(0, 8);
