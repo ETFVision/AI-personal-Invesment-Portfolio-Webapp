@@ -187,6 +187,133 @@ function RegimeScorecard({ report }: { report: MarketVisionReport }) {
   );
 }
 
+function RegimeTransitionTracker({ report }: { report: MarketVisionReport }) {
+  const transitions = report.marketVisionMetadata.regimeTransitions;
+  if (transitions.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Regime Transition Tracker</CardTitle>
+        <CardDescription>Compares the current generated briefing against the prior generated Market Vision report.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {transitions.map((transition) => (
+          <div key={transition.dimension} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm">
+            <div>
+              <p className="font-medium">{transition.dimension}</p>
+              <p className="text-xs text-muted-foreground">
+                {transition.previous ?? "No prior signal"} -&gt; {transition.current}
+              </p>
+            </div>
+            <StatusBadge tone={transition.changed ? "warning" : transition.status === "New Signal" ? "info" : "neutral"}>
+              {transition.status}
+            </StatusBadge>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CrossCurrentsCard({ report }: { report: MarketVisionReport }) {
+  const currents = report.marketVisionMetadata.crossCurrents;
+  const rows = [
+    ["Positive forces", currents.positiveForces, "positive"] as const,
+    ["Negative forces", currents.negativeForces, "warning"] as const,
+    ["Neutral forces", currents.neutralForces, "neutral"] as const
+  ];
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <CardTitle>Cross-Currents</CardTitle>
+            <CardDescription>Separates supportive and conflicting macro forces before the narrative summary.</CardDescription>
+          </div>
+          <StatusBadge tone={currents.netInterpretation === "Constructive" ? "positive" : currents.netInterpretation === "Cautious" || currents.netInterpretation === "Defensive" ? "warning" : "info"}>
+            {currents.netInterpretation}
+          </StatusBadge>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-3 md:grid-cols-3">
+        {rows.map(([label, items, tone]) => (
+          <div key={label} className="rounded-md border p-3">
+            <StatusBadge tone={tone}>{label}</StatusBadge>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              {items.length ? items.join("; ") : "No signal captured."}
+            </p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ConfidenceScorecard({ report }: { report: MarketVisionReport }) {
+  const scores = report.marketVisionMetadata.confidenceScores;
+  if (scores.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Evidence Confidence Scores</CardTitle>
+        <CardDescription>Numeric confidence is derived from supporting evidence, conflicting evidence, and evidence gaps.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className="bg-muted/60 text-left">
+              <tr>
+                <th className="p-3 font-medium">Section</th>
+                <th className="p-3 text-right font-medium">Score</th>
+                <th className="p-3 font-medium">Label</th>
+                <th className="p-3 text-right font-medium">Support</th>
+                <th className="p-3 text-right font-medium">Conflict</th>
+                <th className="p-3 text-right font-medium">Gaps</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scores.map((score) => (
+                <tr key={score.section} className="border-t">
+                  <td className="p-3 font-medium">{score.section}</td>
+                  <td className="p-3 text-right">{score.confidenceScore}/100</td>
+                  <td className="p-3"><StatusBadge tone={confidenceTone(score.confidenceLabel)}>{score.confidenceLabel}</StatusBadge></td>
+                  <td className="p-3 text-right">{score.supportingCount}</td>
+                  <td className="p-3 text-right">{score.conflictingCount}</td>
+                  <td className="p-3 text-right">{score.gapCount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PortfolioImpactMatrix({ report }: { report: MarketVisionReport }) {
+  const impacts = report.marketVisionMetadata.portfolioImpactMatrix;
+  if (impacts.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Portfolio Macro Impact Matrix</CardTitle>
+        <CardDescription>Maps macro factors to portfolio relevance without producing allocation recommendations.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {impacts.map((impact) => (
+          <div key={impact.dimension} className="rounded-md border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">{impact.dimension}</p>
+              <StatusBadge tone={confidenceTone(impact.relevance)}>{impact.relevance}</StatusBadge>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{impact.reason}</p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ThemeSummaryCard({ title, themes }: { title: string; themes: MarketVisionThemeSummary[] }) {
   return (
     <Card>
@@ -493,6 +620,16 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
           </div>
 
           <RegimeScorecard report={report} />
+
+          <section className="grid gap-4 xl:grid-cols-2">
+            <RegimeTransitionTracker report={report} />
+            <CrossCurrentsCard report={report} />
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-2">
+            <ConfidenceScorecard report={report} />
+            <PortfolioImpactMatrix report={report} />
+          </section>
 
           <Card>
             <CardHeader>

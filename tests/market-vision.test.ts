@@ -232,6 +232,10 @@ function marketVisionMetadataFixture(): MarketVisionReport["marketVisionMetadata
     keyWatchItems: ["Inflation persistence", "Technology concentration"],
     evidenceGaps: ["Employment evidence is limited."],
     portfolioRelevance: { equity: "Low", bond: "Low", gold: "Low", crypto: "Low", cash: "Low", risk: "Low" },
+    regimeTransitions: [],
+    confidenceScores: [],
+    crossCurrents: { positiveForces: [], negativeForces: [], neutralForces: [], netInterpretation: "Mixed" },
+    portfolioImpactMatrix: [],
     telemetryMetadata: {
       overallRegime: "balanced",
       overallConfidence: "Medium",
@@ -263,7 +267,11 @@ function marketVisionMetadataFixture(): MarketVisionReport["marketVisionMetadata
       structuralThemes: ["AI infrastructure"],
       tacticalThemes: ["restrictive rates"],
       evidenceGaps: ["Employment evidence is limited."],
-      portfolioRelevance: { equity: "Low", bond: "Low", gold: "Low", crypto: "Low", cash: "Low", risk: "Low" }
+      portfolioRelevance: { equity: "Low", bond: "Low", gold: "Low", crypto: "Low", cash: "Low", risk: "Low" },
+      regimeTransitions: [],
+      confidenceScores: [],
+      crossCurrents: { positiveForces: [], negativeForces: [], neutralForces: [], netInterpretation: "Mixed" },
+      portfolioImpactMatrix: []
     }
   };
 }
@@ -469,6 +477,9 @@ test("AI Market Vision generation creates a generated draft with usage metadata"
   assert.equal(report.marketVisionMetadata.evidencePanels.every((panel) => Boolean(panel.confidence)), true);
   assert.equal(report.marketVisionMetadata.telemetryMetadata.overallRegime, "balanced");
   assert.deepEqual(report.marketVisionMetadata.telemetryMetadata.structuralThemeIds, ["THEME_AI_INFRASTRUCTURE"]);
+  assert.equal(report.marketVisionMetadata.regimeTransitions[0]?.status, "New Signal");
+  assert.equal(report.marketVisionMetadata.confidenceScores.some((score) => score.section === "Equity Market View"), true);
+  assert.equal(report.marketVisionMetadata.crossCurrents.netInterpretation, "Constructive");
   assert.equal(typeof report.marketVisionMetadata.telemetryMetadata.visionId, "string");
   assert.equal(typeof report.marketVisionMetadata.telemetryMetadata.generatedAt, "string");
   assert.equal(repository.logs[0]?.status, "success");
@@ -503,6 +514,52 @@ test("AI Market Vision generation recalibrates overconfident mixed evidence and 
   assert.equal(report.marketVisionMetadata.portfolioRelevance.equity, "High");
   assert.equal(report.marketVisionMetadata.portfolioRelevance.crypto, "Low");
   assert.equal(report.marketVisionMetadata.telemetryMetadata.portfolioRelevance.equity, "High");
+  assert.equal(report.marketVisionMetadata.portfolioImpactMatrix.find((item) => item.dimension === "Growth")?.relevance, "High");
+  assert.equal(report.marketVisionMetadata.telemetryMetadata.portfolioImpactMatrix.find((item) => item.dimension === "Growth")?.relevance, "High");
+});
+
+test("AI Market Vision generation stores regime transitions against prior generated reports", async () => {
+  const repository = new FakeMarketVisionRepository();
+  const previousMetadata = marketVisionMetadataFixture();
+  previousMetadata.regimeScorecard = previousMetadata.regimeScorecard.map((entry) => entry.label === "Inflation"
+    ? { ...entry, regime: "reaccelerating", explanation: "Prior inflation evidence was reaccelerating." }
+    : entry
+  );
+  await repository.upsertReport({
+    reportDate: "2026-05-31",
+    reportPeriodStart: "2026-05-25",
+    reportPeriodEnd: "2026-05-31",
+    title: "Prior Market Vision",
+    executiveSummary: "",
+    globalMarketSummary: "",
+    equityView: "",
+    bondView: "",
+    goldView: "",
+    cryptoView: "",
+    ratesView: "",
+    inflationView: "",
+    currencyView: "",
+    geopoliticalRiskView: "",
+    opportunities: [],
+    risks: [],
+    portfolioImplications: emptyPortfolioImplications,
+    sourceType: "generated",
+    status: "draft",
+    marketVisionMetadata: previousMetadata
+  });
+  const service = new MarketVisionGenerationService(
+    repository,
+    new FakeNewsRepository(weeklyReconciliation()) as unknown as NewsRepository,
+    new FakeMacroRepository() as unknown as MacroIndicatorRepository,
+    new FakeAiMarketVisionProvider()
+  );
+
+  const report = await service.generateWeeklyReport();
+  const inflationTransition = report.marketVisionMetadata.regimeTransitions.find((item) => item.dimension === "Inflation");
+
+  assert.equal(inflationTransition?.previous, "reaccelerating");
+  assert.equal(inflationTransition?.current, "cooling");
+  assert.equal(inflationTransition?.status, "Regime Shift Detected");
 });
 
 test("AI Market Vision validation provides structured metadata defaults and evidence gaps", () => {
@@ -518,6 +575,8 @@ test("AI Market Vision validation provides structured metadata defaults and evid
   assert.equal(validated.marketVisionMetadata.evidenceGaps[0], "Evidence is limited.");
   assert.equal(validated.marketVisionMetadata.telemetryMetadata.equityConfidence, "Low");
   assert.deepEqual(validated.marketVisionMetadata.telemetryMetadata.tacticalThemeIds, []);
+  assert.deepEqual(validated.marketVisionMetadata.crossCurrents.negativeForces, []);
+  assert.deepEqual(validated.marketVisionMetadata.telemetryMetadata.portfolioImpactMatrix, []);
 });
 
 test("AI Market Vision validation normalizes smart and mojibake punctuation", () => {

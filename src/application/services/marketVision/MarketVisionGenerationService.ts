@@ -161,6 +161,15 @@ function defaultPortfolioRelevance(): MarketVisionPortfolioRelevance {
   return { equity: "Low", bond: "Low", gold: "Low", crypto: "Low", cash: "Low", risk: "Low" };
 }
 
+function defaultCrossCurrents() {
+  return {
+    positiveForces: [],
+    negativeForces: [],
+    neutralForces: [],
+    netInterpretation: "Mixed" as const
+  };
+}
+
 function emptyTelemetryMetadata(): MarketVisionTelemetryMetadata {
   return {
     overallRegime: "mixed",
@@ -193,7 +202,11 @@ function emptyTelemetryMetadata(): MarketVisionTelemetryMetadata {
     structuralThemes: [],
     tacticalThemes: [],
     evidenceGaps: ["Evidence is limited."],
-    portfolioRelevance: defaultPortfolioRelevance()
+    portfolioRelevance: defaultPortfolioRelevance(),
+    regimeTransitions: [],
+    confidenceScores: [],
+    crossCurrents: defaultCrossCurrents(),
+    portfolioImpactMatrix: []
   };
 }
 
@@ -226,6 +239,10 @@ export function emptyMarketVisionMetadata(): MarketVisionMetadata {
     keyWatchItems: [],
     evidenceGaps: ["Evidence is limited."],
     portfolioRelevance: defaultPortfolioRelevance(),
+    regimeTransitions: [],
+    confidenceScores: [],
+    crossCurrents: defaultCrossCurrents(),
+    portfolioImpactMatrix: [],
     telemetryMetadata: emptyTelemetryMetadata()
   };
 }
@@ -246,6 +263,61 @@ function toMarketVisionMetadata(value: unknown): MarketVisionMetadata {
     cash: toConfidence(relevanceRow.cash),
     risk: toConfidence(relevanceRow.risk)
   };
+  const crossCurrentsRow = typeof row.crossCurrents === "object" && row.crossCurrents !== null ? row.crossCurrents as Record<string, unknown> : {};
+  const telemetryCrossCurrentsRow = typeof telemetryRow.crossCurrents === "object" && telemetryRow.crossCurrents !== null
+    ? telemetryRow.crossCurrents as Record<string, unknown>
+    : {};
+  const parsedCrossCurrents = {
+    positiveForces: toLongStringArray(crossCurrentsRow.positiveForces),
+    negativeForces: toLongStringArray(crossCurrentsRow.negativeForces),
+    neutralForces: toLongStringArray(crossCurrentsRow.neutralForces),
+    netInterpretation: toView(crossCurrentsRow.netInterpretation) as MarketVisionMetadata["crossCurrents"]["netInterpretation"]
+  };
+  const parsedTelemetryCrossCurrents = {
+    positiveForces: toLongStringArray(telemetryCrossCurrentsRow.positiveForces),
+    negativeForces: toLongStringArray(telemetryCrossCurrentsRow.negativeForces),
+    neutralForces: toLongStringArray(telemetryCrossCurrentsRow.neutralForces),
+    netInterpretation: toView(telemetryCrossCurrentsRow.netInterpretation) as MarketVisionMetadata["crossCurrents"]["netInterpretation"]
+  };
+  const parsedRegimeTransitions = Array.isArray(row.regimeTransitions)
+    ? row.regimeTransitions.map((item) => {
+      const transition = typeof item === "object" && item !== null ? item as Record<string, unknown> : {};
+      const status = String(transition.status ?? "No Change");
+      const transitionStatus: MarketVisionMetadata["regimeTransitions"][number]["status"] =
+        status === "Regime Shift Detected" || status === "New Signal" ? status : "No Change";
+      return {
+        dimension: toString(transition.dimension, "Regime"),
+        previous: transition.previous == null ? null : toString(transition.previous),
+        current: toString(transition.current, "mixed"),
+        changed: Boolean(transition.changed),
+        status: transitionStatus
+      };
+    }).slice(0, 12)
+    : [];
+  const parsedConfidenceScores = Array.isArray(row.confidenceScores)
+    ? row.confidenceScores.map((item) => {
+      const score = typeof item === "object" && item !== null ? item as Record<string, unknown> : {};
+      const confidenceScore = toScore(score.confidenceScore);
+      return {
+        section: toString(score.section, "Market View"),
+        confidenceScore,
+        confidenceLabel: toConfidence(score.confidenceLabel),
+        supportingCount: Math.max(0, Math.round(Number(score.supportingCount ?? 0))),
+        conflictingCount: Math.max(0, Math.round(Number(score.conflictingCount ?? 0))),
+        gapCount: Math.max(0, Math.round(Number(score.gapCount ?? 0)))
+      };
+    }).slice(0, 16)
+    : [];
+  const parsedPortfolioImpactMatrix = Array.isArray(row.portfolioImpactMatrix)
+    ? row.portfolioImpactMatrix.map((item) => {
+      const impact = typeof item === "object" && item !== null ? item as Record<string, unknown> : {};
+      return {
+        dimension: toString(impact.dimension, "Macro factor"),
+        relevance: toConfidence(impact.relevance),
+        reason: toString(impact.reason, "No portfolio context available.")
+      };
+    }).slice(0, 12)
+    : [];
   return {
     regimeScorecard: Array.isArray(row.regimeScorecard) && row.regimeScorecard.length > 0
       ? row.regimeScorecard.map((item, index) => toRegimeEntry(item, fallback.regimeScorecard[index]?.label ?? "Regime"))
@@ -258,6 +330,10 @@ function toMarketVisionMetadata(value: unknown): MarketVisionMetadata {
     keyWatchItems: toLongStringArray(row.keyWatchItems),
     evidenceGaps: toLongStringArray(row.evidenceGaps).length > 0 ? toLongStringArray(row.evidenceGaps) : fallback.evidenceGaps,
     portfolioRelevance: portfolioRelevanceValue,
+    regimeTransitions: parsedRegimeTransitions,
+    confidenceScores: parsedConfidenceScores,
+    crossCurrents: parsedCrossCurrents,
+    portfolioImpactMatrix: parsedPortfolioImpactMatrix,
     telemetryMetadata: {
       overallRegime: toString(telemetryRow.overallRegime, telemetryFallback.overallRegime),
       overallConfidence: toConfidence(telemetryRow.overallConfidence),
@@ -289,12 +365,21 @@ function toMarketVisionMetadata(value: unknown): MarketVisionMetadata {
       structuralThemes: toLongStringArray(telemetryRow.structuralThemes),
       tacticalThemes: toLongStringArray(telemetryRow.tacticalThemes),
       evidenceGaps: toLongStringArray(telemetryRow.evidenceGaps).length > 0 ? toLongStringArray(telemetryRow.evidenceGaps) : fallback.evidenceGaps,
-      portfolioRelevance: portfolioRelevanceValue
+      portfolioRelevance: portfolioRelevanceValue,
+      regimeTransitions: Array.isArray(telemetryRow.regimeTransitions) ? telemetryRow.regimeTransitions as MarketVisionMetadata["regimeTransitions"] : parsedRegimeTransitions,
+      confidenceScores: Array.isArray(telemetryRow.confidenceScores) ? telemetryRow.confidenceScores as MarketVisionMetadata["confidenceScores"] : parsedConfidenceScores,
+      crossCurrents: Object.keys(telemetryCrossCurrentsRow).length > 0 ? parsedTelemetryCrossCurrents : parsedCrossCurrents,
+      portfolioImpactMatrix: Array.isArray(telemetryRow.portfolioImpactMatrix) ? telemetryRow.portfolioImpactMatrix as MarketVisionMetadata["portfolioImpactMatrix"] : parsedPortfolioImpactMatrix
     }
   };
 }
 
-function finalizedMarketVisionMetadata(metadata: MarketVisionMetadata, relevance: MarketVisionPortfolioRelevance): MarketVisionMetadata {
+function finalizedMarketVisionMetadata(
+  metadata: MarketVisionMetadata,
+  relevance: MarketVisionPortfolioRelevance,
+  previousMetadata: MarketVisionMetadata | null,
+  dashboard: PortfolioDashboard | null
+): MarketVisionMetadata {
   const regimeScorecard = metadata.regimeScorecard.map(calibrateRegimeEntry);
   const evidencePanels = metadata.evidencePanels.map(calibrateEvidencePanel);
   const structuralThemes = normalizeThemeIds(metadata.structuralThemes, "structural");
@@ -315,7 +400,7 @@ function finalizedMarketVisionMetadata(metadata: MarketVisionMetadata, relevance
     ...metadata.evidenceGaps,
     ...evidencePanels.flatMap((panel) => panel.evidenceGaps)
   ])).filter(Boolean).slice(0, 16);
-  return {
+  const finalized = {
     ...metadata,
     regimeScorecard,
     evidencePanels,
@@ -355,6 +440,129 @@ function finalizedMarketVisionMetadata(metadata: MarketVisionMetadata, relevance
       tacticalThemes: tacticalThemes.map((theme) => theme.displayName),
       evidenceGaps: evidenceGaps.length > 0 ? evidenceGaps : ["Evidence is limited."],
       portfolioRelevance: relevance
+    }
+  };
+  return enrichPhaseAMetadata(finalized, { relevance, previous: previousMetadata, dashboard });
+}
+
+function confidenceScoreForCounts(supportingCount: number, conflictingCount: number, gapCount: number) {
+  const score = Math.max(0, Math.min(100, 50 + supportingCount * 18 - conflictingCount * 16 - gapCount * 14));
+  return Math.round(score);
+}
+
+function labelForConfidenceScore(score: number): MarketVisionConfidenceLevel {
+  if (score >= 80) return "High";
+  if (score >= 50) return "Medium";
+  return "Low";
+}
+
+function confidenceScores(evidencePanels: MarketVisionEvidencePanel[]) {
+  return evidencePanels.map((panel) => {
+    const supportingCount = panel.supportingIndicators.length;
+    const conflictingCount = panel.conflictingIndicators.length;
+    const gapCount = panel.evidenceGaps.length;
+    const confidenceScore = confidenceScoreForCounts(supportingCount, conflictingCount, gapCount);
+    return {
+      section: panel.section,
+      confidenceScore,
+      confidenceLabel: labelForConfidenceScore(confidenceScore),
+      supportingCount,
+      conflictingCount,
+      gapCount
+    };
+  });
+}
+
+function regimeTransitions(current: MarketVisionRegimeEntry[], previous?: MarketVisionMetadata | null) {
+  const previousEntries = previous?.regimeScorecard ?? [];
+  return current.map((entry) => {
+    const prior = previousEntries.find((item) => item.label.toLowerCase() === entry.label.toLowerCase())?.regime ?? null;
+    const changed = prior !== null && prior.toLowerCase() !== entry.regime.toLowerCase();
+    return {
+      dimension: entry.label,
+      previous: prior,
+      current: entry.regime,
+      changed,
+      status: prior === null ? "New Signal" as const : changed ? "Regime Shift Detected" as const : "No Change" as const
+    };
+  });
+}
+
+function crossCurrents(regimeScorecard: MarketVisionRegimeEntry[]) {
+  const positive: string[] = [];
+  const negative: string[] = [];
+  const neutral: string[] = [];
+  for (const entry of regimeScorecard) {
+    const text = `${entry.label} ${entry.regime}`.toLowerCase();
+    const label = `${entry.label}: ${entry.regime}`;
+    if (/(expanding|cooling|falling|easing|weakening|supportive|balanced|risk-on|normalizing)/.test(text)) positive.push(label);
+    else if (/(contracting|reaccelerating|rising|tightening|inverted|risk-off|stress|pressure)/.test(text)) negative.push(label);
+    else neutral.push(label);
+  }
+  const netInterpretation = negative.length > positive.length + 1
+    ? "Cautious"
+    : positive.length > negative.length + 1
+      ? "Constructive"
+      : "Mixed";
+  return {
+    positiveForces: positive,
+    negativeForces: negative,
+    neutralForces: neutral,
+    netInterpretation: netInterpretation as "Constructive" | "Mixed" | "Cautious" | "Defensive" | "Neutral"
+  };
+}
+
+function impactReason(dimension: string, relevance: MarketVisionConfidenceLevel, reason: string) {
+  return { dimension, relevance, reason };
+}
+
+function portfolioImpactMatrix(dashboard: PortfolioDashboard | null, relevance: MarketVisionPortfolioRelevance) {
+  if (!dashboard) {
+    return [
+      impactReason("Growth", "Low", "No portfolio context available."),
+      impactReason("Inflation", "Low", "No portfolio context available."),
+      impactReason("Rates", "Low", "No portfolio context available."),
+      impactReason("Liquidity", "Low", "No portfolio context available."),
+      impactReason("USD", "Low", "No portfolio context available."),
+      impactReason("Commodities", "Low", "No portfolio context available."),
+      impactReason("Geopolitics", "Low", "No portfolio context available.")
+    ];
+  }
+  const pct = (value: number) => `${Math.round(value * 1000) / 10}%`;
+  const international = dashboard.allocationByGeography
+    .filter((item) => !["us", "united states", "usa"].includes(item.label.toLowerCase()))
+    .reduce((sum, item) => sum + item.percent, 0);
+  const commodityLike = dashboard.allocationByType
+    .filter((item) => labelHasAny(item.label, ["gold", "commodit"]))
+    .reduce((sum, item) => sum + item.percent, 0);
+  return [
+    impactReason("Growth", relevance.equity, `Equity-sensitive exposure is the primary growth channel; invested share is ${pct(dashboard.investedPercent)}.`),
+    impactReason("Inflation", relevance.gold === "High" || relevance.bond === "High" ? "High" : relevance.gold === "Medium" || relevance.bond === "Medium" ? "Medium" : "Low", `Inflation relevance reflects gold/commodities and bond sensitivity; commodity-like exposure is ${pct(commodityLike)}.`),
+    impactReason("Rates", relevance.bond === "High" || relevance.cash === "High" ? "High" : relevance.bond === "Medium" || relevance.cash === "Medium" ? "Medium" : "Low", `Rates relevance reflects bond and cash exposure; cash is ${pct(dashboard.cashPercent)}.`),
+    impactReason("Liquidity", relevance.crypto === "High" || relevance.equity === "High" ? "High" : "Medium", "Liquidity relevance reflects risk-asset exposure and crypto sensitivity where present."),
+    impactReason("USD", international >= 0.25 ? "High" : international >= 0.05 ? "Medium" : "Low", `USD relevance reflects non-US geography exposure of ${pct(international)}.`),
+    impactReason("Commodities", relevance.gold, `Commodity relevance is tied to explicit gold/commodity exposure of ${pct(commodityLike)}.`),
+    impactReason("Geopolitics", international >= 0.25 || commodityLike >= 0.05 ? "High" : international >= 0.05 ? "Medium" : "Low", "Geopolitical relevance reflects international and commodity-sensitive exposure.")
+  ];
+}
+
+function enrichPhaseAMetadata(metadata: MarketVisionMetadata, input: { relevance: MarketVisionPortfolioRelevance; previous?: MarketVisionMetadata | null; dashboard: PortfolioDashboard | null }) {
+  const regimeTransitionRows = regimeTransitions(metadata.regimeScorecard, input.previous);
+  const confidenceRows = confidenceScores(metadata.evidencePanels);
+  const crossCurrentRows = crossCurrents(metadata.regimeScorecard);
+  const impactRows = portfolioImpactMatrix(input.dashboard, input.relevance);
+  return {
+    ...metadata,
+    regimeTransitions: regimeTransitionRows,
+    confidenceScores: confidenceRows,
+    crossCurrents: crossCurrentRows,
+    portfolioImpactMatrix: impactRows,
+    telemetryMetadata: {
+      ...metadata.telemetryMetadata,
+      regimeTransitions: regimeTransitionRows,
+      confidenceScores: confidenceRows,
+      crossCurrents: crossCurrentRows,
+      portfolioImpactMatrix: impactRows
     }
   };
 }
@@ -834,6 +1042,11 @@ export class MarketVisionGenerationService {
       bondAnalytics,
       riskAnalytics
     };
+    const previousGeneratedReport = (await this.marketVisionRepository.listReports(10)).find((report) =>
+      report.sourceType === "generated" &&
+      !(report.reportPeriodStart === periodStart && report.reportPeriodEnd === periodEnd)
+    );
+    const previousMarketVisionMetadata = previousGeneratedReport?.marketVisionMetadata ?? null;
 
     try {
       const aiOutput = removeUnsupportedExposureClaims(await this.aiProvider.generateWeeklyBriefing({
@@ -843,7 +1056,7 @@ export class MarketVisionGenerationService {
       }), exposureFlags);
       const completedAt = new Date();
       const duration = completedAt.getTime() - startedAt.getTime();
-      const calibratedMetadata = finalizedMarketVisionMetadata(aiOutput.marketVisionMetadata, relevance);
+      const calibratedMetadata = finalizedMarketVisionMetadata(aiOutput.marketVisionMetadata, relevance, previousMarketVisionMetadata, dashboard);
       const marketVisionMetadata: MarketVisionMetadata = {
         ...calibratedMetadata,
         telemetryMetadata: {

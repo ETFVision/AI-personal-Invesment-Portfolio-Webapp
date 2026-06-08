@@ -51,6 +51,36 @@ export type MarketVisionPortfolioRelevance = {
   risk: MarketVisionConfidenceLevel;
 };
 
+export type MarketVisionRegimeTransition = {
+  dimension: string;
+  previous: string | null;
+  current: string;
+  changed: boolean;
+  status: "No Change" | "Regime Shift Detected" | "New Signal";
+};
+
+export type MarketVisionCrossCurrents = {
+  positiveForces: string[];
+  negativeForces: string[];
+  neutralForces: string[];
+  netInterpretation: "Constructive" | "Mixed" | "Cautious" | "Defensive" | "Neutral";
+};
+
+export type MarketVisionConfidenceScore = {
+  section: string;
+  confidenceScore: number;
+  confidenceLabel: MarketVisionConfidenceLevel;
+  supportingCount: number;
+  conflictingCount: number;
+  gapCount: number;
+};
+
+export type MarketVisionPortfolioImpact = {
+  dimension: string;
+  relevance: MarketVisionConfidenceLevel;
+  reason: string;
+};
+
 export type MarketVisionTelemetryMetadata = {
   visionId?: string;
   generatedAt?: string;
@@ -85,6 +115,10 @@ export type MarketVisionTelemetryMetadata = {
   tacticalThemes: string[];
   evidenceGaps: string[];
   portfolioRelevance: MarketVisionPortfolioRelevance;
+  regimeTransitions: MarketVisionRegimeTransition[];
+  confidenceScores: MarketVisionConfidenceScore[];
+  crossCurrents: MarketVisionCrossCurrents;
+  portfolioImpactMatrix: MarketVisionPortfolioImpact[];
 };
 
 export type MarketVisionMetadata = {
@@ -95,6 +129,10 @@ export type MarketVisionMetadata = {
   keyWatchItems: string[];
   evidenceGaps: string[];
   portfolioRelevance: MarketVisionPortfolioRelevance;
+  regimeTransitions: MarketVisionRegimeTransition[];
+  confidenceScores: MarketVisionConfidenceScore[];
+  crossCurrents: MarketVisionCrossCurrents;
+  portfolioImpactMatrix: MarketVisionPortfolioImpact[];
   telemetryMetadata: MarketVisionTelemetryMetadata;
 };
 

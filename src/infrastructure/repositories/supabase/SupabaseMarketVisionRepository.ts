@@ -66,6 +66,15 @@ function mapMarketVisionMetadata(value: unknown): MarketVisionMetadata {
     cash: (source.cash as MarketVisionMetadata["portfolioRelevance"]["cash"]) ?? "Low",
     risk: (source.risk as MarketVisionMetadata["portfolioRelevance"]["risk"]) ?? "Low"
   });
+  const crossCurrents = typeof row.crossCurrents === "object" && row.crossCurrents !== null
+    ? row.crossCurrents as MarketVisionMetadata["crossCurrents"]
+    : { positiveForces: [], negativeForces: [], neutralForces: [], netInterpretation: "Mixed" as const };
+  const telemetryCrossCurrents = typeof (telemetry as Record<string, unknown>).crossCurrents === "object" && (telemetry as Record<string, unknown>).crossCurrents !== null
+    ? (telemetry as Record<string, unknown>).crossCurrents as MarketVisionMetadata["crossCurrents"]
+    : crossCurrents;
+  const regimeTransitions = Array.isArray(row.regimeTransitions) ? row.regimeTransitions as MarketVisionMetadata["regimeTransitions"] : [];
+  const confidenceScores = Array.isArray(row.confidenceScores) ? row.confidenceScores as MarketVisionMetadata["confidenceScores"] : [];
+  const portfolioImpactMatrix = Array.isArray(row.portfolioImpactMatrix) ? row.portfolioImpactMatrix as MarketVisionMetadata["portfolioImpactMatrix"] : [];
   const portfolioRelevance = mapRelevance(relevance);
   return {
     regimeScorecard: Array.isArray(row.regimeScorecard) ? row.regimeScorecard as MarketVisionMetadata["regimeScorecard"] : [],
@@ -75,6 +84,10 @@ function mapMarketVisionMetadata(value: unknown): MarketVisionMetadata {
     keyWatchItems: toStringArray(row.keyWatchItems),
     evidenceGaps: toStringArray(row.evidenceGaps),
     portfolioRelevance,
+    regimeTransitions,
+    confidenceScores,
+    crossCurrents,
+    portfolioImpactMatrix,
     telemetryMetadata: {
       overallRegime: String((telemetry as Record<string, unknown>).overallRegime ?? ""),
       overallConfidence: ((telemetry as Record<string, unknown>).overallConfidence as MarketVisionMetadata["telemetryMetadata"]["overallConfidence"]) ?? "Low",
@@ -106,7 +119,17 @@ function mapMarketVisionMetadata(value: unknown): MarketVisionMetadata {
       structuralThemes: toStringArray((telemetry as Record<string, unknown>).structuralThemes),
       tacticalThemes: toStringArray((telemetry as Record<string, unknown>).tacticalThemes),
       evidenceGaps: toStringArray((telemetry as Record<string, unknown>).evidenceGaps),
-      portfolioRelevance: mapRelevance(telemetryRelevance)
+      portfolioRelevance: mapRelevance(telemetryRelevance),
+      regimeTransitions: Array.isArray((telemetry as Record<string, unknown>).regimeTransitions)
+        ? (telemetry as Record<string, unknown>).regimeTransitions as MarketVisionMetadata["regimeTransitions"]
+        : regimeTransitions,
+      confidenceScores: Array.isArray((telemetry as Record<string, unknown>).confidenceScores)
+        ? (telemetry as Record<string, unknown>).confidenceScores as MarketVisionMetadata["confidenceScores"]
+        : confidenceScores,
+      crossCurrents: telemetryCrossCurrents,
+      portfolioImpactMatrix: Array.isArray((telemetry as Record<string, unknown>).portfolioImpactMatrix)
+        ? (telemetry as Record<string, unknown>).portfolioImpactMatrix as MarketVisionMetadata["portfolioImpactMatrix"]
+        : portfolioImpactMatrix
     }
   };
 }
