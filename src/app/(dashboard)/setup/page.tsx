@@ -12,7 +12,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const authUser = await container.authProvider.requireUser();
   const { portfolio, user } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
   const instruments = await container.instrumentService.listInstruments();
-  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 3);
+  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 10);
 
   return (
     <div className="space-y-6">

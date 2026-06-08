@@ -229,9 +229,9 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
     container.instrumentService.listInstruments({ isActive: true }),
     container.jobRunService.listRecent(60)
   ]);
-  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 3);
+  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 10);
   const marketDataJobRuns = jobRuns
-    .filter((run) => ["seed_universe", "refresh_market_data", "backfill_market_history", "market-history-backfill"].includes(run.jobName))
+    .filter((run) => ["seed_universe", "refresh_market_data", "backfill_market_history"].includes(run.jobName))
     .slice(0, 8);
 
   const latestFmpLog = newsDashboard.ingestionLogs.find((log) => log.sourceProvider === "financial_modeling_prep" && log.jobName === "daily-news-ingestion") ?? null;
@@ -326,7 +326,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
             <StatBox label="Crypto eligible" value={historyCoverage.cryptoEligible} />
             <StatBox label="Crypto 2Y complete" value={historyCoverage.completeTwoYearCrypto} />
             <StatBox label="Need crypto 2Y" value={historyCoverage.missingTwoYearCrypto} />
-            <StatBox label="Est. backfill runs" value={historyCoverage.estimatedBackfillClicks} />
+            <StatBox label="Est. manual clicks" value={historyCoverage.estimatedBackfillClicks} />
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
             {historyCoverage.missingFiveYear === 0 && historyCoverage.missingTwoYearCrypto === 0
@@ -337,7 +337,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         <div className="mt-4 rounded-md border p-3">
           <p className="text-sm font-medium">Market data operation logs</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Recent manual and scheduled runs for Seed Universe, Refresh market data and Backfill market history. Benchmark history runs after instrument history is complete.
+            Recent manual runs for Seed Universe, Refresh market data and Backfill market history. Benchmark history runs after instrument history is complete.
           </p>
           <div className="mt-3 space-y-2 text-sm">
             {marketDataJobRuns.length === 0 ? (
