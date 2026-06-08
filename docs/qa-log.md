@@ -2649,3 +2649,28 @@ Validation:
 Production-readiness assessment:
 - READY for preview after applying migration `062_instrument_product_taxonomy.sql` and pressing the Seed Universe action.
 - Portfolio allocation charts should continue to be validated against ETF look-through data after seeding.
+
+## 2026-06-08 - Instrument Taxonomy Follow-Up QA
+
+Scope:
+- Added persistent job-run logging for Seed Universe, Refresh Market Data, and Backfill Market History actions.
+- Added Market Data operation logs and market-history coverage metrics to Admin/Data Sources.
+- Refined Universe and Watchlist hierarchy so Equity Universe contains separate Equity ETF and Stock sections.
+- Added a Crypto ETF display bucket so ETF proxies do not appear as generic uncategorized ETFs.
+- Preserved the rule that ETF product category is not portfolio sector allocation.
+
+Findings:
+- Critical issues: none.
+- Medium-priority issues: none.
+- Low-priority follow-up:
+  - Visual QA should be completed on the Vercel preview after deployment because the in-app browser tool was unavailable in this local session.
+
+Validation:
+- `npm.cmd run lint` passed.
+- `npm.cmd run test` passed: 206 tests.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY for preview.
+- After deployment, run Seed Universe and Backfill Market History until Admin/Data Sources shows no remaining 5Y gaps for eligible instruments.

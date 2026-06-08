@@ -78,7 +78,7 @@ function groupStocksBySector(rows: Array<InstrumentMarketView & { watchlistTierL
 
 function groupEtfsByProductCategory(rows: Array<InstrumentMarketView & { watchlistTierLabel?: string; thesis?: string | null }>) {
   return rows.reduce<Record<string, Array<InstrumentMarketView & { watchlistTierLabel?: string; thesis?: string | null }>>>((groups, row) => {
-    const key = row.instrument.etfCategory ?? "UNCATEGORIZED_ETF";
+    const key = row.instrument.etfCategory ?? (row.instrument.instrumentType === "crypto_etf" ? "CRYPTO_ETF" : "UNCATEGORIZED_ETF");
     groups[key] = groups[key] ?? [];
     groups[key].push(row);
     return groups;
@@ -86,6 +86,8 @@ function groupEtfsByProductCategory(rows: Array<InstrumentMarketView & { watchli
 }
 
 function productCategoryTitle(key: string) {
+  if (key === "CRYPTO_ETF") return "Crypto ETFs";
+  if (key === "UNCATEGORIZED_ETF") return "Uncategorized ETFs";
   return ETF_CATEGORY_LABELS[key as keyof typeof ETF_CATEGORY_LABELS] ?? key.replaceAll("_", " ").toLowerCase();
 }
 
@@ -204,18 +206,30 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
                   <CardDescription>{groupRows.length} watchlist instruments. Open a symbol for full context.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {Object.entries(groupEtfsByProductCategory(etfRows))
-                    .sort(([a], [b]) => productCategoryTitle(a).localeCompare(productCategoryTitle(b)))
-                    .map(([category, categoryRows]) => (
-                      <div key={category} className="space-y-3">
-                        <SectionHeader title={productCategoryTitle(category)} description={`${categoryRows.length} ETFs`} />
-                        <InstrumentDirectoryTable rows={sortRows(categoryRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} emptyMessage="No watchlist instruments matched your filters." />
-                      </div>
-                    ))}
+                  {etfRows.length > 0 ? (
+                    <div className="space-y-4">
+                      <SectionHeader title={groupKey === "EQUITY" ? "Equity ETFs" : "ETF products"} description={`${etfRows.length} ETFs grouped by ETFVision product category`} />
+                      {Object.entries(groupEtfsByProductCategory(etfRows))
+                        .sort(([a], [b]) => productCategoryTitle(a).localeCompare(productCategoryTitle(b)))
+                        .map(([category, categoryRows]) => (
+                          <div key={category} className="space-y-3 rounded-lg border border-slate-200 p-3">
+                            <SectionHeader title={productCategoryTitle(category)} description={`${categoryRows.length} ETFs`} />
+                            <InstrumentDirectoryTable rows={sortRows(categoryRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} emptyMessage="No watchlist instruments matched your filters." />
+                          </div>
+                        ))}
+                    </div>
+                  ) : null}
                   {stockRows.length > 0 ? (
-                    <div className="space-y-3">
-                      <SectionHeader title="Stocks" description={`${stockRows.length} instruments`} />
-                      <InstrumentDirectoryTable rows={sortRows(stockRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} emptyMessage="No watchlist instruments matched your filters." />
+                    <div className="space-y-4">
+                      <SectionHeader title="Stocks" description={`${stockRows.length} stocks grouped by sector`} />
+                      {Object.entries(groupStocksBySector(stockRows))
+                        .sort(([a], [b]) => a.localeCompare(b))
+                        .map(([sector, sectorRows]) => (
+                          <div key={sector} className="space-y-3 rounded-lg border border-slate-200 p-3">
+                            <SectionHeader title={sector} description={`${sectorRows.length} stocks`} />
+                            <InstrumentDirectoryTable rows={sortRows(sectorRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} emptyMessage="No watchlist instruments matched your filters." />
+                          </div>
+                        ))}
                     </div>
                   ) : null}
                   {otherRows.length > 0 ? (

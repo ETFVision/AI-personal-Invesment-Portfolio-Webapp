@@ -53,6 +53,15 @@ function metadataNumber(metadata: Record<string, unknown> | null | undefined, ke
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function marketDataRunSummary(summary: Record<string, unknown>) {
+  const message = summary.message;
+  if (typeof message === "string" && message.trim()) return message;
+  const pairs = Object.entries(summary)
+    .filter(([, value]) => typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    .slice(0, 4);
+  return pairs.length > 0 ? pairs.map(([key, value]) => `${key}: ${String(value)}`).join(" | ") : "No summary payload.";
+}
+
 function sourceLabel(value: string) {
   if (value === "gdelt") return "GDELT";
   if (value === "newsdata") return "NewsData";
@@ -210,16 +219,18 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
   const container = createContainer();
   await container.authProvider.requireUser();
 
-  const [newsDashboard, macroDashboard, fundamentalsLogs, etfExposureLogs, marketVisionDashboard, metadataLogs, instruments] = await Promise.all([
+  const [newsDashboard, macroDashboard, fundamentalsLogs, etfExposureLogs, marketVisionDashboard, metadataLogs, instruments, jobRuns] = await Promise.all([
     container.newsDashboardService.getDashboard({ includeDuplicates: true, limit: 10 }),
     container.macroDashboardService.getDashboard(),
     container.fundamentalsRepository.listRefreshLogs(8),
     container.etfExposureRepository.listRefreshLogs(8),
     container.marketVisionService.getDashboard(),
     container.instrumentService.listMetadataRefreshLogs(8),
-    container.instrumentService.listInstruments({ isActive: true })
+    container.instrumentService.listInstruments({ isActive: true }),
+    container.jobRunService.listRecent(60)
   ]);
   const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 12);
+  const marketDataJobRuns = jobRuns.filter((run) => ["seed_universe", "refresh_market_data", "backfill_market_history"].includes(run.jobName)).slice(0, 8);
 
   const latestFmpLog = newsDashboard.ingestionLogs.find((log) => log.sourceProvider === "financial_modeling_prep" && log.jobName === "daily-news-ingestion") ?? null;
   const fmpSummary = fmpFetchSummary(latestFmpLog);
@@ -317,6 +328,23 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
               ? "5Y history is complete for eligible instruments."
               : `${historyCoverage.missingFiveYear} eligible instrument${historyCoverage.missingFiveYear === 1 ? "" : "s"} still need 5Y history. Run Backfill market history again until this reaches zero.`}
           </p>
+        </div>
+        <div className="mt-4 rounded-md border p-3">
+          <p className="text-sm font-medium">Market data operation logs</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Recent manual runs for Seed Universe, Refresh market data and Backfill market history.
+          </p>
+          <div className="mt-3 space-y-2 text-sm">
+            {marketDataJobRuns.length === 0 ? (
+              <p className="text-muted-foreground">No market data operation logs have been recorded yet.</p>
+            ) : marketDataJobRuns.map((run) => (
+              <div key={run.id} className="rounded-md bg-muted/40 p-3">
+                <p className={`font-medium ${statusTone(run.status)}`}>{run.jobName.replaceAll("_", " ")} - {run.status}</p>
+                <p className="text-muted-foreground">{formatDateTime(run.completedAt ?? run.startedAt)} - {marketDataRunSummary(run.summary)}</p>
+                {run.errorMessage ? <p className="text-destructive">{run.errorMessage}</p> : null}
+              </div>
+            ))}
+          </div>
         </div>
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           <div className="rounded-md border p-3">
