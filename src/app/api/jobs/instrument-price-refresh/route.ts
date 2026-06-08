@@ -4,8 +4,8 @@ import { runCronJob } from "@/server/jobs/runCronJob";
 
 export async function POST(request: NextRequest) {
   const lookbackDays = Number(request.nextUrl.searchParams.get("lookbackDays") ?? 30);
-  const batchSize = Number(request.nextUrl.searchParams.get("batchSize") ?? 40);
-  const maxBatches = Number(request.nextUrl.searchParams.get("maxBatches") ?? 3);
+  const batchSize = Number(request.nextUrl.searchParams.get("batchSize") ?? 50);
+  const maxBatches = Number(request.nextUrl.searchParams.get("maxBatches") ?? 8);
   const includeBackfill = request.nextUrl.searchParams.get("includeBackfill") === "true";
 
   return runCronJob(request, { jobName: "instrument-price-refresh", lockTtlSeconds: 25 * 60 }, () =>

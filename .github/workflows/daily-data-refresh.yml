@@ -11,7 +11,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     env:
       APP_URL: ${{ secrets.APP_URL }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Master instrument and portfolio price refresh
-        run: bash scripts/call-job-endpoint.sh /api/jobs/instrument-price-refresh
+        run: bash scripts/call-job-endpoint.sh "/api/jobs/instrument-price-refresh?batchSize=50&maxBatches=8&lookbackDays=30"
 
       - name: Benchmark recent refresh
         run: bash scripts/call-job-endpoint.sh "/api/jobs/benchmark-refresh?lookbackDays=30"

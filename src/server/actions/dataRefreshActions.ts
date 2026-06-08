@@ -64,8 +64,8 @@ export async function refreshAllDataAction(formData?: FormData) {
 
     const universePrices = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
       lookbackDays: 30,
-      batchSize: 40,
-      maxBatches: 3,
+      batchSize: 50,
+      maxBatches: 8,
       includeBackfill: false
     });
     appendMessage(messages, "Universe prices", universePrices.message);
