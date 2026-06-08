@@ -570,16 +570,28 @@ export class InstrumentMarketService {
     const stats = await this.repository.listInstrumentPriceStats(instruments.map((instrument) => instrument.id));
     const riskMetrics = await this.repository.listInstrumentRiskMetrics(instruments.map((instrument) => instrument.id));
     const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
-    const riskByInstrumentId = new Map(riskMetrics.map((item) => [item.instrumentId, item]));
+    const riskByInstrumentId = new Map<string, (typeof riskMetrics)[number]>();
+    for (const riskMetric of riskMetrics) {
+      if (!riskByInstrumentId.has(riskMetric.instrumentId)) {
+        riskByInstrumentId.set(riskMetric.instrumentId, riskMetric);
+      }
+    }
     const selected = instruments
-      .filter((instrument) => (statsByInstrumentId.get(instrument.id)?.observationCount ?? 0) >= minObservations)
+      .filter((instrument) => {
+        const stat = statsByInstrumentId.get(instrument.id);
+        if ((stat?.observationCount ?? 0) < minObservations) return false;
+        const riskMetric = riskByInstrumentId.get(instrument.id);
+        if (!riskMetric) return true;
+        if (!stat?.latestPriceDate) return false;
+        return !riskMetric.metricDate || riskMetric.metricDate < stat.latestPriceDate;
+      })
       .slice()
       .sort((a, b) => {
         const aRisk = riskByInstrumentId.get(a.id);
         const bRisk = riskByInstrumentId.get(b.id);
         if (Boolean(aRisk) !== Boolean(bRisk)) return aRisk ? 1 : -1;
-        const aCalculatedAt = aRisk?.calculatedAt ?? "";
-        const bCalculatedAt = bRisk?.calculatedAt ?? "";
+        const aCalculatedAt = aRisk?.metricDate ?? aRisk?.calculatedAt ?? "";
+        const bCalculatedAt = bRisk?.metricDate ?? bRisk?.calculatedAt ?? "";
         if (aCalculatedAt !== bCalculatedAt) return aCalculatedAt.localeCompare(bCalculatedAt);
         return (a.symbol ?? "").localeCompare(b.symbol ?? "");
       })
@@ -605,7 +617,7 @@ export class InstrumentMarketService {
       errors,
       message:
         selected.length === 0
-          ? "No instruments have enough price history for risk metric refresh."
+          ? "All eligible instrument risk metrics are current."
           : `Refreshed risk metrics for ${updatedCount}/${selected.length} instrument${selected.length === 1 ? "" : "s"}.`
     };
   }

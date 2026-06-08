@@ -459,28 +459,28 @@ test("history backfill tolerates one-day historical EOD lag and fills the batch 
   assert.deepEqual(requested, emptySymbols);
 });
 
-test("instrument risk refresh batches missing and oldest risk metrics only", async () => {
+test("instrument risk refresh batches missing and stale risk metrics only", async () => {
   const refreshedIds: string[][] = [];
   const fresh = instrument("FRESH");
   const missing = instrument("MISS");
-  const old = instrument("OLD");
+  const stale = instrument("STALE");
   const sparse = instrument("SPARSE");
   const repository = {
     async listInstruments() {
-      return [fresh, missing, old, sparse];
+      return [fresh, missing, stale, sparse];
     },
     async listInstrumentPriceStats() {
       return [
         { instrumentId: fresh.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2026-01-01", observationCount: 500 },
         { instrumentId: missing.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2026-01-01", observationCount: 500 },
-        { instrumentId: old.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2026-01-01", observationCount: 500 },
+        { instrumentId: stale.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2026-01-01", observationCount: 500 },
         { instrumentId: sparse.id, earliestPriceDate: "2026-01-01", latestPriceDate: "2026-01-15", observationCount: 10 }
       ];
     },
     async listInstrumentRiskMetrics() {
       return [
-        { instrumentId: fresh.id, calculatedAt: "2026-06-08T00:00:00.000Z" },
-        { instrumentId: old.id, calculatedAt: "2026-01-01T00:00:00.000Z" }
+        { instrumentId: fresh.id, metricDate: "2026-01-01", calculatedAt: "2026-06-08T00:00:00.000Z" },
+        { instrumentId: stale.id, metricDate: "2025-12-31", calculatedAt: "2026-01-01T00:00:00.000Z" }
       ];
     },
     async refreshInstrumentRiskMetrics(ids: string[]) {
@@ -493,8 +493,34 @@ test("instrument risk refresh batches missing and oldest risk metrics only", asy
   const result = await service.refreshInstrumentRiskMetricsInBatches({ batchSize: 2, minObservations: 30 });
 
   assert.equal(result.updatedCount, 2);
-  assert.deepEqual(result.requestedSymbols, ["MISS", "OLD"]);
-  assert.deepEqual(refreshedIds, [["inst-MISS"], ["inst-OLD"]]);
+  assert.deepEqual(result.requestedSymbols, ["MISS", "STALE"]);
+  assert.deepEqual(refreshedIds, [["inst-MISS"], ["inst-STALE"]]);
+});
+
+test("instrument risk refresh skips when all eligible metrics are current", async () => {
+  const fresh = instrument("FRESH");
+  const repository = {
+    async listInstruments() {
+      return [fresh];
+    },
+    async listInstrumentPriceStats() {
+      return [{ instrumentId: fresh.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2026-01-01", observationCount: 500 }];
+    },
+    async listInstrumentRiskMetrics() {
+      return [{ instrumentId: fresh.id, metricDate: "2026-01-01", calculatedAt: "2026-06-08T00:00:00.000Z" }];
+    },
+    async refreshInstrumentRiskMetrics() {
+      throw new Error("current risk metrics should not be refreshed");
+    }
+  } as unknown as UniverseRepository;
+  const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const result = await service.refreshInstrumentRiskMetricsInBatches({ batchSize: 2, minObservations: 30 });
+
+  assert.equal(result.updatedCount, 0);
+  assert.deepEqual(result.requestedSymbols, []);
+  assert.equal(result.message, "All eligible instrument risk metrics are current.");
 });
 
 test("instrument risk refresh falls back to stored prices when database risk RPC times out", async () => {
