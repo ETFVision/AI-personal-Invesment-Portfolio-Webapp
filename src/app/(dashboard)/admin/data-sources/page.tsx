@@ -321,21 +321,26 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
           <p className="mt-1 text-xs text-muted-foreground">
             Tracks whether active stocks and ETFs have enough 3Y/5Y history, plus up to 2Y crypto history where available.
           </p>
-          <div className="mt-3 grid gap-3 md:grid-cols-3 lg:grid-cols-8">
+          <div className="mt-3 grid gap-3 md:grid-cols-3 lg:grid-cols-9">
             <StatBox label="Eligible" value={historyCoverage.totalEligible} />
             <StatBox label="5Y complete" value={historyCoverage.completeFiveYear} />
             <StatBox label="Need 5Y" value={historyCoverage.missingFiveYear} />
             <StatBox label="3Y complete" value={historyCoverage.completeThreeYear} />
             <StatBox label="Need 3Y" value={historyCoverage.missingThreeYear} />
+            <StatBox label="Stale history" value={historyCoverage.staleHistory} />
             <StatBox label="Crypto eligible" value={historyCoverage.cryptoEligible} />
             <StatBox label="Crypto 2Y complete" value={historyCoverage.completeTwoYearCrypto} />
             <StatBox label="Need crypto 2Y" value={historyCoverage.missingTwoYearCrypto} />
+            <StatBox label="Stale crypto" value={historyCoverage.staleCryptoHistory} />
             <StatBox label="Est. manual clicks" value={historyCoverage.estimatedBackfillClicks} />
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
-            {historyCoverage.missingFiveYear === 0 && historyCoverage.missingTwoYearCrypto === 0
-              ? "5Y history is complete for eligible non-crypto instruments, and crypto 2Y history is complete where available."
-              : `${historyCoverage.missingFiveYear} eligible non-crypto instrument${historyCoverage.missingFiveYear === 1 ? "" : "s"} still need 5Y history; ${historyCoverage.missingTwoYearCrypto} crypto instrument${historyCoverage.missingTwoYearCrypto === 1 ? "" : "s"} still need up to 2Y history. Run Backfill market history again until both reach zero.`}
+            {historyCoverage.missingFiveYear === 0 &&
+            historyCoverage.missingTwoYearCrypto === 0 &&
+            historyCoverage.staleHistory === 0 &&
+            historyCoverage.staleCryptoHistory === 0
+              ? "5Y history is complete for eligible non-crypto instruments, crypto 2Y history is complete where available, and history is current through the latest expected market date."
+              : `${historyCoverage.missingFiveYear} eligible non-crypto instrument${historyCoverage.missingFiveYear === 1 ? "" : "s"} still need 5Y history; ${historyCoverage.staleHistory} non-crypto instrument${historyCoverage.staleHistory === 1 ? "" : "s"} have stale recent history; ${historyCoverage.missingTwoYearCrypto} crypto instrument${historyCoverage.missingTwoYearCrypto === 1 ? "" : "s"} still need up to 2Y history; ${historyCoverage.staleCryptoHistory} crypto instrument${historyCoverage.staleCryptoHistory === 1 ? "" : "s"} have stale recent history. Run Backfill market history again until these reach zero.`}
           </p>
         </div>
         <div className="mt-4 rounded-md border p-3">
