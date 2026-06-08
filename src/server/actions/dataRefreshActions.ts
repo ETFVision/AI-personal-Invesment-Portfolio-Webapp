@@ -112,7 +112,7 @@ export async function refreshAllDataAction(formData?: FormData) {
 
 export async function backfillUniverseHistoryAction(formData?: FormData) {
   const container = createContainer();
-  const authUser = await container.authProvider.requireUser();
+  await container.authProvider.requireUser();
   const destination = returnPath(formData);
   const errors: string[] = [];
   let refreshMessage = "";
@@ -120,25 +120,21 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
   const job = await container.jobRunService.runManual("backfill_market_history", async () => {
     const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
       lookbackDays: 1825,
-      batchSize: 6,
-      maxBatches: 2,
+      batchSize: 3,
+      maxBatches: 1,
       includeBackfill: true
     });
-    const benchmarks = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 1825 });
-    const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
-    if (portfolio) {
-      const dashboard = await container.portfolioService.getDashboard(portfolio.id);
-      const riskReport = await container.riskAnalyticsDataService.buildReport(portfolio.id, dashboard);
-      await container.riskAnalyticsRepository.upsertRiskReport({
-        portfolioId: portfolio.id,
-        asOfDate: riskReport.asOfDate,
-        report: riskReport
-      });
+
+    let benchmarkSummary: Awaited<ReturnType<typeof container.jobs.refreshBenchmarkData.run>> | null = null;
+    if (result.requestedSymbols.length === 0) {
+      benchmarkSummary = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 1825 });
+      if (!benchmarkSummary.ok) errors.push(benchmarkSummary.message);
     }
 
-    refreshMessage = `History backfill: ${result.message} Benchmarks: ${benchmarks.message}`;
+    refreshMessage = benchmarkSummary
+      ? `History backfill: ${result.message} Benchmarks: ${benchmarkSummary.message}`
+      : `History backfill: ${result.message} Benchmarks will run after instrument history backfill is complete.`;
     errors.push(...result.errors);
-    if (!benchmarks.ok) errors.push(benchmarks.message);
 
     return {
       ok: errors.length === 0,
@@ -146,7 +142,8 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
       errors,
       metadata: {
         instrumentBackfill: result,
-        benchmarks
+        benchmarks: benchmarkSummary,
+        skippedBenchmarksUntilInstrumentHistoryComplete: benchmarkSummary == null
       }
     };
   });
