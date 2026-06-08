@@ -2625,3 +2625,27 @@ Validation:
 Production-readiness assessment:
 - READY after visual review in the Vercel preview.
 - Risk is low: the changes are presentation and prompt-language focused; recommendation scoring and persistence contracts remain intact.
+
+## 2026-06-08 - Instrument Taxonomy / Alpha Universe QA
+
+Scope:
+- Added ETFVision-owned `asset_category` and `etf_category` fields for instrument product taxonomy.
+- Added the approved Alpha source-of-truth universe: 204 ETFs and 100 stocks.
+- Updated Universe and Watchlist directories to group by asset category, ETF product category, and stock sector.
+- Confirmed portfolio sector allocation remains separate from ETF product category and should continue to use ETF look-through exposure.
+
+Findings:
+- Critical issues: none.
+- Medium-priority issues: none.
+- Low-priority follow-up:
+  - Infrastructure and Clean Energy tickers were filled with standard liquid candidates and can be swapped if a different approved list is preferred.
+
+Validation:
+- `npm.cmd run lint` passed.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run test -- --test-name-pattern=taxonomy` passed and ran the full suite: 205 tests.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY for preview after applying migration `062_instrument_product_taxonomy.sql` and pressing the Seed Universe action.
+- Portfolio allocation charts should continue to be validated against ETF look-through data after seeding.

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
 import { InstrumentDirectoryTable } from "@/components/instruments/instrument-directory-table";
 import type { InstrumentMarketView, WatchlistTier } from "@/domain/universe/types";
+import { ASSET_CATEGORY_LABELS, ETF_CATEGORY_LABELS } from "@/domain/universe/alphaUniverse";
 
 type WatchlistPageProps = {
   searchParams?: Promise<{
@@ -36,30 +37,23 @@ function sortRows(rows: Array<InstrumentMarketView & { watchlistTierLabel?: stri
 }
 
 function assetClassGroupKey(row: InstrumentMarketView) {
-  if (["bond_etf", "gold_etf", "cash_proxy"].includes(row.instrument.assetClass)) return "bond_gold_cash";
-  return row.instrument.assetClass;
+  return row.instrument.assetCategory ?? "UNKNOWN";
 }
 
 function assetClassTitle(key: string) {
-  const titles: Record<string, string> = {
-    etf: "Equity ETFs",
-    bond_gold_cash: "Bond / gold / cash ETFs",
-    crypto: "Crypto",
-    benchmark: "Benchmarks",
-    stock: "Stocks",
-    other: "Other instruments"
-  };
-  return titles[key] ?? key.replaceAll("_", " ");
+  return ASSET_CATEGORY_LABELS[key as keyof typeof ASSET_CATEGORY_LABELS] ?? key.replaceAll("_", " ");
 }
 
 function assetClassOrder(key: string) {
   const order: Record<string, number> = {
-    stock: 1,
-    etf: 2,
-    bond_gold_cash: 3,
-    crypto: 4,
-    benchmark: 5,
-    other: 6
+    EQUITY: 1,
+    BOND: 2,
+    COMMODITY: 3,
+    REAL_ESTATE: 4,
+    CASH: 5,
+    CRYPTO: 6,
+    MULTI_ASSET: 7,
+    UNKNOWN: 8
   };
   return order[key] ?? 99;
 }
@@ -80,6 +74,19 @@ function groupStocksBySector(rows: Array<InstrumentMarketView & { watchlistTierL
     groups[key].push(row);
     return groups;
   }, {});
+}
+
+function groupEtfsByProductCategory(rows: Array<InstrumentMarketView & { watchlistTierLabel?: string; thesis?: string | null }>) {
+  return rows.reduce<Record<string, Array<InstrumentMarketView & { watchlistTierLabel?: string; thesis?: string | null }>>>((groups, row) => {
+    const key = row.instrument.etfCategory ?? "UNCATEGORIZED_ETF";
+    groups[key] = groups[key] ?? [];
+    groups[key].push(row);
+    return groups;
+  }, {});
+}
+
+function productCategoryTitle(key: string) {
+  return ETF_CATEGORY_LABELS[key as keyof typeof ETF_CATEGORY_LABELS] ?? key.replaceAll("_", " ").toLowerCase();
 }
 
 export default async function InstrumentWatchlistPage({ searchParams }: WatchlistPageProps) {
@@ -164,13 +171,17 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
         {Object.entries(groupedRows)
           .sort(([a], [b]) => assetClassOrder(a) - assetClassOrder(b) || a.localeCompare(b))
           .map(([groupKey, groupRows]) => {
-            if (groupKey === "stock") {
-              const sectorGroups = groupStocksBySector(groupRows);
+            const stockRows = groupRows.filter((row) => row.instrument.assetClass === "stock");
+            const etfRows = groupRows.filter((row) => row.instrument.instrumentType.includes("etf") || row.instrument.assetClass.endsWith("_etf") || row.instrument.assetClass === "etf");
+            const otherRows = groupRows.filter((row) => !stockRows.includes(row) && !etfRows.includes(row));
+
+            if (stockRows.length > 0 && etfRows.length === 0 && otherRows.length === 0) {
+              const sectorGroups = groupStocksBySector(stockRows);
               return (
                 <Card key={groupKey}>
                   <CardHeader>
                     <CardTitle>{assetClassTitle(groupKey)}</CardTitle>
-                    <CardDescription>{groupRows.length} watchlist stocks grouped by sector. Open a symbol for full context.</CardDescription>
+                    <CardDescription>{stockRows.length} watchlist stocks grouped by sector. Open a symbol for full context.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {Object.entries(sectorGroups)
@@ -192,8 +203,27 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
                   <CardTitle>{assetClassTitle(groupKey)}</CardTitle>
                   <CardDescription>{groupRows.length} watchlist instruments. Open a symbol for full context.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <InstrumentDirectoryTable rows={sortRows(groupRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} emptyMessage="No watchlist instruments matched your filters." />
+                <CardContent className="space-y-6">
+                  {Object.entries(groupEtfsByProductCategory(etfRows))
+                    .sort(([a], [b]) => productCategoryTitle(a).localeCompare(productCategoryTitle(b)))
+                    .map(([category, categoryRows]) => (
+                      <div key={category} className="space-y-3">
+                        <SectionHeader title={productCategoryTitle(category)} description={`${categoryRows.length} ETFs`} />
+                        <InstrumentDirectoryTable rows={sortRows(categoryRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} emptyMessage="No watchlist instruments matched your filters." />
+                      </div>
+                    ))}
+                  {stockRows.length > 0 ? (
+                    <div className="space-y-3">
+                      <SectionHeader title="Stocks" description={`${stockRows.length} instruments`} />
+                      <InstrumentDirectoryTable rows={sortRows(stockRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} emptyMessage="No watchlist instruments matched your filters." />
+                    </div>
+                  ) : null}
+                  {otherRows.length > 0 ? (
+                    <div className="space-y-3">
+                      <SectionHeader title="Other instruments" description={`${otherRows.length} instruments`} />
+                      <InstrumentDirectoryTable rows={sortRows(otherRows)} fundamentalsByInstrumentId={fundamentalsByInstrumentId} emptyMessage="No watchlist instruments matched your filters." />
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             );

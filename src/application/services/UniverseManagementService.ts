@@ -9,6 +9,14 @@ import {
   Watchlist,
   WatchlistItem
 } from "@/domain/universe/types";
+import {
+  ALPHA_ETF_CATEGORIES,
+  ALPHA_STOCK_SECTORS,
+  assetCategoryForEtfCategory,
+  type AssetCategory,
+  type EtfCategory,
+  toTitleFromSymbol
+} from "@/domain/universe/alphaUniverse";
 
 type InstrumentSeed = Omit<Instrument, "id" | "metadataLastRefreshedAt" | "providerMetadata"> & {
   metadataLastRefreshedAt?: string | null;
@@ -22,7 +30,7 @@ type WatchlistItemSeed = Omit<WatchlistItem, "id" | "watchlistKey" | "name" | "w
   symbol: string;
 };
 
-const seededInstruments: InstrumentSeed[] = [
+const legacySeededInstruments: InstrumentSeed[] = [
   // US broad market and global ETFs
   instrument("SPY", "SPDR S&P 500 ETF Trust", "etf", "ETF", "United States", "USD", "NYSE Arca", { benchmarkTags: ["sp500"], thematicTags: ["broad-market"] }),
   instrument("VOO", "Vanguard S&P 500 ETF", "etf", "ETF", "United States", "USD", "NYSE Arca", { benchmarkTags: ["sp500"], thematicTags: ["broad-market"] }),
@@ -126,6 +134,16 @@ const seededInstruments: InstrumentSeed[] = [
   stock("NKE", "Nike", "opportunistic", ["consumer"], "Consumer Discretionary", "Footwear", "United States", "USD", "NYSE"),
   stock("INTC", "Intel", "opportunistic", ["semiconductors"], "Technology", "Semiconductors", "United States", "USD", "NASDAQ")
 ];
+
+const alphaEtfSeeds = (Object.entries(ALPHA_ETF_CATEGORIES) as Array<[EtfCategory, string[]]>).flatMap(([category, symbols]) =>
+  symbols.map((symbol) => alphaEtf(symbol, category))
+);
+
+const alphaStockSeeds = Object.entries(ALPHA_STOCK_SECTORS).flatMap(([sector, symbols]) =>
+  symbols.map((symbol) => alphaStock(symbol, sector))
+);
+
+const seededInstruments = dedupeInstruments([...legacySeededInstruments, ...alphaEtfSeeds, ...alphaStockSeeds]);
 
 const seededWatchlists: WatchlistSeed[] = [
   {
@@ -242,6 +260,77 @@ function mergeTags(existing: string[] | undefined, seeded: string[] | undefined)
   return Array.from(new Set([...(existing ?? []), ...(seeded ?? [])]));
 }
 
+function dedupeInstruments(instruments: InstrumentSeed[]) {
+  const bySymbol = new Map<string, InstrumentSeed>();
+  for (const instrument of instruments) {
+    const symbol = instrument.symbol?.toUpperCase();
+    if (!symbol) continue;
+    const existing = bySymbol.get(symbol);
+    const generatedName = instrument.name === `${symbol} ETF` || instrument.name === symbol;
+    bySymbol.set(symbol, {
+      ...(existing ?? instrument),
+      ...instrument,
+      name: generatedName && existing?.name ? existing.name : instrument.name,
+      benchmarkTags: mergeTags(existing?.benchmarkTags, instrument.benchmarkTags),
+      thematicTags: mergeTags(existing?.thematicTags, instrument.thematicTags),
+      durationCategory: instrument.durationCategory ?? existing?.durationCategory ?? null,
+      treasuryClassification: instrument.treasuryClassification ?? existing?.treasuryClassification ?? null,
+      inflationLinked: instrument.inflationLinked ?? existing?.inflationLinked ?? null,
+      creditQuality: instrument.creditQuality ?? existing?.creditQuality ?? null,
+      geoExposure: instrument.geoExposure ?? existing?.geoExposure ?? null,
+      rateSensitivity: instrument.rateSensitivity ?? existing?.rateSensitivity ?? null,
+      inflationSensitivity: instrument.inflationSensitivity ?? existing?.inflationSensitivity ?? null,
+      recessionSensitivity: instrument.recessionSensitivity ?? existing?.recessionSensitivity ?? null,
+      liquidityRole: instrument.liquidityRole ?? existing?.liquidityRole ?? null,
+      cryptoClassification: instrument.cryptoClassification ?? existing?.cryptoClassification ?? null,
+      providerMetadata: {
+        ...(existing?.providerMetadata ?? {}),
+        ...(instrument.providerMetadata ?? {})
+      }
+    });
+  }
+  return Array.from(bySymbol.values());
+}
+
+function categoryTheme(category: EtfCategory) {
+  return category.toLowerCase().replaceAll("_", "-");
+}
+
+function alphaEtf(symbol: string, etfCategory: EtfCategory): InstrumentSeed {
+  const assetCategory = assetCategoryForEtfCategory(etfCategory);
+  const isBond = assetCategory === "BOND";
+  const isGold = etfCategory === "GOLD_PRECIOUS_METALS";
+  return instrument(
+    symbol,
+    `${toTitleFromSymbol(symbol)} ETF`,
+    isBond ? "bond_etf" : isGold ? "gold_etf" : "etf",
+    "etf",
+    etfCategory === "GLOBAL_EQUITY" ? "Global" : etfCategory === "DEVELOPED_MARKETS" || etfCategory === "EMERGING_MARKETS" || etfCategory === "INTERNATIONAL_DIVIDEND" || etfCategory === "COUNTRY" ? "International" : "United States",
+    "USD",
+    "US-listed",
+    {
+      assetCategory,
+      etfCategory,
+      sector: isBond ? "Fixed Income" : isGold || etfCategory === "COMMODITY" ? "Commodities" : etfCategory === "REAL_ESTATE" ? "Real Estate" : "ETF",
+      industry: "ETF",
+      thematicTags: [categoryTheme(etfCategory)],
+      riskCategory: isBond ? "fixed_income" : isGold || etfCategory === "COMMODITY" ? "commodity" : etfCategory === "REAL_ESTATE" ? "real_estate" : "equity",
+      volatilityBucket: isBond ? "low" : "medium",
+      providerMetadata: {
+        etfvision: {
+          etfCategory,
+          assetCategory,
+          taxonomySource: "manual_alpha_universe"
+        }
+      }
+    }
+  );
+}
+
+function alphaStock(symbol: string, sector: string): InstrumentSeed {
+  return stock(symbol, toTitleFromSymbol(symbol), "core_quality", [sector.toLowerCase().replaceAll(" ", "-")], sector, sector, "United States", "USD", "US-listed");
+}
+
 function instrument(
   symbol: string,
   name: string,
@@ -256,6 +345,8 @@ function instrument(
     symbol,
     name,
     assetClass,
+    assetCategory: extra?.assetCategory ?? inferAssetCategory(assetClass, instrumentType),
+    etfCategory: extra?.etfCategory ?? null,
     instrumentType,
     sector: extra?.sector ?? null,
     industry: extra?.industry ?? null,
@@ -286,6 +377,15 @@ function instrument(
     providerPrimary: extra?.providerPrimary ?? null,
     providerMetadata: extra?.providerMetadata ?? {}
   };
+}
+
+function inferAssetCategory(assetClass: InstrumentSeed["assetClass"], instrumentType: string): AssetCategory {
+  if (assetClass === "stock" || assetClass === "etf") return instrumentType === "crypto_etf" ? "CRYPTO" : "EQUITY";
+  if (assetClass === "bond_etf") return "BOND";
+  if (assetClass === "gold_etf") return "COMMODITY";
+  if (assetClass === "cash_proxy") return "CASH";
+  if (assetClass === "crypto") return "CRYPTO";
+  return "UNKNOWN";
 }
 
 function stock(

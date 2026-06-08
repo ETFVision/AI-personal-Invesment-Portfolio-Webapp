@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { TaxonomyService } from "../src/application/services/taxonomy/TaxonomyService";
+import {
+  ALPHA_ETF_CATEGORIES,
+  ALPHA_ETF_SYMBOLS,
+  ALPHA_STOCK_SECTORS,
+  ALPHA_STOCK_SYMBOLS,
+  alphaEtfCategoryForSymbol,
+  alphaStockSectorForSymbol
+} from "../src/domain/universe/alphaUniverse";
 
 const taxonomy = new TaxonomyService();
 
@@ -50,4 +58,44 @@ test("maps FMP stock sectors into canonical sectors", () => {
 
   assert.equal(result.canonicalSector, "Financials");
   assert.ok(result.canonicalThemes.includes("Financial Services"));
+});
+
+test("alpha universe contains the approved 204 ETF and 100 stock source-of-truth counts", () => {
+  assert.equal(ALPHA_ETF_SYMBOLS.length, 204);
+  assert.equal(new Set(ALPHA_ETF_SYMBOLS).size, 204);
+  assert.equal(ALPHA_STOCK_SYMBOLS.length, 100);
+  assert.equal(new Set(ALPHA_STOCK_SYMBOLS).size, 100);
+
+  const etfCategoryCounts = Object.fromEntries(Object.entries(ALPHA_ETF_CATEGORIES).map(([category, symbols]) => [category, symbols.length]));
+  assert.equal(etfCategoryCounts.US_BROAD_MARKET, 10);
+  assert.equal(etfCategoryCounts.BOND, 15);
+  assert.equal(etfCategoryCounts.INFRASTRUCTURE, 4);
+  assert.equal(etfCategoryCounts.CLEAN_ENERGY, 4);
+
+  const stockSectorCounts = Object.fromEntries(Object.entries(ALPHA_STOCK_SECTORS).map(([sector, symbols]) => [sector, symbols.length]));
+  assert.equal(stockSectorCounts.Technology, 20);
+  assert.equal(stockSectorCounts.Financials, 15);
+  assert.equal(stockSectorCounts.Utilities, 1);
+});
+
+test("ETF product category is separate from portfolio sector taxonomy", () => {
+  assert.equal(alphaEtfCategoryForSymbol("VOO"), "US_BROAD_MARKET");
+
+  const result = taxonomy.normalize({
+    symbol: "VOO",
+    assetClass: "etf",
+    instrumentType: "etf",
+    rawSector: "Financial Services",
+    rawIndustry: "ETF",
+    seededThemes: ["broad-market"]
+  });
+
+  assert.equal(result.canonicalSector, "Multi-Asset / Broad Market");
+  assert.notEqual(result.canonicalSector, "US_BROAD_MARKET");
+});
+
+test("stock sector taxonomy maps approved alpha stocks by symbol", () => {
+  assert.equal(alphaStockSectorForSymbol("MSFT"), "Technology");
+  assert.equal(alphaStockSectorForSymbol("JPM"), "Financials");
+  assert.equal(alphaStockSectorForSymbol("NEE"), "Utilities");
 });
