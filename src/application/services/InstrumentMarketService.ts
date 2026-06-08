@@ -677,10 +677,7 @@ export class InstrumentMarketService {
     const activeInstruments = instruments.filter((instrument) => instrument.isActive);
     const metrics = await this.repository.listInstrumentMarketMetrics(activeInstruments.map((instrument) => instrument.id));
     const metricsByInstrumentId = new Map(metrics.map((item) => [item.instrumentId, item]));
-    const stats =
-      metrics.length > 0
-        ? []
-        : await this.repository.listInstrumentPriceStats(activeInstruments.map((instrument) => instrument.id));
+    const stats = await this.repository.listInstrumentPriceStats(activeInstruments.map((instrument) => instrument.id));
     const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
     const threeYearCompleteBy = daysAfterIso(yearsAgoIso(3), 10);
     const fiveYearCompleteBy = daysAfterIso(yearsAgoIso(5), 10);
@@ -702,8 +699,8 @@ export class InstrumentMarketService {
         cryptoEligible += 1;
         const metric = metricsByInstrumentId.get(instrument.id);
         const stat = statsByInstrumentId.get(instrument.id);
-        const earliestDate = metric?.historyStartDate ?? stat?.earliestPriceDate ?? null;
-        const latestDate = metric?.historyEndDate ?? metric?.latestPriceDate ?? stat?.latestPriceDate ?? null;
+        const earliestDate = stat?.earliestPriceDate ?? metric?.historyStartDate ?? null;
+        const latestDate = stat?.latestPriceDate ?? metric?.historyEndDate ?? metric?.latestPriceDate ?? null;
         const current = isHistoryCurrent(latestDate, refreshCutoff);
         if (!current) staleCryptoHistory += 1;
         if (earliestDate && current) availableCryptoHistoryComplete += 1;
@@ -716,8 +713,8 @@ export class InstrumentMarketService {
       totalEligible += 1;
       const metric = metricsByInstrumentId.get(instrument.id);
       const stat = statsByInstrumentId.get(instrument.id);
-      const earliestDate = metric?.historyStartDate ?? stat?.earliestPriceDate ?? null;
-      const latestDate = metric?.historyEndDate ?? metric?.latestPriceDate ?? stat?.latestPriceDate ?? null;
+      const earliestDate = stat?.earliestPriceDate ?? metric?.historyStartDate ?? null;
+      const latestDate = stat?.latestPriceDate ?? metric?.historyEndDate ?? metric?.latestPriceDate ?? null;
       const current = isHistoryCurrent(latestDate, refreshCutoff);
       if (!current) staleHistory += 1;
       if (earliestDate && current) availableHistoryComplete += 1;
