@@ -46,7 +46,7 @@ function classifyFundMetadata(item: { symbol: string; sector: string | null; ind
   }
 
   const symbol = item.symbol.toUpperCase();
-  const broadMarketEtfs = new Set(["VOO", "SPY", "IVV", "VTI", "VT", "VEA", "VWO", "VXUS", "ACWI", "URTH"]);
+  const broadMarketEtfs = new Set(["VOO", "SPY", "IVV", "VTI", "VT", "VEA", "VWO", "VXUS", "ACWI"]);
   const sectorEtfs = new Set(["XLK", "XLF", "XLV", "XLY", "XLP", "XLE", "XLI", "XLB", "XLU", "XLRE", "XLC"]);
 
   if (sectorEtfs.has(symbol)) {

@@ -27,11 +27,23 @@ function formNullableNumber(formData: FormData, key: string) {
 }
 
 export async function seedUniverseAction(formData?: FormData) {
-  await createContainer().authProvider.requireUser();
-  const result = await createContainer().universeManagementService.ensureSeededUniverse();
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  const job = await container.jobRunService.runManual("seed_universe", async () => {
+    const result = await container.universeManagementService.ensureSeededUniverse();
+    return {
+      ok: true,
+      message: `Seeded ${result.instruments} instruments and ${result.watchlistItems} watchlist items.`,
+      ...result
+    };
+  });
+  const result = job.result && typeof job.result === "object" ? job.result as { instruments?: number; watchlistItems?: number; message?: string } : {};
   const rawReturnTo = String(formData?.get("returnTo") ?? "/instruments/universe");
   const returnTo = rawReturnTo.startsWith("/") ? rawReturnTo : "/instruments/universe";
-  redirect(`${returnTo}?message=${encodeURIComponent(`Seeded ${result.instruments} instruments and ${result.watchlistItems} watchlist items.`)}`);
+  const message = job.errors.length > 0
+    ? `Seed universe failed: ${job.errors.join(" | ")}`
+    : result.message ?? `Seeded ${result.instruments ?? 0} instruments and ${result.watchlistItems ?? 0} watchlist items.`;
+  redirect(`${returnTo}?message=${encodeURIComponent(message)}`);
 }
 
 export async function refreshUniverseMetadataAction() {

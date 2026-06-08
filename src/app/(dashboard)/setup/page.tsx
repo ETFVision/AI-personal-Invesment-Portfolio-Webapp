@@ -12,7 +12,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const authUser = await container.authProvider.requireUser();
   const { portfolio, user } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
   const instruments = await container.instrumentService.listInstruments();
-  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 12);
+  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 8);
 
   return (
     <div className="space-y-6">
@@ -117,28 +117,26 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
         <Card>
           <CardHeader>
             <CardTitle>Universe history coverage</CardTitle>
-            <CardDescription>Backfill status for 3Y and 5Y instrument return calculations.</CardDescription>
+            <CardDescription>Backfill status for 3Y/5Y instrument returns and up to 2Y crypto history where available.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid gap-3 text-sm md:grid-cols-3 lg:grid-cols-6">
+            <div className="grid gap-3 text-sm md:grid-cols-3 lg:grid-cols-8">
               <CoverageMetric label="Eligible" value={historyCoverage.totalEligible} />
               <CoverageMetric label="5Y complete" value={historyCoverage.completeFiveYear} />
               <CoverageMetric label="Need 5Y" value={historyCoverage.missingFiveYear} />
               <CoverageMetric label="3Y complete" value={historyCoverage.completeThreeYear} />
               <CoverageMetric label="Need 3Y" value={historyCoverage.missingThreeYear} />
+              <CoverageMetric label="Crypto eligible" value={historyCoverage.cryptoEligible} />
+              <CoverageMetric label="Crypto 2Y" value={historyCoverage.completeTwoYearCrypto} />
+              <CoverageMetric label="Need crypto 2Y" value={historyCoverage.missingTwoYearCrypto} />
               <CoverageMetric label="Est. clicks" value={historyCoverage.estimatedBackfillClicks} />
             </div>
             <div className="rounded-md border bg-muted/30 p-3 text-sm">
               <div className="font-medium">
-                {historyCoverage.missingFiveYear === 0
-                  ? "5Y history is complete for eligible instruments."
-                  : `${historyCoverage.missingFiveYear} eligible instrument${historyCoverage.missingFiveYear === 1 ? "" : "s"} still need 5Y history. About ${historyCoverage.estimatedBackfillClicks} Backfill history click${historyCoverage.estimatedBackfillClicks === 1 ? "" : "s"} remaining.`}
+                {historyCoverage.missingFiveYear === 0 && historyCoverage.missingTwoYearCrypto === 0
+                  ? "5Y history is complete for eligible non-crypto instruments, and crypto 2Y history is complete where available."
+                  : `${historyCoverage.missingFiveYear} eligible non-crypto instrument${historyCoverage.missingFiveYear === 1 ? "" : "s"} still need 5Y history; ${historyCoverage.missingTwoYearCrypto} crypto instrument${historyCoverage.missingTwoYearCrypto === 1 ? "" : "s"} still need up to 2Y history. About ${historyCoverage.estimatedBackfillClicks} Backfill history click${historyCoverage.estimatedBackfillClicks === 1 ? "" : "s"} remaining.`}
               </div>
-              {historyCoverage.excludedCrypto > 0 ? (
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {historyCoverage.excludedCrypto} crypto instrument{historyCoverage.excludedCrypto === 1 ? "" : "s"} excluded from 3Y/5Y completeness because crypto ETF history may be shorter.
-                </div>
-              ) : null}
             </div>
           </CardContent>
         </Card>

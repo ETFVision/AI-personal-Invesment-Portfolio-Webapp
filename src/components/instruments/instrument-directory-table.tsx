@@ -5,6 +5,7 @@ import type { FundamentalsSummaryRow } from "@/domain/fundamentals/types";
 import { formatCurrencyWithCode, formatPercent } from "@/lib/utils";
 import { DataFreshnessBadge, InstrumentTypeBadge, ThemeBadgeList } from "./instrument-badges";
 import { instrumentTypeLabel, resolveInstrumentType } from "@/application/services/instruments/InstrumentTypeResolver";
+import { ASSET_CATEGORY_LABELS, ETF_CATEGORY_LABELS } from "@/domain/universe/alphaUniverse";
 
 type InstrumentDirectoryTableProps = {
   rows: Array<InstrumentMarketView & { watchlistTierLabel?: string; thesis?: string | null; reviewDate?: string | null }>;
@@ -21,6 +22,12 @@ function fundamentalsFreshness(row: FundamentalsSummaryRow | undefined) {
 
 function score(value: number | null | undefined) {
   return value == null ? "-" : String(Math.round(value));
+}
+
+function productTaxonomyLabel(assetCategory: string | null | undefined, etfCategory: string | null | undefined) {
+  const assetLabel = assetCategory ? ASSET_CATEGORY_LABELS[assetCategory as keyof typeof ASSET_CATEGORY_LABELS] ?? assetCategory : null;
+  const etfLabel = etfCategory ? ETF_CATEGORY_LABELS[etfCategory as keyof typeof ETF_CATEGORY_LABELS] ?? etfCategory.replaceAll("_", " ") : null;
+  return [assetLabel, etfLabel].filter(Boolean).join(" / ");
 }
 
 export function InstrumentDirectoryTable({ rows, fundamentalsByInstrumentId, emptyMessage = "No instruments found." }: InstrumentDirectoryTableProps) {
@@ -59,6 +66,7 @@ export function InstrumentDirectoryTable({ rows, fundamentalsByInstrumentId, emp
                   <p className="font-medium">{row.instrument.name}</p>
                   <p className="text-xs text-muted-foreground">{row.instrument.exchange ?? "-"} - {row.instrument.currency ?? "-"}</p>
                   <p className="text-xs text-muted-foreground">{row.instrument.canonicalSector ?? row.instrument.sector ?? "-"}</p>
+                  <p className="text-xs text-muted-foreground">{productTaxonomyLabel(row.instrument.assetCategory, row.instrument.etfCategory) || "-"}</p>
                   {row.thesis ? <p className="mt-1 text-xs text-muted-foreground">{row.thesis}</p> : null}
                 </td>
                 <td className="p-3"><InstrumentTypeBadge label={instrumentTypeLabel(type)} /></td>

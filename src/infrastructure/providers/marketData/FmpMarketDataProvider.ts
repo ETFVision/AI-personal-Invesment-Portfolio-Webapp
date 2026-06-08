@@ -41,9 +41,16 @@ function todayIsoDate() {
 
 function normalizeHistoricalSymbol(symbol: string, assetClass?: string) {
   const normalized = symbol.trim().toUpperCase();
+  if (normalized === "BRK.B") return "BRK-B";
   if (assetClass === "crypto" && !normalized.endsWith("USD")) {
     return `${normalized}USD`;
   }
+  return normalized;
+}
+
+function normalizeLatestSymbol(symbol: string) {
+  const normalized = symbol.trim().toUpperCase();
+  if (normalized === "BRK.B") return "BRK-B";
   return normalized;
 }
 
@@ -129,7 +136,7 @@ export class FmpMarketDataProvider implements MarketDataProvider {
     }
 
     const apiKey = env.FMP_API_KEY;
-    const uniqueSymbols = Array.from(new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean)));
+    const uniqueSymbols = Array.from(new Set(symbols.map(normalizeLatestSymbol).filter(Boolean)));
     const realtimeQuotes = await this.tryGetRealtimeQuotes(uniqueSymbols, apiKey);
     const realtimeSymbols = new Set(realtimeQuotes.map((quote) => quote.symbol.toUpperCase()));
     const missingSymbols = uniqueSymbols.filter((symbol) => !realtimeSymbols.has(symbol));
@@ -231,6 +238,10 @@ export class FmpMarketDataProvider implements MarketDataProvider {
       url.searchParams.set("apikey", apiKey);
 
       const response = await fetchWithRetry(url);
+
+      if (response.status === 402 || response.status === 403 || response.status === 404) {
+        continue;
+      }
 
       if (!response.ok) {
         throw new Error(`FMP EOD request for ${symbol} failed with status ${response.status}.`);

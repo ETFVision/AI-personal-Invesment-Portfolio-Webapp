@@ -14,17 +14,31 @@ export type RefreshInstrumentPricesResult = {
   missingSymbols: string[];
   errors: string[];
   message: string;
+  derivedMetricsRefreshed?: number;
 };
 
 export type InstrumentHistoryCoverageSummary = {
   totalEligible: number;
   completeFiveYear: number;
+  availableHistoryComplete: number;
   missingFiveYear: number;
   completeThreeYear: number;
   missingThreeYear: number;
   oneYearOnly: number;
-  excludedCrypto: number;
+  staleHistory: number;
+  cryptoEligible: number;
+  completeTwoYearCrypto: number;
+  availableCryptoHistoryComplete: number;
+  missingTwoYearCrypto: number;
+  staleCryptoHistory: number;
   estimatedBackfillClicks: number;
+};
+
+export type RefreshInstrumentRiskMetricsResult = {
+  requestedSymbols: string[];
+  updatedCount: number;
+  errors: string[];
+  message: string;
 };
 
 function uniqueSymbols(symbols: Array<string | null | undefined>) {
@@ -78,9 +92,49 @@ function isStaleOrMissing(latestPriceDate: string | null, asOfDate: string) {
   return !latestPriceDate || latestPriceDate < asOfDate;
 }
 
-function needsLongHistoryBackfill(instrument: Instrument, earliestPriceDate: string | null, backfillStartDate: string) {
-  if (instrument.assetClass === "crypto" || instrument.instrumentType === "crypto_etf") return false;
-  return !earliestPriceDate || earliestPriceDate > daysAfterIso(backfillStartDate, 10);
+function historyFreshnessCutoff(asOfDate: string) {
+  return daysBeforeIso(asOfDate, 1);
+}
+
+function isHistoryCurrent(latestPriceDate: string | null, asOfDate: string) {
+  return Boolean(latestPriceDate && latestPriceDate >= historyFreshnessCutoff(asOfDate));
+}
+
+function needsLongHistoryBackfill(
+  instrument: Instrument,
+  earliestPriceDate: string | null,
+  backfillStartDate: string,
+  cryptoBackfillStartDate = daysAgoIso(730)
+) {
+  const targetStartDate = isCryptoHistoryExcluded(instrument) ? cryptoBackfillStartDate : backfillStartDate;
+  return !earliestPriceDate || earliestPriceDate > daysAfterIso(targetStartDate, 10);
+}
+
+function needsHistoryBackfill(
+  instrument: Instrument,
+  earliestPriceDate: string | null,
+  latestPriceDate: string | null,
+  backfillStartDate: string,
+  cryptoBackfillStartDate: string,
+  refreshCutoff: string
+) {
+  if (earliestPriceDate && isHistoryCurrent(latestPriceDate, refreshCutoff)) return false;
+  return (
+    needsLongHistoryBackfill(instrument, earliestPriceDate, backfillStartDate, cryptoBackfillStartDate) ||
+    !isHistoryCurrent(latestPriceDate, refreshCutoff)
+  );
+}
+
+function needsMarketMetricRepair(
+  stats: { earliestPriceDate: string | null; latestPriceDate: string | null; observationCount: number } | undefined,
+  metric: InstrumentMarketMetric | undefined
+) {
+  if (!stats || stats.observationCount === 0 || !stats.latestPriceDate) return false;
+  if (!metric) return true;
+  if (!metric.latestPriceDate || metric.latestPriceDate < stats.latestPriceDate) return true;
+  if (!metric.historyEndDate || metric.historyEndDate < stats.latestPriceDate) return true;
+  if (stats.earliestPriceDate && (!metric.historyStartDate || metric.historyStartDate > stats.earliestPriceDate)) return true;
+  return (metric.observationCount ?? 0) < stats.observationCount;
 }
 
 function isCryptoHistoryExcluded(instrument: Instrument) {
@@ -93,6 +147,7 @@ function isRawCryptoReference(instrument: Instrument) {
 
 function providerSymbolForInstrument(instrument: Instrument) {
   const symbol = instrument.symbol?.trim().toUpperCase() ?? "";
+  if (symbol === "BRK.B") return "BRK-B";
   if (isRawCryptoReference(instrument) && symbol && !symbol.endsWith("USD")) return `${symbol}USD`;
   return symbol;
 }
@@ -106,6 +161,24 @@ function safeReturn(latest: number | null, baseline: number | null) {
     return null;
   }
   return latest / baseline - 1;
+}
+
+async function refreshDerivedMetrics(
+  repository: UniverseRepository,
+  instrumentIds: string[],
+  options?: { oneInstrumentAtATime?: boolean; skipRiskMetrics?: boolean }
+) {
+  if (instrumentIds.length === 0) return;
+  if (!options?.oneInstrumentAtATime) {
+    await repository.refreshInstrumentMarketMetrics(instrumentIds);
+    if (!options?.skipRiskMetrics) await repository.refreshInstrumentRiskMetrics(instrumentIds);
+    return;
+  }
+
+  for (const instrumentId of instrumentIds) {
+    await repository.refreshInstrumentMarketMetrics([instrumentId]);
+    if (!options?.skipRiskMetrics) await repository.refreshInstrumentRiskMetrics([instrumentId]);
+  }
 }
 
 function freshnessTone(priceDate: string | null) {
@@ -172,24 +245,66 @@ export class InstrumentMarketService {
     const statsByInstrumentId = new Map(priceStats.map((item) => [item.instrumentId, item]));
     const refreshCutoff = latestExpectedEodDate();
     const backfillStartDate = daysAgoIso(lookbackDays);
+    const cryptoBackfillStartDate = daysAgoIso(Math.min(lookbackDays, 730));
     const symbols = uniqueSymbols(
       instruments
         .filter((instrument) => {
           const stats = statsByInstrumentId.get(instrument.id);
-          return (
-            isStaleOrMissing(stats?.latestPriceDate ?? null, refreshCutoff) ||
-            (includeBackfill && needsLongHistoryBackfill(instrument, stats?.earliestPriceDate ?? null, backfillStartDate))
+          if (!includeBackfill) return isStaleOrMissing(stats?.latestPriceDate ?? null, refreshCutoff);
+          return needsHistoryBackfill(
+            instrument,
+            stats?.earliestPriceDate ?? null,
+            stats?.latestPriceDate ?? null,
+            backfillStartDate,
+            cryptoBackfillStartDate,
+            refreshCutoff
           );
         })
         .slice()
         .sort((a, b) => {
           const aStats = statsByInstrumentId.get(a.id);
           const bStats = statsByInstrumentId.get(b.id);
-          const aNeedsRefresh = isStaleOrMissing(aStats?.latestPriceDate ?? null, refreshCutoff);
-          const bNeedsRefresh = isStaleOrMissing(bStats?.latestPriceDate ?? null, refreshCutoff);
+          const aNeedsRefresh = includeBackfill
+            ? needsHistoryBackfill(
+                a,
+                aStats?.earliestPriceDate ?? null,
+                aStats?.latestPriceDate ?? null,
+                backfillStartDate,
+                cryptoBackfillStartDate,
+                refreshCutoff
+              )
+            : isStaleOrMissing(aStats?.latestPriceDate ?? null, refreshCutoff);
+          const bNeedsRefresh = includeBackfill
+            ? needsHistoryBackfill(
+                b,
+                bStats?.earliestPriceDate ?? null,
+                bStats?.latestPriceDate ?? null,
+                backfillStartDate,
+                cryptoBackfillStartDate,
+                refreshCutoff
+              )
+            : isStaleOrMissing(bStats?.latestPriceDate ?? null, refreshCutoff);
           if (aNeedsRefresh !== bNeedsRefresh) return aNeedsRefresh ? -1 : 1;
-          const aNeedsBackfill = includeBackfill && needsLongHistoryBackfill(a, aStats?.earliestPriceDate ?? null, backfillStartDate);
-          const bNeedsBackfill = includeBackfill && needsLongHistoryBackfill(b, bStats?.earliestPriceDate ?? null, backfillStartDate);
+          const aNeedsBackfill =
+            includeBackfill &&
+            needsHistoryBackfill(
+              a,
+              aStats?.earliestPriceDate ?? null,
+              aStats?.latestPriceDate ?? null,
+              backfillStartDate,
+              cryptoBackfillStartDate,
+              refreshCutoff
+            );
+          const bNeedsBackfill =
+            includeBackfill &&
+            needsHistoryBackfill(
+              b,
+              bStats?.earliestPriceDate ?? null,
+              bStats?.latestPriceDate ?? null,
+              backfillStartDate,
+              cryptoBackfillStartDate,
+              refreshCutoff
+            );
           if (aNeedsBackfill !== bNeedsBackfill) return aNeedsBackfill ? -1 : 1;
           const aCount = aStats?.observationCount ?? 0;
           const bCount = bStats?.observationCount ?? 0;
@@ -259,8 +374,7 @@ export class InstrumentMarketService {
       if (rows.length > 0) {
         const updatedInstrumentIds = Array.from(new Set(rows.map((row) => row.instrumentId)));
         await this.repository.upsertInstrumentPrices(rows);
-        await this.repository.refreshInstrumentMarketMetrics(updatedInstrumentIds);
-        await this.repository.refreshInstrumentRiskMetrics(updatedInstrumentIds);
+        await refreshDerivedMetrics(this.repository, updatedInstrumentIds);
       }
 
       return {
@@ -301,8 +415,16 @@ export class InstrumentMarketService {
             };
           }
           const stats = statsByInstrumentId.get(instrument.id);
-          const shouldBackfill = includeBackfill && needsLongHistoryBackfill(instrument, stats?.earliestPriceDate ?? null, defaultFrom);
-          const from = shouldBackfill ? defaultFrom : stats?.latestPriceDate ? daysBeforeIso(stats.latestPriceDate, 7) : defaultFrom;
+          const targetBackfillStart = isCryptoHistoryExcluded(instrument) ? cryptoBackfillStartDate : defaultFrom;
+          const shouldBackfill = includeBackfill && needsLongHistoryBackfill(instrument, stats?.earliestPriceDate ?? null, defaultFrom, cryptoBackfillStartDate);
+          const shouldRefreshStaleHistory = includeBackfill && !isHistoryCurrent(stats?.latestPriceDate ?? null, refreshCutoff);
+          const from = shouldBackfill
+            ? targetBackfillStart
+            : shouldRefreshStaleHistory && stats?.latestPriceDate
+              ? daysBeforeIso(stats.latestPriceDate, 7)
+              : stats?.latestPriceDate
+                ? daysBeforeIso(stats.latestPriceDate, 7)
+                : targetBackfillStart;
         const quotes = await this.provider.getHistoricalPrices(symbol, from, to, { assetClass: instrument.assetClass });
         if (quotes.length === 0) {
             return { rows: [], missingSymbol: symbol, error: null };
@@ -337,8 +459,7 @@ export class InstrumentMarketService {
     if (rows.length > 0) {
       const updatedInstrumentIds = Array.from(new Set(rows.map((row) => row.instrumentId)));
       await this.repository.upsertInstrumentPrices(rows);
-      await this.repository.refreshInstrumentMarketMetrics(updatedInstrumentIds);
-      await this.repository.refreshInstrumentRiskMetrics(updatedInstrumentIds);
+      await refreshDerivedMetrics(this.repository, updatedInstrumentIds, { oneInstrumentAtATime: includeBackfill, skipRiskMetrics: includeBackfill });
     }
 
     return {
@@ -382,15 +503,104 @@ export class InstrumentMarketService {
       if (result.updatedCount === 0 && result.missingSymbols.length === 0) break;
     }
 
+    const derivedMetricsRefreshed =
+      input?.includeBackfill && requestedSymbols.size === 0
+        ? await this.refreshMissingInstrumentMarketMetrics({ batchSize })
+        : 0;
+
     return {
       requestedSymbols: Array.from(requestedSymbols),
       updatedCount,
       missingSymbols: Array.from(missingSymbols),
       errors,
       message:
-        requestedSymbols.size === 0
-          ? "Instrument prices are already fresh."
+        requestedSymbols.size === 0 && derivedMetricsRefreshed > 0
+          ? `Instrument prices are already fresh. Rebuilt derived market metrics for ${derivedMetricsRefreshed} instrument${derivedMetricsRefreshed === 1 ? "" : "s"}.`
+          : requestedSymbols.size === 0
+            ? "Instrument prices are already fresh."
           : `Stored ${updatedCount} instrument price row${updatedCount === 1 ? "" : "s"} across ${requestedSymbols.size} instrument${requestedSymbols.size === 1 ? "" : "s"}.`
+      ,
+      derivedMetricsRefreshed
+    };
+  }
+
+  async refreshMissingInstrumentMarketMetrics(input?: { batchSize?: number }): Promise<number> {
+    const batchSize = Math.max(1, input?.batchSize ?? 12);
+    const instruments = await this.repository.listInstruments({ isActive: true });
+    const instrumentIds = instruments.map((instrument) => instrument.id);
+    const [stats, metrics] = await Promise.all([
+      this.repository.listInstrumentPriceStats(instrumentIds),
+      this.repository.listInstrumentMarketMetrics(instrumentIds)
+    ]);
+    const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
+    const metricsByInstrumentId = new Map(metrics.map((item) => [item.instrumentId, item]));
+    const selectedInstrumentIds = instruments
+      .filter((instrument) => needsMarketMetricRepair(statsByInstrumentId.get(instrument.id), metricsByInstrumentId.get(instrument.id)))
+      .slice()
+      .sort((a, b) => {
+        const aMetric = metricsByInstrumentId.get(a.id);
+        const bMetric = metricsByInstrumentId.get(b.id);
+        if (Boolean(aMetric) !== Boolean(bMetric)) return aMetric ? 1 : -1;
+        const aLatest = aMetric?.latestPriceDate ?? "";
+        const bLatest = bMetric?.latestPriceDate ?? "";
+        if (aLatest !== bLatest) return aLatest.localeCompare(bLatest);
+        return (a.symbol ?? "").localeCompare(b.symbol ?? "");
+      })
+      .slice(0, batchSize)
+      .map((instrument) => instrument.id);
+
+    if (selectedInstrumentIds.length === 0) return 0;
+    await this.repository.refreshInstrumentMarketMetrics(selectedInstrumentIds);
+    return selectedInstrumentIds.length;
+  }
+
+  async refreshInstrumentRiskMetricsInBatches(input?: {
+    batchSize?: number;
+    minObservations?: number;
+  }): Promise<RefreshInstrumentRiskMetricsResult> {
+    const batchSize = Math.max(1, input?.batchSize ?? 10);
+    const minObservations = Math.max(1, input?.minObservations ?? 30);
+    const instruments = await this.repository.listInstruments({ isActive: true });
+    const stats = await this.repository.listInstrumentPriceStats(instruments.map((instrument) => instrument.id));
+    const riskMetrics = await this.repository.listInstrumentRiskMetrics(instruments.map((instrument) => instrument.id));
+    const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
+    const riskByInstrumentId = new Map(riskMetrics.map((item) => [item.instrumentId, item]));
+    const selected = instruments
+      .filter((instrument) => (statsByInstrumentId.get(instrument.id)?.observationCount ?? 0) >= minObservations)
+      .slice()
+      .sort((a, b) => {
+        const aRisk = riskByInstrumentId.get(a.id);
+        const bRisk = riskByInstrumentId.get(b.id);
+        if (Boolean(aRisk) !== Boolean(bRisk)) return aRisk ? 1 : -1;
+        const aCalculatedAt = aRisk?.calculatedAt ?? "";
+        const bCalculatedAt = bRisk?.calculatedAt ?? "";
+        if (aCalculatedAt !== bCalculatedAt) return aCalculatedAt.localeCompare(bCalculatedAt);
+        return (a.symbol ?? "").localeCompare(b.symbol ?? "");
+      })
+      .slice(0, batchSize);
+
+    const errors: string[] = [];
+    const requestedSymbols: string[] = [];
+    let updatedCount = 0;
+
+    for (const instrument of selected) {
+      try {
+        await this.repository.refreshInstrumentRiskMetrics([instrument.id]);
+        if (instrument.symbol) requestedSymbols.push(instrument.symbol);
+        updatedCount += 1;
+      } catch (error) {
+        errors.push(`${instrument.symbol}: ${error instanceof Error ? error.message : "Risk metrics refresh failed."}`);
+      }
+    }
+
+    return {
+      requestedSymbols,
+      updatedCount,
+      errors,
+      message:
+        selected.length === 0
+          ? "No instruments have enough price history for risk metric refresh."
+          : `Refreshed risk metrics for ${updatedCount}/${selected.length} instrument${selected.length === 1 ? "" : "s"}.`
     };
   }
 
@@ -526,30 +736,50 @@ export class InstrumentMarketService {
     const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
     const threeYearCompleteBy = daysAfterIso(yearsAgoIso(3), 10);
     const fiveYearCompleteBy = daysAfterIso(yearsAgoIso(5), 10);
+    const twoYearCryptoCompleteBy = daysAfterIso(yearsAgoIso(2), 10);
+    const refreshCutoff = latestExpectedEodDate();
     let totalEligible = 0;
     let completeFiveYear = 0;
+    let availableHistoryComplete = 0;
     let completeThreeYear = 0;
     let oneYearOnly = 0;
-    let excludedCrypto = 0;
+    let staleHistory = 0;
+    let cryptoEligible = 0;
+    let completeTwoYearCrypto = 0;
+    let availableCryptoHistoryComplete = 0;
+    let staleCryptoHistory = 0;
 
     for (const instrument of activeInstruments) {
       if (isCryptoHistoryExcluded(instrument)) {
-        excludedCrypto += 1;
+        cryptoEligible += 1;
+        const metric = metricsByInstrumentId.get(instrument.id);
+        const stat = statsByInstrumentId.get(instrument.id);
+        const earliestDate = metric?.historyStartDate ?? stat?.earliestPriceDate ?? null;
+        const latestDate = metric?.historyEndDate ?? metric?.latestPriceDate ?? stat?.latestPriceDate ?? null;
+        const current = isHistoryCurrent(latestDate, refreshCutoff);
+        if (!current) staleCryptoHistory += 1;
+        if (earliestDate && current) availableCryptoHistoryComplete += 1;
+        if (earliestDate && earliestDate <= twoYearCryptoCompleteBy && current) {
+          completeTwoYearCrypto += 1;
+        }
         continue;
       }
 
       totalEligible += 1;
-      const earliestDate =
-        metricsByInstrumentId.get(instrument.id)?.historyStartDate ??
-        statsByInstrumentId.get(instrument.id)?.earliestPriceDate ??
-        null;
-      if (earliestDate && earliestDate <= fiveYearCompleteBy) {
+      const metric = metricsByInstrumentId.get(instrument.id);
+      const stat = statsByInstrumentId.get(instrument.id);
+      const earliestDate = metric?.historyStartDate ?? stat?.earliestPriceDate ?? null;
+      const latestDate = metric?.historyEndDate ?? metric?.latestPriceDate ?? stat?.latestPriceDate ?? null;
+      const current = isHistoryCurrent(latestDate, refreshCutoff);
+      if (!current) staleHistory += 1;
+      if (earliestDate && current) availableHistoryComplete += 1;
+      if (earliestDate && earliestDate <= fiveYearCompleteBy && current) {
         completeFiveYear += 1;
         completeThreeYear += 1;
         continue;
       }
 
-      if (earliestDate && earliestDate <= threeYearCompleteBy) {
+      if (earliestDate && earliestDate <= threeYearCompleteBy && current) {
         completeThreeYear += 1;
         continue;
       }
@@ -557,18 +787,25 @@ export class InstrumentMarketService {
       oneYearOnly += 1;
     }
 
-    const missingFiveYear = Math.max(0, totalEligible - completeFiveYear);
-    const missingThreeYear = Math.max(0, totalEligible - completeThreeYear);
+    const missingFiveYear = Math.max(0, totalEligible - availableHistoryComplete);
+    const missingThreeYear = Math.max(0, totalEligible - Math.max(completeThreeYear, availableHistoryComplete));
+    const missingTwoYearCrypto = Math.max(0, cryptoEligible - availableCryptoHistoryComplete);
 
     return {
       totalEligible,
       completeFiveYear,
+      availableHistoryComplete,
       missingFiveYear,
       completeThreeYear,
       missingThreeYear,
       oneYearOnly,
-      excludedCrypto,
-      estimatedBackfillClicks: Math.ceil(missingFiveYear / Math.max(1, backfillBatchSize))
+      staleHistory,
+      cryptoEligible,
+      completeTwoYearCrypto,
+      availableCryptoHistoryComplete,
+      missingTwoYearCrypto,
+      staleCryptoHistory,
+      estimatedBackfillClicks: Math.ceil((missingFiveYear + missingTwoYearCrypto) / Math.max(1, backfillBatchSize))
     };
   }
 
