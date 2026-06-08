@@ -14,6 +14,7 @@ export type RefreshInstrumentPricesResult = {
   missingSymbols: string[];
   errors: string[];
   message: string;
+  derivedMetricsRefreshed?: number;
 };
 
 export type InstrumentHistoryCoverageSummary = {
@@ -122,6 +123,18 @@ function needsHistoryBackfill(
     needsLongHistoryBackfill(instrument, earliestPriceDate, backfillStartDate, cryptoBackfillStartDate) ||
     !isHistoryCurrent(latestPriceDate, refreshCutoff)
   );
+}
+
+function needsMarketMetricRepair(
+  stats: { earliestPriceDate: string | null; latestPriceDate: string | null; observationCount: number } | undefined,
+  metric: InstrumentMarketMetric | undefined
+) {
+  if (!stats || stats.observationCount === 0 || !stats.latestPriceDate) return false;
+  if (!metric) return true;
+  if (!metric.latestPriceDate || metric.latestPriceDate < stats.latestPriceDate) return true;
+  if (!metric.historyEndDate || metric.historyEndDate < stats.latestPriceDate) return true;
+  if (stats.earliestPriceDate && (!metric.historyStartDate || metric.historyStartDate > stats.earliestPriceDate)) return true;
+  return (metric.observationCount ?? 0) < stats.observationCount;
 }
 
 function isCryptoHistoryExcluded(instrument: Instrument) {
@@ -490,16 +503,55 @@ export class InstrumentMarketService {
       if (result.updatedCount === 0 && result.missingSymbols.length === 0) break;
     }
 
+    const derivedMetricsRefreshed =
+      input?.includeBackfill && requestedSymbols.size === 0
+        ? await this.refreshMissingInstrumentMarketMetrics({ batchSize })
+        : 0;
+
     return {
       requestedSymbols: Array.from(requestedSymbols),
       updatedCount,
       missingSymbols: Array.from(missingSymbols),
       errors,
       message:
-        requestedSymbols.size === 0
-          ? "Instrument prices are already fresh."
+        requestedSymbols.size === 0 && derivedMetricsRefreshed > 0
+          ? `Instrument prices are already fresh. Rebuilt derived market metrics for ${derivedMetricsRefreshed} instrument${derivedMetricsRefreshed === 1 ? "" : "s"}.`
+          : requestedSymbols.size === 0
+            ? "Instrument prices are already fresh."
           : `Stored ${updatedCount} instrument price row${updatedCount === 1 ? "" : "s"} across ${requestedSymbols.size} instrument${requestedSymbols.size === 1 ? "" : "s"}.`
+      ,
+      derivedMetricsRefreshed
     };
+  }
+
+  async refreshMissingInstrumentMarketMetrics(input?: { batchSize?: number }): Promise<number> {
+    const batchSize = Math.max(1, input?.batchSize ?? 12);
+    const instruments = await this.repository.listInstruments({ isActive: true });
+    const instrumentIds = instruments.map((instrument) => instrument.id);
+    const [stats, metrics] = await Promise.all([
+      this.repository.listInstrumentPriceStats(instrumentIds),
+      this.repository.listInstrumentMarketMetrics(instrumentIds)
+    ]);
+    const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
+    const metricsByInstrumentId = new Map(metrics.map((item) => [item.instrumentId, item]));
+    const selectedInstrumentIds = instruments
+      .filter((instrument) => needsMarketMetricRepair(statsByInstrumentId.get(instrument.id), metricsByInstrumentId.get(instrument.id)))
+      .slice()
+      .sort((a, b) => {
+        const aMetric = metricsByInstrumentId.get(a.id);
+        const bMetric = metricsByInstrumentId.get(b.id);
+        if (Boolean(aMetric) !== Boolean(bMetric)) return aMetric ? 1 : -1;
+        const aLatest = aMetric?.latestPriceDate ?? "";
+        const bLatest = bMetric?.latestPriceDate ?? "";
+        if (aLatest !== bLatest) return aLatest.localeCompare(bLatest);
+        return (a.symbol ?? "").localeCompare(b.symbol ?? "");
+      })
+      .slice(0, batchSize)
+      .map((instrument) => instrument.id);
+
+    if (selectedInstrumentIds.length === 0) return 0;
+    await this.repository.refreshInstrumentMarketMetrics(selectedInstrumentIds);
+    return selectedInstrumentIds.length;
   }
 
   async refreshInstrumentRiskMetricsInBatches(input?: {
@@ -677,7 +729,10 @@ export class InstrumentMarketService {
     const activeInstruments = instruments.filter((instrument) => instrument.isActive);
     const metrics = await this.repository.listInstrumentMarketMetrics(activeInstruments.map((instrument) => instrument.id));
     const metricsByInstrumentId = new Map(metrics.map((item) => [item.instrumentId, item]));
-    const stats = await this.repository.listInstrumentPriceStats(activeInstruments.map((instrument) => instrument.id));
+    const stats =
+      metrics.length > 0
+        ? []
+        : await this.repository.listInstrumentPriceStats(activeInstruments.map((instrument) => instrument.id));
     const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
     const threeYearCompleteBy = daysAfterIso(yearsAgoIso(3), 10);
     const fiveYearCompleteBy = daysAfterIso(yearsAgoIso(5), 10);
@@ -699,8 +754,8 @@ export class InstrumentMarketService {
         cryptoEligible += 1;
         const metric = metricsByInstrumentId.get(instrument.id);
         const stat = statsByInstrumentId.get(instrument.id);
-        const earliestDate = stat?.earliestPriceDate ?? metric?.historyStartDate ?? null;
-        const latestDate = stat?.latestPriceDate ?? metric?.historyEndDate ?? metric?.latestPriceDate ?? null;
+        const earliestDate = metric?.historyStartDate ?? stat?.earliestPriceDate ?? null;
+        const latestDate = metric?.historyEndDate ?? metric?.latestPriceDate ?? stat?.latestPriceDate ?? null;
         const current = isHistoryCurrent(latestDate, refreshCutoff);
         if (!current) staleCryptoHistory += 1;
         if (earliestDate && current) availableCryptoHistoryComplete += 1;
@@ -713,8 +768,8 @@ export class InstrumentMarketService {
       totalEligible += 1;
       const metric = metricsByInstrumentId.get(instrument.id);
       const stat = statsByInstrumentId.get(instrument.id);
-      const earliestDate = stat?.earliestPriceDate ?? metric?.historyStartDate ?? null;
-      const latestDate = stat?.latestPriceDate ?? metric?.historyEndDate ?? metric?.latestPriceDate ?? null;
+      const earliestDate = metric?.historyStartDate ?? stat?.earliestPriceDate ?? null;
+      const latestDate = metric?.historyEndDate ?? metric?.latestPriceDate ?? stat?.latestPriceDate ?? null;
       const current = isHistoryCurrent(latestDate, refreshCutoff);
       if (!current) staleHistory += 1;
       if (earliestDate && current) availableHistoryComplete += 1;

@@ -232,6 +232,70 @@ test("history coverage treats current shorter-lived instruments as available-his
   assert.equal(coverage.estimatedBackfillClicks, 0);
 });
 
+test("history coverage uses derived market metrics instead of raw price stats when available", async () => {
+  const missingMetric = instrument("SYK", { assetClass: "stock", instrumentType: "stock", assetCategory: "EQUITY" });
+  const repository = {
+    async listInstrumentMarketMetrics() {
+      return [];
+    },
+    async listInstrumentPriceStats() {
+      return [{ instrumentId: missingMetric.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2999-01-01", observationCount: 1200 }];
+    }
+  } as unknown as UniverseRepository;
+  const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const fallbackCoverage = await service.getHistoryCoverageSummary([missingMetric], 10);
+
+  assert.equal(fallbackCoverage.availableHistoryComplete, 1);
+
+  const derivedOnlyRepository = {
+    async listInstrumentMarketMetrics() {
+      return [{ instrumentId: "another-instrument", historyStartDate: "2020-01-01", historyEndDate: "2999-01-01", latestPriceDate: "2999-01-01" }];
+    },
+    async listInstrumentPriceStats() {
+      throw new Error("raw stats should not be loaded when derived metrics exist");
+    }
+  } as unknown as UniverseRepository;
+  const derivedCoverage = await new InstrumentMarketService(derivedOnlyRepository, provider).getHistoryCoverageSummary([missingMetric], 10);
+
+  assert.equal(derivedCoverage.availableHistoryComplete, 0);
+  assert.equal(derivedCoverage.missingFiveYear, 1);
+});
+
+test("history backfill repairs missing derived metrics when raw prices are already fresh", async () => {
+  const staleInstrument = instrument("SYK", { assetClass: "stock", instrumentType: "stock", assetCategory: "EQUITY" });
+  const repairedIds: string[][] = [];
+  const repository = {
+    async listInstruments() {
+      return [staleInstrument];
+    },
+    async listInstrumentPriceStats() {
+      return [{ instrumentId: staleInstrument.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2999-01-01", observationCount: 1200 }];
+    },
+    async listInstrumentMarketMetrics() {
+      return [];
+    },
+    async refreshInstrumentMarketMetrics(ids: string[]) {
+      repairedIds.push(ids);
+    }
+  } as unknown as UniverseRepository;
+  const provider = {
+    name: "financial_modeling_prep",
+    async getHistoricalPrices() {
+      throw new Error("fresh raw prices should not be fetched again");
+    }
+  } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const result = await service.refreshInstrumentPricesInBatches({ includeBackfill: true, batchSize: 8, maxBatches: 1 });
+
+  assert.deepEqual(result.requestedSymbols, []);
+  assert.equal(result.derivedMetricsRefreshed, 1);
+  assert.deepEqual(repairedIds, [[staleInstrument.id]]);
+  assert.match(result.message, /Rebuilt derived market metrics for 1 instrument/);
+});
+
 test("history backfill refreshes coverage metrics without running heavy risk metrics", async () => {
   const marketMetricRefreshes: string[][] = [];
   const riskMetricRefreshes: string[][] = [];
