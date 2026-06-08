@@ -93,6 +93,7 @@ function isRawCryptoReference(instrument: Instrument) {
 
 function providerSymbolForInstrument(instrument: Instrument) {
   const symbol = instrument.symbol?.trim().toUpperCase() ?? "";
+  if (symbol === "BRK.B") return "BRK-B";
   if (isRawCryptoReference(instrument) && symbol && !symbol.endsWith("USD")) return `${symbol}USD`;
   return symbol;
 }

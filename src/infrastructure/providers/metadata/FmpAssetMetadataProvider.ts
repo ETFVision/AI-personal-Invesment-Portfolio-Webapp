@@ -29,6 +29,12 @@ function regionFromCountry(country: string | null) {
   return country;
 }
 
+function normalizeFmpSymbol(symbol: string) {
+  const normalized = symbol.trim().toUpperCase();
+  if (normalized === "BRK.B") return "BRK-B";
+  return normalized;
+}
+
 async function fetchWithRetry(url: URL) {
   let lastError: Error | null = null;
 
@@ -66,7 +72,7 @@ export class FmpAssetMetadataProvider implements AssetMetadataProvider {
   async getAssetMetadata(symbols: string[]): Promise<AssetMetadata[]> {
     if (!env.FMP_API_KEY) throw new Error("FMP_API_KEY is not configured.");
 
-    const uniqueSymbols = Array.from(new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean)));
+    const uniqueSymbols = Array.from(new Set(symbols.map(normalizeFmpSymbol).filter(Boolean)));
     const metadata: AssetMetadata[] = [];
 
     const apiKey = env.FMP_API_KEY;

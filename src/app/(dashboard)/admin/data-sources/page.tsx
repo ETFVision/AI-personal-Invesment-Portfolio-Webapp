@@ -210,14 +210,16 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
   const container = createContainer();
   await container.authProvider.requireUser();
 
-  const [newsDashboard, macroDashboard, fundamentalsLogs, etfExposureLogs, marketVisionDashboard, metadataLogs] = await Promise.all([
+  const [newsDashboard, macroDashboard, fundamentalsLogs, etfExposureLogs, marketVisionDashboard, metadataLogs, instruments] = await Promise.all([
     container.newsDashboardService.getDashboard({ includeDuplicates: true, limit: 10 }),
     container.macroDashboardService.getDashboard(),
     container.fundamentalsRepository.listRefreshLogs(8),
     container.etfExposureRepository.listRefreshLogs(8),
     container.marketVisionService.getDashboard(),
-    container.instrumentService.listMetadataRefreshLogs(8)
+    container.instrumentService.listMetadataRefreshLogs(8),
+    container.instrumentService.listInstruments({ isActive: true })
   ]);
+  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 12);
 
   const latestFmpLog = newsDashboard.ingestionLogs.find((log) => log.sourceProvider === "financial_modeling_prep" && log.jobName === "daily-news-ingestion") ?? null;
   const fmpSummary = fmpFetchSummary(latestFmpLog);
@@ -296,6 +298,25 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
           <StatBox label="ETF exposure latest run" value={formatDateTime(latestEtfLog?.completedAt ?? latestEtfLog?.startedAt)} />
           <StatBox label="ETFs refreshed" value={latestEtfLog ? `${latestEtfLog.etfsRefreshed}/${latestEtfLog.etfsRequested}` : "-"} />
           <StatBox label="Metadata latest run" value={formatDateTime(metadataLogs[0]?.completedAt ?? metadataLogs[0]?.createdAt)} />
+        </div>
+        <div className="mt-4 rounded-md border bg-muted/30 p-3">
+          <p className="text-sm font-medium">Market history coverage</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Tracks whether active non-crypto instruments have enough history for 3Y/5Y returns, risk metrics and instrument detail pages.
+          </p>
+          <div className="mt-3 grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+            <StatBox label="Eligible" value={historyCoverage.totalEligible} />
+            <StatBox label="5Y complete" value={historyCoverage.completeFiveYear} />
+            <StatBox label="Need 5Y" value={historyCoverage.missingFiveYear} />
+            <StatBox label="3Y complete" value={historyCoverage.completeThreeYear} />
+            <StatBox label="Need 3Y" value={historyCoverage.missingThreeYear} />
+            <StatBox label="Est. backfill runs" value={historyCoverage.estimatedBackfillClicks} />
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {historyCoverage.missingFiveYear === 0
+              ? "5Y history is complete for eligible instruments."
+              : `${historyCoverage.missingFiveYear} eligible instrument${historyCoverage.missingFiveYear === 1 ? "" : "s"} still need 5Y history. Run Backfill market history again until this reaches zero.`}
+          </p>
         </div>
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           <div className="rounded-md border p-3">
