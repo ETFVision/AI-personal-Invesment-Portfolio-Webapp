@@ -82,12 +82,12 @@ export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
 
 export const ALPHA_ETF_CATEGORIES: Record<EtfCategory, string[]> = {
   US_BROAD_MARKET: ["VOO", "SPY", "IVV", "VTI", "ITOT", "SCHB", "SPLG", "RSP", "VV", "ONEQ"],
-  GLOBAL_EQUITY: ["VT", "VWRA", "ACWI", "IWDA", "URTH", "VEU", "VXUS", "IXUS", "IOO", "SPDW"],
-  DEVELOPED_MARKETS: ["VEA", "IEFA", "EFA", "SCHF", "IDEV", "EFV", "HEFA", "FEZ", "VGK", "EZU"],
+  GLOBAL_EQUITY: ["VT", "ACWI", "VXUS", "IXUS", "IOO", "SPDW"],
+  DEVELOPED_MARKETS: ["VEA", "IEFA", "EFA", "SCHF", "IDEV", "EFV", "HEFA", "FEZ", "EZU"],
   EMERGING_MARKETS: ["VWO", "IEMG", "EEM", "SPEM", "SCHE", "DEM", "AVEM", "EEMS", "EMXC", "FEM"],
   TECHNOLOGY: ["XLK", "VGT", "FTEC", "IYW", "RYT", "QQQ", "QQQM", "IGM", "XNTK"],
   SEMICONDUCTOR: ["SOXX", "SMH", "PSI", "XSD", "SOXQ"],
-  AI_ROBOTICS: ["BOTZ", "ROBO", "IRBO", "AIQ", "THNQ"],
+  AI_ROBOTICS: ["BOTZ", "ROBO", "IRBO", "AIQ"],
   CYBERSECURITY: ["CIBR", "HACK", "IHAK", "BUG"],
   CLOUD_COMPUTING: ["CLOU", "SKYY", "WCLD"],
   HEALTHCARE: ["XLV", "VHT", "IYH", "FHLC", "RYH", "XBI", "IBB", "ARKG"],
@@ -112,7 +112,7 @@ export const ALPHA_ETF_CATEGORIES: Record<EtfCategory, string[]> = {
   INTERNATIONAL_DIVIDEND: ["IDV", "DWX", "VYMI", "SCHY", "IGRO"],
   COUNTRY: ["EWJ", "DXJ", "JPXN", "MCHI", "FXI", "KWEB", "INDA", "INDY", "EWU", "EWC"],
   INFRASTRUCTURE: ["PAVE", "IFRA", "IGF", "GRID"],
-  CLEAN_ENERGY: ["ICLN", "TAN", "QCLN", "PBW"]
+  CLEAN_ENERGY: ["ICLN", "QCLN", "PBW"]
 };
 
 export const ALPHA_STOCK_SECTORS: Record<string, string[]> = {
