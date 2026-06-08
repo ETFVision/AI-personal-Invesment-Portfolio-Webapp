@@ -7,6 +7,7 @@ import {
   InstrumentMarketView,
   InstrumentPrice
 } from "@/domain/universe/types";
+import { InstrumentRiskService } from "./InstrumentRiskService";
 
 export type RefreshInstrumentPricesResult = {
   requestedSymbols: string[];
@@ -80,6 +81,11 @@ function yearsAgoIso(years: number) {
   const date = new Date();
   date.setUTCFullYear(date.getUTCFullYear() - years);
   return date.toISOString().slice(0, 10);
+}
+
+function isStatementTimeoutError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.toLowerCase().includes("statement timeout");
 }
 
 function daysBeforeIso(isoDate: string, days: number) {
@@ -564,16 +570,28 @@ export class InstrumentMarketService {
     const stats = await this.repository.listInstrumentPriceStats(instruments.map((instrument) => instrument.id));
     const riskMetrics = await this.repository.listInstrumentRiskMetrics(instruments.map((instrument) => instrument.id));
     const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
-    const riskByInstrumentId = new Map(riskMetrics.map((item) => [item.instrumentId, item]));
+    const riskByInstrumentId = new Map<string, (typeof riskMetrics)[number]>();
+    for (const riskMetric of riskMetrics) {
+      if (!riskByInstrumentId.has(riskMetric.instrumentId)) {
+        riskByInstrumentId.set(riskMetric.instrumentId, riskMetric);
+      }
+    }
     const selected = instruments
-      .filter((instrument) => (statsByInstrumentId.get(instrument.id)?.observationCount ?? 0) >= minObservations)
+      .filter((instrument) => {
+        const stat = statsByInstrumentId.get(instrument.id);
+        if ((stat?.observationCount ?? 0) < minObservations) return false;
+        const riskMetric = riskByInstrumentId.get(instrument.id);
+        if (!riskMetric) return true;
+        if (!stat?.latestPriceDate) return false;
+        return !riskMetric.metricDate || riskMetric.metricDate < stat.latestPriceDate;
+      })
       .slice()
       .sort((a, b) => {
         const aRisk = riskByInstrumentId.get(a.id);
         const bRisk = riskByInstrumentId.get(b.id);
         if (Boolean(aRisk) !== Boolean(bRisk)) return aRisk ? 1 : -1;
-        const aCalculatedAt = aRisk?.calculatedAt ?? "";
-        const bCalculatedAt = bRisk?.calculatedAt ?? "";
+        const aCalculatedAt = aRisk?.metricDate ?? aRisk?.calculatedAt ?? "";
+        const bCalculatedAt = bRisk?.metricDate ?? bRisk?.calculatedAt ?? "";
         if (aCalculatedAt !== bCalculatedAt) return aCalculatedAt.localeCompare(bCalculatedAt);
         return (a.symbol ?? "").localeCompare(b.symbol ?? "");
       })
@@ -585,7 +603,7 @@ export class InstrumentMarketService {
 
     for (const instrument of selected) {
       try {
-        await this.repository.refreshInstrumentRiskMetrics([instrument.id]);
+        await this.refreshInstrumentRiskMetricsForInstrument(instrument);
         if (instrument.symbol) requestedSymbols.push(instrument.symbol);
         updatedCount += 1;
       } catch (error) {
@@ -599,9 +617,26 @@ export class InstrumentMarketService {
       errors,
       message:
         selected.length === 0
-          ? "No instruments have enough price history for risk metric refresh."
+          ? "All eligible instrument risk metrics are current."
           : `Refreshed risk metrics for ${updatedCount}/${selected.length} instrument${selected.length === 1 ? "" : "s"}.`
     };
+  }
+
+  private async refreshInstrumentRiskMetricsForInstrument(instrument: Instrument): Promise<void> {
+    try {
+      await this.repository.refreshInstrumentRiskMetrics([instrument.id]);
+      return;
+    } catch (error) {
+      if (!isStatementTimeoutError(error)) throw error;
+    }
+
+    const prices = await this.repository.listInstrumentPrices([instrument.id], yearsAgoIso(5));
+    if (prices.length < 30) {
+      throw new Error("Risk metrics refresh timed out and not enough stored price history was available for fallback calculation.");
+    }
+    const riskService = new InstrumentRiskService(this.repository);
+    const metric = riskService.calculate(instrument, prices);
+    await this.repository.upsertInstrumentRiskMetrics([metric]);
   }
 
   async buildInstrumentMarketViews(instruments: Instrument[], options?: { lookbackYears?: number }): Promise<InstrumentMarketView[]> {
