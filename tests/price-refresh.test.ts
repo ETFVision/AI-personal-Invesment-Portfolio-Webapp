@@ -129,7 +129,7 @@ test("history coverage tracks crypto against a shorter 2Y target", async () => {
       return [
         { instrumentId: stock.id, historyStartDate: "2020-01-01", historyEndDate: "2999-01-01", latestPriceDate: "2999-01-01" },
         { instrumentId: completeCryptoEtf.id, historyStartDate: "2024-01-01", historyEndDate: "2999-01-01", latestPriceDate: "2999-01-01" },
-        { instrumentId: incompleteRawCrypto.id, historyStartDate: "2025-01-01", historyEndDate: "2999-01-01", latestPriceDate: "2999-01-01" }
+        { instrumentId: incompleteRawCrypto.id, historyStartDate: "2025-01-01", historyEndDate: "2025-01-01", latestPriceDate: "2025-01-01" }
       ];
     },
     async listInstrumentPriceStats() {
@@ -143,11 +143,13 @@ test("history coverage tracks crypto against a shorter 2Y target", async () => {
 
   assert.equal(coverage.totalEligible, 1);
   assert.equal(coverage.completeFiveYear, 1);
+  assert.equal(coverage.availableHistoryComplete, 1);
   assert.equal(coverage.cryptoEligible, 2);
   assert.equal(coverage.completeTwoYearCrypto, 1);
+  assert.equal(coverage.availableCryptoHistoryComplete, 1);
   assert.equal(coverage.missingTwoYearCrypto, 1);
   assert.equal(coverage.staleHistory, 0);
-  assert.equal(coverage.staleCryptoHistory, 0);
+  assert.equal(coverage.staleCryptoHistory, 1);
   assert.equal(coverage.estimatedBackfillClicks, 1);
 });
 
@@ -174,13 +176,45 @@ test("history coverage treats stale end dates as incomplete", async () => {
 
   assert.equal(coverage.totalEligible, 2);
   assert.equal(coverage.completeFiveYear, 1);
+  assert.equal(coverage.availableHistoryComplete, 1);
   assert.equal(coverage.missingFiveYear, 1);
   assert.equal(coverage.staleHistory, 1);
   assert.equal(coverage.cryptoEligible, 1);
   assert.equal(coverage.completeTwoYearCrypto, 0);
+  assert.equal(coverage.availableCryptoHistoryComplete, 0);
   assert.equal(coverage.missingTwoYearCrypto, 1);
   assert.equal(coverage.staleCryptoHistory, 1);
   assert.equal(coverage.estimatedBackfillClicks, 1);
+});
+
+test("history coverage treats current shorter-lived instruments as available-history complete", async () => {
+  const newerEtf = instrument("CLIP", { assetClass: "etf", instrumentType: "etf", assetCategory: "BOND" });
+  const newerCryptoEtf = instrument("ETHA", { assetClass: "etf", instrumentType: "crypto_etf", assetCategory: "CRYPTO" });
+  const repository = {
+    async listInstrumentMarketMetrics() {
+      return [
+        { instrumentId: newerEtf.id, historyStartDate: "2023-06-21", historyEndDate: "2999-01-01", latestPriceDate: "2999-01-01" },
+        { instrumentId: newerCryptoEtf.id, historyStartDate: "2024-07-23", historyEndDate: "2999-01-01", latestPriceDate: "2999-01-01" }
+      ];
+    },
+    async listInstrumentPriceStats() {
+      return [];
+    }
+  } as unknown as UniverseRepository;
+  const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const coverage = await service.getHistoryCoverageSummary([newerEtf, newerCryptoEtf], 10);
+
+  assert.equal(coverage.totalEligible, 1);
+  assert.equal(coverage.completeFiveYear, 0);
+  assert.equal(coverage.availableHistoryComplete, 1);
+  assert.equal(coverage.missingFiveYear, 0);
+  assert.equal(coverage.cryptoEligible, 1);
+  assert.equal(coverage.completeTwoYearCrypto, 0);
+  assert.equal(coverage.availableCryptoHistoryComplete, 1);
+  assert.equal(coverage.missingTwoYearCrypto, 0);
+  assert.equal(coverage.estimatedBackfillClicks, 0);
 });
 
 test("history backfill refreshes coverage metrics without running heavy risk metrics", async () => {
@@ -253,6 +287,38 @@ test("history backfill selects stale end dates for recent catch-up", async () =>
   assert.equal(requested.length, 1);
   assert.equal(requested[0]?.symbol, "RYT");
   assert.equal(requested[0]?.from, "2025-07-03");
+});
+
+test("history backfill skips current shorter-lived instruments with available history", async () => {
+  const newerEtf = instrument("CLIP", { assetClass: "etf", instrumentType: "etf" });
+  const empty = instrument("SYK");
+  const requested: string[] = [];
+  const repository = {
+    async listInstruments() {
+      return [newerEtf, empty];
+    },
+    async listInstrumentPriceStats() {
+      return [
+        { instrumentId: newerEtf.id, earliestPriceDate: "2023-06-21", latestPriceDate: "2999-01-01", observationCount: 700 }
+      ];
+    },
+    async upsertInstrumentPrices() {},
+    async refreshInstrumentMarketMetrics() {},
+    async refreshInstrumentRiskMetrics() {}
+  } as unknown as UniverseRepository;
+  const provider = {
+    name: "financial_modeling_prep",
+    async getHistoricalPrices(symbol: string) {
+      requested.push(symbol);
+      return [{ symbol, price: 110, currency: "USD", asOfDate: "2026-01-01", raw: {} }];
+    }
+  } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const result = await service.refreshInstrumentPrices({ lookbackDays: 1825, maxSymbols: 10, includeBackfill: true });
+
+  assert.deepEqual(result.requestedSymbols, ["SYK"]);
+  assert.deepEqual(requested, ["SYK"]);
 });
 
 test("instrument risk refresh batches missing and oldest risk metrics only", async () => {

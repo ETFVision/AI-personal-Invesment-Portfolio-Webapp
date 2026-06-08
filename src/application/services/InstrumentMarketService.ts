@@ -19,6 +19,7 @@ export type RefreshInstrumentPricesResult = {
 export type InstrumentHistoryCoverageSummary = {
   totalEligible: number;
   completeFiveYear: number;
+  availableHistoryComplete: number;
   missingFiveYear: number;
   completeThreeYear: number;
   missingThreeYear: number;
@@ -26,6 +27,7 @@ export type InstrumentHistoryCoverageSummary = {
   staleHistory: number;
   cryptoEligible: number;
   completeTwoYearCrypto: number;
+  availableCryptoHistoryComplete: number;
   missingTwoYearCrypto: number;
   staleCryptoHistory: number;
   estimatedBackfillClicks: number;
@@ -111,6 +113,7 @@ function needsHistoryBackfill(
   cryptoBackfillStartDate: string,
   refreshCutoff: string
 ) {
+  if (earliestPriceDate && isHistoryCurrent(latestPriceDate, refreshCutoff)) return false;
   return (
     needsLongHistoryBackfill(instrument, earliestPriceDate, backfillStartDate, cryptoBackfillStartDate) ||
     !isHistoryCurrent(latestPriceDate, refreshCutoff)
@@ -666,11 +669,13 @@ export class InstrumentMarketService {
     const refreshCutoff = latestExpectedEodDate();
     let totalEligible = 0;
     let completeFiveYear = 0;
+    let availableHistoryComplete = 0;
     let completeThreeYear = 0;
     let oneYearOnly = 0;
     let staleHistory = 0;
     let cryptoEligible = 0;
     let completeTwoYearCrypto = 0;
+    let availableCryptoHistoryComplete = 0;
     let staleCryptoHistory = 0;
 
     for (const instrument of activeInstruments) {
@@ -682,6 +687,7 @@ export class InstrumentMarketService {
         const latestDate = metric?.historyEndDate ?? metric?.latestPriceDate ?? stat?.latestPriceDate ?? null;
         const current = isHistoryCurrent(latestDate, refreshCutoff);
         if (!current) staleCryptoHistory += 1;
+        if (earliestDate && current) availableCryptoHistoryComplete += 1;
         if (earliestDate && earliestDate <= twoYearCryptoCompleteBy && current) {
           completeTwoYearCrypto += 1;
         }
@@ -695,6 +701,7 @@ export class InstrumentMarketService {
       const latestDate = metric?.historyEndDate ?? metric?.latestPriceDate ?? stat?.latestPriceDate ?? null;
       const current = isHistoryCurrent(latestDate, refreshCutoff);
       if (!current) staleHistory += 1;
+      if (earliestDate && current) availableHistoryComplete += 1;
       if (earliestDate && earliestDate <= fiveYearCompleteBy && current) {
         completeFiveYear += 1;
         completeThreeYear += 1;
@@ -709,13 +716,14 @@ export class InstrumentMarketService {
       oneYearOnly += 1;
     }
 
-    const missingFiveYear = Math.max(0, totalEligible - completeFiveYear);
-    const missingThreeYear = Math.max(0, totalEligible - completeThreeYear);
-    const missingTwoYearCrypto = Math.max(0, cryptoEligible - completeTwoYearCrypto);
+    const missingFiveYear = Math.max(0, totalEligible - availableHistoryComplete);
+    const missingThreeYear = Math.max(0, totalEligible - Math.max(completeThreeYear, availableHistoryComplete));
+    const missingTwoYearCrypto = Math.max(0, cryptoEligible - availableCryptoHistoryComplete);
 
     return {
       totalEligible,
       completeFiveYear,
+      availableHistoryComplete,
       missingFiveYear,
       completeThreeYear,
       missingThreeYear,
@@ -723,6 +731,7 @@ export class InstrumentMarketService {
       staleHistory,
       cryptoEligible,
       completeTwoYearCrypto,
+      availableCryptoHistoryComplete,
       missingTwoYearCrypto,
       staleCryptoHistory,
       estimatedBackfillClicks: Math.ceil((missingFiveYear + missingTwoYearCrypto) / Math.max(1, backfillBatchSize))
