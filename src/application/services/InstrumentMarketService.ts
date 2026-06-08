@@ -237,25 +237,40 @@ export class InstrumentMarketService {
       instruments
         .filter((instrument) => {
           const stats = statsByInstrumentId.get(instrument.id);
-          return (
-            isStaleOrMissing(stats?.latestPriceDate ?? null, refreshCutoff) ||
-            (includeBackfill &&
-              needsHistoryBackfill(
-                instrument,
-                stats?.earliestPriceDate ?? null,
-                stats?.latestPriceDate ?? null,
-                backfillStartDate,
-                cryptoBackfillStartDate,
-                refreshCutoff
-              ))
+          if (!includeBackfill) return isStaleOrMissing(stats?.latestPriceDate ?? null, refreshCutoff);
+          return needsHistoryBackfill(
+            instrument,
+            stats?.earliestPriceDate ?? null,
+            stats?.latestPriceDate ?? null,
+            backfillStartDate,
+            cryptoBackfillStartDate,
+            refreshCutoff
           );
         })
         .slice()
         .sort((a, b) => {
           const aStats = statsByInstrumentId.get(a.id);
           const bStats = statsByInstrumentId.get(b.id);
-          const aNeedsRefresh = isStaleOrMissing(aStats?.latestPriceDate ?? null, refreshCutoff);
-          const bNeedsRefresh = isStaleOrMissing(bStats?.latestPriceDate ?? null, refreshCutoff);
+          const aNeedsRefresh = includeBackfill
+            ? needsHistoryBackfill(
+                a,
+                aStats?.earliestPriceDate ?? null,
+                aStats?.latestPriceDate ?? null,
+                backfillStartDate,
+                cryptoBackfillStartDate,
+                refreshCutoff
+              )
+            : isStaleOrMissing(aStats?.latestPriceDate ?? null, refreshCutoff);
+          const bNeedsRefresh = includeBackfill
+            ? needsHistoryBackfill(
+                b,
+                bStats?.earliestPriceDate ?? null,
+                bStats?.latestPriceDate ?? null,
+                backfillStartDate,
+                cryptoBackfillStartDate,
+                refreshCutoff
+              )
+            : isStaleOrMissing(bStats?.latestPriceDate ?? null, refreshCutoff);
           if (aNeedsRefresh !== bNeedsRefresh) return aNeedsRefresh ? -1 : 1;
           const aNeedsBackfill =
             includeBackfill &&
