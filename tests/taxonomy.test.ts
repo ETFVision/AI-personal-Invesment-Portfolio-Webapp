@@ -61,14 +61,14 @@ test("maps FMP stock sectors into canonical sectors", () => {
 });
 
 test("alpha universe contains the approved ETF and stock source-of-truth counts", () => {
-  assert.equal(ALPHA_ETF_SYMBOLS.length, 215);
-  assert.equal(new Set(ALPHA_ETF_SYMBOLS).size, 215);
+  assert.equal(ALPHA_ETF_SYMBOLS.length, 216);
+  assert.equal(new Set(ALPHA_ETF_SYMBOLS).size, 216);
   assert.equal(ALPHA_STOCK_SYMBOLS.length, 105);
   assert.equal(new Set(ALPHA_STOCK_SYMBOLS).size, 105);
 
   const etfCategoryCounts = Object.fromEntries(Object.entries(ALPHA_ETF_CATEGORIES).map(([category, symbols]) => [category, symbols.length]));
   assert.equal(etfCategoryCounts.US_BROAD_MARKET, 10);
-  assert.equal(etfCategoryCounts.BOND, 15);
+  assert.equal(etfCategoryCounts.BOND, 16);
   assert.equal(etfCategoryCounts.CASH_EQUIVALENT, 5);
   assert.equal(etfCategoryCounts.CRYPTO_ETF, 5);
   assert.equal(etfCategoryCounts.DIVIDEND, 11);

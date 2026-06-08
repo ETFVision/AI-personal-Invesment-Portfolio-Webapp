@@ -104,7 +104,7 @@ export const ALPHA_ETF_CATEGORIES: Record<EtfCategory, string[]> = {
   GROWTH: ["VUG", "SCHG", "IWF", "RPG", "MGK"],
   VALUE: ["VTV", "IWD", "SCHV", "RPV", "VLUE"],
   SMALL_CAP: ["IWM", "VB", "SCHA", "IJR", "VTWO", "SLY", "SPSM", "AVUV"],
-  BOND: ["AGG", "BND", "BNDW", "TLT", "SHY", "IEI", "IEF", "VGIT", "GOVT", "TIP", "STIP", "LQD", "VCIT", "HYG", "JNK"],
+  BOND: ["AGG", "BND", "BNDW", "BNDX", "TLT", "SHY", "IEI", "IEF", "VGIT", "GOVT", "TIP", "STIP", "LQD", "VCIT", "HYG", "JNK"],
   CASH_EQUIVALENT: ["BIL", "SGOV", "SHV", "GBIL", "CLIP"],
   COMMODITY: ["DBC", "PDBC", "COMT"],
   GOLD_PRECIOUS_METALS: ["GLD", "IAU", "SGOL"],

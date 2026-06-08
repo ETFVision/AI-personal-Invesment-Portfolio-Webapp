@@ -203,6 +203,7 @@ const benchmarkProfiles: BenchmarkProfile[] = [
 
 const bondProfiles = [
   bondProfile("BND", "intermediate", "aggregate", "mixed investment grade", "US", "medium", "moderate negative", "mixed", "core stability", "USD"),
+  bondProfile("BNDX", "intermediate", "international", "mixed investment grade", "international", "medium", "moderate negative", "mixed", "international bond diversification", "USD"),
   bondProfile("AGG", "intermediate", "aggregate", "mixed investment grade", "US", "medium", "moderate negative", "mixed", "core stability", "USD"),
   bondProfile("SHY", "short", "treasury", "government", "US", "low", "low", "positive", "stability", "USD"),
   bondProfile("IEF", "intermediate", "treasury", "government", "US", "medium", "moderate negative", "positive", "recession hedge", "USD"),
