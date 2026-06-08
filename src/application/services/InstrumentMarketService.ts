@@ -7,6 +7,7 @@ import {
   InstrumentMarketView,
   InstrumentPrice
 } from "@/domain/universe/types";
+import { InstrumentRiskService } from "./InstrumentRiskService";
 
 export type RefreshInstrumentPricesResult = {
   requestedSymbols: string[];
@@ -80,6 +81,11 @@ function yearsAgoIso(years: number) {
   const date = new Date();
   date.setUTCFullYear(date.getUTCFullYear() - years);
   return date.toISOString().slice(0, 10);
+}
+
+function isStatementTimeoutError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.toLowerCase().includes("statement timeout");
 }
 
 function daysBeforeIso(isoDate: string, days: number) {
@@ -585,7 +591,7 @@ export class InstrumentMarketService {
 
     for (const instrument of selected) {
       try {
-        await this.repository.refreshInstrumentRiskMetrics([instrument.id]);
+        await this.refreshInstrumentRiskMetricsForInstrument(instrument);
         if (instrument.symbol) requestedSymbols.push(instrument.symbol);
         updatedCount += 1;
       } catch (error) {
@@ -602,6 +608,23 @@ export class InstrumentMarketService {
           ? "No instruments have enough price history for risk metric refresh."
           : `Refreshed risk metrics for ${updatedCount}/${selected.length} instrument${selected.length === 1 ? "" : "s"}.`
     };
+  }
+
+  private async refreshInstrumentRiskMetricsForInstrument(instrument: Instrument): Promise<void> {
+    try {
+      await this.repository.refreshInstrumentRiskMetrics([instrument.id]);
+      return;
+    } catch (error) {
+      if (!isStatementTimeoutError(error)) throw error;
+    }
+
+    const prices = await this.repository.listInstrumentPrices([instrument.id], yearsAgoIso(5));
+    if (prices.length < 30) {
+      throw new Error("Risk metrics refresh timed out and not enough stored price history was available for fallback calculation.");
+    }
+    const riskService = new InstrumentRiskService(this.repository);
+    const metric = riskService.calculate(instrument, prices);
+    await this.repository.upsertInstrumentRiskMetrics([metric]);
   }
 
   async buildInstrumentMarketViews(instruments: Instrument[], options?: { lookbackYears?: number }): Promise<InstrumentMarketView[]> {

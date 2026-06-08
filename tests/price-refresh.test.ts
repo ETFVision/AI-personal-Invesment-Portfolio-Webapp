@@ -102,6 +102,30 @@ function instrument(symbol: string, overrides: Partial<Instrument> = {}): Instru
   };
 }
 
+function riskPriceRows(instrumentId: string, count = 80) {
+  const start = new Date("2026-01-01T00:00:00.000Z");
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(start);
+    date.setUTCDate(start.getUTCDate() + index);
+    return {
+      id: `${instrumentId}-${index}`,
+      instrumentId,
+      symbol: instrumentId.replace("inst-", ""),
+      priceDate: date.toISOString().slice(0, 10),
+      openPrice: 100 + index,
+      highPrice: 101 + index,
+      lowPrice: 99 + index,
+      closePrice: 100 + index,
+      adjustedClosePrice: 100 + index,
+      volume: 1000,
+      currency: "USD",
+      provider: "test",
+      rawPayload: {},
+      createdAt: date.toISOString()
+    };
+  });
+}
+
 test("instrument price refresh maps BRK.B to the FMP provider symbol BRK-B", async () => {
   const requestedBatches: string[][] = [];
   const storedRows: Array<{ instrumentId: string; symbol: string }> = [];
@@ -471,4 +495,44 @@ test("instrument risk refresh batches missing and oldest risk metrics only", asy
   assert.equal(result.updatedCount, 2);
   assert.deepEqual(result.requestedSymbols, ["MISS", "OLD"]);
   assert.deepEqual(refreshedIds, [["inst-MISS"], ["inst-OLD"]]);
+});
+
+test("instrument risk refresh falls back to stored prices when database risk RPC times out", async () => {
+  const timeoutInstrument = instrument("STIP", { assetClass: "etf", instrumentType: "etf", assetCategory: "BOND" });
+  const refreshedIds: string[][] = [];
+  const fallbackMetrics: Array<{ instrumentId: string; observationCount?: number | null }> = [];
+  const repository = {
+    async listInstruments() {
+      return [timeoutInstrument];
+    },
+    async listInstrumentPriceStats() {
+      return [{ instrumentId: timeoutInstrument.id, earliestPriceDate: "2026-01-01", latestPriceDate: "2026-04-01", observationCount: 80 }];
+    },
+    async listInstrumentRiskMetrics() {
+      return [];
+    },
+    async refreshInstrumentRiskMetrics(ids: string[]) {
+      refreshedIds.push(ids);
+      throw new Error("canceling statement due to statement timeout");
+    },
+    async listInstrumentPrices(ids: string[]) {
+      assert.deepEqual(ids, [timeoutInstrument.id]);
+      return riskPriceRows(timeoutInstrument.id, 80);
+    },
+    async upsertInstrumentRiskMetrics(input: Array<{ instrumentId: string; observationCount?: number | null }>) {
+      fallbackMetrics.push(...input);
+    }
+  } as unknown as UniverseRepository;
+  const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const result = await service.refreshInstrumentRiskMetricsInBatches({ batchSize: 1, minObservations: 30 });
+
+  assert.equal(result.updatedCount, 1);
+  assert.deepEqual(result.requestedSymbols, ["STIP"]);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(refreshedIds, [[timeoutInstrument.id]]);
+  assert.equal(fallbackMetrics.length, 1);
+  assert.equal(fallbackMetrics[0]?.instrumentId, timeoutInstrument.id);
+  assert.equal(fallbackMetrics[0]?.observationCount, 80);
 });
