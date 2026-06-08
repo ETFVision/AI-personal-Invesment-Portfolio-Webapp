@@ -6,7 +6,7 @@ The Alpha instrument universe is now represented by ETFVision-owned taxonomy fie
 
 ## Source Of Truth
 
-- ETF universe: 209 approved ETF-style products in `src/domain/universe/alphaUniverse.ts`
+- ETF universe: 201 approved ETF-style products in `src/domain/universe/alphaUniverse.ts`
 - Stock universe: 105 approved stocks in `src/domain/universe/alphaUniverse.ts`
 - Crypto references: BTC, ETH and SOL are active raw crypto references for the Crypto universe. Crypto ETF proxies remain ETF-style products.
 - Provider categories from FMP remain raw metadata and are not the product taxonomy source of truth.
@@ -50,3 +50,4 @@ These can be swapped in `alphaUniverse.ts` without changing schema or page logic
 Provider-limited / non-US listing ETFs removed from the active Alpha universe after market-history QA:
 
 - `IWDA`, `VWRA`, `VGK`, `URTH`, `VEU`, `THNQ`, `TAN`
+- `RHS`, `RGI`, `RYH`, `RYT`, `RYF`, `SLY`, `EWCO`, `IRBO`

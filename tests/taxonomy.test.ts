@@ -61,8 +61,8 @@ test("maps FMP stock sectors into canonical sectors", () => {
 });
 
 test("alpha universe contains the approved ETF and stock source-of-truth counts", () => {
-  assert.equal(ALPHA_ETF_SYMBOLS.length, 209);
-  assert.equal(new Set(ALPHA_ETF_SYMBOLS).size, 209);
+  assert.equal(ALPHA_ETF_SYMBOLS.length, 201);
+  assert.equal(new Set(ALPHA_ETF_SYMBOLS).size, 201);
   assert.equal(ALPHA_STOCK_SYMBOLS.length, 105);
   assert.equal(new Set(ALPHA_STOCK_SYMBOLS).size, 105);
 
@@ -74,7 +74,7 @@ test("alpha universe contains the approved ETF and stock source-of-truth counts"
   assert.equal(etfCategoryCounts.DIVIDEND, 11);
   assert.equal(etfCategoryCounts.INFRASTRUCTURE, 4);
   assert.equal(etfCategoryCounts.CLEAN_ENERGY, 3);
-  for (const removedSymbol of ["IWDA", "VWRA", "VGK", "URTH", "VEU", "THNQ", "TAN"]) {
+  for (const removedSymbol of ["IWDA", "VWRA", "VGK", "URTH", "VEU", "THNQ", "TAN", "RHS", "RGI", "RYH", "RYT", "RYF", "SLY", "EWCO", "IRBO"]) {
     assert.equal(alphaEtfCategoryForSymbol(removedSymbol), null);
   }
 
