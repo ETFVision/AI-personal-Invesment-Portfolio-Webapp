@@ -20,66 +20,80 @@ export async function refreshAllDataAction(formData?: FormData) {
   const messages: string[] = [];
   const errors: string[] = [];
 
-  const { user, portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
+  const job = await container.jobRunService.runManual("refresh_market_data", async () => {
+    const { user, portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
 
-  if (portfolio) {
-    const portfolioMetadata = await container.assetMetadataService.refreshPortfolioAssetMetadata({
-      userId: user.id,
-      portfolioId: portfolio.id
-    });
-    appendMessage(messages, "Portfolio metadata", portfolioMetadata.message);
-    errors.push(...portfolioMetadata.errors);
+    if (portfolio) {
+      const portfolioMetadata = await container.assetMetadataService.refreshPortfolioAssetMetadata({
+        userId: user.id,
+        portfolioId: portfolio.id
+      });
+      appendMessage(messages, "Portfolio metadata", portfolioMetadata.message);
+      errors.push(...portfolioMetadata.errors);
 
-    const portfolioPrices = await container.jobs.refreshPortfolioPrices.run({
-      userId: user.id,
-      portfolioId: portfolio.id
-    });
-    appendMessage(messages, "Portfolio prices", portfolioPrices.message);
-    if (!portfolioPrices.ok) errors.push(portfolioPrices.message);
-    const storedPortfolioPriceCount =
-      portfolioPrices.metadata &&
-      typeof portfolioPrices.metadata === "object" &&
-      "storedCount" in portfolioPrices.metadata &&
-      typeof portfolioPrices.metadata.storedCount === "number"
-        ? portfolioPrices.metadata.storedCount
-        : 0;
-    if (portfolioPrices.ok && storedPortfolioPriceCount > 0) {
-      await container.portfolioService.createAnalyticsSnapshot(portfolio.id);
+      const portfolioPrices = await container.jobs.refreshPortfolioPrices.run({
+        userId: user.id,
+        portfolioId: portfolio.id
+      });
+      appendMessage(messages, "Portfolio prices", portfolioPrices.message);
+      if (!portfolioPrices.ok) errors.push(portfolioPrices.message);
+      const storedPortfolioPriceCount =
+        portfolioPrices.metadata &&
+        typeof portfolioPrices.metadata === "object" &&
+        "storedCount" in portfolioPrices.metadata &&
+        typeof portfolioPrices.metadata.storedCount === "number"
+          ? portfolioPrices.metadata.storedCount
+          : 0;
+      if (portfolioPrices.ok && storedPortfolioPriceCount > 0) {
+        await container.portfolioService.createAnalyticsSnapshot(portfolio.id);
+      }
+
+      const benchmarks = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 30 });
+      appendMessage(messages, "Benchmarks", benchmarks.message);
+      if (!benchmarks.ok) errors.push(benchmarks.message);
     }
 
-    const benchmarks = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 30 });
-    appendMessage(messages, "Benchmarks", benchmarks.message);
-    if (!benchmarks.ok) errors.push(benchmarks.message);
-  }
-
-  const appUser = await container.portfolioService.ensureApplicationUser(authUser);
-  const universeMetadata = await container.metadataRefreshService.refreshUniverseMetadataInBatches({
-    requestedByUserId: appUser.id,
-    batchSize: 24,
-    maxBatches: 4
-  });
-  appendMessage(messages, "Universe metadata", universeMetadata.message);
-  errors.push(...universeMetadata.errors);
-
-  const universePrices = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
-    lookbackDays: 30,
-    batchSize: 40,
-    maxBatches: 3,
-    includeBackfill: false
-  });
-  appendMessage(messages, "Universe prices", universePrices.message);
-  errors.push(...universePrices.errors);
-
-  if (portfolio) {
-    const dashboard = await container.portfolioService.getDashboard(portfolio.id);
-    const riskReport = await container.riskAnalyticsDataService.buildReport(portfolio.id, dashboard);
-    await container.riskAnalyticsRepository.upsertRiskReport({
-      portfolioId: portfolio.id,
-      asOfDate: riskReport.asOfDate,
-      report: riskReport
+    const appUser = await container.portfolioService.ensureApplicationUser(authUser);
+    const universeMetadata = await container.metadataRefreshService.refreshUniverseMetadataInBatches({
+      requestedByUserId: appUser.id,
+      batchSize: 24,
+      maxBatches: 4
     });
-    appendMessage(messages, "Risk metrics", "Updated derived risk analytics.");
-  }
+    appendMessage(messages, "Universe metadata", universeMetadata.message);
+    errors.push(...universeMetadata.errors);
+
+    const universePrices = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
+      lookbackDays: 30,
+      batchSize: 50,
+      maxBatches: 8,
+      includeBackfill: false
+    });
+    appendMessage(messages, "Universe prices", universePrices.message);
+    errors.push(...universePrices.errors);
+
+    if (portfolio) {
+      const dashboard = await container.portfolioService.getDashboard(portfolio.id);
+      const riskReport = await container.riskAnalyticsDataService.buildReport(portfolio.id, dashboard);
+      await container.riskAnalyticsRepository.upsertRiskReport({
+        portfolioId: portfolio.id,
+        asOfDate: riskReport.asOfDate,
+        report: riskReport
+      });
+      appendMessage(messages, "Risk metrics", "Updated derived risk analytics.");
+    }
+
+    return {
+      ok: errors.length === 0,
+      message: messages.join(" "),
+      errors,
+      metadata: {
+        messageCount: messages.length,
+        errorCount: errors.length
+      }
+    };
+  });
+  if (job.errors.length > 0 && errors.length === 0) errors.push(...job.errors);
+  if (messages.length === 0 && job.errors.length > 0) messages.push("Refresh market data failed.");
 
   revalidatePath("/portfolio");
   revalidatePath("/risk");
@@ -98,26 +112,43 @@ export async function refreshAllDataAction(formData?: FormData) {
 
 export async function backfillUniverseHistoryAction(formData?: FormData) {
   const container = createContainer();
-  const authUser = await container.authProvider.requireUser();
+  await container.authProvider.requireUser();
   const destination = returnPath(formData);
+  const errors: string[] = [];
+  let refreshMessage = "";
 
-  const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
-    lookbackDays: 1825,
-    batchSize: 6,
-    maxBatches: 2,
-    includeBackfill: true
-  });
-  const benchmarks = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 1825 });
-  const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
-  if (portfolio) {
-    const dashboard = await container.portfolioService.getDashboard(portfolio.id);
-    const riskReport = await container.riskAnalyticsDataService.buildReport(portfolio.id, dashboard);
-    await container.riskAnalyticsRepository.upsertRiskReport({
-      portfolioId: portfolio.id,
-      asOfDate: riskReport.asOfDate,
-      report: riskReport
+  const job = await container.jobRunService.runManual("backfill_market_history", async () => {
+    const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
+      lookbackDays: 1825,
+      batchSize: 8,
+      maxBatches: 1,
+      includeBackfill: true
     });
-  }
+
+    let benchmarkSummary: Awaited<ReturnType<typeof container.jobs.refreshBenchmarkData.run>> | null = null;
+    if (result.requestedSymbols.length === 0) {
+      benchmarkSummary = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 1825 });
+      if (!benchmarkSummary.ok) errors.push(benchmarkSummary.message);
+    }
+
+    refreshMessage = benchmarkSummary
+      ? `History backfill: ${result.message} Benchmarks: ${benchmarkSummary.message}`
+      : `History backfill: ${result.message} Benchmarks will run after instrument history backfill is complete.`;
+    errors.push(...result.errors);
+
+    return {
+      ok: errors.length === 0,
+      message: refreshMessage,
+      errors,
+      metadata: {
+        instrumentBackfill: result,
+        benchmarks: benchmarkSummary,
+        skippedBenchmarksUntilInstrumentHistoryComplete: benchmarkSummary == null
+      }
+    };
+  });
+  if (job.errors.length > 0 && errors.length === 0) errors.push(...job.errors);
+  if (!refreshMessage && job.errors.length > 0) refreshMessage = "History backfill failed.";
 
   revalidatePath("/universe");
   revalidatePath("/watchlists");
@@ -125,10 +156,46 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
   revalidatePath("/risk");
 
   const params = new URLSearchParams({
-    refreshMessage: `History backfill: ${result.message} Benchmarks: ${benchmarks.message}`
+    refreshMessage
   });
-  const errors = [...result.errors];
-  if (!benchmarks.ok) errors.push(benchmarks.message);
+  if (errors.length > 0) params.set("refreshError", errors.join(" | "));
+
+  redirect(`${destination}?${params.toString()}`);
+}
+
+export async function refreshInstrumentRiskMetricsAction(formData?: FormData) {
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  const destination = returnPath(formData);
+  const errors: string[] = [];
+  let refreshMessage = "";
+
+  const job = await container.jobRunService.runManual("refresh_instrument_risk_metrics", async () => {
+    const result = await container.instrumentMarketService.refreshInstrumentRiskMetricsInBatches({
+      batchSize: 10,
+      minObservations: 30
+    });
+    refreshMessage = result.message;
+    errors.push(...result.errors);
+
+    return {
+      ok: errors.length === 0,
+      message: refreshMessage,
+      errors,
+      metadata: result
+    };
+  });
+  if (job.errors.length > 0 && errors.length === 0) errors.push(...job.errors);
+  if (!refreshMessage && job.errors.length > 0) refreshMessage = "Instrument risk metrics refresh failed.";
+
+  revalidatePath("/admin/data-sources");
+  revalidatePath("/instruments");
+  revalidatePath("/risk");
+  revalidatePath("/portfolio-review");
+
+  const params = new URLSearchParams({
+    refreshMessage
+  });
   if (errors.length > 0) params.set("refreshError", errors.join(" | "));
 
   redirect(`${destination}?${params.toString()}`);

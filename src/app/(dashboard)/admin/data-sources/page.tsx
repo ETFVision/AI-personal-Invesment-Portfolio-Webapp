@@ -9,7 +9,7 @@ import {
 import { backfillMacroIndicatorsAction, refreshMacroIndicatorsAction } from "@/server/actions/macroActions";
 import { refreshFundamentalsAction } from "@/server/actions/fundamentalsActions";
 import { refreshEtfLookthroughExposureAction } from "@/server/actions/portfolioReviewActions";
-import { backfillUniverseHistoryAction, refreshAllDataAction } from "@/server/actions/dataRefreshActions";
+import { backfillUniverseHistoryAction, refreshAllDataAction, refreshInstrumentRiskMetricsAction } from "@/server/actions/dataRefreshActions";
 import { seedUniverseAction } from "@/server/actions/universeActions";
 import {
   createMarketVisionDraftAction,
@@ -51,6 +51,15 @@ function statusTone(value?: string) {
 function metadataNumber(metadata: Record<string, unknown> | null | undefined, key: string) {
   const value = metadata?.[key];
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function marketDataRunSummary(summary: Record<string, unknown>) {
+  const message = summary.message;
+  if (typeof message === "string" && message.trim()) return message;
+  const pairs = Object.entries(summary)
+    .filter(([, value]) => typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    .slice(0, 4);
+  return pairs.length > 0 ? pairs.map(([key, value]) => `${key}: ${String(value)}`).join(" | ") : "No summary payload.";
 }
 
 function sourceLabel(value: string) {
@@ -210,14 +219,20 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
   const container = createContainer();
   await container.authProvider.requireUser();
 
-  const [newsDashboard, macroDashboard, fundamentalsLogs, etfExposureLogs, marketVisionDashboard, metadataLogs] = await Promise.all([
+  const [newsDashboard, macroDashboard, fundamentalsLogs, etfExposureLogs, marketVisionDashboard, metadataLogs, instruments, jobRuns] = await Promise.all([
     container.newsDashboardService.getDashboard({ includeDuplicates: true, limit: 10 }),
     container.macroDashboardService.getDashboard(),
     container.fundamentalsRepository.listRefreshLogs(8),
     container.etfExposureRepository.listRefreshLogs(8),
     container.marketVisionService.getDashboard(),
-    container.instrumentService.listMetadataRefreshLogs(8)
+    container.instrumentService.listMetadataRefreshLogs(8),
+    container.instrumentService.listInstruments({ isActive: true }),
+    container.jobRunService.listRecent(60)
   ]);
+  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 8);
+  const marketDataJobRuns = jobRuns
+    .filter((run) => ["seed_universe", "refresh_market_data", "backfill_market_history", "refresh_instrument_risk_metrics"].includes(run.jobName))
+    .slice(0, 8);
 
   const latestFmpLog = newsDashboard.ingestionLogs.find((log) => log.sourceProvider === "financial_modeling_prep" && log.jobName === "daily-news-ingestion") ?? null;
   const fmpSummary = fmpFetchSummary(latestFmpLog);
@@ -282,7 +297,11 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
             </form>
             <form action={backfillUniverseHistoryAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
-              <SubmitButton variant="secondary" pendingLabel="Backfilling market and benchmark history...">Backfill market history</SubmitButton>
+              <SubmitButton variant="secondary" pendingLabel="Backfilling market history...">Backfill market history</SubmitButton>
+            </form>
+            <form action={refreshInstrumentRiskMetricsAction}>
+              <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <SubmitButton variant="secondary" pendingLabel="Refreshing risk metrics...">Refresh instrument risk</SubmitButton>
             </form>
             <form action={refreshEtfLookthroughExposureAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
@@ -296,6 +315,51 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
           <StatBox label="ETF exposure latest run" value={formatDateTime(latestEtfLog?.completedAt ?? latestEtfLog?.startedAt)} />
           <StatBox label="ETFs refreshed" value={latestEtfLog ? `${latestEtfLog.etfsRefreshed}/${latestEtfLog.etfsRequested}` : "-"} />
           <StatBox label="Metadata latest run" value={formatDateTime(metadataLogs[0]?.completedAt ?? metadataLogs[0]?.createdAt)} />
+        </div>
+        <div className="mt-4 rounded-md border bg-muted/30 p-3">
+          <p className="text-sm font-medium">Market history coverage</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Tracks whether active stocks and ETFs have enough 3Y/5Y history, plus up to 2Y crypto history where available.
+          </p>
+          <div className="mt-3 grid gap-3 md:grid-cols-3 lg:grid-cols-9">
+            <StatBox label="Eligible" value={historyCoverage.totalEligible} />
+            <StatBox label="5Y complete" value={historyCoverage.completeFiveYear} />
+            <StatBox label="Available complete" value={historyCoverage.availableHistoryComplete} />
+            <StatBox label="Need history" value={historyCoverage.missingFiveYear} />
+            <StatBox label="3Y complete" value={historyCoverage.completeThreeYear} />
+            <StatBox label="Stale history" value={historyCoverage.staleHistory} />
+            <StatBox label="Crypto eligible" value={historyCoverage.cryptoEligible} />
+            <StatBox label="Crypto 2Y complete" value={historyCoverage.completeTwoYearCrypto} />
+            <StatBox label="Crypto available" value={historyCoverage.availableCryptoHistoryComplete} />
+            <StatBox label="Need crypto history" value={historyCoverage.missingTwoYearCrypto} />
+            <StatBox label="Stale crypto" value={historyCoverage.staleCryptoHistory} />
+            <StatBox label="Est. manual clicks" value={historyCoverage.estimatedBackfillClicks} />
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {historyCoverage.missingFiveYear === 0 &&
+            historyCoverage.missingTwoYearCrypto === 0 &&
+            historyCoverage.staleHistory === 0 &&
+            historyCoverage.staleCryptoHistory === 0
+              ? "Available market history is complete and current for active instruments. Some newer instruments may not have full 5Y or 2Y history because they launched more recently."
+              : `${historyCoverage.missingFiveYear} eligible non-crypto instrument${historyCoverage.missingFiveYear === 1 ? "" : "s"} still need usable market history; ${historyCoverage.staleHistory} non-crypto instrument${historyCoverage.staleHistory === 1 ? "" : "s"} have stale recent history; ${historyCoverage.missingTwoYearCrypto} crypto instrument${historyCoverage.missingTwoYearCrypto === 1 ? "" : "s"} still need usable crypto history; ${historyCoverage.staleCryptoHistory} crypto instrument${historyCoverage.staleCryptoHistory === 1 ? "" : "s"} have stale recent history. Run Backfill market history again until these actionable counts reach zero.`}
+          </p>
+        </div>
+        <div className="mt-4 rounded-md border p-3">
+          <p className="text-sm font-medium">Market data operation logs</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Recent manual runs for Seed Universe, Refresh market data, Backfill market history and instrument risk metrics. Benchmark history runs after instrument history is complete.
+          </p>
+          <div className="mt-3 space-y-2 text-sm">
+            {marketDataJobRuns.length === 0 ? (
+              <p className="text-muted-foreground">No market data operation logs have been recorded yet.</p>
+            ) : marketDataJobRuns.map((run) => (
+              <div key={run.id} className="rounded-md bg-muted/40 p-3">
+                <p className={`font-medium ${statusTone(run.status)}`}>{run.jobName.replaceAll("_", " ")} - {run.status}</p>
+                <p className="text-muted-foreground">{formatDateTime(run.completedAt ?? run.startedAt)} - {marketDataRunSummary(run.summary)}</p>
+                {run.errorMessage ? <p className="text-destructive">{run.errorMessage}</p> : null}
+              </div>
+            ))}
+          </div>
         </div>
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           <div className="rounded-md border p-3">

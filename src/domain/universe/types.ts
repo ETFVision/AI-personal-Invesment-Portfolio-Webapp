@@ -8,6 +8,16 @@ export type InstrumentAssetClass =
   | "cash_proxy"
   | "other";
 
+export type InstrumentAssetCategory =
+  | "EQUITY"
+  | "BOND"
+  | "COMMODITY"
+  | "REAL_ESTATE"
+  | "CASH"
+  | "CRYPTO"
+  | "MULTI_ASSET"
+  | "UNKNOWN";
+
 export type WatchlistTier = "core_quality" | "tactical_thematic" | "opportunistic";
 
 export type Instrument = {
@@ -15,6 +25,8 @@ export type Instrument = {
   symbol: string | null;
   name: string;
   assetClass: InstrumentAssetClass;
+  assetCategory?: InstrumentAssetCategory | null;
+  etfCategory?: string | null;
   instrumentType: string;
   sector: string | null;
   industry: string | null;

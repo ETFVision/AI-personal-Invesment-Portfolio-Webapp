@@ -2625,3 +2625,52 @@ Validation:
 Production-readiness assessment:
 - READY after visual review in the Vercel preview.
 - Risk is low: the changes are presentation and prompt-language focused; recommendation scoring and persistence contracts remain intact.
+
+## 2026-06-08 - Instrument Taxonomy / Alpha Universe QA
+
+Scope:
+- Added ETFVision-owned `asset_category` and `etf_category` fields for instrument product taxonomy.
+- Added the approved Alpha source-of-truth universe: 204 ETFs and 100 stocks.
+- Updated Universe and Watchlist directories to group by asset category, ETF product category, and stock sector.
+- Confirmed portfolio sector allocation remains separate from ETF product category and should continue to use ETF look-through exposure.
+
+Findings:
+- Critical issues: none.
+- Medium-priority issues: none.
+- Low-priority follow-up:
+  - Infrastructure and Clean Energy tickers were filled with standard liquid candidates and can be swapped if a different approved list is preferred.
+
+Validation:
+- `npm.cmd run lint` passed.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run test -- --test-name-pattern=taxonomy` passed and ran the full suite: 205 tests.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY for preview after applying migration `062_instrument_product_taxonomy.sql` and pressing the Seed Universe action.
+- Portfolio allocation charts should continue to be validated against ETF look-through data after seeding.
+
+## 2026-06-08 - Instrument Taxonomy Follow-Up QA
+
+Scope:
+- Added persistent job-run logging for Seed Universe, Refresh Market Data, and Backfill Market History actions.
+- Added Market Data operation logs and market-history coverage metrics to Admin/Data Sources.
+- Refined Universe and Watchlist hierarchy so Equity Universe contains separate Equity ETF and Stock sections.
+- Added a Crypto ETF display bucket so ETF proxies do not appear as generic uncategorized ETFs.
+- Preserved the rule that ETF product category is not portfolio sector allocation.
+
+Findings:
+- Critical issues: none.
+- Medium-priority issues: none.
+- Low-priority follow-up:
+  - Visual QA should be completed on the Vercel preview after deployment because the in-app browser tool was unavailable in this local session.
+
+Validation:
+- `npm.cmd run lint` passed.
+- `npm.cmd run test` passed: 206 tests.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run build` passed.
+
+Production-readiness assessment:
+- READY for preview.
+- After deployment, run Seed Universe and Backfill Market History until Admin/Data Sources shows no remaining 5Y gaps for eligible instruments.

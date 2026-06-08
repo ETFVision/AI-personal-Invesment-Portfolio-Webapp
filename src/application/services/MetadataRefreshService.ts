@@ -22,6 +22,12 @@ function uniqueSymbols(symbols: Array<string | null | undefined>) {
   );
 }
 
+function providerSymbolForMetadata(symbol: string | null | undefined) {
+  const normalized = symbol?.trim().toUpperCase() ?? "";
+  if (normalized === "BRK.B") return "BRK-B";
+  return normalized;
+}
+
 function daysAgoIso(days: number) {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() - days);
@@ -55,7 +61,7 @@ function classifyFundMetadata(item: { symbol: string; sector: string | null; ind
   }
 
   const symbol = item.symbol.toUpperCase();
-  const broadMarketEtfs = new Set(["VOO", "SPY", "IVV", "VTI", "VT", "VEA", "VWO", "VXUS", "ACWI", "URTH"]);
+  const broadMarketEtfs = new Set(["VOO", "SPY", "IVV", "VTI", "VT", "VEA", "VWO", "VXUS", "ACWI"]);
   const sectorEtfs = new Set(["XLK", "XLF", "XLV", "XLY", "XLP", "XLE", "XLI", "XLB", "XLU", "XLRE", "XLC"]);
 
   if (sectorEtfs.has(symbol)) {
@@ -93,7 +99,7 @@ export class MetadataRefreshService {
             return (a.symbol ?? "").localeCompare(b.symbol ?? "");
           })
           .filter((instrument) => instrument.symbol)
-          .map((instrument) => instrument.symbol)
+          .map((instrument) => providerSymbolForMetadata(instrument.symbol))
       ).slice(0, input.limit ?? MAX_SYMBOLS_PER_REFRESH);
 
       if (symbols.length === 0) {
@@ -107,13 +113,17 @@ export class MetadataRefreshService {
       }
 
       const metadata = await this.provider.getAssetMetadata(symbols);
-      const instrumentBySymbol = new Map(instruments.map((instrument) => [instrument.symbol?.toUpperCase() ?? "", instrument]));
+      const instrumentByProviderSymbol = new Map(instruments.map((instrument) => [providerSymbolForMetadata(instrument.symbol), instrument]));
+      const localSymbolByProviderSymbol = new Map(instruments.map((instrument) => [providerSymbolForMetadata(instrument.symbol), instrument.symbol?.toUpperCase() ?? ""]));
       const returnedSymbols = new Set(metadata.map((item) => item.symbol.toUpperCase()));
-      const missingSymbols = symbols.filter((symbol) => !returnedSymbols.has(symbol));
+      const missingSymbols = symbols
+        .filter((symbol) => !returnedSymbols.has(symbol))
+        .map((symbol) => localSymbolByProviderSymbol.get(symbol) ?? symbol);
 
       await this.repository.updateInstrumentMetadata(
         metadata.map((item) => {
-          const instrument = instrumentBySymbol.get(item.symbol.toUpperCase());
+          const providerSymbol = item.symbol.toUpperCase();
+          const instrument = instrumentByProviderSymbol.get(providerSymbol);
           const classification = classifyFundMetadata(item, instrument?.assetClass ?? "stock");
           const normalized = this.taxonomyService.normalize({
             symbol: item.symbol,
@@ -129,7 +139,7 @@ export class MetadataRefreshService {
           const canonicalThemes = instrument?.taxonomyIsManualOverride ? instrument.canonicalThemes : normalized.canonicalThemes;
           return {
             provider: this.provider.name,
-            symbol: item.symbol,
+            symbol: instrument?.symbol ?? item.symbol,
             name: item.name,
             exchange: item.exchange,
             currency: item.currency,

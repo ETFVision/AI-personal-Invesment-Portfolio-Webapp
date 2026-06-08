@@ -11,7 +11,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       APP_URL: ${{ secrets.APP_URL }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -19,7 +19,13 @@ jobs:
       - name: Check out workflow helper
         uses: actions/checkout@v6
 
-      - name: Fundamentals refresh
+      - name: Fundamentals refresh batch 1
+        run: bash scripts/call-job-endpoint.sh /api/jobs/fundamentals-refresh
+
+      - name: Fundamentals refresh batch 2
+        run: bash scripts/call-job-endpoint.sh /api/jobs/fundamentals-refresh
+
+      - name: Fundamentals refresh batch 3
         run: bash scripts/call-job-endpoint.sh /api/jobs/fundamentals-refresh
 
       - name: Weekly news reconciliation
