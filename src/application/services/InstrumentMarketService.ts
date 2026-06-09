@@ -380,7 +380,7 @@ export class InstrumentMarketService {
       if (rows.length > 0) {
         const updatedInstrumentIds = Array.from(new Set(rows.map((row) => row.instrumentId)));
         await this.repository.upsertInstrumentPrices(rows);
-        await refreshDerivedMetrics(this.repository, updatedInstrumentIds);
+        await refreshDerivedMetrics(this.repository, updatedInstrumentIds, { oneInstrumentAtATime: true, skipRiskMetrics: true });
       }
 
       return {

@@ -129,6 +129,8 @@ function riskPriceRows(instrumentId: string, count = 80) {
 test("instrument price refresh maps BRK.B to the FMP provider symbol BRK-B", async () => {
   const requestedBatches: string[][] = [];
   const storedRows: Array<{ instrumentId: string; symbol: string }> = [];
+  const marketMetricRefreshes: string[][] = [];
+  const riskMetricRefreshes: string[][] = [];
   const repository = {
     async listInstruments() {
       return [instrument("BRK.B")];
@@ -139,8 +141,12 @@ test("instrument price refresh maps BRK.B to the FMP provider symbol BRK-B", asy
     async upsertInstrumentPrices(input: Array<{ instrumentId: string; symbol: string }>) {
       storedRows.push(...input);
     },
-    async refreshInstrumentMarketMetrics() {},
-    async refreshInstrumentRiskMetrics() {}
+    async refreshInstrumentMarketMetrics(ids: string[]) {
+      marketMetricRefreshes.push(ids);
+    },
+    async refreshInstrumentRiskMetrics(ids: string[]) {
+      riskMetricRefreshes.push(ids);
+    }
   } as unknown as UniverseRepository;
   const provider = {
     name: "financial_modeling_prep",
@@ -157,6 +163,8 @@ test("instrument price refresh maps BRK.B to the FMP provider symbol BRK-B", asy
   assert.equal(result.updatedCount, 1);
   assert.equal(storedRows[0]?.instrumentId, "inst-BRK.B");
   assert.equal(storedRows[0]?.symbol, "BRK-B");
+  assert.deepEqual(marketMetricRefreshes, [["inst-BRK.B"]]);
+  assert.deepEqual(riskMetricRefreshes, []);
 });
 
 test("history coverage tracks crypto against a shorter 2Y target", async () => {
