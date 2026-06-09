@@ -7,13 +7,16 @@ export async function POST(request: NextRequest) {
   const batchSize = Number(request.nextUrl.searchParams.get("batchSize") ?? 50);
   const maxBatches = Number(request.nextUrl.searchParams.get("maxBatches") ?? 8);
   const includeBackfill = request.nextUrl.searchParams.get("includeBackfill") === "true";
+  const skipRiskMetrics = request.nextUrl.searchParams.get("skipRiskMetrics") === "true";
+  const lockTtlSeconds = Number(request.nextUrl.searchParams.get("lockTtlSeconds") ?? 8 * 60);
 
-  return runCronJob(request, { jobName: "instrument-price-refresh", lockTtlSeconds: 25 * 60 }, () =>
+  return runCronJob(request, { jobName: "instrument-price-refresh", lockTtlSeconds }, () =>
     createContainer().instrumentMarketService.refreshInstrumentPricesInBatches({
       lookbackDays,
       batchSize,
       maxBatches,
-      includeBackfill
+      includeBackfill,
+      skipRiskMetrics
     })
   );
 }

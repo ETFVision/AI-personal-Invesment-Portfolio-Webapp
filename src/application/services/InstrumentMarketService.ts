@@ -247,6 +247,7 @@ export class InstrumentMarketService {
     instrumentIds?: string[];
     maxSymbols?: number;
     includeBackfill?: boolean;
+    skipRiskMetrics?: boolean;
   }): Promise<RefreshInstrumentPricesResult> {
     const lookbackDays = input?.lookbackDays ?? 1825;
     const maxSymbols = Math.max(1, input?.maxSymbols ?? 12);
@@ -475,7 +476,10 @@ export class InstrumentMarketService {
     if (rows.length > 0) {
       const updatedInstrumentIds = Array.from(new Set(rows.map((row) => row.instrumentId)));
       await this.repository.upsertInstrumentPrices(rows);
-      await refreshDerivedMetrics(this.repository, updatedInstrumentIds, { oneInstrumentAtATime: includeBackfill, skipRiskMetrics: includeBackfill });
+      await refreshDerivedMetrics(this.repository, updatedInstrumentIds, {
+        oneInstrumentAtATime: includeBackfill,
+        skipRiskMetrics: includeBackfill || Boolean(input?.skipRiskMetrics)
+      });
     }
 
     return {
@@ -495,6 +499,7 @@ export class InstrumentMarketService {
     batchSize?: number;
     maxBatches?: number;
     includeBackfill?: boolean;
+    skipRiskMetrics?: boolean;
   }): Promise<RefreshInstrumentPricesResult> {
     const maxBatches = Math.max(1, input?.maxBatches ?? 8);
     const batchSize = Math.max(1, input?.batchSize ?? 12);
@@ -507,7 +512,8 @@ export class InstrumentMarketService {
       const result = await this.refreshInstrumentPrices({
         lookbackDays: input?.lookbackDays,
         maxSymbols: batchSize,
-        includeBackfill: input?.includeBackfill
+        includeBackfill: input?.includeBackfill,
+        skipRiskMetrics: input?.skipRiskMetrics
       });
 
       result.requestedSymbols.forEach((symbol) => requestedSymbols.add(symbol));
