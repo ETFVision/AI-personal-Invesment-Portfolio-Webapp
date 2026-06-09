@@ -81,7 +81,7 @@ export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
 };
 
 export const ALPHA_ETF_CATEGORIES: Record<EtfCategory, string[]> = {
-  US_BROAD_MARKET: ["VOO", "SPY", "IVV", "VTI", "ITOT", "SCHB", "SPLG", "RSP", "VV", "ONEQ"],
+  US_BROAD_MARKET: ["VOO", "SPY", "IVV", "VTI", "ITOT", "SCHB", "SPYM", "RSP", "VV", "ONEQ"],
   GLOBAL_EQUITY: ["VT", "ACWI", "VXUS", "IXUS", "IOO", "SPDW"],
   DEVELOPED_MARKETS: ["VEA", "IEFA", "EFA", "SCHF", "IDEV", "EFV", "HEFA", "FEZ", "EZU"],
   EMERGING_MARKETS: ["VWO", "IEMG", "EEM", "SPEM", "SCHE", "DEM", "AVEM", "EEMS", "EMXC", "FEM"],
