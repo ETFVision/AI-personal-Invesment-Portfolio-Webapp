@@ -17,6 +17,7 @@ export async function refreshFundamentalsAction(formData?: FormData) {
   const result = await container.jobs.fundamentalsRefresh.run({ force, symbol });
 
   revalidatePath("/fundamentals");
+  revalidatePath("/admin/data-sources");
   if (symbol) revalidatePath(`/fundamentals/${symbol}`);
 
   const params = new URLSearchParams({

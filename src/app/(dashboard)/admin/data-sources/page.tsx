@@ -20,6 +20,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { env } from "@/infrastructure/config/env";
+import type { FundamentalsSummaryRow } from "@/domain/fundamentals/types";
+import type { EtfCountryExposure, EtfSectorExposure, EtfTopHolding } from "@/domain/etfLookthrough/types";
+import type { Instrument } from "@/domain/universe/types";
 import type { ReactNode } from "react";
 
 function statusLabel(enabled: boolean, configured = true) {
@@ -60,6 +63,91 @@ function marketDataRunSummary(summary: Record<string, unknown>) {
     .filter(([, value]) => typeof value === "string" || typeof value === "number" || typeof value === "boolean")
     .slice(0, 4);
   return pairs.length > 0 ? pairs.map(([key, value]) => `${key}: ${String(value)}`).join(" | ") : "No summary payload.";
+}
+
+function daysBetween(dateIso: string | null | undefined, now = new Date()) {
+  if (!dateIso) return Number.POSITIVE_INFINITY;
+  const date = new Date(dateIso);
+  if (Number.isNaN(date.getTime())) return Number.POSITIVE_INFINITY;
+  return Math.floor((now.getTime() - date.getTime()) / 86_400_000);
+}
+
+function estimateClicks(count: number, batchSize: number) {
+  return Math.ceil(Math.max(0, count) / Math.max(1, batchSize));
+}
+
+function latestString(values: Array<string | null | undefined>) {
+  return values.filter((value): value is string => Boolean(value)).sort().at(-1) ?? null;
+}
+
+function daysAgoIso(days: number) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
+function fundamentalsCoverageSummary(rows: FundamentalsSummaryRow[], batchSize: number, refreshFrequencyDays: number) {
+  const completeRows = rows.filter((row) => row.profile && row.latestScore && row.latestTrendSummary && row.statementCount > 0);
+  const missingComplete = rows.length - completeRows.length;
+  const staleRows = rows.filter((row) => row.profile && daysBetween(row.profile.lastRefreshedAt) >= refreshFrequencyDays);
+  const actionable = rows.filter((row) => {
+    const complete = Boolean(row.profile && row.latestScore && row.latestTrendSummary && row.statementCount > 0);
+    const stale = row.profile ? daysBetween(row.profile.lastRefreshedAt) >= refreshFrequencyDays : true;
+    return !complete || stale;
+  }).length;
+  return {
+    totalEligible: rows.length,
+    completeCount: completeRows.length,
+    missingComplete,
+    staleCount: staleRows.length,
+    latestRunDate: latestString(rows.map((row) => row.profile?.lastRefreshedAt)),
+    batchSize,
+    estimatedManualClicks: estimateClicks(actionable, batchSize)
+  };
+}
+
+const ETF_LOOKTHROUGH_EXCLUDED_SECTORS = new Set(["Bonds / Fixed Income", "Commodities / Gold", "Crypto", "Cash / Money Market"]);
+
+function etfLookthroughEligible(instruments: Instrument[]) {
+  return instruments
+    .filter((instrument) => instrument.assetClass === "etf" && instrument.symbol)
+    .filter((instrument) => !ETF_LOOKTHROUGH_EXCLUDED_SECTORS.has(instrument.canonicalSector ?? ""));
+}
+
+function etfLookthroughCoverageSummary(
+  eligibleEtfs: Instrument[],
+  sectorExposures: EtfSectorExposure[],
+  countryExposures: EtfCountryExposure[],
+  topHoldings: EtfTopHolding[],
+  batchSize: number,
+  staleAfterDays: number
+) {
+  const latestSectorDateById = new Map<string, string>();
+  for (const row of sectorExposures) {
+    const latest = latestSectorDateById.get(row.etfInstrumentId);
+    if (!latest || row.asOfDate > latest) latestSectorDateById.set(row.etfInstrumentId, row.asOfDate);
+  }
+  const staleCutoff = daysAgoIso(staleAfterDays);
+  const sectorIds = new Set(latestSectorDateById.keys());
+  const countryIds = new Set(countryExposures.map((row) => row.etfInstrumentId));
+  const topHoldingIds = new Set(topHoldings.map((row) => row.etfInstrumentId));
+  const missingSectorCount = eligibleEtfs.filter((instrument) => !sectorIds.has(instrument.id)).length;
+  const staleSectorCount = eligibleEtfs.filter((instrument) => {
+    const latest = latestSectorDateById.get(instrument.id);
+    return Boolean(latest && latest < staleCutoff);
+  }).length;
+  return {
+    totalEligible: eligibleEtfs.length,
+    sectorCoverageCount: sectorIds.size,
+    countryCoverageCount: countryIds.size,
+    topHoldingCoverageCount: topHoldingIds.size,
+    missingSectorCount,
+    staleSectorCount,
+    staleCutoff,
+    latestExposureDate: latestString(sectorExposures.map((row) => row.asOfDate)),
+    batchSize,
+    estimatedManualClicks: estimateClicks(missingSectorCount + staleSectorCount, batchSize)
+  };
 }
 
 function sourceLabel(value: string) {
@@ -211,6 +299,9 @@ type DataSourcesPageProps = {
     metadataError?: string;
     priceMessage?: string;
     priceError?: string;
+    portfolioReviewMessage?: string;
+    portfolioReviewError?: string;
+    error?: string;
   }>;
 };
 
@@ -219,17 +310,37 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
   const container = createContainer();
   await container.authProvider.requireUser();
 
-  const [newsDashboard, macroDashboard, fundamentalsLogs, etfExposureLogs, marketVisionDashboard, metadataLogs, instruments, jobRuns] = await Promise.all([
+  const [newsDashboard, macroDashboard, fundamentalsLogs, fundamentalsRows, etfExposureLogs, marketVisionDashboard, metadataLogs, instruments, jobRuns] = await Promise.all([
     container.newsDashboardService.getDashboard({ includeDuplicates: true, limit: 10 }),
     container.macroDashboardService.getDashboard(),
     container.fundamentalsRepository.listRefreshLogs(8),
+    container.fundamentalsRepository.listSummaryRows(),
     container.etfExposureRepository.listRefreshLogs(8),
     container.marketVisionService.getDashboard(),
     container.instrumentService.listMetadataRefreshLogs(8),
     container.instrumentService.listInstruments({ isActive: true }),
     container.jobRunService.listRecent(60)
   ]);
+  const eligibleLookthroughEtfs = etfLookthroughEligible(instruments);
+  const eligibleLookthroughEtfIds = eligibleLookthroughEtfs.map((instrument) => instrument.id);
+  const [etfSectorExposures, etfCountryExposures, etfTopHoldings] = eligibleLookthroughEtfIds.length > 0
+    ? await Promise.all([
+        container.etfExposureRepository.listLatestSectorExposures(eligibleLookthroughEtfIds),
+        container.etfExposureRepository.listLatestCountryExposures(eligibleLookthroughEtfIds),
+        container.etfExposureRepository.listLatestTopHoldings(eligibleLookthroughEtfIds)
+      ])
+    : [[], [], []];
+  const latestPriceCoverage = await container.instrumentMarketService.getLatestPriceCoverageSummary(instruments, 75);
   const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 8);
+  const fundamentalsCoverage = fundamentalsCoverageSummary(fundamentalsRows, env.FUNDAMENTALS_MAX_STOCKS_PER_REFRESH, env.FUNDAMENTALS_REFRESH_FREQUENCY_DAYS);
+  const etfCoverage = etfLookthroughCoverageSummary(
+    eligibleLookthroughEtfs,
+    etfSectorExposures,
+    etfCountryExposures,
+    etfTopHoldings,
+    env.ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN,
+    env.ETF_LOOKTHROUGH_STALE_AFTER_DAYS
+  );
   const marketDataJobRuns = jobRuns
     .filter((run) => ["seed_universe", "refresh_market_data", "backfill_market_history", "refresh_instrument_risk_metrics"].includes(run.jobName))
     .slice(0, 8);
@@ -252,10 +363,28 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         meta={<StatusBadge tone="info">{providers.length} providers</StatusBadge>}
       />
 
-      {params?.message || params?.refreshMessage || params?.metadataMessage || params?.priceMessage ? (
+      {params?.message ||
+      params?.refreshMessage ||
+      params?.metadataMessage ||
+      params?.priceMessage ||
+      params?.portfolioReviewMessage ||
+      params?.refreshError ||
+      params?.metadataError ||
+      params?.priceError ||
+      params?.portfolioReviewError ||
+      params?.error ? (
         <Card>
-          <CardContent className={`p-4 text-sm ${params.refreshError || params.metadataError || params.priceError ? "text-destructive" : "text-muted-foreground"}`}>
-            {params.refreshError ?? params.metadataError ?? params.priceError ?? params.refreshMessage ?? params.metadataMessage ?? params.priceMessage ?? params.message}
+          <CardContent className={`p-4 text-sm ${params.refreshError || params.metadataError || params.priceError || params.portfolioReviewError || params.error ? "text-destructive" : "text-muted-foreground"}`}>
+            {params.refreshError ??
+              params.metadataError ??
+              params.priceError ??
+              params.portfolioReviewError ??
+              params.error ??
+              params.refreshMessage ??
+              params.metadataMessage ??
+              params.priceMessage ??
+              params.portfolioReviewMessage ??
+              params.message}
           </CardContent>
         </Card>
       ) : null}
@@ -315,6 +444,48 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
           <StatBox label="ETF exposure latest run" value={formatDateTime(latestEtfLog?.completedAt ?? latestEtfLog?.startedAt)} />
           <StatBox label="ETFs refreshed" value={latestEtfLog ? `${latestEtfLog.etfsRefreshed}/${latestEtfLog.etfsRequested}` : "-"} />
           <StatBox label="Metadata latest run" value={formatDateTime(metadataLogs[0]?.completedAt ?? metadataLogs[0]?.createdAt)} />
+        </div>
+        <div className="mt-4 rounded-md border bg-muted/30 p-3">
+          <p className="text-sm font-medium">ETF look-through coverage</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Tracks equity ETF sector look-through coverage, with country and top holdings shown as data-quality detail. Bond, commodity, crypto and cash-like ETFs are excluded from equity look-through.
+          </p>
+          <div className="mt-3 grid gap-3 md:grid-cols-3 lg:grid-cols-9">
+            <StatBox label="Eligible ETFs" value={etfCoverage.totalEligible} />
+            <StatBox label="Sector covered" value={etfCoverage.sectorCoverageCount} />
+            <StatBox label="Missing sector" value={etfCoverage.missingSectorCount} />
+            <StatBox label="Stale sector" value={etfCoverage.staleSectorCount} />
+            <StatBox label="Country covered" value={etfCoverage.countryCoverageCount} />
+            <StatBox label="Top holdings covered" value={etfCoverage.topHoldingCoverageCount} />
+            <StatBox label="Latest exposure date" value={etfCoverage.latestExposureDate ?? "-"} />
+            <StatBox label="Batch size" value={etfCoverage.batchSize} />
+            <StatBox label="Est. manual clicks" value={etfCoverage.estimatedManualClicks} />
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {etfCoverage.missingSectorCount === 0 && etfCoverage.staleSectorCount === 0
+              ? "ETF sector look-through coverage is complete for eligible equity ETFs."
+              : `${etfCoverage.missingSectorCount} eligible ETF${etfCoverage.missingSectorCount === 1 ? "" : "s"} still need sector look-through data and ${etfCoverage.staleSectorCount} ETF${etfCoverage.staleSectorCount === 1 ? "" : "s"} are older than ${etfCoverage.staleCutoff}. Run Refresh ETF exposure until missing and stale sector counts reach zero.`}
+          </p>
+        </div>
+        <div className="mt-4 rounded-md border bg-muted/30 p-3">
+          <p className="text-sm font-medium">Latest market data coverage</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Tracks whether active instruments have latest market prices through the expected latest trading day.
+          </p>
+          <div className="mt-3 grid gap-3 md:grid-cols-3 lg:grid-cols-7">
+            <StatBox label="Eligible" value={latestPriceCoverage.totalEligible} />
+            <StatBox label="Fresh" value={latestPriceCoverage.freshCount} />
+            <StatBox label="Stale" value={latestPriceCoverage.staleCount} />
+            <StatBox label="Never priced" value={latestPriceCoverage.neverPricedCount} />
+            <StatBox label="Expected latest" value={latestPriceCoverage.latestExpectedPriceDate} />
+            <StatBox label="Oldest latest date" value={latestPriceCoverage.oldestLatestPriceDate ?? "-"} />
+            <StatBox label="Est. manual clicks" value={latestPriceCoverage.estimatedManualClicks} />
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {latestPriceCoverage.staleCount === 0 && latestPriceCoverage.neverPricedCount === 0
+              ? "Latest market data is fresh for all eligible instruments."
+              : `${latestPriceCoverage.staleCount} instrument${latestPriceCoverage.staleCount === 1 ? "" : "s"} are stale and ${latestPriceCoverage.neverPricedCount} instrument${latestPriceCoverage.neverPricedCount === 1 ? "" : "s"} have no price yet. Run Refresh market data until stale and never priced reach zero.`}
+          </p>
         </div>
         <div className="mt-4 rounded-md border bg-muted/30 p-3">
           <p className="text-sm font-medium">Market history coverage</p>
@@ -394,11 +565,10 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         description="FMP fundamentals refresh status for stock profiles, statements, ratios, scores and trend metrics."
         whereUsed="fundamentals overview, instrument detail pages, insights"
         actions={
-          <form action={refreshFundamentalsAction}>
-            <input type="hidden" name="returnTo" value="/admin/data-sources" />
-            <input type="hidden" name="force" value="true" />
-            <SubmitButton pendingLabel="Refreshing fundamentals...">Refresh fundamentals</SubmitButton>
-          </form>
+            <form action={refreshFundamentalsAction}>
+              <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <SubmitButton pendingLabel="Refreshing fundamentals...">Refresh fundamentals</SubmitButton>
+            </form>
         }
       >
         <div className="grid gap-3 md:grid-cols-4">
@@ -406,6 +576,26 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
           <StatBox label="Latest run" value={formatDateTime(latestFundamentalsLog?.completedAt ?? latestFundamentalsLog?.startedAt)} />
           <StatBox label="Profiles updated" value={latestFundamentalsLog?.profilesUpdated ?? "-"} />
           <StatBox label="Scores updated" value={latestFundamentalsLog?.scoresUpdated ?? "-"} />
+        </div>
+        <div className="mt-4 rounded-md border bg-muted/30 p-3">
+          <p className="text-sm font-medium">Fundamentals coverage</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Tracks whether active stock instruments have profiles, statements, scores and trend summaries. The Admin refresh advances through due or incomplete stocks by batch.
+          </p>
+          <div className="mt-3 grid gap-3 md:grid-cols-3 lg:grid-cols-7">
+            <StatBox label="Eligible stocks" value={fundamentalsCoverage.totalEligible} />
+            <StatBox label="Complete" value={fundamentalsCoverage.completeCount} />
+            <StatBox label="Incomplete" value={fundamentalsCoverage.missingComplete} />
+            <StatBox label="Stale" value={fundamentalsCoverage.staleCount} />
+            <StatBox label="Latest profile refresh" value={formatDateTime(fundamentalsCoverage.latestRunDate)} />
+            <StatBox label="Batch size" value={fundamentalsCoverage.batchSize} />
+            <StatBox label="Est. manual clicks" value={fundamentalsCoverage.estimatedManualClicks} />
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {fundamentalsCoverage.missingComplete === 0 && fundamentalsCoverage.staleCount === 0
+              ? "Fundamentals coverage is complete and current for eligible stocks."
+              : `${fundamentalsCoverage.missingComplete} stock${fundamentalsCoverage.missingComplete === 1 ? "" : "s"} are incomplete and ${fundamentalsCoverage.staleCount} stock${fundamentalsCoverage.staleCount === 1 ? "" : "s"} are stale. Run Refresh fundamentals until incomplete and stale reach zero.`}
+          </p>
         </div>
         <div className="mt-4 space-y-2 text-sm">
           {fundamentalsLogs.length === 0 ? <p className="text-muted-foreground">No fundamentals refresh has run yet.</p> : fundamentalsLogs.map((log) => (

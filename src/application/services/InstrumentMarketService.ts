@@ -35,6 +35,16 @@ export type InstrumentHistoryCoverageSummary = {
   estimatedBackfillClicks: number;
 };
 
+export type InstrumentLatestPriceCoverageSummary = {
+  totalEligible: number;
+  freshCount: number;
+  staleCount: number;
+  neverPricedCount: number;
+  latestExpectedPriceDate: string;
+  oldestLatestPriceDate: string | null;
+  estimatedManualClicks: number;
+};
+
 export type RefreshInstrumentRiskMetricsResult = {
   requestedSymbols: string[];
   updatedCount: number;
@@ -841,6 +851,52 @@ export class InstrumentMarketService {
       missingTwoYearCrypto,
       staleCryptoHistory,
       estimatedBackfillClicks: Math.ceil((missingFiveYear + missingTwoYearCrypto) / Math.max(1, backfillBatchSize))
+    };
+  }
+
+  async getLatestPriceCoverageSummary(instruments: Instrument[], refreshBatchSize = 75): Promise<InstrumentLatestPriceCoverageSummary> {
+    const activeInstruments = instruments.filter((instrument) => instrument.isActive || isRawCryptoReference(instrument));
+    const metrics = await this.repository.listInstrumentMarketMetrics(activeInstruments.map((instrument) => instrument.id));
+    const metricsByInstrumentId = new Map(metrics.map((item) => [item.instrumentId, item]));
+    const stats =
+      metrics.length > 0
+        ? []
+        : await this.repository.listInstrumentPriceStats(activeInstruments.map((instrument) => instrument.id));
+    const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
+    const refreshCutoff = latestExpectedEodDate();
+    let freshCount = 0;
+    let staleCount = 0;
+    let neverPricedCount = 0;
+    let oldestLatestPriceDate: string | null = null;
+
+    for (const instrument of activeInstruments) {
+      const metric = metricsByInstrumentId.get(instrument.id);
+      const stat = statsByInstrumentId.get(instrument.id);
+      const latestDate = metric?.latestPriceDate ?? metric?.historyEndDate ?? stat?.latestPriceDate ?? null;
+      if (!latestDate) {
+        neverPricedCount += 1;
+        continue;
+      }
+      if (!oldestLatestPriceDate || latestDate < oldestLatestPriceDate) {
+        oldestLatestPriceDate = latestDate;
+      }
+      if (isStaleOrMissing(latestDate, refreshCutoff)) {
+        staleCount += 1;
+      } else {
+        freshCount += 1;
+      }
+    }
+
+    const totalEligible = activeInstruments.length;
+    const actionable = staleCount + neverPricedCount;
+    return {
+      totalEligible,
+      freshCount,
+      staleCount,
+      neverPricedCount,
+      latestExpectedPriceDate: refreshCutoff,
+      oldestLatestPriceDate,
+      estimatedManualClicks: Math.ceil(actionable / Math.max(1, refreshBatchSize))
     };
   }
 

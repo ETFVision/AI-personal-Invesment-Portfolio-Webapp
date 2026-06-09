@@ -38,11 +38,13 @@ export async function refreshEtfLookthroughExposureAction(formData?: FormData) {
   const container = createContainer();
   await container.authProvider.requireUser();
   const destination = String(formData?.get("returnTo") ?? "/portfolio-review");
+  const force = String(formData?.get("force") ?? "") === "true";
   let target = destination.startsWith("/") ? destination : "/portfolio-review";
 
   try {
-    const result = await container.jobs.etfLookthroughRefresh.run({ force: true });
+    const result = await container.jobs.etfLookthroughRefresh.run({ force });
     revalidatePath("/portfolio-review");
+    revalidatePath("/admin/data-sources");
     const params = new URLSearchParams({
       portfolioReviewMessage: `ETF exposure refresh ${result.status}: ${result.etfsRefreshed}/${result.etfsRequested} ETFs refreshed, ${result.sectorRows} sector rows, ${result.countryRows} country rows, ${result.topHoldingRows} top holding rows.`
     });

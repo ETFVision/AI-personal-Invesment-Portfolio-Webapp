@@ -228,13 +228,21 @@ export class FundamentalsRefreshService {
     const filtered = options.symbol
       ? eligible.filter((instrument) => instrument.symbol?.toUpperCase() === options.symbol?.toUpperCase())
       : eligible;
-    const profiles = await this.repository.getProfiles(filtered.map((instrument) => instrument.id));
+    const filteredIds = filtered.map((instrument) => instrument.id);
+    const [profiles, scores, trends] = await Promise.all([
+      this.repository.getProfiles(filteredIds),
+      this.repository.getLatestScores(filteredIds),
+      this.repository.getLatestTrendSummaries(filteredIds)
+    ]);
     const profileByInstrument = new Map(profiles.map((profile) => [profile.instrumentId, profile]));
+    const scoreByInstrument = new Map(scores.map((score) => [score.instrumentId, score]));
+    const trendByInstrument = new Map(trends.map((trend) => [trend.instrumentId, trend]));
     const due = filtered
       .filter((instrument) => {
         if (options.force) return true;
         const existing = profileByInstrument.get(instrument.id);
-        return daysBetween(existing?.lastRefreshedAt ?? null) >= this.config.refreshFrequencyDays;
+        const hasCompleteDerivedCoverage = Boolean(scoreByInstrument.get(instrument.id) && trendByInstrument.get(instrument.id));
+        return !existing || !hasCompleteDerivedCoverage || daysBetween(existing.lastRefreshedAt ?? null) >= this.config.refreshFrequencyDays;
       })
       .slice(0, this.config.maxStocksPerRefresh);
 
