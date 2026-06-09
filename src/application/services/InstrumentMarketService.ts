@@ -525,10 +525,11 @@ export class InstrumentMarketService {
       if (result.updatedCount === 0 && result.missingSymbols.length === 0) break;
     }
 
-    const derivedMetricsRefreshed =
-      input?.includeBackfill && requestedSymbols.size === 0
-        ? await this.refreshMissingInstrumentMarketMetrics({ batchSize })
-        : 0;
+    const derivedMetricsRefreshed = await this.refreshStaleInstrumentDerivedMetrics({
+      batchSize,
+      skipRiskMetrics: Boolean(input?.skipRiskMetrics)
+    });
+    const derivedMetricLabel = input?.skipRiskMetrics ? "derived market metrics" : "derived market and risk metrics";
 
     return {
       requestedSymbols: Array.from(requestedSymbols),
@@ -537,7 +538,7 @@ export class InstrumentMarketService {
       errors,
       message:
         requestedSymbols.size === 0 && derivedMetricsRefreshed > 0
-          ? `Instrument prices are already fresh. Rebuilt derived market metrics for ${derivedMetricsRefreshed} instrument${derivedMetricsRefreshed === 1 ? "" : "s"}.`
+          ? `Instrument prices are already fresh. Rebuilt ${derivedMetricLabel} for ${derivedMetricsRefreshed} instrument${derivedMetricsRefreshed === 1 ? "" : "s"}.`
           : requestedSymbols.size === 0
             ? "Instrument prices are already fresh."
           : `Stored ${updatedCount} instrument price row${updatedCount === 1 ? "" : "s"} across ${requestedSymbols.size} instrument${requestedSymbols.size === 1 ? "" : "s"}.`
@@ -546,7 +547,7 @@ export class InstrumentMarketService {
     };
   }
 
-  async refreshMissingInstrumentMarketMetrics(input?: { batchSize?: number }): Promise<number> {
+  async refreshStaleInstrumentDerivedMetrics(input?: { batchSize?: number; skipRiskMetrics?: boolean }): Promise<number> {
     const batchSize = Math.max(1, input?.batchSize ?? 12);
     const instruments = await this.repository.listInstruments({ isActive: true });
     const instrumentIds = instruments.map((instrument) => instrument.id);
@@ -572,7 +573,7 @@ export class InstrumentMarketService {
       .map((instrument) => instrument.id);
 
     if (selectedInstrumentIds.length === 0) return 0;
-    await this.repository.refreshInstrumentMarketMetrics(selectedInstrumentIds);
+    await refreshDerivedMetrics(this.repository, selectedInstrumentIds, { skipRiskMetrics: Boolean(input?.skipRiskMetrics) });
     return selectedInstrumentIds.length;
   }
 

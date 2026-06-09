@@ -298,6 +298,7 @@ test("history coverage uses derived market metrics instead of raw price stats wh
 test("history backfill repairs missing derived metrics when raw prices are already fresh", async () => {
   const staleInstrument = instrument("SYK", { assetClass: "stock", instrumentType: "stock", assetCategory: "EQUITY" });
   const repairedIds: string[][] = [];
+  const repairedRiskIds: string[][] = [];
   const repository = {
     async listInstruments() {
       return [staleInstrument];
@@ -310,6 +311,9 @@ test("history backfill repairs missing derived metrics when raw prices are alrea
     },
     async refreshInstrumentMarketMetrics(ids: string[]) {
       repairedIds.push(ids);
+    },
+    async refreshInstrumentRiskMetrics(ids: string[]) {
+      repairedRiskIds.push(ids);
     }
   } as unknown as UniverseRepository;
   const provider = {
@@ -325,6 +329,45 @@ test("history backfill repairs missing derived metrics when raw prices are alrea
   assert.deepEqual(result.requestedSymbols, []);
   assert.equal(result.derivedMetricsRefreshed, 1);
   assert.deepEqual(repairedIds, [[staleInstrument.id]]);
+  assert.deepEqual(repairedRiskIds, [[staleInstrument.id]]);
+  assert.match(result.message, /Rebuilt derived market and risk metrics for 1 instrument/);
+});
+
+test("price refresh can repair stale market metrics without risk when risk is skipped", async () => {
+  const staleInstrument = instrument("SYK", { assetClass: "stock", instrumentType: "stock", assetCategory: "EQUITY" });
+  const repairedIds: string[][] = [];
+  const repairedRiskIds: string[][] = [];
+  const repository = {
+    async listInstruments() {
+      return [staleInstrument];
+    },
+    async listInstrumentPriceStats() {
+      return [{ instrumentId: staleInstrument.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2999-01-01", observationCount: 1200 }];
+    },
+    async listInstrumentMarketMetrics() {
+      return [];
+    },
+    async refreshInstrumentMarketMetrics(ids: string[]) {
+      repairedIds.push(ids);
+    },
+    async refreshInstrumentRiskMetrics(ids: string[]) {
+      repairedRiskIds.push(ids);
+    }
+  } as unknown as UniverseRepository;
+  const provider = {
+    name: "financial_modeling_prep",
+    async getHistoricalPrices() {
+      throw new Error("fresh raw prices should not be fetched again");
+    }
+  } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const result = await service.refreshInstrumentPricesInBatches({ batchSize: 8, maxBatches: 1, skipRiskMetrics: true });
+
+  assert.deepEqual(result.requestedSymbols, []);
+  assert.equal(result.derivedMetricsRefreshed, 1);
+  assert.deepEqual(repairedIds, [[staleInstrument.id]]);
+  assert.deepEqual(repairedRiskIds, []);
   assert.match(result.message, /Rebuilt derived market metrics for 1 instrument/);
 });
 
