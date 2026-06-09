@@ -15,6 +15,7 @@ function testDaysBeforeIso(isoDate: string, days: number) {
 
 function testLatestExpectedEodDate() {
   const date = new Date();
+  date.setUTCHours(date.getUTCHours() + 8);
   date.setUTCDate(date.getUTCDate() - 1);
   while (date.getUTCDay() === 0 || date.getUTCDay() === 6) {
     date.setUTCDate(date.getUTCDate() - 1);
