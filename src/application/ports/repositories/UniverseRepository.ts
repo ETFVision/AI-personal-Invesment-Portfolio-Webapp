@@ -115,6 +115,7 @@ export interface UniverseRepository {
   insertMetadataRefreshLog(input: Omit<MetadataRefreshLog, "id" | "createdAt">): Promise<void>;
   listInstrumentPrices(instrumentIds?: string[], sinceDate?: string): Promise<InstrumentPrice[]>;
   listInstrumentPriceStats(instrumentIds?: string[]): Promise<InstrumentPriceStats[]>;
+  refreshInstrumentDailyReturns(instrumentIds?: string[]): Promise<void>;
   listInstrumentMarketMetrics(instrumentIds?: string[]): Promise<InstrumentMarketMetric[]>;
   refreshInstrumentMarketMetrics(instrumentIds?: string[]): Promise<void>;
   listInstrumentRiskMetrics(instrumentIds?: string[]): Promise<InstrumentRiskMetric[]>;

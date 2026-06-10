@@ -187,12 +187,14 @@ async function refreshDerivedMetrics(
 ) {
   if (instrumentIds.length === 0) return;
   if (!options?.oneInstrumentAtATime) {
+    await repository.refreshInstrumentDailyReturns(instrumentIds);
     await repository.refreshInstrumentMarketMetrics(instrumentIds);
     if (!options?.skipRiskMetrics) await repository.refreshInstrumentRiskMetrics(instrumentIds);
     return;
   }
 
   for (const instrumentId of instrumentIds) {
+    await repository.refreshInstrumentDailyReturns([instrumentId]);
     await repository.refreshInstrumentMarketMetrics([instrumentId]);
     if (!options?.skipRiskMetrics) await repository.refreshInstrumentRiskMetrics([instrumentId]);
   }

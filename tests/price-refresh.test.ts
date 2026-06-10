@@ -130,6 +130,7 @@ function riskPriceRows(instrumentId: string, count = 80) {
 test("instrument price refresh maps BRK.B to the FMP provider symbol BRK-B", async () => {
   const requestedBatches: string[][] = [];
   const storedRows: Array<{ instrumentId: string; symbol: string }> = [];
+  const dailyReturnRefreshes: string[][] = [];
   const marketMetricRefreshes: string[][] = [];
   const riskMetricRefreshes: string[][] = [];
   const repository = {
@@ -141,6 +142,9 @@ test("instrument price refresh maps BRK.B to the FMP provider symbol BRK-B", asy
     },
     async upsertInstrumentPrices(input: Array<{ instrumentId: string; symbol: string }>) {
       storedRows.push(...input);
+    },
+    async refreshInstrumentDailyReturns(ids: string[]) {
+      dailyReturnRefreshes.push(ids);
     },
     async refreshInstrumentMarketMetrics(ids: string[]) {
       marketMetricRefreshes.push(ids);
@@ -164,6 +168,7 @@ test("instrument price refresh maps BRK.B to the FMP provider symbol BRK-B", asy
   assert.equal(result.updatedCount, 1);
   assert.equal(storedRows[0]?.instrumentId, "inst-BRK.B");
   assert.equal(storedRows[0]?.symbol, "BRK-B");
+  assert.deepEqual(dailyReturnRefreshes, [["inst-BRK.B"]]);
   assert.deepEqual(marketMetricRefreshes, [["inst-BRK.B"]]);
   assert.deepEqual(riskMetricRefreshes, []);
 });
@@ -310,6 +315,7 @@ test("history backfill repairs missing derived metrics when raw prices are alrea
     async listInstrumentMarketMetrics() {
       return [];
     },
+    async refreshInstrumentDailyReturns() {},
     async refreshInstrumentMarketMetrics(ids: string[]) {
       repairedIds.push(ids);
     },
@@ -348,6 +354,7 @@ test("price refresh can repair stale market metrics without risk when risk is sk
     async listInstrumentMarketMetrics() {
       return [];
     },
+    async refreshInstrumentDailyReturns() {},
     async refreshInstrumentMarketMetrics(ids: string[]) {
       repairedIds.push(ids);
     },
@@ -383,6 +390,7 @@ test("history backfill refreshes coverage metrics without running heavy risk met
       return [];
     },
     async upsertInstrumentPrices() {},
+    async refreshInstrumentDailyReturns() {},
     async refreshInstrumentMarketMetrics(ids: string[]) {
       marketMetricRefreshes.push(ids);
     },
@@ -423,6 +431,7 @@ test("history backfill selects stale end dates for recent catch-up", async () =>
       ];
     },
     async upsertInstrumentPrices() {},
+    async refreshInstrumentDailyReturns() {},
     async refreshInstrumentMarketMetrics() {},
     async refreshInstrumentRiskMetrics() {}
   } as unknown as UniverseRepository;
@@ -458,6 +467,7 @@ test("history backfill skips current shorter-lived instruments with available hi
       ];
     },
     async upsertInstrumentPrices() {},
+    async refreshInstrumentDailyReturns() {},
     async refreshInstrumentMarketMetrics() {},
     async refreshInstrumentRiskMetrics() {}
   } as unknown as UniverseRepository;
@@ -493,6 +503,7 @@ test("history backfill tolerates one-day historical EOD lag and fills the batch 
       ];
     },
     async upsertInstrumentPrices() {},
+    async refreshInstrumentDailyReturns() {},
     async refreshInstrumentMarketMetrics() {},
     async refreshInstrumentRiskMetrics() {}
   } as unknown as UniverseRepository;

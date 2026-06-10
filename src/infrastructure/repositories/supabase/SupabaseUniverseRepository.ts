@@ -39,6 +39,7 @@ function isMissingMetricsSupport(error: { code?: string; message?: string } | nu
     error &&
       (error.code === "42P01" ||
         error.code === "42883" ||
+        error.message?.toLowerCase().includes("instrument_daily_returns") ||
         error.message?.toLowerCase().includes("instrument_market_metrics") ||
         error.message?.toLowerCase().includes("instrument_risk_metrics") ||
         error.message?.toLowerCase().includes("refresh_instrument_market_metrics"))
@@ -478,6 +479,14 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     if (isMissingMetricsSupport(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapInstrumentMarketMetric);
+  }
+
+  async refreshInstrumentDailyReturns(instrumentIds?: string[]) {
+    const { error } = await this.db.rpc("refresh_instrument_daily_returns", {
+      target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
+    });
+    if (isMissingMetricsSupport(error)) return;
+    if (error) throw new Error(error.message);
   }
 
   async refreshInstrumentMarketMetrics(instrumentIds?: string[]) {
