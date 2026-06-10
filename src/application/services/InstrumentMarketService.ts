@@ -719,9 +719,12 @@ export class InstrumentMarketService {
     const batchSize = Math.max(1, input?.batchSize ?? 10);
     const minObservations = Math.max(1, input?.minObservations ?? 30);
     const instruments = await this.repository.listInstruments({ isActive: true });
-    const stats = await this.repository.listInstrumentPriceStats(instruments.map((instrument) => instrument.id));
-    const riskMetrics = await this.repository.listInstrumentRiskMetrics(instruments.map((instrument) => instrument.id));
-    const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
+    const instrumentIds = instruments.map((instrument) => instrument.id);
+    const [anchors, riskMetrics] = await Promise.all([
+      this.repository.listInstrumentReturnAnchors(instrumentIds),
+      this.repository.listInstrumentRiskMetrics(instrumentIds)
+    ]);
+    const anchorsByInstrumentId = new Map(anchors.map((item) => [item.instrumentId, item]));
     const riskByInstrumentId = new Map<string, (typeof riskMetrics)[number]>();
     for (const riskMetric of riskMetrics) {
       if (!riskByInstrumentId.has(riskMetric.instrumentId)) {
@@ -730,12 +733,12 @@ export class InstrumentMarketService {
     }
     const selected = instruments
       .filter((instrument) => {
-        const stat = statsByInstrumentId.get(instrument.id);
-        if ((stat?.observationCount ?? 0) < minObservations) return false;
+        const anchor = anchorsByInstrumentId.get(instrument.id);
+        if (!anchor?.asOfDate) return false;
+        if ((anchor.observationCount ?? 0) < minObservations) return false;
         const riskMetric = riskByInstrumentId.get(instrument.id);
         if (!riskMetric) return true;
-        if (!stat?.latestPriceDate) return false;
-        return !riskMetric.metricDate || riskMetric.metricDate < stat.latestPriceDate;
+        return !riskMetric.metricDate || riskMetric.metricDate < anchor.asOfDate;
       })
       .slice()
       .sort((a, b) => {
@@ -776,7 +779,7 @@ export class InstrumentMarketService {
 
   private async refreshInstrumentRiskMetricsForInstrument(instrument: Instrument): Promise<void> {
     try {
-      await this.repository.refreshInstrumentRiskMetrics([instrument.id]);
+      await this.repository.refreshInstrumentRiskMetricsOnly([instrument.id]);
       return;
     } catch (error) {
       if (!isStatementTimeoutError(error)) throw error;

@@ -490,7 +490,7 @@ export class SupabaseUniverseRepository implements UniverseRepository {
   }
 
   async listInstrumentReturnAnchors(instrumentIds?: string[]) {
-    let query = this.db.from("instrument_return_anchors").select("instrument_id, as_of_date");
+    let query = this.db.from("instrument_return_anchors").select("instrument_id, as_of_date, observation_count");
     if (instrumentIds && instrumentIds.length > 0) {
       query = query.in("instrument_id", instrumentIds);
     }
@@ -500,7 +500,8 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     if (error) throw new Error(error.message);
     return (data ?? []).map((row) => ({
       instrumentId: String(row.instrument_id),
-      asOfDate: row.as_of_date ? String(row.as_of_date) : null
+      asOfDate: row.as_of_date ? String(row.as_of_date) : null,
+      observationCount: typeof row.observation_count === "number" ? row.observation_count : null
     }));
   }
 
@@ -548,6 +549,20 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     if (error) throw new Error(error.message);
 
     const { error: periodError } = await this.db.rpc("refresh_instrument_risk_period_drawdowns", {
+      target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
+    });
+    if (isMissingMetricsSupport(periodError)) return;
+    if (periodError) throw new Error(periodError.message);
+  }
+
+  async refreshInstrumentRiskMetricsOnly(instrumentIds?: string[]) {
+    const { error } = await this.db.rpc("refresh_instrument_risk_metrics_only", {
+      target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
+    });
+    if (isMissingMetricsSupport(error)) return;
+    if (error) throw new Error(error.message);
+
+    const { error: periodError } = await this.db.rpc("refresh_instrument_risk_period_drawdowns_only", {
       target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
     });
     if (isMissingMetricsSupport(periodError)) return;
