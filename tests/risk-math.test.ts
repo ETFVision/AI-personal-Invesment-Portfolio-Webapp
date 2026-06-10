@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CorrelationService } from "../src/application/services/risk/CorrelationService";
+import { VolatilityService } from "../src/application/services/risk/VolatilityService";
 import {
   annualizedVolatility,
   calculateDrawdown,
@@ -11,7 +12,7 @@ import {
   diversificationScore,
   syntheticPortfolioDrawdown
 } from "../src/application/services/risk/riskMath";
-import type { HoldingSnapshot } from "../src/domain/portfolio/types";
+import type { HoldingSnapshot, PortfolioSnapshot } from "../src/domain/portfolio/types";
 
 function holdingSnapshot(input: Partial<HoldingSnapshot>): HoldingSnapshot {
   return {
@@ -26,6 +27,18 @@ function holdingSnapshot(input: Partial<HoldingSnapshot>): HoldingSnapshot {
     costBasis: input.costBasis ?? null,
     unrealizedGainLoss: input.unrealizedGainLoss ?? null,
     currency: input.currency ?? "USD"
+  };
+}
+
+function portfolioSnapshot(date: string, totalValue: number): PortfolioSnapshot {
+  return {
+    id: `portfolio-${date}`,
+    portfolioId: "portfolio",
+    snapshotDate: date,
+    totalValue,
+    cashValue: 0,
+    investedValue: totalValue,
+    currency: "USD"
   };
 }
 
@@ -52,6 +65,25 @@ test("annualized volatility uses the requested window and sqrt 252 scaling", () 
 
   const value = annualizedVolatility(returns, 4);
   assert.ok(value != null && value > 0.25);
+});
+
+test("portfolio volatility excludes implausible account setup jumps", () => {
+  const service = new VolatilityService();
+  const result = service.calculatePortfolioVolatility([
+    portfolioSnapshot("2026-05-27", 16_900.1),
+    portfolioSnapshot("2026-05-28", 16_899.6),
+    portfolioSnapshot("2026-05-29", 2_279_833.5),
+    portfolioSnapshot("2026-06-01", 2_287_160.45),
+    portfolioSnapshot("2026-06-02", 2_289_598),
+    portfolioSnapshot("2026-06-03", 2_289_598),
+    portfolioSnapshot("2026-06-04", 2_257_426.35)
+  ]);
+
+  const vol30 = result.metrics.find((metric) => metric.label === "30D")?.value;
+
+  assert.equal(result.excludedJumpCount, 1);
+  assert.ok(result.largestExcludedJump != null && result.largestExcludedJump > 100);
+  assert.ok(vol30 != null && vol30 < 0.2);
 });
 
 test("drawdown captures current drawdown, max drawdown, and duration", () => {

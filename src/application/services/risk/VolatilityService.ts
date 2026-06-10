@@ -1,5 +1,5 @@
-import { PortfolioSnapshot } from "@/domain/portfolio/types";
-import { annualizedVolatility, calculateReturns } from "@/application/services/risk/riskMath";
+import type { PortfolioSnapshot } from "@/domain/portfolio/types";
+import { annualizedVolatility, calculateReturns } from "./riskMath";
 
 export type VolatilityMetric = {
   label: "30D" | "90D" | "1Y";
@@ -11,13 +11,17 @@ export class VolatilityService {
   calculatePortfolioVolatility(snapshots: PortfolioSnapshot[]): {
     metrics: VolatilityMetric[];
     trend: Array<{ date: string; volatility: number | null }>;
+    excludedJumpCount: number;
+    largestExcludedJump: number | null;
   } {
-    const returns = calculateReturns(
+    const rawReturns = calculateReturns(
       snapshots.map((snapshot) => ({
         date: snapshot.snapshotDate,
         value: snapshot.totalValue
       }))
     );
+    const excludedReturns = rawReturns.filter((point) => Math.abs(point.value) > 1);
+    const returns = rawReturns.filter((point) => Math.abs(point.value) <= 1);
 
     return {
       metrics: [
@@ -28,7 +32,11 @@ export class VolatilityService {
       trend: returns.map((point, index) => ({
         date: point.date,
         volatility: annualizedVolatility(returns.slice(0, index + 1), 30)
-      }))
+      })),
+      excludedJumpCount: excludedReturns.length,
+      largestExcludedJump: excludedReturns.length === 0
+        ? null
+        : excludedReturns.reduce((largest, point) => Math.abs(point.value) > Math.abs(largest) ? point.value : largest, excludedReturns[0].value)
     };
   }
 }

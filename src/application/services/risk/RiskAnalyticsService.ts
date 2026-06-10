@@ -13,7 +13,7 @@ import { DiversificationService } from "@/application/services/risk/Diversificat
 import { DrawdownService } from "@/application/services/risk/DrawdownService";
 import { VolatilityService } from "@/application/services/risk/VolatilityService";
 
-export const RISK_TAXONOMY_VERSION = "canonical-taxonomy-v1";
+export const RISK_TAXONOMY_VERSION = "canonical-taxonomy-v2";
 export type RiskAnalyticsReport = ReturnType<RiskAnalyticsService["calculateRiskAnalytics"]>;
 
 function returnsByAssetId(dailyPrices: DailyPrice[]) {
@@ -175,6 +175,7 @@ export class RiskAnalyticsService {
       topFiveConcentration > 0.65 ? "Top five holdings exceed 65% of invested assets." : null,
       correlations.highCorrelationPairs.length > 0 ? "Some holdings are highly correlated and may not diversify each other." : null,
       input.portfolioSnapshots.length < 30 ? "Portfolio has fewer than 30 snapshots, so volatility and drawdown are preliminary." : null,
+      volatility.excludedJumpCount > 0 ? "Portfolio snapshot volatility excludes implausible account-value jumps that look like funding or setup artifacts." : null,
       dashboard.cashPercent > 0.5 ? "Cash is more than half of portfolio value." : null,
       !useCovariance ? "Volatility contribution is using proxy estimates until enough overlapping daily price history exists." : null
     ].filter((warning): warning is string => Boolean(warning));
