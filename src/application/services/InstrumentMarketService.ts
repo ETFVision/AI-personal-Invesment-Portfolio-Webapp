@@ -585,6 +585,62 @@ export class InstrumentMarketService {
     };
   }
 
+  async refreshInstrumentDailyReturnsInBatches(input?: { batchSize?: number; maxBatches?: number }): Promise<RefreshInstrumentPricesResult> {
+    const batchSize = Math.max(1, input?.batchSize ?? 25);
+    const maxBatches = Math.max(1, input?.maxBatches ?? 3);
+    const instruments = await this.repository.listInstruments({ isActive: true });
+    const selected = instruments.slice(0, batchSize * maxBatches);
+    const instrumentIds = selected.map((instrument) => instrument.id);
+
+    if (instrumentIds.length === 0) {
+      return {
+        requestedSymbols: [],
+        updatedCount: 0,
+        missingSymbols: [],
+        errors: [],
+        message: "No active instruments were found for daily returns refresh."
+      };
+    }
+
+    await this.repository.refreshInstrumentDailyReturns(instrumentIds);
+
+    return {
+      requestedSymbols: selected.map((instrument) => instrument.symbol ?? instrument.id),
+      updatedCount: selected.length,
+      missingSymbols: [],
+      errors: [],
+      message: `Refreshed daily returns for ${selected.length} instrument${selected.length === 1 ? "" : "s"}.`
+    };
+  }
+
+  async refreshInstrumentReturnAnchorsInBatches(input?: { batchSize?: number; maxBatches?: number }): Promise<RefreshInstrumentPricesResult> {
+    const batchSize = Math.max(1, input?.batchSize ?? 25);
+    const maxBatches = Math.max(1, input?.maxBatches ?? 3);
+    const instruments = await this.repository.listInstruments({ isActive: true });
+    const selected = instruments.slice(0, batchSize * maxBatches);
+    const instrumentIds = selected.map((instrument) => instrument.id);
+
+    if (instrumentIds.length === 0) {
+      return {
+        requestedSymbols: [],
+        updatedCount: 0,
+        missingSymbols: [],
+        errors: [],
+        message: "No active instruments were found for return anchors refresh."
+      };
+    }
+
+    await this.repository.refreshInstrumentReturnAnchors(instrumentIds);
+
+    return {
+      requestedSymbols: selected.map((instrument) => instrument.symbol ?? instrument.id),
+      updatedCount: selected.length,
+      missingSymbols: [],
+      errors: [],
+      message: `Refreshed return anchors for ${selected.length} instrument${selected.length === 1 ? "" : "s"}.`
+    };
+  }
+
   async refreshStaleInstrumentDerivedMetrics(input?: { batchSize?: number; skipRiskMetrics?: boolean }): Promise<number> {
     const batchSize = Math.max(1, input?.batchSize ?? 12);
     const instruments = await this.repository.listInstruments({ isActive: true });
