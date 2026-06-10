@@ -591,6 +591,7 @@ export class InstrumentMarketService {
     const instruments = await this.repository.listInstruments({ isActive: true });
     const selected = instruments.slice(0, batchSize * maxBatches);
     const instrumentIds = selected.map((instrument) => instrument.id);
+    const rpcChunkSize = Math.min(batchSize, 25);
 
     if (instrumentIds.length === 0) {
       return {
@@ -602,7 +603,9 @@ export class InstrumentMarketService {
       };
     }
 
-    await this.repository.refreshInstrumentDailyReturns(instrumentIds);
+    for (let index = 0; index < instrumentIds.length; index += rpcChunkSize) {
+      await this.repository.refreshInstrumentDailyReturns(instrumentIds.slice(index, index + rpcChunkSize));
+    }
 
     return {
       requestedSymbols: selected.map((instrument) => instrument.symbol ?? instrument.id),
@@ -619,6 +622,7 @@ export class InstrumentMarketService {
     const instruments = await this.repository.listInstruments({ isActive: true });
     const selected = instruments.slice(0, batchSize * maxBatches);
     const instrumentIds = selected.map((instrument) => instrument.id);
+    const rpcChunkSize = Math.min(batchSize, 25);
 
     if (instrumentIds.length === 0) {
       return {
@@ -630,7 +634,9 @@ export class InstrumentMarketService {
       };
     }
 
-    await this.repository.refreshInstrumentReturnAnchors(instrumentIds);
+    for (let index = 0; index < instrumentIds.length; index += rpcChunkSize) {
+      await this.repository.refreshInstrumentReturnAnchors(instrumentIds.slice(index, index + rpcChunkSize));
+    }
 
     return {
       requestedSymbols: selected.map((instrument) => instrument.symbol ?? instrument.id),
