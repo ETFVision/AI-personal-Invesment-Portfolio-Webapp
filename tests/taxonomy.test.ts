@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { TaxonomyService } from "../src/application/services/taxonomy/TaxonomyService";
+import { buildPortfolioExposureContext } from "../src/application/services/portfolio/PortfolioExposureContextService";
 import {
   ALPHA_ETF_CATEGORIES,
   ALPHA_ETF_SYMBOLS,
@@ -111,4 +112,49 @@ test("stock sector taxonomy maps approved alpha stocks by symbol", () => {
   assert.equal(alphaStockSectorForSymbol("PYPL"), "Financials");
   assert.equal(alphaStockSectorForSymbol("BA"), "Industrials");
   assert.equal(alphaStockSectorForSymbol("NEE"), "Utilities");
+});
+
+test("portfolio exposure context prefers ETF look-through sectors over direct ETF taxonomy", () => {
+  const dashboard = {
+    allocationByType: [{ label: "ETF", value: 100, percent: 1 }],
+    allocationBySector: [{ label: "Multi-Asset / Broad Market", value: 100, percent: 1 }],
+    allocationByGeography: [{ label: "United States", value: 100, percent: 1 }]
+  } as any;
+  const report = {
+    inputsSnapshot: {
+      lookthroughExposure: {
+        sectorExposures: [
+          { exposureType: "sector", exposureName: "Technology", exposureWeight: 0.32, directWeight: 0, etfLookthroughWeight: 0.32 },
+          { exposureType: "sector", exposureName: "Financials", exposureWeight: 0.14, directWeight: 0, etfLookthroughWeight: 0.14 }
+        ],
+        countryExposures: [
+          { exposureType: "country", exposureName: "US", exposureWeight: 0.72, directWeight: 0, etfLookthroughWeight: 0.72 }
+        ],
+        coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 }
+      }
+    }
+  };
+
+  const context = buildPortfolioExposureContext(dashboard, report as any);
+
+  assert.equal(context.sectorSource, "lookthrough");
+  assert.equal(context.geographySource, "lookthrough");
+  assert.equal(context.sectorAllocation[0].label, "Technology");
+  assert.equal(context.geographyAllocation[0].label, "United States");
+  assert.notEqual(context.sectorAllocation[0].label, "Multi-Asset / Broad Market");
+});
+
+test("portfolio exposure context keeps direct fallback when look-through is unavailable", () => {
+  const dashboard = {
+    allocationByType: [{ label: "ETF", value: 100, percent: 1 }],
+    allocationBySector: [{ label: "Multi-Asset / Broad Market", value: 100, percent: 1 }],
+    allocationByGeography: [{ label: "United States", value: 100, percent: 1 }]
+  } as any;
+
+  const context = buildPortfolioExposureContext(dashboard, null);
+
+  assert.equal(context.sectorSource, "direct_metadata");
+  assert.equal(context.geographySource, "direct_metadata");
+  assert.equal(context.sectorAllocation[0].label, "Multi-Asset / Broad Market");
+  assert.ok(context.diagnostics.some((item) => item.includes("direct metadata fallback")));
 });

@@ -14,7 +14,7 @@ import { DiversificationService } from "@/application/services/risk/Diversificat
 import { DrawdownService } from "@/application/services/risk/DrawdownService";
 import { VolatilityService } from "@/application/services/risk/VolatilityService";
 
-export const RISK_TAXONOMY_VERSION = "canonical-taxonomy-v3";
+export const RISK_TAXONOMY_VERSION = "canonical-taxonomy-v4-lookthrough-exposure";
 export type RiskAnalyticsReport = ReturnType<RiskAnalyticsService["calculateRiskAnalytics"]>;
 
 function returnsByAssetId(dailyPrices: DailyPrice[]) {

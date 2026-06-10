@@ -64,6 +64,7 @@ import { EtfExposureProviderService } from "@/application/services/etfLookthroug
 import { EtfLookthroughRefreshService } from "@/application/services/etfLookthrough/EtfLookthroughRefreshService";
 import { EtfLookthroughService } from "@/application/services/etfLookthrough/EtfLookthroughService";
 import { PortfolioLookthroughExposureService } from "@/application/services/etfLookthrough/PortfolioLookthroughExposureService";
+import { buildPortfolioExposureContext } from "@/application/services/portfolio/PortfolioExposureContextService";
 import { PerformanceService } from "@/application/services/PerformanceService";
 import { BondService } from "@/application/services/bonds/BondService";
 import { RiskAnalyticsService } from "@/application/services/risk/RiskAnalyticsService";
@@ -260,7 +261,8 @@ export function createContainer() {
     universeRepository,
     benchmarkRepository,
     portfolioRepository,
-    riskAnalyticsService
+    riskAnalyticsService,
+    portfolioReviewRepository
   );
   const portfolioService = new PortfolioService(
     portfolioRepository,
@@ -277,6 +279,8 @@ export function createContainer() {
     marketVisionAiProvider,
     {
       getPortfolioDashboard: (portfolioId) => portfolioService.getDashboard(portfolioId),
+      getPortfolioExposureContext: async (portfolioId, dashboard) =>
+        buildPortfolioExposureContext(dashboard, await portfolioReviewRepository.getLatestReportSummary(portfolioId)),
       getBondAnalytics: (dashboard) => bondService.getPortfolioBondAnalytics(dashboard),
       getRiskAnalytics: (portfolioId, dashboard) => riskAnalyticsDataService.buildReport(portfolioId, dashboard)
     },
@@ -301,7 +305,8 @@ export function createContainer() {
     marketVisionRepository,
     portfolioRepository,
     portfolioService,
-    telemetrySnapshotService
+    telemetrySnapshotService,
+    portfolioReviewRepository
   );
   const portfolioReviewService = new PortfolioReviewService(
     portfolioReviewRepository,

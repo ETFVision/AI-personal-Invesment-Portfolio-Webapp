@@ -1,5 +1,6 @@
 import type { PortfolioDashboard } from "@/domain/portfolio/types";
 import type { Instrument } from "@/domain/universe/types";
+import type { PortfolioExposureContext } from "../portfolio/PortfolioExposureContextService";
 
 export type PortfolioFitResult = {
   score: number | null;
@@ -15,7 +16,7 @@ function normalize(value: string | null | undefined) {
 }
 
 export class PortfolioFitService {
-  assess(instrument: Instrument, dashboard: PortfolioDashboard | null): PortfolioFitResult {
+  assess(instrument: Instrument, dashboard: PortfolioDashboard | null, exposureContext?: PortfolioExposureContext | null): PortfolioFitResult {
     if (!dashboard || dashboard.totalValueEstimate <= 0) {
       return {
         score: null,
@@ -32,7 +33,8 @@ export class PortfolioFitService {
     const directValue = matchingValuations.reduce((sum, valuation) => sum + valuation.value, 0);
     const concentrationPercent = directValue / dashboard.totalValueEstimate;
     const sector = instrument.canonicalSector ?? instrument.sector;
-    const sectorAllocation = sector ? dashboard.allocationBySector.find((item) => item.label.toLowerCase() === sector.toLowerCase())?.percent ?? 0 : 0;
+    const sectorAllocations = exposureContext?.sectorAllocation ?? dashboard.allocationBySector;
+    const sectorAllocation = sector ? sectorAllocations.find((item) => item.label.toLowerCase() === sector.toLowerCase())?.percent ?? 0 : 0;
     const duplicateExposure = matchingValuations.length > 0 || sectorAllocation > 0.35;
 
     let score = 65;
@@ -61,7 +63,9 @@ export class PortfolioFitService {
       duplicateExposure,
       positiveDrivers,
       negativeDrivers,
-      dataLimitations: []
+      dataLimitations: exposureContext?.sectorSource === "direct_metadata"
+        ? ["Portfolio fit uses direct sector metadata because ETF look-through sector exposure is unavailable."]
+        : []
     };
   }
 }

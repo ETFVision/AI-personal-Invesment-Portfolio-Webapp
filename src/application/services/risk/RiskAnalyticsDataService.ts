@@ -1,11 +1,13 @@
 import { AnalyticsRepository } from "@/application/ports/repositories/AnalyticsRepository";
 import { BenchmarkRepository } from "@/application/ports/repositories/BenchmarkRepository";
 import { MarketDataRepository } from "@/application/ports/repositories/MarketDataRepository";
+import type { PortfolioReviewRepository } from "@/application/ports/repositories/PortfolioReviewRepository";
 import { PortfolioRepository } from "@/application/ports/repositories/PortfolioRepository";
 import { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
 import { BenchmarkComparison, BenchmarkSnapshot, DailyPrice, HoldingSnapshot, PortfolioDashboard } from "@/domain/portfolio/types";
 import { Instrument, InstrumentPrice } from "@/domain/universe/types";
 import { RiskAnalyticsReport, RiskAnalyticsService } from "@/application/services/risk/RiskAnalyticsService";
+import { buildPortfolioExposureContext, dashboardWithExposureContext } from "../portfolio/PortfolioExposureContextService";
 
 function yearsAgoIso(years: number) {
   const date = new Date();
@@ -171,7 +173,8 @@ export class RiskAnalyticsDataService {
     private readonly universeRepository: UniverseRepository,
     private readonly benchmarkRepository: BenchmarkRepository,
     private readonly portfolioRepository: PortfolioRepository,
-    private readonly riskAnalyticsService: RiskAnalyticsService
+    private readonly riskAnalyticsService: RiskAnalyticsService,
+    private readonly portfolioReviewRepository?: PortfolioReviewRepository
   ) {}
 
   async buildReport(portfolioId: string, dashboard: PortfolioDashboard): Promise<RiskAnalyticsReport> {
@@ -184,12 +187,13 @@ export class RiskAnalyticsDataService {
       )
     );
 
-    const [portfolioSnapshots, holdingSnapshots, dailyPrices, universeInstruments, transactions] = await Promise.all([
+    const [portfolioSnapshots, holdingSnapshots, dailyPrices, universeInstruments, transactions, latestPortfolioReview] = await Promise.all([
       this.analyticsRepository.listPortfolioSnapshots(portfolioId, 1400),
       this.analyticsRepository.listHoldingSnapshots(portfolioId, 1400),
       this.marketDataRepository.listDailyPricesForAssets(assetIds, yearsAgoIso(5)),
       this.universeRepository.listInstruments(),
-      this.portfolioRepository.listTransactions(portfolioId)
+      this.portfolioRepository.listTransactions(portfolioId),
+      this.portfolioReviewRepository ? this.portfolioReviewRepository.getLatestReportSummary(portfolioId) : Promise.resolve(null)
     ]);
 
     const holdingsBySymbol = new Map(
@@ -268,9 +272,13 @@ export class RiskAnalyticsDataService {
     const fallbackHoldingSnapshots = holdingSnapshots.filter((snapshot) => !holdingsWithUniverseHistory.has(snapshot.holdingId));
 
     const canonicalDashboard = dashboardWithCanonicalSectors(dashboard, matchedUniverseInstruments);
+    const exposureDashboard = dashboardWithExposureContext(
+      canonicalDashboard,
+      buildPortfolioExposureContext(canonicalDashboard, latestPortfolioReview)
+    );
 
     return this.riskAnalyticsService.calculateRiskAnalytics({
-      dashboard: canonicalDashboard,
+      dashboard: exposureDashboard,
       portfolioSnapshots,
       holdingSnapshots: [...fallbackHoldingSnapshots, ...universeHoldingSnapshots],
       dailyPrices: [...dailyPrices, ...universeDailyPrices],

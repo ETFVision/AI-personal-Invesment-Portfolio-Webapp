@@ -14,6 +14,7 @@ import type {
 } from "@/domain/marketVision/types";
 import type { PortfolioDashboard } from "@/domain/portfolio/types";
 import { emptyPortfolioImplications } from "./MarketVisionService";
+import { buildPortfolioExposureContext, dashboardWithExposureContext, type PortfolioExposureContext } from "../portfolio/PortfolioExposureContextService";
 
 export const MARKET_VISION_PROMPT_VERSION = "market-vision-v2";
 
@@ -21,6 +22,7 @@ type OptionalPortfolioServices = {
   getPortfolioDashboard?: (portfolioId: string) => Promise<PortfolioDashboard>;
   getBondAnalytics?: (dashboard: PortfolioDashboard) => Promise<unknown>;
   getRiskAnalytics?: (portfolioId: string, dashboard: PortfolioDashboard) => Promise<unknown>;
+  getPortfolioExposureContext?: (portfolioId: string, dashboard: PortfolioDashboard) => Promise<PortfolioExposureContext>;
 };
 
 function toString(value: unknown, fallback = "") {
@@ -844,7 +846,7 @@ function portfolioExposureGuidance(flags: PortfolioExposureFlags | null) {
   };
 }
 
-function portfolioSnapshot(dashboard: PortfolioDashboard | null) {
+function portfolioSnapshot(dashboard: PortfolioDashboard | null, exposureContext?: PortfolioExposureContext | null) {
   if (!dashboard) return null;
   return {
     totalValue: dashboard.totalValueEstimate,
@@ -854,8 +856,14 @@ function portfolioSnapshot(dashboard: PortfolioDashboard | null) {
     baseCurrency: dashboard.portfolio.baseCurrency,
     exposureFlags: portfolioExposureFlags(dashboard),
     assetAllocation: topAllocations(dashboard.allocationByType),
-    sectorAllocation: topAllocations(dashboard.allocationBySector),
-    geographyAllocation: topAllocations(dashboard.allocationByGeography),
+    sectorAllocation: topAllocations(exposureContext?.sectorAllocation ?? dashboard.allocationBySector),
+    geographyAllocation: topAllocations(exposureContext?.geographyAllocation ?? dashboard.allocationByGeography),
+    exposureSources: {
+      sector: exposureContext?.sectorSource ?? "direct_metadata",
+      geography: exposureContext?.geographySource ?? "direct_metadata",
+      lookthroughCoverage: exposureContext?.coverage ?? null,
+      diagnostics: exposureContext?.diagnostics ?? []
+    },
     currencyExposure: topAllocations(dashboard.currencyExposure),
     benchmarkComparisons: dashboard.benchmarkComparisons.slice(0, 7).map((comparison) => ({
       benchmark: comparison.benchmark.name,
@@ -960,12 +968,18 @@ export class MarketVisionGenerationService {
     }
 
     let dashboard: PortfolioDashboard | null = null;
+    let exposureContext: PortfolioExposureContext | null = null;
     let bondAnalytics: unknown = null;
     let riskAnalytics: unknown = null;
     if (input.portfolioId && this.portfolioServices.getPortfolioDashboard) {
       dashboard = await this.portfolioServices.getPortfolioDashboard(input.portfolioId);
+      exposureContext = this.portfolioServices.getPortfolioExposureContext
+        ? await this.portfolioServices.getPortfolioExposureContext(input.portfolioId, dashboard)
+        : buildPortfolioExposureContext(dashboard);
       bondAnalytics = this.portfolioServices.getBondAnalytics ? await this.portfolioServices.getBondAnalytics(dashboard) : null;
-      riskAnalytics = this.portfolioServices.getRiskAnalytics ? await this.portfolioServices.getRiskAnalytics(input.portfolioId, dashboard) : null;
+      riskAnalytics = this.portfolioServices.getRiskAnalytics
+        ? await this.portfolioServices.getRiskAnalytics(input.portfolioId, dashboardWithExposureContext(dashboard, exposureContext))
+        : null;
     }
 
     const [macroDashboard, macroSignals] = await Promise.all([
@@ -1035,7 +1049,7 @@ export class MarketVisionGenerationService {
           explanation: signal.explanation
         }))
       },
-      portfolio: portfolioSnapshot(dashboard),
+      portfolio: portfolioSnapshot(dashboard, exposureContext),
       portfolioExposureFlags: exposureFlags,
       portfolioExposureGuidance: portfolioExposureGuidance(exposureFlags),
       portfolioRelevance: relevance,

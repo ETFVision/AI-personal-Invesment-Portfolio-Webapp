@@ -2,6 +2,7 @@ import type { FundamentalsRepository } from "@/application/ports/repositories/Fu
 import type { MacroIndicatorRepository } from "@/application/ports/repositories/MacroIndicatorRepository";
 import type { MarketVisionRepository } from "@/application/ports/repositories/MarketVisionRepository";
 import type { PortfolioRepository } from "@/application/ports/repositories/PortfolioRepository";
+import type { PortfolioReviewRepository } from "@/application/ports/repositories/PortfolioReviewRepository";
 import type { RecommendationRepository, UpsertInstrumentRecommendationInput } from "@/application/ports/repositories/RecommendationRepository";
 import type { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
 import type { RecommendationDashboard, RecommendationRunType } from "@/domain/recommendations/types";
@@ -17,6 +18,7 @@ import { GoldRecommendationService } from "./GoldRecommendationService";
 import { CryptoRecommendationService } from "./CryptoRecommendationService";
 import type { RecommendationEvaluation } from "./recommendationScoring";
 import type { TelemetrySnapshotService } from "@/application/services/telemetry/TelemetrySnapshotService";
+import { buildPortfolioExposureContext } from "../portfolio/PortfolioExposureContextService";
 
 type RecommendationServiceOptions = {
   maxInstrumentsPerRun?: number;
@@ -66,6 +68,7 @@ export class RecommendationService {
     private readonly portfolioRepository?: PortfolioRepository,
     private readonly portfolioService?: PortfolioService,
     private readonly telemetrySnapshotService?: TelemetrySnapshotService,
+    private readonly portfolioReviewRepository?: PortfolioReviewRepository,
     private readonly options: RecommendationServiceOptions = {}
   ) {}
 
@@ -157,19 +160,21 @@ export class RecommendationService {
 
   private async evaluateInstruments(instruments: Instrument[], portfolioId: string | null) {
     const ids = instruments.map((instrument) => instrument.id);
-    const [marketMetrics, riskMetrics, fundamentalRows, bondProfiles, macroRegime, marketVisionReport, dashboard] = await Promise.all([
+    const [marketMetrics, riskMetrics, fundamentalRows, bondProfiles, macroRegime, marketVisionReport, dashboard, latestPortfolioReview] = await Promise.all([
       this.universeRepository.listInstrumentMarketMetrics(ids),
       this.universeRepository.listInstrumentRiskMetrics(ids),
       this.fundamentalsRepository.listSummaryRows(),
       this.universeRepository.listBondProfiles(),
       this.macroIndicatorRepository.getLatestRegimeSnapshot(),
       this.marketVisionRepository ? this.marketVisionRepository.getLatestPublishedReport() : Promise.resolve(null),
-      this.getPortfolioDashboard(portfolioId)
+      this.getPortfolioDashboard(portfolioId),
+      portfolioId && this.portfolioReviewRepository ? this.portfolioReviewRepository.getLatestReportSummary(portfolioId) : Promise.resolve(null)
     ]);
     const marketById = new Map(marketMetrics.map((item) => [item.instrumentId, item]));
     const riskById = new Map(riskMetrics.map((item) => [item.instrumentId, item]));
     const fundamentalsById = new Map(fundamentalRows.map((item) => [item.instrument.id, item]));
     const bondById = new Map(bondProfiles.map((item) => [item.instrumentId, item]));
+    const exposureContext = dashboard ? buildPortfolioExposureContext(dashboard, latestPortfolioReview) : null;
 
     return instruments.map((instrument) => {
       const recommendationInput = {
@@ -180,7 +185,7 @@ export class RecommendationService {
         bondProfile: bondById.get(instrument.id) ?? null,
         macroRegime,
         marketVisionReport,
-        portfolioFit: this.portfolioFitService.assess(instrument, dashboard)
+        portfolioFit: this.portfolioFitService.assess(instrument, dashboard, exposureContext)
       };
       const type = resolveInstrumentType(instrument);
       if (type === "stock") return this.stockService.evaluate(recommendationInput);
