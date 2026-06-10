@@ -45,6 +45,18 @@ export type InstrumentLatestPriceCoverageSummary = {
   estimatedManualClicks: number;
 };
 
+export type InstrumentMetricLayerCoverageSummary = {
+  totalEligible: number;
+  currentCount: number;
+  staleCount: number;
+  missingCount: number;
+  latestExpectedDate: string;
+  latestLayerDate: string | null;
+  oldestLayerDate: string | null;
+  batchSize: number;
+  estimatedManualClicks: number;
+};
+
 export type RefreshInstrumentRiskMetricsResult = {
   requestedSymbols: string[];
   updatedCount: number;
@@ -173,6 +185,47 @@ function formatDateLabel(date: string | null) {
   return date ? date.slice(0, 10) : "-";
 }
 
+function summarizeLayerDates(
+  instruments: Instrument[],
+  dateByInstrumentId: Map<string, string | null | undefined>,
+  expectedDate: string,
+  batchSize: number
+): InstrumentMetricLayerCoverageSummary {
+  let currentCount = 0;
+  let staleCount = 0;
+  let missingCount = 0;
+  let latestLayerDate: string | null = null;
+  let oldestLayerDate: string | null = null;
+
+  for (const instrument of instruments.filter((item) => item.isActive)) {
+    const layerDate = dateByInstrumentId.get(instrument.id) ?? null;
+    if (!layerDate) {
+      missingCount += 1;
+      continue;
+    }
+    if (!latestLayerDate || layerDate > latestLayerDate) latestLayerDate = layerDate;
+    if (!oldestLayerDate || layerDate < oldestLayerDate) oldestLayerDate = layerDate;
+    if (layerDate >= expectedDate) {
+      currentCount += 1;
+    } else {
+      staleCount += 1;
+    }
+  }
+
+  const totalEligible = instruments.filter((item) => item.isActive).length;
+  return {
+    totalEligible,
+    currentCount,
+    staleCount,
+    missingCount,
+    latestExpectedDate: expectedDate,
+    latestLayerDate,
+    oldestLayerDate,
+    batchSize,
+    estimatedManualClicks: estimateClicks(staleCount + missingCount, batchSize)
+  };
+}
+
 function safeReturn(latest: number | null, baseline: number | null) {
   if (latest == null || baseline == null || !Number.isFinite(latest) || !Number.isFinite(baseline) || baseline === 0) {
     return null;
@@ -239,6 +292,10 @@ function makeDetailFields(instrument: Instrument, latestPriceDate: string | null
 function pickBaseline(series: InstrumentPrice[], cutoffDate: string) {
   const eligible = series.filter((point) => point.priceDate >= cutoffDate);
   return eligible.length > 0 ? eligible[0] : null;
+}
+
+function estimateClicks(count: number, batchSize: number) {
+  return Math.ceil(Math.max(0, count) / Math.max(1, batchSize));
 }
 
 export class InstrumentMarketService {
@@ -1042,6 +1099,62 @@ export class InstrumentMarketService {
       latestExpectedPriceDate: refreshCutoff,
       oldestLatestPriceDate,
       estimatedManualClicks: Math.ceil(actionable / Math.max(1, refreshBatchSize))
+    };
+  }
+
+  async getMetricLayerCoverageSummary(instruments: Instrument[], input?: {
+    dailyReturnsBatchSize?: number;
+    returnAnchorsBatchSize?: number;
+    marketMetricsBatchSize?: number;
+    riskMetricsBatchSize?: number;
+  }): Promise<{
+    dailyReturns: InstrumentMetricLayerCoverageSummary;
+    returnAnchors: InstrumentMetricLayerCoverageSummary;
+    marketMetrics: InstrumentMetricLayerCoverageSummary;
+    riskMetrics: InstrumentMetricLayerCoverageSummary;
+  }> {
+    const activeInstruments = instruments.filter((instrument) => instrument.isActive);
+    const instrumentIds = activeInstruments.map((instrument) => instrument.id);
+    const expectedDate = latestExpectedEodDate();
+    const [dailyReturnStats, anchors, marketMetrics, riskMetrics] = await Promise.all([
+      this.repository.listInstrumentDailyReturnStats(instrumentIds),
+      this.repository.listInstrumentReturnAnchors(instrumentIds),
+      this.repository.listInstrumentMarketMetrics(instrumentIds),
+      this.repository.listInstrumentRiskMetrics(instrumentIds)
+    ]);
+    const latestRiskDateByInstrumentId = new Map<string, string>();
+    for (const riskMetric of riskMetrics) {
+      const latestDate = latestRiskDateByInstrumentId.get(riskMetric.instrumentId);
+      if (!latestDate || riskMetric.metricDate > latestDate) {
+        latestRiskDateByInstrumentId.set(riskMetric.instrumentId, riskMetric.metricDate);
+      }
+    }
+
+    return {
+      dailyReturns: summarizeLayerDates(
+        activeInstruments,
+        new Map(dailyReturnStats.map((item) => [item.instrumentId, item.latestPriceDate])),
+        expectedDate,
+        input?.dailyReturnsBatchSize ?? 350
+      ),
+      returnAnchors: summarizeLayerDates(
+        activeInstruments,
+        new Map(anchors.map((item) => [item.instrumentId, item.asOfDate])),
+        expectedDate,
+        input?.returnAnchorsBatchSize ?? 350
+      ),
+      marketMetrics: summarizeLayerDates(
+        activeInstruments,
+        new Map(marketMetrics.map((item) => [item.instrumentId, item.latestPriceDate])),
+        expectedDate,
+        input?.marketMetricsBatchSize ?? 350
+      ),
+      riskMetrics: summarizeLayerDates(
+        activeInstruments,
+        latestRiskDateByInstrumentId,
+        expectedDate,
+        input?.riskMetricsBatchSize ?? 200
+      )
     };
   }
 

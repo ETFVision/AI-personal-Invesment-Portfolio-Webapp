@@ -543,12 +543,12 @@ test("instrument risk refresh batches missing and stale risk metrics only", asyn
     async listInstruments() {
       return [fresh, missing, stale, sparse];
     },
-    async listInstrumentPriceStats() {
+    async listInstrumentReturnAnchors() {
       return [
-        { instrumentId: fresh.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2026-01-01", observationCount: 500 },
-        { instrumentId: missing.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2026-01-01", observationCount: 500 },
-        { instrumentId: stale.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2026-01-01", observationCount: 500 },
-        { instrumentId: sparse.id, earliestPriceDate: "2026-01-01", latestPriceDate: "2026-01-15", observationCount: 10 }
+        { instrumentId: fresh.id, asOfDate: "2026-01-01", observationCount: 500 },
+        { instrumentId: missing.id, asOfDate: "2026-01-01", observationCount: 500 },
+        { instrumentId: stale.id, asOfDate: "2026-01-01", observationCount: 500 },
+        { instrumentId: sparse.id, asOfDate: "2026-01-15", observationCount: 10 }
       ];
     },
     async listInstrumentRiskMetrics() {
@@ -557,7 +557,7 @@ test("instrument risk refresh batches missing and stale risk metrics only", asyn
         { instrumentId: stale.id, metricDate: "2025-12-31", calculatedAt: "2026-01-01T00:00:00.000Z" }
       ];
     },
-    async refreshInstrumentRiskMetrics(ids: string[]) {
+    async refreshInstrumentRiskMetricsOnly(ids: string[]) {
       refreshedIds.push(ids);
     }
   } as unknown as UniverseRepository;
@@ -577,13 +577,13 @@ test("instrument risk refresh skips when all eligible metrics are current", asyn
     async listInstruments() {
       return [fresh];
     },
-    async listInstrumentPriceStats() {
-      return [{ instrumentId: fresh.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2026-01-01", observationCount: 500 }];
+    async listInstrumentReturnAnchors() {
+      return [{ instrumentId: fresh.id, asOfDate: "2026-01-01", observationCount: 500 }];
     },
     async listInstrumentRiskMetrics() {
       return [{ instrumentId: fresh.id, metricDate: "2026-01-01", calculatedAt: "2026-06-08T00:00:00.000Z" }];
     },
-    async refreshInstrumentRiskMetrics() {
+    async refreshInstrumentRiskMetricsOnly() {
       throw new Error("current risk metrics should not be refreshed");
     }
   } as unknown as UniverseRepository;
@@ -605,13 +605,13 @@ test("instrument risk refresh falls back to stored prices when database risk RPC
     async listInstruments() {
       return [timeoutInstrument];
     },
-    async listInstrumentPriceStats() {
-      return [{ instrumentId: timeoutInstrument.id, earliestPriceDate: "2026-01-01", latestPriceDate: "2026-04-01", observationCount: 80 }];
+    async listInstrumentReturnAnchors() {
+      return [{ instrumentId: timeoutInstrument.id, asOfDate: "2026-04-01", observationCount: 80 }];
     },
     async listInstrumentRiskMetrics() {
       return [];
     },
-    async refreshInstrumentRiskMetrics(ids: string[]) {
+    async refreshInstrumentRiskMetricsOnly(ids: string[]) {
       refreshedIds.push(ids);
       throw new Error("canceling statement due to statement timeout");
     },

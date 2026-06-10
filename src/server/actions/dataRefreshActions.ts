@@ -171,6 +171,120 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
   redirect(`${destination}?${params.toString()}`);
 }
 
+export async function refreshInstrumentPricesAction(formData?: FormData) {
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  const destination = returnPath(formData);
+  const errors: string[] = [];
+  let refreshMessage = "";
+
+  const job = await container.jobRunService.runManual("instrument-price-refresh", async () => {
+    const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
+      lookbackDays: 30,
+      batchSize: 75,
+      maxBatches: 1,
+      includeBackfill: false,
+      skipRiskMetrics: true,
+      skipDerivedMetrics: true
+    });
+    refreshMessage = result.message;
+    errors.push(...result.errors);
+
+    return {
+      ok: errors.length === 0,
+      message: refreshMessage,
+      errors,
+      metadata: result
+    };
+  });
+  if (job.errors.length > 0 && errors.length === 0) errors.push(...job.errors);
+  if (!refreshMessage && job.errors.length > 0) refreshMessage = "Instrument price refresh failed.";
+
+  revalidatePath("/admin/data-sources");
+  revalidatePath("/instruments");
+  revalidatePath("/universe");
+  revalidatePath("/watchlists");
+  revalidatePath("/holdings");
+  revalidatePath("/portfolio");
+
+  const params = new URLSearchParams({
+    refreshMessage
+  });
+  if (errors.length > 0) params.set("refreshError", errors.join(" | "));
+
+  redirect(`${destination}?${params.toString()}`);
+}
+
+export async function refreshInstrumentDailyReturnsAction(formData?: FormData) {
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  const destination = returnPath(formData);
+  const errors: string[] = [];
+  let refreshMessage = "";
+
+  const job = await container.jobRunService.runManual("instrument-daily-returns-refresh", async () => {
+    const result = await container.instrumentMarketService.refreshInstrumentDailyReturnsInBatches({
+      batchSize: 25,
+      maxBatches: 14
+    });
+    refreshMessage = result.message;
+    errors.push(...result.errors);
+
+    return {
+      ok: errors.length === 0,
+      message: refreshMessage,
+      errors,
+      metadata: result
+    };
+  });
+  if (job.errors.length > 0 && errors.length === 0) errors.push(...job.errors);
+  if (!refreshMessage && job.errors.length > 0) refreshMessage = "Instrument daily returns refresh failed.";
+
+  revalidatePath("/admin/data-sources");
+
+  const params = new URLSearchParams({
+    refreshMessage
+  });
+  if (errors.length > 0) params.set("refreshError", errors.join(" | "));
+
+  redirect(`${destination}?${params.toString()}`);
+}
+
+export async function refreshInstrumentReturnAnchorsAction(formData?: FormData) {
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  const destination = returnPath(formData);
+  const errors: string[] = [];
+  let refreshMessage = "";
+
+  const job = await container.jobRunService.runManual("instrument-return-anchors-refresh", async () => {
+    const result = await container.instrumentMarketService.refreshInstrumentReturnAnchorsInBatches({
+      batchSize: 25,
+      maxBatches: 14
+    });
+    refreshMessage = result.message;
+    errors.push(...result.errors);
+
+    return {
+      ok: errors.length === 0,
+      message: refreshMessage,
+      errors,
+      metadata: result
+    };
+  });
+  if (job.errors.length > 0 && errors.length === 0) errors.push(...job.errors);
+  if (!refreshMessage && job.errors.length > 0) refreshMessage = "Instrument return anchors refresh failed.";
+
+  revalidatePath("/admin/data-sources");
+
+  const params = new URLSearchParams({
+    refreshMessage
+  });
+  if (errors.length > 0) params.set("refreshError", errors.join(" | "));
+
+  redirect(`${destination}?${params.toString()}`);
+}
+
 export async function refreshInstrumentMarketMetricsAction(formData?: FormData) {
   const container = createContainer();
   await container.authProvider.requireUser();
@@ -181,7 +295,7 @@ export async function refreshInstrumentMarketMetricsAction(formData?: FormData) 
   const job = await container.jobRunService.runManual("instrument-market-metrics-refresh", async () => {
     const result = await container.instrumentMarketService.refreshInstrumentMarketMetricsInBatches({
       batchSize: 25,
-      maxBatches: 3
+      maxBatches: 14
     });
     refreshMessage = result.message;
     errors.push(...result.errors);
@@ -220,7 +334,7 @@ export async function refreshInstrumentRiskMetricsAction(formData?: FormData) {
 
   const job = await container.jobRunService.runManual("refresh_instrument_risk_metrics", async () => {
     const result = await container.instrumentMarketService.refreshInstrumentRiskMetricsInBatches({
-      batchSize: 10,
+      batchSize: 200,
       minObservations: 30
     });
     refreshMessage = result.message;

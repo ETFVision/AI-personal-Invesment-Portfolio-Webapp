@@ -11,8 +11,10 @@ import { refreshFundamentalsAction } from "@/server/actions/fundamentalsActions"
 import { refreshEtfLookthroughExposureAction } from "@/server/actions/portfolioReviewActions";
 import {
   backfillUniverseHistoryAction,
-  refreshAllDataAction,
+  refreshInstrumentDailyReturnsAction,
   refreshInstrumentMarketMetricsAction,
+  refreshInstrumentPricesAction,
+  refreshInstrumentReturnAnchorsAction,
   refreshInstrumentRiskMetricsAction
 } from "@/server/actions/dataRefreshActions";
 import { seedUniverseAction } from "@/server/actions/universeActions";
@@ -232,6 +234,51 @@ function StatBox({ label, value, className }: { label: string; value: ReactNode;
   );
 }
 
+function MetricLayerCard({
+  title,
+  description,
+  coverage
+}: {
+  title: string;
+  description: string;
+  coverage: {
+    totalEligible: number;
+    currentCount: number;
+    staleCount: number;
+    missingCount: number;
+    latestExpectedDate: string;
+    latestLayerDate: string | null;
+    oldestLayerDate: string | null;
+    batchSize: number;
+    estimatedManualClicks: number;
+  };
+}) {
+  const needsWork = coverage.staleCount + coverage.missingCount;
+  return (
+    <div className="rounded-md border bg-muted/30 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">{title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+        </div>
+        <span className={`shrink-0 text-xs font-medium ${needsWork === 0 ? "text-emerald-600" : "text-amber-600"}`}>
+          {needsWork === 0 ? "Current" : `${needsWork} due`}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatBox label="Current" value={`${coverage.currentCount}/${coverage.totalEligible}`} />
+        <StatBox label="Stale" value={coverage.staleCount} className={coverage.staleCount > 0 ? "text-amber-600" : undefined} />
+        <StatBox label="Missing" value={coverage.missingCount} className={coverage.missingCount > 0 ? "text-destructive" : undefined} />
+        <StatBox label="Expected date" value={coverage.latestExpectedDate} />
+        <StatBox label="Latest layer date" value={coverage.latestLayerDate ?? "-"} />
+        <StatBox label="Oldest layer date" value={coverage.oldestLayerDate ?? "-"} />
+        <StatBox label="Batch size" value={coverage.batchSize} />
+        <StatBox label="Est. clicks" value={coverage.estimatedManualClicks} />
+      </div>
+    </div>
+  );
+}
+
 function OperationSection({
   title,
   description,
@@ -337,6 +384,12 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
     : [[], [], []];
   const latestPriceCoverage = await container.instrumentMarketService.getLatestPriceCoverageSummary(instruments, 75);
   const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 8);
+  const metricLayerCoverage = await container.instrumentMarketService.getMetricLayerCoverageSummary(instruments, {
+    dailyReturnsBatchSize: 350,
+    returnAnchorsBatchSize: 350,
+    marketMetricsBatchSize: 350,
+    riskMetricsBatchSize: 200
+  });
   const fundamentalsCoverage = fundamentalsCoverageSummary(fundamentalsRows, env.FUNDAMENTALS_MAX_STOCKS_PER_REFRESH, env.FUNDAMENTALS_REFRESH_FREQUENCY_DAYS);
   const etfCoverage = etfLookthroughCoverageSummary(
     eligibleLookthroughEtfs,
@@ -348,11 +401,18 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
   );
   const marketDataJobRuns = jobRuns
     .filter((run) =>
-      ["seed_universe", "refresh_market_data", "backfill_market_history", "instrument-market-metrics-refresh", "refresh_instrument_risk_metrics"].includes(
-        run.jobName
-      )
+      [
+        "seed_universe",
+        "refresh_market_data",
+        "instrument-price-refresh",
+        "instrument-daily-returns-refresh",
+        "instrument-return-anchors-refresh",
+        "backfill_market_history",
+        "instrument-market-metrics-refresh",
+        "refresh_instrument_risk_metrics"
+      ].includes(run.jobName)
     )
-    .slice(0, 8);
+    .slice(0, 12);
 
   const latestFmpLog = newsDashboard.ingestionLogs.find((log) => log.sourceProvider === "financial_modeling_prep" && log.jobName === "daily-news-ingestion") ?? null;
   const fmpSummary = fmpFetchSummary(latestFmpLog);
@@ -429,21 +489,29 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
               <SubmitButton variant="outline" pendingLabel="Seeding universe...">Seed universe</SubmitButton>
             </form>
-            <form action={refreshAllDataAction}>
+            <form action={refreshInstrumentPricesAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
-              <SubmitButton pendingLabel="Refreshing market data...">Refresh market data</SubmitButton>
+              <SubmitButton pendingLabel="Refreshing prices...">1. Refresh prices</SubmitButton>
+            </form>
+            <form action={refreshInstrumentDailyReturnsAction}>
+              <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <SubmitButton variant="secondary" pendingLabel="Refreshing daily returns...">2. Daily returns</SubmitButton>
+            </form>
+            <form action={refreshInstrumentReturnAnchorsAction}>
+              <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <SubmitButton variant="secondary" pendingLabel="Refreshing anchors...">3. Return anchors</SubmitButton>
+            </form>
+            <form action={refreshInstrumentMarketMetricsAction}>
+              <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <SubmitButton variant="secondary" pendingLabel="Refreshing market metrics...">4. Market metrics</SubmitButton>
+            </form>
+            <form action={refreshInstrumentRiskMetricsAction}>
+              <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <SubmitButton variant="secondary" pendingLabel="Refreshing risk metrics...">5. Risk metrics</SubmitButton>
             </form>
             <form action={backfillUniverseHistoryAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
               <SubmitButton variant="secondary" pendingLabel="Backfilling market history...">Backfill market history</SubmitButton>
-            </form>
-            <form action={refreshInstrumentMarketMetricsAction}>
-              <input type="hidden" name="returnTo" value="/admin/data-sources" />
-              <SubmitButton variant="secondary" pendingLabel="Refreshing market metrics...">Refresh market metrics</SubmitButton>
-            </form>
-            <form action={refreshInstrumentRiskMetricsAction}>
-              <input type="hidden" name="returnTo" value="/admin/data-sources" />
-              <SubmitButton variant="secondary" pendingLabel="Refreshing risk metrics...">Refresh instrument risk</SubmitButton>
             </form>
             <form action={refreshEtfLookthroughExposureAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
@@ -483,7 +551,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         <div className="mt-4 rounded-md border bg-muted/30 p-3">
           <p className="text-sm font-medium">Latest market data coverage</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Tracks whether active instruments have latest market prices through the expected latest trading day.
+            Tracks whether active instruments have latest stored prices through the expected latest trading day. Use the numbered buttons above in order for the full daily refresh chain.
           </p>
           <div className="mt-3 grid gap-3 md:grid-cols-3 lg:grid-cols-7">
             <StatBox label="Eligible" value={latestPriceCoverage.totalEligible} />
@@ -499,6 +567,36 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
               ? "Latest market data is fresh for all eligible instruments."
               : `${latestPriceCoverage.staleCount} instrument${latestPriceCoverage.staleCount === 1 ? "" : "s"} are stale and ${latestPriceCoverage.neverPricedCount} instrument${latestPriceCoverage.neverPricedCount === 1 ? "" : "s"} have no price yet. Run Refresh market data until stale and never priced reach zero.`}
           </p>
+        </div>
+        <div className="mt-4 space-y-3">
+          <div>
+            <p className="text-sm font-medium">Derived metric layer freshness</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Tracks the split refresh pipeline after raw prices are stored. Daily returns feed anchors, anchors feed market metrics, and risk metrics use the same return base.
+            </p>
+          </div>
+          <div className="grid gap-3 xl:grid-cols-2">
+            <MetricLayerCard
+              title="Daily returns"
+              description="Precomputed daily and weekly returns built from instrument_prices."
+              coverage={metricLayerCoverage.dailyReturns}
+            />
+            <MetricLayerCard
+              title="Return anchors"
+              description="Cached baselines, 52-week range and latest return anchors used by market metrics."
+              coverage={metricLayerCoverage.returnAnchors}
+            />
+            <MetricLayerCard
+              title="Market metrics"
+              description="Stored price, daily return, YTD, 1Y, 3Y, 5Y and 52-week metrics used by universe, watchlist and holdings."
+              coverage={metricLayerCoverage.marketMetrics}
+            />
+            <MetricLayerCard
+              title="Risk metrics"
+              description="Stored volatility, drawdown and risk scores used by instrument pages, recommendations and portfolio review."
+              coverage={metricLayerCoverage.riskMetrics}
+            />
+          </div>
         </div>
         <div className="mt-4 rounded-md border bg-muted/30 p-3">
           <p className="text-sm font-medium">Market history coverage</p>
@@ -531,7 +629,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         <div className="mt-4 rounded-md border p-3">
           <p className="text-sm font-medium">Market data operation logs</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Recent manual runs for Seed Universe, Refresh market data, Backfill market history and instrument risk metrics. Benchmark history runs after instrument history is complete.
+            Recent manual and scheduled runs for the market-data refresh chain. Benchmark history runs after instrument history is complete.
           </p>
           <div className="mt-3 space-y-2 text-sm">
             {marketDataJobRuns.length === 0 ? (

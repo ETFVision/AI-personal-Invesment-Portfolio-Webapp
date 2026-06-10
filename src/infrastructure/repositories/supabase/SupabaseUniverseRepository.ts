@@ -489,6 +489,19 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     if (error) throw new Error(error.message);
   }
 
+  async listInstrumentDailyReturnStats(instrumentIds?: string[]) {
+    const { data, error } = await this.db.rpc("list_instrument_daily_return_stats", {
+      target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
+    });
+    if (isMissingMetricsSupport(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row: any) => ({
+      instrumentId: String(row.instrument_id),
+      latestPriceDate: row.latest_price_date ? String(row.latest_price_date) : null,
+      observationCount: Number(row.observation_count ?? 0)
+    }));
+  }
+
   async listInstrumentReturnAnchors(instrumentIds?: string[]) {
     let query = this.db.from("instrument_return_anchors").select("instrument_id, as_of_date, observation_count");
     if (instrumentIds && instrumentIds.length > 0) {
