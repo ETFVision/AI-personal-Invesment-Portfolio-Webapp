@@ -681,14 +681,19 @@ export class InstrumentMarketService {
     const batchSize = Math.max(1, input?.batchSize ?? 25);
     const instruments = await this.repository.listInstruments({ isActive: true });
     const instrumentIds = instruments.map((instrument) => instrument.id);
-    const [stats, metrics] = await Promise.all([
-      this.repository.listInstrumentPriceStats(instrumentIds),
+    const [anchors, metrics] = await Promise.all([
+      this.repository.listInstrumentReturnAnchors(instrumentIds),
       this.repository.listInstrumentMarketMetrics(instrumentIds)
     ]);
-    const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
+    const anchorsByInstrumentId = new Map(anchors.map((item) => [item.instrumentId, item]));
     const metricsByInstrumentId = new Map(metrics.map((item) => [item.instrumentId, item]));
     const selectedInstrumentIds = instruments
-      .filter((instrument) => needsMarketMetricRepair(statsByInstrumentId.get(instrument.id), metricsByInstrumentId.get(instrument.id)))
+      .filter((instrument) => {
+        const anchor = anchorsByInstrumentId.get(instrument.id);
+        if (!anchor?.asOfDate) return false;
+        const metric = metricsByInstrumentId.get(instrument.id);
+        return !metric || metric.latestPriceDate !== anchor.asOfDate;
+      })
       .slice()
       .sort((a, b) => {
         const aMetric = metricsByInstrumentId.get(a.id);

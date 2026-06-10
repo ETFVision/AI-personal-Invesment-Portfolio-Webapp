@@ -66,6 +66,11 @@ export type InstrumentPriceStats = {
   observationCount: number;
 };
 
+export type InstrumentReturnAnchor = {
+  instrumentId: string;
+  asOfDate: string | null;
+};
+
 export interface UniverseRepository {
   listInstruments(filters?: ListInstrumentsFilters): Promise<Instrument[]>;
   upsertInstruments(input: UpsertInstrumentInput[]): Promise<void>;
@@ -116,6 +121,7 @@ export interface UniverseRepository {
   listInstrumentPrices(instrumentIds?: string[], sinceDate?: string): Promise<InstrumentPrice[]>;
   listInstrumentPriceStats(instrumentIds?: string[]): Promise<InstrumentPriceStats[]>;
   refreshInstrumentDailyReturns(instrumentIds?: string[]): Promise<void>;
+  listInstrumentReturnAnchors(instrumentIds?: string[]): Promise<InstrumentReturnAnchor[]>;
   refreshInstrumentReturnAnchors(instrumentIds?: string[]): Promise<void>;
   listInstrumentMarketMetrics(instrumentIds?: string[]): Promise<InstrumentMarketMetric[]>;
   refreshInstrumentMarketMetrics(instrumentIds?: string[]): Promise<void>;
