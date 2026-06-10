@@ -2674,3 +2674,32 @@ Validation:
 Production-readiness assessment:
 - READY for preview.
 - After deployment, run Seed Universe and Backfill Market History until Admin/Data Sources shows no remaining 5Y gaps for eligible instruments.
+
+## 2026-06-10 - Exposure Context Consistency QA
+
+Scope:
+- Confirmed the Alpha universe remains 201 ETFs and 105 stocks, with raw crypto references inactive.
+- Added a shared portfolio exposure context helper so portfolio-level engines can prefer ETF look-through sector/geography exposure.
+- Wired look-through-aware exposure context into Risk Analytics, Recommendation portfolio fit, and Market Vision portfolio context.
+- Preserved direct metadata fallback when look-through data is unavailable.
+
+Findings:
+- Critical issues: none.
+- Medium-priority issues: none.
+- Low-priority follow-up:
+  - Market Vision output QA is deferred until the next weekly refresh/generation.
+  - Recommendation portfolio-fit QA is deferred until the next recommendation run after refreshed data.
+  - Optional hardening can add UI/admin labels that show whether a page used ETF look-through or direct metadata fallback.
+
+Manual QA:
+- Risk page was manually checked after bumping the risk taxonomy version.
+- The old cached risk report was invalidated and the rebuilt Risk page used the look-through-aware exposure context.
+
+Validation:
+- `npm.cmd test` passed: 224 tests.
+- `npm.cmd run lint` passed.
+- `npm.cmd run typecheck` passed.
+
+Production-readiness assessment:
+- READY for merge.
+- Deferred Market Vision and Recommendation checks are not blockers because the implemented fallback is deterministic and the Risk page was verified directly.
