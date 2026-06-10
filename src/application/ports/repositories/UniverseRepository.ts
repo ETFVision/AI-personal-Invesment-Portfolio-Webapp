@@ -119,6 +119,7 @@ export interface UniverseRepository {
   refreshInstrumentReturnAnchors(instrumentIds?: string[]): Promise<void>;
   listInstrumentMarketMetrics(instrumentIds?: string[]): Promise<InstrumentMarketMetric[]>;
   refreshInstrumentMarketMetrics(instrumentIds?: string[]): Promise<void>;
+  refreshInstrumentMarketMetricsOnly(instrumentIds?: string[]): Promise<void>;
   listInstrumentRiskMetrics(instrumentIds?: string[]): Promise<InstrumentRiskMetric[]>;
   refreshInstrumentRiskMetrics(instrumentIds?: string[]): Promise<void>;
   upsertInstrumentRiskMetrics(input: UpsertInstrumentRiskMetricInput[]): Promise<void>;

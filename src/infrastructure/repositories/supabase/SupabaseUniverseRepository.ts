@@ -505,6 +505,14 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     if (error) throw new Error(error.message);
   }
 
+  async refreshInstrumentMarketMetricsOnly(instrumentIds?: string[]) {
+    const { error } = await this.db.rpc("refresh_instrument_market_metrics_only", {
+      target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
+    });
+    if (isMissingMetricsSupport(error)) return;
+    if (error) throw new Error(error.message);
+  }
+
   async listInstrumentRiskMetrics(instrumentIds?: string[]) {
     let query = this.db.from("instrument_risk_metrics").select("*").order("metric_date", { ascending: false, nullsFirst: false });
     if (instrumentIds && instrumentIds.length > 0) {

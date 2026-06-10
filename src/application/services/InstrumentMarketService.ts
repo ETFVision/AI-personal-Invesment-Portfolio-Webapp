@@ -567,7 +567,7 @@ export class InstrumentMarketService {
     let refreshed = 0;
 
     for (let index = 0; index < maxBatches; index += 1) {
-      const count = await this.refreshStaleInstrumentDerivedMetrics({ batchSize, skipRiskMetrics: true });
+      const count = await this.refreshStaleInstrumentMarketMetricsOnly({ batchSize });
       refreshed += count;
       if (count === 0) break;
     }
@@ -674,6 +674,36 @@ export class InstrumentMarketService {
 
     if (selectedInstrumentIds.length === 0) return 0;
     await refreshDerivedMetrics(this.repository, selectedInstrumentIds, { skipRiskMetrics: Boolean(input?.skipRiskMetrics) });
+    return selectedInstrumentIds.length;
+  }
+
+  async refreshStaleInstrumentMarketMetricsOnly(input?: { batchSize?: number }): Promise<number> {
+    const batchSize = Math.max(1, input?.batchSize ?? 25);
+    const instruments = await this.repository.listInstruments({ isActive: true });
+    const instrumentIds = instruments.map((instrument) => instrument.id);
+    const [stats, metrics] = await Promise.all([
+      this.repository.listInstrumentPriceStats(instrumentIds),
+      this.repository.listInstrumentMarketMetrics(instrumentIds)
+    ]);
+    const statsByInstrumentId = new Map(stats.map((item) => [item.instrumentId, item]));
+    const metricsByInstrumentId = new Map(metrics.map((item) => [item.instrumentId, item]));
+    const selectedInstrumentIds = instruments
+      .filter((instrument) => needsMarketMetricRepair(statsByInstrumentId.get(instrument.id), metricsByInstrumentId.get(instrument.id)))
+      .slice()
+      .sort((a, b) => {
+        const aMetric = metricsByInstrumentId.get(a.id);
+        const bMetric = metricsByInstrumentId.get(b.id);
+        if (Boolean(aMetric) !== Boolean(bMetric)) return aMetric ? 1 : -1;
+        const aLatest = aMetric?.latestPriceDate ?? "";
+        const bLatest = bMetric?.latestPriceDate ?? "";
+        if (aLatest !== bLatest) return aLatest.localeCompare(bLatest);
+        return (a.symbol ?? "").localeCompare(b.symbol ?? "");
+      })
+      .slice(0, batchSize)
+      .map((instrument) => instrument.id);
+
+    if (selectedInstrumentIds.length === 0) return 0;
+    await this.repository.refreshInstrumentMarketMetricsOnly(selectedInstrumentIds);
     return selectedInstrumentIds.length;
   }
 
