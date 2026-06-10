@@ -1,6 +1,7 @@
 import { AnalyticsRepository } from "@/application/ports/repositories/AnalyticsRepository";
 import { BenchmarkRepository } from "@/application/ports/repositories/BenchmarkRepository";
 import { MarketDataRepository } from "@/application/ports/repositories/MarketDataRepository";
+import { PortfolioRepository } from "@/application/ports/repositories/PortfolioRepository";
 import { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
 import { BenchmarkComparison, BenchmarkSnapshot, DailyPrice, HoldingSnapshot, PortfolioDashboard } from "@/domain/portfolio/types";
 import { Instrument, InstrumentPrice } from "@/domain/universe/types";
@@ -169,6 +170,7 @@ export class RiskAnalyticsDataService {
     private readonly marketDataRepository: MarketDataRepository,
     private readonly universeRepository: UniverseRepository,
     private readonly benchmarkRepository: BenchmarkRepository,
+    private readonly portfolioRepository: PortfolioRepository,
     private readonly riskAnalyticsService: RiskAnalyticsService
   ) {}
 
@@ -182,11 +184,12 @@ export class RiskAnalyticsDataService {
       )
     );
 
-    const [portfolioSnapshots, holdingSnapshots, dailyPrices, universeInstruments] = await Promise.all([
+    const [portfolioSnapshots, holdingSnapshots, dailyPrices, universeInstruments, transactions] = await Promise.all([
       this.analyticsRepository.listPortfolioSnapshots(portfolioId, 1400),
       this.analyticsRepository.listHoldingSnapshots(portfolioId, 1400),
       this.marketDataRepository.listDailyPricesForAssets(assetIds, yearsAgoIso(5)),
-      this.universeRepository.listInstruments()
+      this.universeRepository.listInstruments(),
+      this.portfolioRepository.listTransactions(portfolioId)
     ]);
 
     const holdingsBySymbol = new Map(
@@ -271,6 +274,7 @@ export class RiskAnalyticsDataService {
       portfolioSnapshots,
       holdingSnapshots: [...fallbackHoldingSnapshots, ...universeHoldingSnapshots],
       dailyPrices: [...dailyPrices, ...universeDailyPrices],
+      transactions,
       benchmarkSnapshots: selectedBenchmarkSnapshots
     });
   }

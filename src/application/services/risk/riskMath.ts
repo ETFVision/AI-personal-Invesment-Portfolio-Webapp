@@ -1,3 +1,5 @@
+import type { PortfolioSnapshot, Transaction } from "@/domain/portfolio/types";
+
 export type DateValuePoint = {
   date: string;
   value: number;
@@ -21,6 +23,26 @@ export type DrawdownAnalysis = {
   points: DrawdownPoint[];
 };
 
+function transactionAmount(transaction: Transaction) {
+  const gross = transaction.quantity && transaction.price ? transaction.quantity * transaction.price : 0;
+  if (gross !== 0) return gross;
+  return transaction.grossAmount ?? Math.abs(transaction.netAmount ?? 0);
+}
+
+function cashFlowAmount(transaction: Transaction) {
+  return Math.abs(transaction.netAmount ?? transaction.grossAmount ?? transactionAmount(transaction));
+}
+
+function externalPortfolioFlow(transactions: Transaction[], startExclusive: string, endInclusive: string) {
+  return transactions
+    .filter((transaction) => transaction.transactionDate > startExclusive && transaction.transactionDate <= endInclusive)
+    .reduce((sum, transaction) => {
+      if (transaction.transactionType === "deposit_cash") return sum + cashFlowAmount(transaction);
+      if (transaction.transactionType === "withdraw_cash") return sum - cashFlowAmount(transaction);
+      return sum;
+    }, 0);
+}
+
 export function calculateReturns(points: DateValuePoint[]): ReturnPoint[] {
   const sorted = points
     .filter((point) => Number.isFinite(point.value) && point.value > 0)
@@ -38,6 +60,56 @@ export function calculateReturns(points: DateValuePoint[]): ReturnPoint[] {
     });
   }
   return returns;
+}
+
+export function calculateFlowAdjustedPortfolioReturns(
+  snapshots: PortfolioSnapshot[],
+  transactions: Transaction[] = []
+): ReturnPoint[] {
+  const sorted = snapshots
+    .filter((snapshot) => Number.isFinite(snapshot.totalValue) && snapshot.totalValue > 0)
+    .slice()
+    .sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+
+  const returns: ReturnPoint[] = [];
+  for (let index = 1; index < sorted.length; index += 1) {
+    const previous = sorted[index - 1];
+    const current = sorted[index];
+    if (!previous || !current || previous.totalValue === 0) continue;
+    const netFlow = externalPortfolioFlow(transactions, previous.snapshotDate, current.snapshotDate);
+    returns.push({
+      date: current.snapshotDate,
+      value: (current.totalValue - netFlow) / previous.totalValue - 1
+    });
+  }
+  return returns;
+}
+
+export function buildFlowAdjustedPortfolioLevelSeries(
+  snapshots: PortfolioSnapshot[],
+  transactions: Transaction[] = [],
+  baseValue = 100
+): DateValuePoint[] {
+  const sorted = snapshots
+    .filter((snapshot) => Number.isFinite(snapshot.totalValue) && snapshot.totalValue > 0)
+    .slice()
+    .sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+  if (sorted.length === 0) return [];
+
+  let level = baseValue;
+  const points: DateValuePoint[] = [{ date: sorted[0].snapshotDate, value: level }];
+  for (let index = 1; index < sorted.length; index += 1) {
+    const previous = sorted[index - 1];
+    const current = sorted[index];
+    if (!previous || !current || previous.totalValue === 0) continue;
+    const netFlow = externalPortfolioFlow(transactions, previous.snapshotDate, current.snapshotDate);
+    const periodReturn = (current.totalValue - netFlow) / previous.totalValue - 1;
+    level *= 1 + periodReturn;
+    if (Number.isFinite(level) && level > 0) {
+      points.push({ date: current.snapshotDate, value: level });
+    }
+  }
+  return points;
 }
 
 export function annualizedVolatility(returns: ReturnPoint[], windowDays: number, periodsPerYear = 252) {

@@ -5,7 +5,8 @@ import {
   HoldingSnapshot,
   HoldingValuation,
   PortfolioDashboard,
-  PortfolioSnapshot
+  PortfolioSnapshot,
+  Transaction
 } from "@/domain/portfolio/types";
 import { calculateReturns, concentrationRatio, covarianceRiskContributions, syntheticPortfolioDrawdown } from "@/application/services/risk/riskMath";
 import { CorrelationService } from "@/application/services/risk/CorrelationService";
@@ -13,7 +14,7 @@ import { DiversificationService } from "@/application/services/risk/Diversificat
 import { DrawdownService } from "@/application/services/risk/DrawdownService";
 import { VolatilityService } from "@/application/services/risk/VolatilityService";
 
-export const RISK_TAXONOMY_VERSION = "canonical-taxonomy-v2";
+export const RISK_TAXONOMY_VERSION = "canonical-taxonomy-v3";
 export type RiskAnalyticsReport = ReturnType<RiskAnalyticsService["calculateRiskAnalytics"]>;
 
 function returnsByAssetId(dailyPrices: DailyPrice[]) {
@@ -90,6 +91,7 @@ export class RiskAnalyticsService {
     portfolioSnapshots: PortfolioSnapshot[];
     holdingSnapshots: HoldingSnapshot[];
     dailyPrices: DailyPrice[];
+    transactions?: Transaction[];
     benchmarkSnapshots?: BenchmarkSnapshot[];
   }) {
     const { dashboard } = input;
@@ -117,8 +119,8 @@ export class RiskAnalyticsService {
       topHoldingConcentration,
       topFiveConcentration
     });
-    const volatility = this.volatilityService.calculatePortfolioVolatility(input.portfolioSnapshots);
-    const drawdown = this.drawdownService.calculatePortfolioDrawdown(input.portfolioSnapshots);
+    const volatility = this.volatilityService.calculatePortfolioVolatility(input.portfolioSnapshots, input.transactions);
+    const drawdown = this.drawdownService.calculatePortfolioDrawdown(input.portfolioSnapshots, input.transactions);
     const benchmarkDrawdowns = this.drawdownService.calculateBenchmarkDrawdown(
       dashboard.benchmarkComparisons,
       input.benchmarkSnapshots,

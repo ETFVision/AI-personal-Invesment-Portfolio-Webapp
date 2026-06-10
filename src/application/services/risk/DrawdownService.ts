@@ -1,14 +1,9 @@
-import { BenchmarkComparison, BenchmarkSnapshot, PortfolioSnapshot } from "@/domain/portfolio/types";
-import { calculateDrawdown } from "@/application/services/risk/riskMath";
+import type { BenchmarkComparison, BenchmarkSnapshot, PortfolioSnapshot, Transaction } from "@/domain/portfolio/types";
+import { buildFlowAdjustedPortfolioLevelSeries, calculateDrawdown } from "./riskMath";
 
 export class DrawdownService {
-  calculatePortfolioDrawdown(snapshots: PortfolioSnapshot[]) {
-    return calculateDrawdown(
-      snapshots.map((snapshot) => ({
-        date: snapshot.snapshotDate,
-        value: snapshot.totalValue
-      }))
-    );
+  calculatePortfolioDrawdown(snapshots: PortfolioSnapshot[], transactions: Transaction[] = []) {
+    return calculateDrawdown(buildFlowAdjustedPortfolioLevelSeries(snapshots, transactions));
   }
 
   calculateBenchmarkDrawdown(

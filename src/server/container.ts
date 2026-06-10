@@ -259,6 +259,7 @@ export function createContainer() {
     marketDataRepository,
     universeRepository,
     benchmarkRepository,
+    portfolioRepository,
     riskAnalyticsService
   );
   const portfolioService = new PortfolioService(

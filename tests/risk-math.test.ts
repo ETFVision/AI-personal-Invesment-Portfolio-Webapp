@@ -1,10 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CorrelationService } from "../src/application/services/risk/CorrelationService";
+import { DrawdownService } from "../src/application/services/risk/DrawdownService";
 import { VolatilityService } from "../src/application/services/risk/VolatilityService";
 import {
   annualizedVolatility,
+  buildFlowAdjustedPortfolioLevelSeries,
   calculateDrawdown,
+  calculateFlowAdjustedPortfolioReturns,
   calculateReturns,
   concentrationRatio,
   correlation,
@@ -12,7 +15,7 @@ import {
   diversificationScore,
   syntheticPortfolioDrawdown
 } from "../src/application/services/risk/riskMath";
-import type { HoldingSnapshot, PortfolioSnapshot } from "../src/domain/portfolio/types";
+import type { HoldingSnapshot, PortfolioSnapshot, Transaction } from "../src/domain/portfolio/types";
 
 function holdingSnapshot(input: Partial<HoldingSnapshot>): HoldingSnapshot {
   return {
@@ -42,6 +45,28 @@ function portfolioSnapshot(date: string, totalValue: number): PortfolioSnapshot 
   };
 }
 
+function cashTransaction(date: string, amount: number, type: "deposit_cash" | "withdraw_cash" = "deposit_cash"): Transaction {
+  return {
+    id: `cash-${date}-${type}`,
+    portfolioId: "portfolio",
+    assetId: null,
+    transactionType: type,
+    assetType: "cash",
+    ticker: null,
+    assetName: "Cash",
+    accountName: null,
+    brokerName: null,
+    quantity: null,
+    price: null,
+    fees: 0,
+    grossAmount: Math.abs(amount),
+    netAmount: type === "deposit_cash" ? Math.abs(amount) : -Math.abs(amount),
+    currency: "USD",
+    transactionDate: date,
+    notes: null
+  };
+}
+
 test("calculates portfolio returns from ordered positive values", () => {
   const returns = calculateReturns([
     { date: "2026-01-03", value: 110 },
@@ -65,6 +90,40 @@ test("annualized volatility uses the requested window and sqrt 252 scaling", () 
 
   const value = annualizedVolatility(returns, 4);
   assert.ok(value != null && value > 0.25);
+});
+
+test("flow-adjusted portfolio returns remove deposits from snapshot changes", () => {
+  const snapshots = [
+    portfolioSnapshot("2026-01-01", 100),
+    portfolioSnapshot("2026-01-02", 1_100),
+    portfolioSnapshot("2026-01-03", 1_111)
+  ];
+  const transactions = [cashTransaction("2026-01-02", 1_000)];
+
+  const returns = calculateFlowAdjustedPortfolioReturns(snapshots, transactions);
+  const levels = buildFlowAdjustedPortfolioLevelSeries(snapshots, transactions);
+
+  assert.equal(returns.length, 2);
+  assert.ok(Math.abs(returns[0].value) < 0.000001);
+  assert.ok(Math.abs(returns[1].value - 0.01) < 0.000001);
+  assert.ok(Math.abs(levels.at(-1)!.value - 101) < 0.000001);
+});
+
+test("portfolio volatility and drawdown use flow-adjusted snapshots", () => {
+  const snapshots = [
+    portfolioSnapshot("2026-01-01", 100),
+    portfolioSnapshot("2026-01-02", 1_100),
+    portfolioSnapshot("2026-01-03", 1_111)
+  ];
+  const transactions = [cashTransaction("2026-01-02", 1_000)];
+
+  const volatility = new VolatilityService().calculatePortfolioVolatility(snapshots, transactions);
+  const drawdown = new DrawdownService().calculatePortfolioDrawdown(snapshots, transactions);
+
+  assert.equal(volatility.excludedJumpCount, 0);
+  assert.ok((volatility.metrics.find((metric) => metric.label === "30D")?.value ?? 1) < 0.12);
+  assert.equal(drawdown.maxDrawdown, 0);
+  assert.ok(Math.abs(drawdown.points.at(-1)!.value - 101) < 0.000001);
 });
 
 test("portfolio volatility excludes implausible account setup jumps", () => {

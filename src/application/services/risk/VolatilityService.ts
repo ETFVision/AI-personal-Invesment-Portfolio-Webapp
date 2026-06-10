@@ -1,5 +1,5 @@
-import type { PortfolioSnapshot } from "@/domain/portfolio/types";
-import { annualizedVolatility, calculateReturns } from "./riskMath";
+import type { PortfolioSnapshot, Transaction } from "@/domain/portfolio/types";
+import { annualizedVolatility, calculateFlowAdjustedPortfolioReturns } from "./riskMath";
 
 export type VolatilityMetric = {
   label: "30D" | "90D" | "1Y";
@@ -8,18 +8,13 @@ export type VolatilityMetric = {
 };
 
 export class VolatilityService {
-  calculatePortfolioVolatility(snapshots: PortfolioSnapshot[]): {
+  calculatePortfolioVolatility(snapshots: PortfolioSnapshot[], transactions: Transaction[] = []): {
     metrics: VolatilityMetric[];
     trend: Array<{ date: string; volatility: number | null }>;
     excludedJumpCount: number;
     largestExcludedJump: number | null;
   } {
-    const rawReturns = calculateReturns(
-      snapshots.map((snapshot) => ({
-        date: snapshot.snapshotDate,
-        value: snapshot.totalValue
-      }))
-    );
+    const rawReturns = calculateFlowAdjustedPortfolioReturns(snapshots, transactions);
     const excludedReturns = rawReturns.filter((point) => Math.abs(point.value) > 1);
     const returns = rawReturns.filter((point) => Math.abs(point.value) <= 1);
 
