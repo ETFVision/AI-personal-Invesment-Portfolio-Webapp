@@ -25,7 +25,8 @@ export class RefreshPortfolioPricesJob implements BackgroundJob {
       batchSize: 50,
       maxBatches: 8,
       includeBackfill: false,
-      skipRiskMetrics: true
+      skipRiskMetrics: true,
+      skipDerivedMetrics: true
     });
     const result = await this.marketDataService.syncPortfolioPricesFromInstrumentPrices({ portfolioId });
     const errors = [...instrumentRefresh.errors, ...result.errors];

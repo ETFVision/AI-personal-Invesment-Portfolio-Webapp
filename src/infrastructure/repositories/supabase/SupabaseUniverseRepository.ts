@@ -489,6 +489,14 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     if (error) throw new Error(error.message);
   }
 
+  async refreshInstrumentReturnAnchors(instrumentIds?: string[]) {
+    const { error } = await this.db.rpc("refresh_instrument_return_anchors", {
+      target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
+    });
+    if (isMissingMetricsSupport(error)) return;
+    if (error) throw new Error(error.message);
+  }
+
   async refreshInstrumentMarketMetrics(instrumentIds?: string[]) {
     const { error } = await this.db.rpc("refresh_instrument_market_metrics", {
       target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null

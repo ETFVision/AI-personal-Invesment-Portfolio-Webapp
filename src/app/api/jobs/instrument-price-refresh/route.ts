@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
   const maxBatches = Number(request.nextUrl.searchParams.get("maxBatches") ?? 8);
   const includeBackfill = request.nextUrl.searchParams.get("includeBackfill") === "true";
   const skipRiskMetrics = request.nextUrl.searchParams.get("skipRiskMetrics") === "true";
+  const skipDerivedMetrics = request.nextUrl.searchParams.get("skipDerivedMetrics") === "true";
   const lockTtlSeconds = Number(request.nextUrl.searchParams.get("lockTtlSeconds") ?? 8 * 60);
 
   return runCronJob(request, { jobName: "instrument-price-refresh", lockTtlSeconds }, () =>
@@ -16,7 +17,8 @@ export async function POST(request: NextRequest) {
       batchSize,
       maxBatches,
       includeBackfill,
-      skipRiskMetrics
+      skipRiskMetrics,
+      skipDerivedMetrics
     })
   );
 }

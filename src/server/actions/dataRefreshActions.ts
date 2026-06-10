@@ -66,10 +66,18 @@ export async function refreshAllDataAction(formData?: FormData) {
       lookbackDays: 30,
       batchSize: 25,
       maxBatches: 3,
-      includeBackfill: false
+      includeBackfill: false,
+      skipDerivedMetrics: true
     });
     appendMessage(messages, "Universe prices", universePrices.message);
     errors.push(...universePrices.errors);
+
+    const universeMarketMetrics = await container.instrumentMarketService.refreshInstrumentMarketMetricsInBatches({
+      batchSize: 25,
+      maxBatches: 3
+    });
+    appendMessage(messages, "Universe market metrics", universeMarketMetrics.message);
+    errors.push(...universeMarketMetrics.errors);
 
     if (portfolio) {
       const dashboard = await container.portfolioService.getDashboard(portfolio.id);
@@ -154,6 +162,46 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
   revalidatePath("/watchlists");
   revalidatePath("/portfolio");
   revalidatePath("/risk");
+
+  const params = new URLSearchParams({
+    refreshMessage
+  });
+  if (errors.length > 0) params.set("refreshError", errors.join(" | "));
+
+  redirect(`${destination}?${params.toString()}`);
+}
+
+export async function refreshInstrumentMarketMetricsAction(formData?: FormData) {
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  const destination = returnPath(formData);
+  const errors: string[] = [];
+  let refreshMessage = "";
+
+  const job = await container.jobRunService.runManual("instrument-market-metrics-refresh", async () => {
+    const result = await container.instrumentMarketService.refreshInstrumentMarketMetricsInBatches({
+      batchSize: 25,
+      maxBatches: 3
+    });
+    refreshMessage = result.message;
+    errors.push(...result.errors);
+
+    return {
+      ok: errors.length === 0,
+      message: refreshMessage,
+      errors,
+      metadata: result
+    };
+  });
+  if (job.errors.length > 0 && errors.length === 0) errors.push(...job.errors);
+  if (!refreshMessage && job.errors.length > 0) refreshMessage = "Instrument market metrics refresh failed.";
+
+  revalidatePath("/admin/data-sources");
+  revalidatePath("/instruments");
+  revalidatePath("/universe");
+  revalidatePath("/watchlists");
+  revalidatePath("/holdings");
+  revalidatePath("/portfolio");
 
   const params = new URLSearchParams({
     refreshMessage

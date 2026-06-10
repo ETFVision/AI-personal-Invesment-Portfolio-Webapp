@@ -9,7 +9,12 @@ import {
 import { backfillMacroIndicatorsAction, refreshMacroIndicatorsAction } from "@/server/actions/macroActions";
 import { refreshFundamentalsAction } from "@/server/actions/fundamentalsActions";
 import { refreshEtfLookthroughExposureAction } from "@/server/actions/portfolioReviewActions";
-import { backfillUniverseHistoryAction, refreshAllDataAction, refreshInstrumentRiskMetricsAction } from "@/server/actions/dataRefreshActions";
+import {
+  backfillUniverseHistoryAction,
+  refreshAllDataAction,
+  refreshInstrumentMarketMetricsAction,
+  refreshInstrumentRiskMetricsAction
+} from "@/server/actions/dataRefreshActions";
 import { seedUniverseAction } from "@/server/actions/universeActions";
 import {
   createMarketVisionDraftAction,
@@ -342,7 +347,11 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
     env.ETF_LOOKTHROUGH_STALE_AFTER_DAYS
   );
   const marketDataJobRuns = jobRuns
-    .filter((run) => ["seed_universe", "refresh_market_data", "backfill_market_history", "refresh_instrument_risk_metrics"].includes(run.jobName))
+    .filter((run) =>
+      ["seed_universe", "refresh_market_data", "backfill_market_history", "instrument-market-metrics-refresh", "refresh_instrument_risk_metrics"].includes(
+        run.jobName
+      )
+    )
     .slice(0, 8);
 
   const latestFmpLog = newsDashboard.ingestionLogs.find((log) => log.sourceProvider === "financial_modeling_prep" && log.jobName === "daily-news-ingestion") ?? null;
@@ -427,6 +436,10 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
             <form action={backfillUniverseHistoryAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
               <SubmitButton variant="secondary" pendingLabel="Backfilling market history...">Backfill market history</SubmitButton>
+            </form>
+            <form action={refreshInstrumentMarketMetricsAction}>
+              <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <SubmitButton variant="secondary" pendingLabel="Refreshing market metrics...">Refresh market metrics</SubmitButton>
             </form>
             <form action={refreshInstrumentRiskMetricsAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />

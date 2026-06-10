@@ -188,6 +188,7 @@ async function refreshDerivedMetrics(
   if (instrumentIds.length === 0) return;
   if (!options?.oneInstrumentAtATime) {
     await repository.refreshInstrumentDailyReturns(instrumentIds);
+    await repository.refreshInstrumentReturnAnchors(instrumentIds);
     await repository.refreshInstrumentMarketMetrics(instrumentIds);
     if (!options?.skipRiskMetrics) await repository.refreshInstrumentRiskMetrics(instrumentIds);
     return;
@@ -195,6 +196,7 @@ async function refreshDerivedMetrics(
 
   for (const instrumentId of instrumentIds) {
     await repository.refreshInstrumentDailyReturns([instrumentId]);
+    await repository.refreshInstrumentReturnAnchors([instrumentId]);
     await repository.refreshInstrumentMarketMetrics([instrumentId]);
     if (!options?.skipRiskMetrics) await repository.refreshInstrumentRiskMetrics([instrumentId]);
   }
@@ -251,6 +253,7 @@ export class InstrumentMarketService {
     maxSymbols?: number;
     includeBackfill?: boolean;
     skipRiskMetrics?: boolean;
+    skipDerivedMetrics?: boolean;
   }): Promise<RefreshInstrumentPricesResult> {
     const lookbackDays = input?.lookbackDays ?? 1825;
     const maxSymbols = Math.max(1, input?.maxSymbols ?? 12);
@@ -394,7 +397,9 @@ export class InstrumentMarketService {
       if (rows.length > 0) {
         const updatedInstrumentIds = Array.from(new Set(rows.map((row) => row.instrumentId)));
         await this.repository.upsertInstrumentPrices(rows);
-        await refreshDerivedMetrics(this.repository, updatedInstrumentIds, { oneInstrumentAtATime: true, skipRiskMetrics: true });
+        if (!input?.skipDerivedMetrics) {
+          await refreshDerivedMetrics(this.repository, updatedInstrumentIds, { oneInstrumentAtATime: true, skipRiskMetrics: true });
+        }
       }
 
       return {
@@ -479,10 +484,12 @@ export class InstrumentMarketService {
     if (rows.length > 0) {
       const updatedInstrumentIds = Array.from(new Set(rows.map((row) => row.instrumentId)));
       await this.repository.upsertInstrumentPrices(rows);
-      await refreshDerivedMetrics(this.repository, updatedInstrumentIds, {
-        oneInstrumentAtATime: includeBackfill,
-        skipRiskMetrics: includeBackfill || Boolean(input?.skipRiskMetrics)
-      });
+      if (!input?.skipDerivedMetrics) {
+        await refreshDerivedMetrics(this.repository, updatedInstrumentIds, {
+          oneInstrumentAtATime: includeBackfill,
+          skipRiskMetrics: includeBackfill || Boolean(input?.skipRiskMetrics)
+        });
+      }
     }
 
     return {
@@ -503,6 +510,7 @@ export class InstrumentMarketService {
     maxBatches?: number;
     includeBackfill?: boolean;
     skipRiskMetrics?: boolean;
+    skipDerivedMetrics?: boolean;
   }): Promise<RefreshInstrumentPricesResult> {
     const maxBatches = Math.max(1, input?.maxBatches ?? 8);
     const batchSize = Math.max(1, input?.batchSize ?? 12);
@@ -516,7 +524,8 @@ export class InstrumentMarketService {
         lookbackDays: input?.lookbackDays,
         maxSymbols: batchSize,
         includeBackfill: input?.includeBackfill,
-        skipRiskMetrics: input?.skipRiskMetrics
+        skipRiskMetrics: input?.skipRiskMetrics,
+        skipDerivedMetrics: input?.skipDerivedMetrics
       });
 
       result.requestedSymbols.forEach((symbol) => requestedSymbols.add(symbol));
@@ -528,10 +537,12 @@ export class InstrumentMarketService {
       if (result.updatedCount === 0 && result.missingSymbols.length === 0) break;
     }
 
-    const derivedMetricsRefreshed = await this.refreshStaleInstrumentDerivedMetrics({
-      batchSize,
-      skipRiskMetrics: Boolean(input?.skipRiskMetrics)
-    });
+    const derivedMetricsRefreshed = input?.skipDerivedMetrics
+      ? 0
+      : await this.refreshStaleInstrumentDerivedMetrics({
+          batchSize,
+          skipRiskMetrics: Boolean(input?.skipRiskMetrics)
+        });
     const derivedMetricLabel = input?.skipRiskMetrics ? "derived market metrics" : "derived market and risk metrics";
 
     return {
@@ -547,6 +558,30 @@ export class InstrumentMarketService {
           : `Stored ${updatedCount} instrument price row${updatedCount === 1 ? "" : "s"} across ${requestedSymbols.size} instrument${requestedSymbols.size === 1 ? "" : "s"}.`
       ,
       derivedMetricsRefreshed
+    };
+  }
+
+  async refreshInstrumentMarketMetricsInBatches(input?: { batchSize?: number; maxBatches?: number }): Promise<RefreshInstrumentPricesResult> {
+    const batchSize = Math.max(1, input?.batchSize ?? 25);
+    const maxBatches = Math.max(1, input?.maxBatches ?? 3);
+    let refreshed = 0;
+
+    for (let index = 0; index < maxBatches; index += 1) {
+      const count = await this.refreshStaleInstrumentDerivedMetrics({ batchSize, skipRiskMetrics: true });
+      refreshed += count;
+      if (count === 0) break;
+    }
+
+    return {
+      requestedSymbols: [],
+      updatedCount: refreshed,
+      missingSymbols: [],
+      errors: [],
+      derivedMetricsRefreshed: refreshed,
+      message:
+        refreshed === 0
+          ? "Instrument market metrics are already current."
+          : `Refreshed market metrics for ${refreshed} instrument${refreshed === 1 ? "" : "s"}.`
     };
   }
 
