@@ -569,7 +569,7 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
       .from("instruments")
       .select("*")
       .eq("asset_class", "stock")
-      .ilike("symbol", symbol)
+      .eq("symbol", symbol.toUpperCase())
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) return null;
