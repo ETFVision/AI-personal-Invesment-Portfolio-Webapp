@@ -16,6 +16,7 @@ import {
   refreshInstrumentMarketMetricsAction,
   refreshInstrumentMetadataAction,
   refreshInstrumentPricesAction,
+  refreshPortfolioSummaryTablesAction,
   refreshInstrumentReturnAnchorsAction,
   refreshInstrumentRiskMetricsAction
 } from "@/server/actions/dataRefreshActions";
@@ -32,6 +33,7 @@ import { env } from "@/infrastructure/config/env";
 import type { FundamentalsSummaryRow } from "@/domain/fundamentals/types";
 import type { EtfCountryExposure, EtfSectorExposure, EtfTopHolding } from "@/domain/etfLookthrough/types";
 import type { Instrument } from "@/domain/universe/types";
+import type { JobRun } from "@/domain/jobs/types";
 import type { ReactNode } from "react";
 
 function statusLabel(enabled: boolean, configured = true) {
@@ -349,6 +351,54 @@ function OperationSection({
   );
 }
 
+function latestRunByName(jobRuns: JobRun[]) {
+  const map = new Map<string, JobRun>();
+  for (const run of jobRuns) {
+    if (!map.has(run.jobName)) map.set(run.jobName, run);
+  }
+  return map;
+}
+
+function DailyJobStatusCard({
+  label,
+  scheduledTime,
+  run
+}: {
+  label: string;
+  scheduledTime: string;
+  run: JobRun | undefined;
+}) {
+  return (
+    <div className="rounded-md border bg-muted/30 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">{label}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{scheduledTime} SGT</p>
+        </div>
+        <span className={`shrink-0 text-xs font-medium ${statusTone(run?.status)}`}>{run?.status ?? "No run"}</span>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">Latest: {formatDateTime(run?.completedAt ?? run?.startedAt)}</p>
+      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{run ? marketDataRunSummary(run.summary) : "No job log recorded yet."}</p>
+      {run?.errorMessage ? <p className="mt-1 line-clamp-2 text-xs text-destructive">{run.errorMessage}</p> : null}
+    </div>
+  );
+}
+
+const dailyRefreshJobs = [
+  { label: "Instrument prices", scheduledTime: "5:20-5:40 AM", jobName: "instrument-price-refresh" },
+  { label: "Daily returns", scheduledTime: "5:45 AM", jobName: "instrument-daily-returns-refresh" },
+  { label: "Return anchors", scheduledTime: "5:50 AM", jobName: "instrument-return-anchors-refresh" },
+  { label: "Market metrics", scheduledTime: "5:55 AM", jobName: "instrument-market-metrics-refresh" },
+  { label: "Risk metrics", scheduledTime: "6:00-6:05 AM", jobName: "refresh_instrument_risk_metrics" },
+  { label: "Instrument metadata", scheduledTime: "6:10 AM", jobName: "instrument-metadata-refresh" },
+  { label: "Benchmarks", scheduledTime: "6:15 AM", jobName: "benchmark-refresh" },
+  { label: "Portfolio valuation", scheduledTime: "6:25 AM", jobName: "portfolio-valuation-refresh" },
+  { label: "Portfolio summaries", scheduledTime: "6:30 AM", jobName: "portfolio-summary-refresh" },
+  { label: "FRED macro", scheduledTime: "6:35 AM", jobName: "fred-refresh" },
+  { label: "FMP news", scheduledTime: "6:45 AM", jobName: "fmp-news-ingestion" },
+  { label: "NewsData", scheduledTime: "6:55 AM", jobName: "newsdata-news-ingestion" }
+];
+
 const providers = [
   {
     name: "Financial Modeling Prep",
@@ -448,6 +498,17 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
     env.ETF_LOOKTHROUGH_STALE_AFTER_DAYS
   );
   const metadataCoverage = metadataCoverageSummary(instruments, 25, 30);
+  const latestJobRunByName = latestRunByName(jobRuns);
+  const summaryJobRuns = jobRuns
+    .filter((run) =>
+      [
+        "portfolio-summary-refresh",
+        "portfolio-dashboard-summary-refresh",
+        "portfolio-performance-summary-refresh",
+        "portfolio-valuation-refresh"
+      ].includes(run.jobName)
+    )
+    .slice(0, 8);
   const marketDataJobRuns = jobRuns
     .filter((run) =>
       [
@@ -459,7 +520,8 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         "backfill_market_history",
         "instrument-market-metrics-refresh",
         "refresh_instrument_risk_metrics",
-        "instrument-metadata-refresh"
+        "instrument-metadata-refresh",
+        "portfolio-summary-refresh"
       ].includes(run.jobName)
     )
     .slice(0, 12);
@@ -528,6 +590,72 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
           ))}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Daily Refresh Status</CardTitle>
+          <CardDescription>
+            Latest job status for the daily scheduled chain. Times are Singapore time and reflect the current Supabase cron plan.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {dailyRefreshJobs.map((job) => (
+              <DailyJobStatusCard
+                key={job.jobName}
+                label={job.label}
+                scheduledTime={job.scheduledTime}
+                run={latestJobRunByName.get(job.jobName)}
+              />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <OperationSection
+        title="Portfolio Summary Read Models"
+        description="Stored portfolio dashboard and performance summaries used to speed up portfolio, holdings and cash pages."
+        whereUsed="portfolio dashboard, holdings, cash, performance chart"
+        actions={
+          <form action={refreshPortfolioSummaryTablesAction}>
+            <input type="hidden" name="returnTo" value="/admin/data-sources" />
+            <SubmitButton pendingLabel="Refreshing summaries...">Refresh portfolio summaries</SubmitButton>
+          </form>
+        }
+      >
+        <div className="grid gap-3 md:grid-cols-3">
+          <StatBox
+            label="Summary refresh latest run"
+            value={formatDateTime(latestJobRunByName.get("portfolio-summary-refresh")?.completedAt ?? latestJobRunByName.get("portfolio-summary-refresh")?.startedAt)}
+          />
+          <StatBox
+            label="Summary refresh status"
+            value={latestJobRunByName.get("portfolio-summary-refresh")?.status ?? "No run"}
+            className={statusTone(latestJobRunByName.get("portfolio-summary-refresh")?.status)}
+          />
+          <StatBox
+            label="Portfolio valuation latest run"
+            value={formatDateTime(latestJobRunByName.get("portfolio-valuation-refresh")?.completedAt ?? latestJobRunByName.get("portfolio-valuation-refresh")?.startedAt)}
+          />
+        </div>
+        <div className="mt-4 rounded-md border p-3">
+          <p className="text-sm font-medium">Portfolio summary refresh logs</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Recent combined and legacy summary refresh runs. The combined job refreshes dashboard and performance summaries together.
+          </p>
+          <div className="mt-3 space-y-2 text-sm">
+            {summaryJobRuns.length === 0 ? (
+              <p className="text-muted-foreground">No portfolio summary refresh logs have been recorded yet.</p>
+            ) : summaryJobRuns.map((run) => (
+              <div key={run.id} className="rounded-md bg-muted/40 p-3">
+                <p className={`font-medium ${statusTone(run.status)}`}>{run.jobName.replaceAll("-", " ")} - {run.status}</p>
+                <p className="text-muted-foreground">{formatDateTime(run.completedAt ?? run.startedAt)} - {marketDataRunSummary(run.summary)}</p>
+                {run.errorMessage ? <p className="text-destructive">{run.errorMessage}</p> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      </OperationSection>
 
       <OperationSection
         title="Market Data and ETF Look-Through"

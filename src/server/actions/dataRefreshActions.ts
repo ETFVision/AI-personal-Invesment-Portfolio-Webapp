@@ -406,3 +406,52 @@ export async function refreshInstrumentMetadataAction(formData?: FormData) {
 
   redirect(`${destination}?${params.toString()}`);
 }
+
+export async function refreshPortfolioSummaryTablesAction(formData?: FormData) {
+  const container = createContainer();
+  const authUser = await container.authProvider.requireUser();
+  const destination = returnPath(formData);
+  const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
+  if (!portfolio) redirect("/setup");
+
+  const errors: string[] = [];
+  let refreshMessage = "";
+
+  const job = await container.jobRunService.runManual("portfolio-summary-refresh", async () => {
+    const dashboardSummary = await container.portfolioService.refreshDashboardSummary(portfolio.id);
+    const performanceSummary = await container.portfolioService.refreshPerformanceSummary(portfolio.id);
+    refreshMessage = "Portfolio summary tables refreshed.";
+
+    return {
+      ok: true,
+      message: refreshMessage,
+      errors,
+      metadata: {
+        dashboardSummary: {
+          asOfDate: dashboardSummary?.asOfDate ?? null,
+          latestPriceDate: dashboardSummary?.latestPriceDate ?? null,
+          status: dashboardSummary?.status ?? "insufficient_data"
+        },
+        performanceSummary: {
+          asOfDate: performanceSummary?.asOfDate ?? null,
+          latestPriceDate: performanceSummary?.latestPriceDate ?? null,
+          status: performanceSummary?.status ?? "insufficient_data"
+        }
+      }
+    };
+  });
+  if (job.errors.length > 0 && errors.length === 0) errors.push(...job.errors);
+  if (!refreshMessage && job.errors.length > 0) refreshMessage = "Portfolio summary refresh failed.";
+
+  revalidatePath("/admin/data-sources");
+  revalidatePath("/portfolio");
+  revalidatePath("/holdings");
+  revalidatePath("/cash");
+
+  const params = new URLSearchParams({
+    refreshMessage
+  });
+  if (errors.length > 0) params.set("refreshError", errors.join(" | "));
+
+  redirect(`${destination}?${params.toString()}`);
+}
