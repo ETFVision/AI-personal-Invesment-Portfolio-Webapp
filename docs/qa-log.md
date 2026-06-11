@@ -2879,3 +2879,71 @@ Findings:
 Validation:
 - Documentation-only update.
 - No runtime tests were run because no executable code changed.
+
+## 2026-06-11 20:34 SGT - Methodology Documentation Gap Closure
+
+Scope:
+- Closed the first four methodology documentation gaps requested after the handover pack review.
+- Added an additional fixed-income page methodology section after confirming the current `/bonds` page logic was only partially covered by prior design docs.
+
+Files updated:
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/DATABASE_SCHEMA.md`
+- `docs/DATA_INGESTION_AND_PROVIDERS.md`
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+
+Primary code references checked:
+- `src/application/services/PerformanceService.ts`
+- `src/application/services/AnalyticsService.ts`
+- `src/application/services/risk/riskMath.ts`
+- `src/application/services/risk/RiskAnalyticsDataService.ts`
+- `src/application/services/risk/RiskAnalyticsService.ts`
+- `src/application/services/risk/VolatilityService.ts`
+- `src/application/services/risk/DrawdownService.ts`
+- `src/application/services/risk/CorrelationService.ts`
+- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts`
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `src/infrastructure/providers/fundamentals/FmpFundamentalsProvider.ts`
+- `src/application/services/fundamentals/FundamentalsRefreshService.ts`
+- `src/application/services/fundamentals/FundamentalScoringService.ts`
+- `src/application/services/fundamentals/FundamentalTrendCalculationService.ts`
+- `src/application/services/bonds/BondAnalyticsService.ts`
+- `src/application/services/bonds/BondProfileService.ts`
+- `src/application/services/bonds/DurationAnalysisService.ts`
+- `src/application/services/bonds/CreditExposureService.ts`
+- `supabase/migrations/008_instrument_universe.sql`
+- `supabase/migrations/017_bond_profile_enrichment.sql`
+- `supabase/migrations/051_etf_lookthrough_exposure.sql`
+- `supabase/migrations/052_portfolio_lookthrough_holdings.sql`
+
+Findings:
+- PASS: Portfolio TWR and cash-flow treatment now documents deposits, withdrawals, manual capital-base override, holding-level flow adjustments, cash metrics, and risk snapshot TWR.
+- PASS: ETF look-through now has exact table names, key columns, unique keys, and portfolio allocation semantics.
+- PASS: FMP fundamentals lineage now maps endpoints and fields into internal profiles, statements, ratios, derived fallback ratios, scores, and trends.
+- PASS: Risk analytics page methodology now documents data assembly, flow-adjusted volatility/drawdown, correlation, covariance/proxy risk contribution, warnings, and benchmark context.
+- PASS: Fixed income page methodology now documents bond profile storage, seeded fallbacks, allocation metrics, exposure formulas, shock/scenario approximations, warnings, diagnostics, allocation guidance, and Portfolio Review linkage.
+
+Validation:
+- Documentation-only update.
+- No runtime tests were run because no executable code changed.
+
+## 2026-06-11 20:50 SGT - Page-Level Documentation Gap Tracker Update
+
+Scope:
+- Expanded the documentation gap tracker with the remaining page-level handover gaps across Portfolio Dashboard, Universe, Watchlist, Market Vision, News & Themes, Macro, Fundamentals, Risk, Fixed Income, Insights, and Portfolio Review.
+- Cleaned a duplicate Market Vision publish/draft lifecycle entry.
+
+Files updated:
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+
+Findings:
+- PASS: Core formula and schema methodology gaps remain marked as closed.
+- PASS: Remaining gaps are now clearly framed as page data map, UI section mapping, refresh dependency, and operational handover items.
+- PASS: A future `docs/PAGE_DATA_MAP.md` is now explicitly listed as the canonical follow-up artifact.
+
+Validation:
+- Documentation-only update.
+- No runtime tests were run because no executable code changed.

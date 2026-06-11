@@ -1,6 +1,6 @@
 # ETFVision Score Methodology
 
-Last updated: 2026-06-11 20:26:47 +08:00
+Last updated: 2026-06-11 20:34:49 +08:00
 
 Authoritative status: formula-level handover snapshot based on current code and migrations. This document explains how the main derived scores are calculated. If a score is later recalibrated, update this file in the same commit.
 
@@ -349,6 +349,36 @@ Primary code:
 
 - `src/application/services/risk/riskMath.ts`
 - `src/application/services/risk/RiskAnalyticsService.ts`
+- `src/application/services/risk/RiskAnalyticsDataService.ts`
+- `src/application/services/risk/VolatilityService.ts`
+- `src/application/services/risk/DrawdownService.ts`
+- `src/application/services/risk/CorrelationService.ts`
+
+Stored inputs:
+
+- `portfolio_snapshots`
+- `holding_snapshots`
+- `instrument_prices`
+- `instrument_market_metrics`
+- `instrument_risk_metrics`
+- `portfolio_lookthrough_exposures`
+- `portfolio_lookthrough_holdings`
+- `transactions`
+
+### Risk Page Data Assembly
+
+`RiskAnalyticsDataService` builds the page report by collecting:
+
+- Recent portfolio snapshots.
+- Holding snapshots.
+- Portfolio transactions.
+- Active holdings and universe metadata.
+- Instrument price history for current holdings and benchmark symbols.
+- Benchmark snapshots and synthetic benchmark series.
+- Latest portfolio review summary where available.
+- Portfolio look-through exposure context, including ETF sector/country/theme/top-holding exposure.
+
+The risk page should prefer look-through exposure context for sector and geography views. Product categories such as `US_BROAD_MARKET` are ETF taxonomy labels and should not be used as sector allocation unless no exposure data exists.
 
 ### Flow-Adjusted Portfolio Return
 
@@ -363,9 +393,45 @@ External flows include:
 
 This creates a TWR-style level series for portfolio risk snapshots.
 
+The service excludes implausible daily returns with absolute value above `1` from volatility windows because those normally indicate snapshot or flow anomalies rather than investment volatility.
+
 ### Portfolio Volatility
 
 `annualizedVolatility = sampleStdDev(returns) * sqrt(252)`
+
+Windows shown by the risk layer include:
+
+- 30D volatility.
+- 90D volatility.
+- 1Y volatility.
+
+Each uses the TWR-style portfolio return series, not raw change in account value.
+
+### Portfolio Drawdown
+
+Drawdown is calculated from a chained TWR-style portfolio level series:
+
+1. Start level at 100.
+2. Multiply by `1 + portfolioReturn` for each flow-adjusted period.
+3. Track running peak.
+4. Current drawdown = current level / running peak - 1.
+5. Max drawdown = most negative drawdown in the level series.
+
+This means deposits do not create artificial gains and withdrawals do not create artificial drawdowns.
+
+### Correlation Analytics
+
+Primary code: `CorrelationService.ts`
+
+Holding correlations are calculated from holding market-value return series:
+
+1. Build return series for each holding from `holding_snapshots`.
+2. Align return observations on common dates.
+3. Calculate Pearson correlation for each pair.
+4. Mark high-correlation pairs at `>= 0.85`.
+5. Average unique pair correlations for portfolio-level correlation diagnostics.
+
+Asset-class correlations use the same principle after grouping holdings by asset type.
 
 ### Covariance Risk Contribution
 
@@ -379,6 +445,30 @@ For assets with enough common observations:
 - Marginal contribution = `(covariance * weights)_i / portfolioVolatility`.
 - Absolute contribution = `weight_i * marginalContribution`.
 - Risk contribution = `absoluteContribution / portfolioVolatility`.
+
+Eligibility requirements:
+
+- Asset return history comes from `instrument_prices` mapped to current holdings.
+- An asset generally needs at least 30 overlapping observations with the other eligible assets.
+- Covariance method is used when eligible coverage is at least about 70% of portfolio value.
+
+If covariance coverage is insufficient, the service uses a proxy contribution model:
+
+| Asset type | Proxy risk weight |
+|---|---:|
+| Crypto | 1.80 |
+| Stock | 1.25 |
+| Gold ETF | 1.05 |
+| Bond ETF | 0.55 |
+| Other | 1.00 |
+
+Proxy contribution:
+
+`riskShare = allocationWeight * proxyRiskWeight`
+
+`riskContribution = riskShare / sum(riskShare)`
+
+When covariance is available for only part of the portfolio, covariance contributions replace the eligible proxy items and ineligible holdings retain proxy treatment.
 
 ### Diversification Score
 
@@ -398,6 +488,166 @@ Where:
 - `concentrationPenalty = topHoldingConcentration * 20 + max(0, topFiveConcentration - 0.5) * 30`
 
 Final score is rounded and clamped to 0-100.
+
+### Risk Warnings and Diagnostics
+
+The risk page can emit warnings for:
+
+- Top holding concentration above 25%.
+- Top five holdings concentration above 65%.
+- High-correlation pairs.
+- Fewer than 30 usable portfolio snapshots.
+- Excluded jump returns.
+- Cash exposure above 50%.
+- Proxy risk contribution method when covariance coverage is insufficient.
+
+### Benchmark Drawdown and Comparison Context
+
+Benchmark drawdowns use benchmark snapshot level values when available. The data service can also build synthetic benchmark snapshots from instrument prices for configured benchmark symbols. Benchmark comparison is contextual and does not replace portfolio TWR metrics.
+
+## Fixed Income Page Methodology
+
+Primary code:
+
+- `src/application/services/bonds/BondService.ts`
+- `src/application/services/bonds/BondAnalyticsService.ts`
+- `src/application/services/bonds/BondProfileService.ts`
+- `src/application/services/bonds/DurationAnalysisService.ts`
+- `src/application/services/bonds/CreditExposureService.ts`
+- `src/app/(dashboard)/bonds/page.tsx`
+
+Primary stored inputs:
+
+- `instruments`
+- `bond_profiles`
+- Portfolio holdings and current holding valuations from the portfolio dashboard.
+
+### Bond Holding Eligibility
+
+A holding is included in the fixed-income analytics report when:
+
+- The universe instrument exists and normalizes as a bond ETF, or
+- The holding asset type is `bond_etf`, in which case a synthetic fixed-income instrument can be constructed for analysis.
+
+`BondProfileService.normalizeProfile` resolves profile fields in this priority order:
+
+1. `bond_profiles` row.
+2. `instruments` fixed-income metadata.
+3. Seeded bond ETF fallback profile for known bond ETFs.
+4. Conservative defaults, where applicable.
+
+### Bond Allocation Metrics
+
+`totalBondValue`:
+
+`sum(current market value of eligible bond ETF holdings)`
+
+`totalBondAllocation`:
+
+`totalBondValue / totalPortfolioValue`
+
+For each bond holding:
+
+- `allocationPercent = holdingValue / totalPortfolioValue`
+- `bondAllocationPercent = holdingValue / totalBondValue`
+
+Breakdown tables group bond value by:
+
+- Duration bucket.
+- Bond type.
+- Credit quality.
+- Geography.
+- Currency.
+
+Each breakdown row uses:
+
+`rowPercent = groupedBondValue / totalBondValue`
+
+### Exposure Metrics
+
+All portfolio-level bond exposures use total portfolio value as the denominator:
+
+| Metric | Formula |
+|---|---|
+| Treasury exposure | Value of holdings where `bondType` is `treasury` or `inflation-linked`, or `creditQuality` is `government`, divided by total portfolio value. |
+| Corporate exposure | Value of holdings where `bondType` is `corporate` or `high yield`, divided by total portfolio value. |
+| Investment-grade exposure | Value of holdings where `creditQuality` is `investment grade`, `mixed investment grade`, or `government`, divided by total portfolio value. |
+| High-yield exposure | Value of holdings where `creditQuality` or `bondType` is `high yield`, divided by total portfolio value. |
+| Inflation-linked exposure | Value of holdings where `inflationLinked = true`, divided by total portfolio value. |
+| Cash-like exposure | Value of holdings where duration is `ultra-short`, bond type is `cash-like`, or liquidity role includes `cash-like`, divided by total portfolio value. |
+| Long-duration exposure | Value of holdings where duration category is `long`, divided by total portfolio value. |
+| Recession hedge exposure | Value of holdings where recession sensitivity is `positive`, divided by total portfolio value. |
+| Credit-risk exposure | Value of holdings where credit quality is `high yield`, bond type is `high yield`, or bond type is `corporate`, divided by total portfolio value. |
+
+Profile coverage:
+
+`bond holdings with duration, bond type and credit quality / total bond holdings`
+
+If there are no bond holdings, profile coverage is treated as `1` because there is no missing bond profile to review.
+
+### Rate and Spread Shock Estimates
+
+Per holding:
+
+- `estimatedRateShockUp1Pct = -effectiveDuration / 100`
+- `estimatedRateShockDown1Pct = effectiveDuration / 100`
+- `estimatedSpreadWidening1Pct = -spreadDuration / 100`
+
+These are first-order approximations. They do not model convexity, curve shape, manager positioning, ETF premium/discount behavior, or changing fund composition.
+
+### Scenario Impacts
+
+Scenario impacts are weighted by both bond-sleeve allocation and total portfolio allocation.
+
+For each scenario:
+
+- Bond sleeve impact = `sum(bondAllocationPercent * holdingScenarioImpact)`.
+- Portfolio impact = `sum(allocationPercent * holdingScenarioImpact)`.
+
+Current scenarios:
+
+| Scenario | Holding impact logic |
+|---|---|
+| Rates +1% | Uses `estimatedRateShockUp1Pct`. |
+| Rates -1% | Uses `estimatedRateShockDown1Pct`. |
+| Inflation surprise | TIPS/inflation-linked holdings get `+2.5%`; negative inflation sensitivity gets `-3%`; moderate negative gets `-1.5%`; otherwise `-0.5%`. |
+| Recession | Positive recession sensitivity gets rate-down estimate plus `+1%`; negative recession sensitivity gets spread-widening estimate minus `3%`; mixed gets `0`. |
+| Credit spreads +1% | Uses spread-widening estimate, plus `-4%` for high yield or `-1.5%` for corporate credit. |
+
+### Warnings
+
+The fixed-income page emits warnings when:
+
+- Long-duration bond exposure is above 20% of total portfolio value.
+- High-yield exposure is above 10% of total portfolio value.
+- Corporate credit-risk exposure is above 25% of total portfolio value.
+
+### Diagnostics and Allocation Guidance
+
+Diagnostics explain whether the bond sleeve has:
+
+- Meaningful cash-like stability.
+- Treasury recession-hedge exposure.
+- TIPS/inflation-linked exposure.
+- Meaningful credit exposure.
+- Meaningful long-duration rate sensitivity.
+
+Allocation guidance flags:
+
+- No visible bond sleeve.
+- Bond sleeve mostly cash-like.
+- Limited Treasury recession-hedge exposure.
+- No TIPS/inflation-linked allocation.
+- High-yield share large within the bond sleeve.
+- Otherwise, a reasonably balanced fixed-income sleeve.
+
+### Relationship to Portfolio Review
+
+The Portfolio Review Fixed Income section consumes the bond analytics report. Its score formula is documented under Portfolio Review Scores:
+
+`78 - max(0, 0.08 - totalBondAllocation) * 120 - max(0, longDurationExposure - 0.35) * 60 - max(0, highYieldExposure - 0.20) * 80 + min(8, recessionHedgeExposure * 10)`
+
+The fixed-income page itself is mainly explanatory and diagnostic; it does not execute trades or create direct recommendations.
 
 ## Recommendation Scores
 

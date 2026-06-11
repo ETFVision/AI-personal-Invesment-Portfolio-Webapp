@@ -1,6 +1,6 @@
 # Data Ingestion and Providers
 
-Last updated: 2026-06-11 20:11:07 +08:00
+Last updated: 2026-06-11 20:34:49 +08:00
 
 ## Provider Map
 
@@ -65,6 +65,146 @@ Exact schedule is in `docs/scheduled-jobs.md`.
 - GDELT should remain manual-only unless future rate-limit behavior is stabilized.
 - ETF top-holding availability depends on provider coverage. When top holdings are unavailable, portfolio exposure should fall back to sector/country exposure and mark coverage as limited.
 - FRED is stable for macro indicators but economic data updates at different publication cadences.
+
+## FMP Fundamentals Data Lineage
+
+Primary files:
+
+- `src/infrastructure/providers/fundamentals/FmpFundamentalsProvider.ts`
+- `src/application/services/fundamentals/FundamentalsRefreshService.ts`
+- `src/application/services/fundamentals/FundamentalScoringService.ts`
+- `src/application/services/fundamentals/FundamentalTrendCalculationService.ts`
+
+Base URL:
+
+- `https://financialmodelingprep.com/stable`
+
+### Endpoints Used
+
+| FMP endpoint | Internal output |
+|---|---|
+| `profile` | `company_profiles` |
+| `income-statement` | `financial_statements` rows with `statement_type = income` |
+| `balance-sheet-statement` | `financial_statements` rows with `statement_type = balance_sheet` |
+| `cash-flow-statement` | `financial_statements` rows with `statement_type = cash_flow` |
+| `ratios` | `financial_ratios` |
+
+The refresh service pulls annual and quarterly fundamentals separately:
+
+- Annual limit: latest 5 periods.
+- Quarterly limit: latest 12 periods.
+- Each refreshed stock then flows through score calculation and trend calculation.
+
+### Profile Field Mapping
+
+| Internal field | FMP source candidates |
+|---|---|
+| `company_name` | `companyName`, `companyNameSearch`, `name` |
+| `sector` | `sector` |
+| `industry` | `industry` |
+| `country` | `country` |
+| `exchange` | `exchangeShortName`, `exchange` |
+| `currency` | `currency` |
+| `market_cap` | `marketCap` |
+| `beta` | `beta` |
+| `description` | `description` |
+| `website` | `website` |
+| `ceo` | `ceo` |
+| `ipo_date` | `ipoDate` |
+| `employees` | `fullTimeEmployees`, `employees` |
+| `provider_metadata` | Raw provider item |
+
+### Statement Field Mapping
+
+All statement rows map `date`, `reportDate`, or `fillingDate` into `report_date`; `calendarYear` or `fiscalYear` into fiscal year; and quarterly rows include a fiscal quarter when available.
+
+| Internal field | FMP source candidates |
+|---|---|
+| `revenue` | `revenue` |
+| `gross_profit` | `grossProfit` |
+| `operating_income` | `operatingIncome` |
+| `ebitda` | `ebitda` |
+| `net_income` | `netIncome` |
+| `eps` | `eps` |
+| `diluted_eps` | `epsdiluted`, `dilutedEPS`, `dilutedEps` |
+| `total_assets` | `totalAssets` |
+| `total_liabilities` | `totalLiabilities` |
+| `shareholders_equity` | `totalStockholdersEquity`, `shareholdersEquity` |
+| `cash_and_equivalents` | `cashAndCashEquivalents`, `cashAndEquivalents` |
+| `total_debt` | `totalDebt` |
+| `operating_cash_flow` | `operatingCashFlow`, `netCashProvidedByOperatingActivities` |
+| `capital_expenditure` | `capitalExpenditure`, `capitalExpenditures` |
+| `free_cash_flow` | `freeCashFlow` |
+| `shares_outstanding` | `weightedAverageShsOutDil`, `weightedAverageShsOut`, `sharesOutstanding` |
+| `provider_metadata` | Raw provider item |
+
+### Ratio Field Mapping
+
+| Internal field | FMP source candidates |
+|---|---|
+| `pe_ratio` | `priceEarningsRatio`, `peRatio` |
+| `forward_pe` | `forwardPE`, `forwardPe` |
+| `price_to_sales` | `priceToSalesRatio`, `priceToSales` |
+| `price_to_book` | `priceToBookRatio`, `priceToBook` |
+| `ev_to_ebitda` | `enterpriseValueMultiple`, `evToEbitda` |
+| `ev_to_sales` | `evToSales` |
+| `gross_margin` | `grossProfitMargin`, `grossMargin` |
+| `operating_margin` | `operatingProfitMargin`, `operatingMargin` |
+| `net_margin` | `netProfitMargin`, `netMargin` |
+| `roe` | `returnOnEquity`, `roe` |
+| `roic` | `returnOnInvestedCapital`, `roic` |
+| `roa` | `returnOnAssets`, `roa` |
+| `debt_to_equity` | `debtEquityRatio`, `debtToEquity` |
+| `net_debt_to_ebitda` | `netDebtToEBITDA`, `netDebtToEbitda` |
+| `current_ratio` | `currentRatio` |
+| `quick_ratio` | `quickRatio` |
+| `free_cash_flow_yield` | `freeCashFlowYield` |
+| `revenue_growth` | `revenueGrowth` |
+| `eps_growth` | `epsgrowth`, `epsGrowth` |
+| `net_income_growth` | `netIncomeGrowth` |
+| `free_cash_flow_growth` | `freeCashFlowGrowth` |
+| `provider_metadata` | Raw provider item |
+
+### Derived Ratio Fallbacks
+
+`FundamentalsRefreshService` fills missing ratio values when provider ratios are absent, but it does not override provider-supplied values.
+
+Derived inputs:
+
+- Latest income statement.
+- Latest balance sheet.
+- Latest cash-flow statement.
+- Previous comparable statement when growth metrics are needed.
+- Profile market cap, or `shares_outstanding * provider profile price` when available.
+
+Derived formulas include:
+
+- `pe_ratio = marketCap / netIncome`
+- `price_to_sales = marketCap / revenue`
+- `price_to_book = marketCap / shareholdersEquity`
+- `gross_margin = grossProfit / revenue`
+- `operating_margin = operatingIncome / revenue`
+- `net_margin = netIncome / revenue`
+- `roe = netIncome / shareholdersEquity`
+- `roa = netIncome / totalAssets`
+- `debt_to_equity = totalDebt / shareholdersEquity`
+- `current_ratio = currentAssets / currentLiabilities` when those raw metadata fields exist.
+- `free_cash_flow_yield = freeCashFlow / marketCap`
+- `revenue_growth = (latestRevenue - previousRevenue) / abs(previousRevenue)`
+- `eps_growth = (latestEPS - previousEPS) / abs(previousEPS)`
+- `net_income_growth = (latestNetIncome - previousNetIncome) / abs(previousNetIncome)`
+- `free_cash_flow_growth = (latestFreeCashFlow - previousFreeCashFlow) / abs(previousFreeCashFlow)`
+
+Derived ratio rows mark fallback metadata in `provider_metadata.derivedFallbacks`.
+
+### Downstream Use
+
+After profiles, statements and ratios are stored:
+
+1. `FundamentalScoringService` computes `fundamental_scores`.
+2. `FundamentalTrendCalculationService` computes `fundamental_trends`.
+3. Trend summaries are written to `fundamental_trend_summaries`.
+4. Fundamentals overview and instrument detail pages read from the stored tables rather than recalculating provider data on render.
 
 ## Environment Variables
 

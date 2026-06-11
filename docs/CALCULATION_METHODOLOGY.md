@@ -1,6 +1,6 @@
 # Calculation Methodology
 
-Last updated: 2026-06-11 20:11:07 +08:00
+Last updated: 2026-06-11 20:34:49 +08:00
 
 ## Market Data Source of Truth
 
@@ -77,9 +77,109 @@ Holdings and portfolio calculations differ from universe/watchlist metrics:
 
 ## Portfolio Performance
 
-Portfolio performance should use flow-aware methodology where implemented. Recent risk page snapshot work moved toward TWR-based portfolio risk/performance context.
+Primary code:
 
-Documentation gap: exact TWR formula and all cash-flow treatment should be verified in `PerformanceService.ts`, `AnalyticsService.ts`, and relevant Supabase functions before external/commercial claims.
+- `src/application/services/PerformanceService.ts`
+- `src/application/services/AnalyticsService.ts`
+- `src/application/services/risk/riskMath.ts`
+
+Portfolio performance uses a flow-aware, TWR-style methodology where portfolio snapshots are available. The goal is to measure portfolio return net of external deposits and withdrawals, while treating buys and sells as internal portfolio allocation decisions.
+
+### Portfolio TWR Period Metric
+
+For daily, weekly, monthly, 1Y and YTD metrics:
+
+1. Find the nearest baseline portfolio snapshot on or before the target date. If none exists, the first snapshot after the target date can be used.
+2. Collect transactions after the baseline date and up to the current date.
+3. Treat external flows as:
+   - `deposit_cash` = positive external flow.
+   - `withdraw_cash` = negative external flow.
+   - Buy, sell, dividend and fee transactions are not external portfolio flows for portfolio-level TWR.
+4. Build a chronological snapshot series from the baseline snapshot to the latest current value.
+5. For each subperiod:
+
+`periodReturn = (currentTotalValue - netExternalFlow) / previousTotalValue - 1`
+
+6. Chain subperiod returns:
+
+`portfolioReturn = product(1 + periodReturn) - 1`
+
+7. Value change is also shown:
+
+`valueChange = currentTotalValue - baselineTotalValue - deposits + withdrawals`
+
+### Manual Capital Base Override
+
+`AnalyticsService.ts` includes a defensive override for portfolios where transaction history does not fully explain the current capital base. If a manual capital base is configured and recorded capital coverage is materially incomplete, portfolio performance metrics are calculated against the manual capital base:
+
+`manualValueChange = currentTotalValue - manualCapitalBase`
+
+`manualPercentChange = manualValueChange / manualCapitalBase`
+
+This prevents misleading extreme returns when older deposits or cost basis were not fully entered into the transaction ledger.
+
+### Since-Inception Portfolio Metric
+
+If portfolio snapshots exist, since-inception uses the first snapshot as the baseline and the same TWR-style chain above.
+
+If snapshots do not exist, the fallback denominator is:
+
+`max(netRecordedCapital, investedAmount + cashAmount)`
+
+where:
+
+- `netRecordedCapital = deposits - withdrawals`
+- `investedAmount + cashAmount` acts as a cost/capital fallback.
+
+Fallback value change:
+
+`currentTotalValue + withdrawals - denominator`
+
+### Holding and Product Performance
+
+Holding metrics are position-specific and are not the same as universe/watchlist historical returns.
+
+For daily, weekly, monthly, 1Y and YTD holding periods:
+
+- Baseline = nearest holding snapshot around the target date.
+- Buys after baseline add to denominator.
+- Sells after baseline reduce the needed value-change adjustment.
+- Dividends/income add to return.
+- Fees reduce return.
+
+Formula:
+
+`valueChange = currentMarketValue - baselineMarketValue - buys + sells + income - fees`
+
+`denominator = baselineMarketValue + buys`
+
+`holdingReturn = valueChange / denominator`
+
+If the return is implausibly large for a no-trade period, the service can fall back to instrument price return for that period.
+
+Since-inception holding metric:
+
+`denominator = totalBuys`, or `quantity * averageCost` when total buys are unavailable.
+
+`valueChange = currentMarketValue + sells + income - denominator`
+
+### Cash Performance
+
+Cash metrics are also flow-adjusted:
+
+`valueChange = currentCashAmount - baselineCashAmount - deposits + withdrawals`
+
+`denominator = baselineCashAmount + deposits`
+
+Cash movements are therefore not confused with investment performance.
+
+### Portfolio Risk Snapshot TWR
+
+Risk analytics use the same external-flow logic to build portfolio daily returns:
+
+`portfolioReturn = (currentTotalValue - netExternalFlow) / previousTotalValue - 1`
+
+These returns are chained into a synthetic portfolio level series starting at 100 for volatility and drawdown analysis. This avoids treating deposits as positive investment performance or withdrawals as drawdowns.
 
 ## Portfolio Summaries
 

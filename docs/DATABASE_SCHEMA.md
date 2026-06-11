@@ -1,6 +1,6 @@
 # ETFVision Database Schema
 
-Last updated: 2026-06-11 20:11:07 +08:00
+Last updated: 2026-06-11 20:34:49 +08:00
 
 Authoritative status: current schema handover summary based on `supabase/migrations`. For exact columns and constraints, inspect the migration files directly.
 
@@ -27,6 +27,39 @@ Authoritative status: current schema handover summary based on `supabase/migrati
 | `metadata_refresh_logs` | Older metadata refresh logging. Current job summaries also appear in `job_runs`. |
 
 Product taxonomy is stored on `instruments` via `asset_category` and `etf_category`. Portfolio sector allocation must not use `etf_category` except as a last-resort fallback.
+
+### Fixed Income Profile Tables
+
+Bond and fixed-income page inputs are stored mainly in `bond_profiles`, with additional fallback metadata on `instruments`.
+
+Primary migrations:
+
+- `supabase/migrations/008_instrument_universe.sql`
+- `supabase/migrations/016_bond_intelligence_foundation.sql`
+- `supabase/migrations/017_bond_profile_enrichment.sql`
+
+`bond_profiles` columns:
+
+| Column | Purpose |
+|---|---|
+| `instrument_id` | Primary key and FK to `instruments.id`. |
+| `duration_category` | Duration bucket, such as `ultra-short`, `short`, `intermediate`, `long`, or `short/intermediate`. |
+| `treasury_classification` | Bond type/classification, such as `treasury`, `aggregate`, `corporate`, `high yield`, `inflation-linked`, or `international`. |
+| `inflation_linked` | Whether the ETF is explicitly inflation-linked/TIPS-like. |
+| `credit_quality` | Credit quality bucket, such as `government`, `investment grade`, `mixed investment grade`, or `high yield`. |
+| `geo_exposure` | Bond geography, such as `US`, `global`, or `international`. |
+| `rate_sensitivity` | Low/medium/high rate sensitivity classification. |
+| `inflation_sensitivity` | Inflation sensitivity label used by fixed-income scenarios. |
+| `recession_sensitivity` | Recession hedge behavior, such as `positive`, `mixed`, or `negative`. |
+| `liquidity_role` | Role text such as `cash-like stability`, `core stability`, `recession hedge`, or `income`. |
+| `currency` | Bond currency, usually `USD` for current universe. |
+| `sec_yield`, `distribution_yield`, `yield_to_maturity`, `yield_as_of_date` | Yield fields where available. |
+| `effective_duration`, `average_maturity`, `spread_duration`, `option_adjusted_spread` | Duration/spread risk fields where available. |
+| `expense_ratio` | Fund expense ratio where available. |
+| `is_manual_override` | Whether the profile was manually overridden. |
+| `provider_metadata` | Provider or seeded metadata payload. |
+
+`BondProfileService` can also use seeded fallback profiles for key bond ETFs such as `SGOV`, `BIL`, `SHY`, `IEF`, `TLT`, `BND`, `AGG`, `TIP`, `LQD`, `HYG`, and `BNDX` when provider/profile rows are incomplete.
 
 ## Market Data and Derived Metrics
 
@@ -67,12 +100,54 @@ Current optimization includes fundamentals overview and detail snapshot/read ind
 
 ## ETF Look-Through
 
-| Table family | Purpose |
-|---|---|
-| ETF exposure tables | FMP ETF sector/country/top-holding exposure. Exact names should be checked in ETF exposure migrations and `SupabaseEtfExposureRepository.ts`. |
-| Portfolio look-through outputs | Used by portfolio review, dashboard exposure charts, assistant context, and risk pages. |
+Primary migrations:
 
-Documentation gap: the exact final ETF exposure table names are not summarized here because they are split across migrations and repository mappings. Follow up in `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts`.
+- `supabase/migrations/051_etf_lookthrough_exposure.sql`
+- `supabase/migrations/052_portfolio_lookthrough_holdings.sql`
+
+Primary repository:
+
+- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts`
+
+### Provider ETF Exposure Tables
+
+| Table | Key columns | Purpose | Unique key |
+|---|---|---|---|
+| `etf_sector_exposures` | `etf_instrument_id`, `etf_symbol`, `sector`, `exposure_weight`, `as_of_date`, `source_provider`, `provider_metadata` | Provider ETF sector allocation rows. | `etf_instrument_id`, `sector`, `as_of_date`, `source_provider` |
+| `etf_country_exposures` | `etf_instrument_id`, `etf_symbol`, `country`, `exposure_weight`, `as_of_date`, `source_provider`, `provider_metadata` | Provider ETF geography/country allocation rows. | `etf_instrument_id`, `country`, `as_of_date`, `source_provider` |
+| `etf_top_holdings` | `etf_instrument_id`, `etf_symbol`, `holding_symbol`, `holding_name`, `holding_weight`, `as_of_date`, `source_provider`, `provider_metadata` | Provider ETF underlying top holdings. | `etf_instrument_id`, `holding_symbol`, `as_of_date`, `source_provider` |
+| `etf_theme_exposures` | `etf_instrument_id`, `etf_symbol`, `theme`, `exposure_weight`, `confidence_score`, `derivation_method`, `as_of_date` | Derived ETF theme exposures, usually from sector/theme mapping. | `etf_instrument_id`, `theme`, `as_of_date`, `derivation_method` |
+
+Exposure weights should be interpreted as provider weights and normalized by the look-through service before use. Providers can return weights as decimals or percentages; the service normalizes values above `1` by dividing by `100`.
+
+### Portfolio Look-Through Output Tables
+
+| Table | Key columns | Purpose | Unique key |
+|---|---|---|---|
+| `portfolio_lookthrough_exposures` | `portfolio_id`, `exposure_type`, `exposure_name`, `exposure_weight`, `direct_weight`, `etf_lookthrough_weight`, `as_of_date` | Current portfolio exposure output for sector, country, currency, theme, and top-holding views. | `portfolio_id`, `exposure_type`, `exposure_name`, `as_of_date` |
+| `portfolio_lookthrough_holdings` | `portfolio_id`, `as_of_date`, `holding_symbol`, `holding_name`, `direct_weight`, `indirect_weight`, `total_weight`, `source_etfs`, `inputs_snapshot` | Direct plus indirect stock-level exposure from ETF holdings. | `portfolio_id`, `holding_symbol`, `as_of_date` |
+| `etf_exposure_refresh_logs` | `job_name`, `started_at`, `completed_at`, `status`, `etfs_requested`, `etfs_refreshed`, `sector_rows`, `country_rows`, `top_holding_rows`, `error_message`, `metadata` | ETF exposure refresh diagnostics. | Log table; no business unique key. |
+
+### Look-Through Allocation Rules
+
+The application must distinguish ETF taxonomy from portfolio exposure:
+
+- `instruments.etf_category` classifies the ETF product itself, such as `US_BROAD_MARKET`, `BOND`, `GOLD_PRECIOUS_METALS`, or `TECHNOLOGY`.
+- Portfolio sector allocation must use look-through exposure, not `etf_category`.
+- Priority order for portfolio sector allocation:
+  1. ETF holdings look-through sector aggregation where available.
+  2. Provider ETF sector breakdown where holdings-level sector aggregation is unavailable.
+  3. ETF category fallback only if no sector exposure exists; this should be treated as estimated/limited.
+
+Example: `VOO` can be categorized as `US_BROAD_MARKET` for ETF taxonomy, but its portfolio sector allocation should reflect underlying exposure across Technology, Financials, Healthcare, Industrials, and other sectors.
+
+### Exposure Semantics
+
+- Sector, country, currency and top-holding exposures are allocation-style views and should generally add up to approximately 100% after normalization, subject to missing provider coverage and rounding.
+- Theme exposures are tag-style views. They can exceed 100% because a holding can map to multiple themes. Do not treat theme exposure as a mutually exclusive allocation pie.
+- `direct_weight` is exposure from directly held instruments.
+- `etf_lookthrough_weight` or `indirect_weight` is exposure inherited through ETF holdings.
+- `total_weight` in `portfolio_lookthrough_holdings` combines direct and indirect stock-level exposure.
 
 ## News and Themes
 
