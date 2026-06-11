@@ -1,0 +1,229 @@
+# Data Ingestion and Providers
+
+Last updated: 2026-06-11 20:34:49 +08:00
+
+## Provider Map
+
+| Provider | Adapter | Used for |
+|---|---|---|
+| FMP | `FmpMarketDataProvider.ts` | Instrument metadata, latest prices, historical prices, FMP news. |
+| FMP | `FmpFundamentalsProvider.ts` | Company profiles, statements, ratios, fundamentals scoring inputs. |
+| FMP | `FmpEtfExposureProvider.ts` | ETF sector, country, and holdings/look-through exposure where available. |
+| FRED | `FredMacroDataProvider.ts` | Macro indicator observations and regime inputs. |
+| NewsData.io | `NewsDataNewsProvider.ts` | Macro/world news query groups. Current preferred macro news provider. |
+| GDELT | `GdeltNewsProvider.ts` | Separate manual macro/world news source. Not automated because of rate-limit instability. |
+| OpenAI | `OpenAiNewsProvider.ts`, `OpenAiMarketVisionProvider.ts`, `OpenAiPortfolioAssistantProvider.ts` | Classification/narrative intelligence. |
+
+## Ingestion Jobs
+
+| Job | Endpoint | Main output |
+|---|---|---|
+| Instrument price refresh | `/api/jobs/instrument-price-refresh` | Latest raw `instrument_prices`. |
+| Daily returns refresh | `/api/jobs/instrument-daily-returns-refresh` | `instrument_daily_returns`. |
+| Return anchors refresh | `/api/jobs/instrument-return-anchors-refresh` | `instrument_return_anchors`. |
+| Market metrics refresh | `/api/jobs/instrument-market-metrics-refresh` | `instrument_market_metrics`. |
+| Risk refresh | `/api/jobs/instrument-risk-refresh` | `instrument_risk_metrics`. |
+| Metadata refresh | `/api/jobs/instrument-metadata-refresh` | Instrument metadata/profile fields. |
+| Market history backfill | `/api/jobs/market-history-backfill` | Historical `instrument_prices` and benchmark history. |
+| Benchmark refresh | `/api/jobs/benchmark-refresh` | Recent benchmark snapshots. |
+| ETF look-through | `/api/jobs/etf-lookthrough-refresh` | ETF exposure rows. |
+| Fundamentals | `/api/jobs/fundamentals-refresh` | Profiles, statements, ratios, scores, trends. |
+| FRED macro | `/api/jobs/fred-macro-ingestion` | Macro observations, trends, regimes. |
+| FMP news | `/api/jobs/daily-news-ingestion` | FMP news and classifications. |
+| NewsData | `/api/jobs/newsdata-news-ingestion` | NewsData articles and provider metadata. |
+| GDELT | `/api/jobs/gdelt-news-ingestion` | Manual GDELT queue refresh. |
+| Weekly news reconciliation | `/api/jobs/weekly-news-reconciliation` | Weekly asset/theme summary. |
+| Market Vision | `/api/jobs/weekly-market-vision` | Weekly CIO-style AI report. |
+| Recommendations | `/api/jobs/recommendation-run` | Deterministic recommendations and telemetry snapshots. |
+| Portfolio Review | `/api/jobs/portfolio-review-run` | Portfolio review report and telemetry snapshots. |
+| Telemetry evaluation | `/api/jobs/telemetry-evaluation` | Mature 1m/3m/6m/12m outcome evaluations. |
+| Portfolio summary | `/api/jobs/portfolio-summary-refresh` | Dashboard/performance summary tables. |
+
+## Daily Dependency Order
+
+Daily automation should preserve this dependency chain:
+
+1. Instrument prices.
+2. Instrument daily returns.
+3. Instrument return anchors.
+4. Instrument market metrics.
+5. Instrument risk metrics.
+6. Instrument metadata.
+7. Benchmarks.
+8. Portfolio valuation.
+9. FRED macro.
+10. FMP news.
+11. NewsData.
+12. Portfolio summary refresh.
+
+Exact schedule is in `docs/scheduled-jobs.md`.
+
+## Provider Quality Notes
+
+- FMP is the core market/fundamentals provider. Some tickers can have limited endpoint coverage or delayed end-of-day updates.
+- NewsData.io is preferred for scheduled macro/world news because it is less rate-limit fragile than GDELT.
+- GDELT should remain manual-only unless future rate-limit behavior is stabilized.
+- ETF top-holding availability depends on provider coverage. When top holdings are unavailable, portfolio exposure should fall back to sector/country exposure and mark coverage as limited.
+- FRED is stable for macro indicators but economic data updates at different publication cadences.
+
+## FMP Fundamentals Data Lineage
+
+Primary files:
+
+- `src/infrastructure/providers/fundamentals/FmpFundamentalsProvider.ts`
+- `src/application/services/fundamentals/FundamentalsRefreshService.ts`
+- `src/application/services/fundamentals/FundamentalScoringService.ts`
+- `src/application/services/fundamentals/FundamentalTrendCalculationService.ts`
+
+Base URL:
+
+- `https://financialmodelingprep.com/stable`
+
+### Endpoints Used
+
+| FMP endpoint | Internal output |
+|---|---|
+| `profile` | `company_profiles` |
+| `income-statement` | `financial_statements` rows with `statement_type = income` |
+| `balance-sheet-statement` | `financial_statements` rows with `statement_type = balance_sheet` |
+| `cash-flow-statement` | `financial_statements` rows with `statement_type = cash_flow` |
+| `ratios` | `financial_ratios` |
+
+The refresh service pulls annual and quarterly fundamentals separately:
+
+- Annual limit: latest 5 periods.
+- Quarterly limit: latest 12 periods.
+- Each refreshed stock then flows through score calculation and trend calculation.
+
+### Profile Field Mapping
+
+| Internal field | FMP source candidates |
+|---|---|
+| `company_name` | `companyName`, `companyNameSearch`, `name` |
+| `sector` | `sector` |
+| `industry` | `industry` |
+| `country` | `country` |
+| `exchange` | `exchangeShortName`, `exchange` |
+| `currency` | `currency` |
+| `market_cap` | `marketCap` |
+| `beta` | `beta` |
+| `description` | `description` |
+| `website` | `website` |
+| `ceo` | `ceo` |
+| `ipo_date` | `ipoDate` |
+| `employees` | `fullTimeEmployees`, `employees` |
+| `provider_metadata` | Raw provider item |
+
+### Statement Field Mapping
+
+All statement rows map `date`, `reportDate`, or `fillingDate` into `report_date`; `calendarYear` or `fiscalYear` into fiscal year; and quarterly rows include a fiscal quarter when available.
+
+| Internal field | FMP source candidates |
+|---|---|
+| `revenue` | `revenue` |
+| `gross_profit` | `grossProfit` |
+| `operating_income` | `operatingIncome` |
+| `ebitda` | `ebitda` |
+| `net_income` | `netIncome` |
+| `eps` | `eps` |
+| `diluted_eps` | `epsdiluted`, `dilutedEPS`, `dilutedEps` |
+| `total_assets` | `totalAssets` |
+| `total_liabilities` | `totalLiabilities` |
+| `shareholders_equity` | `totalStockholdersEquity`, `shareholdersEquity` |
+| `cash_and_equivalents` | `cashAndCashEquivalents`, `cashAndEquivalents` |
+| `total_debt` | `totalDebt` |
+| `operating_cash_flow` | `operatingCashFlow`, `netCashProvidedByOperatingActivities` |
+| `capital_expenditure` | `capitalExpenditure`, `capitalExpenditures` |
+| `free_cash_flow` | `freeCashFlow` |
+| `shares_outstanding` | `weightedAverageShsOutDil`, `weightedAverageShsOut`, `sharesOutstanding` |
+| `provider_metadata` | Raw provider item |
+
+### Ratio Field Mapping
+
+| Internal field | FMP source candidates |
+|---|---|
+| `pe_ratio` | `priceEarningsRatio`, `peRatio` |
+| `forward_pe` | `forwardPE`, `forwardPe` |
+| `price_to_sales` | `priceToSalesRatio`, `priceToSales` |
+| `price_to_book` | `priceToBookRatio`, `priceToBook` |
+| `ev_to_ebitda` | `enterpriseValueMultiple`, `evToEbitda` |
+| `ev_to_sales` | `evToSales` |
+| `gross_margin` | `grossProfitMargin`, `grossMargin` |
+| `operating_margin` | `operatingProfitMargin`, `operatingMargin` |
+| `net_margin` | `netProfitMargin`, `netMargin` |
+| `roe` | `returnOnEquity`, `roe` |
+| `roic` | `returnOnInvestedCapital`, `roic` |
+| `roa` | `returnOnAssets`, `roa` |
+| `debt_to_equity` | `debtEquityRatio`, `debtToEquity` |
+| `net_debt_to_ebitda` | `netDebtToEBITDA`, `netDebtToEbitda` |
+| `current_ratio` | `currentRatio` |
+| `quick_ratio` | `quickRatio` |
+| `free_cash_flow_yield` | `freeCashFlowYield` |
+| `revenue_growth` | `revenueGrowth` |
+| `eps_growth` | `epsgrowth`, `epsGrowth` |
+| `net_income_growth` | `netIncomeGrowth` |
+| `free_cash_flow_growth` | `freeCashFlowGrowth` |
+| `provider_metadata` | Raw provider item |
+
+### Derived Ratio Fallbacks
+
+`FundamentalsRefreshService` fills missing ratio values when provider ratios are absent, but it does not override provider-supplied values.
+
+Derived inputs:
+
+- Latest income statement.
+- Latest balance sheet.
+- Latest cash-flow statement.
+- Previous comparable statement when growth metrics are needed.
+- Profile market cap, or `shares_outstanding * provider profile price` when available.
+
+Derived formulas include:
+
+- `pe_ratio = marketCap / netIncome`
+- `price_to_sales = marketCap / revenue`
+- `price_to_book = marketCap / shareholdersEquity`
+- `gross_margin = grossProfit / revenue`
+- `operating_margin = operatingIncome / revenue`
+- `net_margin = netIncome / revenue`
+- `roe = netIncome / shareholdersEquity`
+- `roa = netIncome / totalAssets`
+- `debt_to_equity = totalDebt / shareholdersEquity`
+- `current_ratio = currentAssets / currentLiabilities` when those raw metadata fields exist.
+- `free_cash_flow_yield = freeCashFlow / marketCap`
+- `revenue_growth = (latestRevenue - previousRevenue) / abs(previousRevenue)`
+- `eps_growth = (latestEPS - previousEPS) / abs(previousEPS)`
+- `net_income_growth = (latestNetIncome - previousNetIncome) / abs(previousNetIncome)`
+- `free_cash_flow_growth = (latestFreeCashFlow - previousFreeCashFlow) / abs(previousFreeCashFlow)`
+
+Derived ratio rows mark fallback metadata in `provider_metadata.derivedFallbacks`.
+
+### Downstream Use
+
+After profiles, statements and ratios are stored:
+
+1. `FundamentalScoringService` computes `fundamental_scores`.
+2. `FundamentalTrendCalculationService` computes `fundamental_trends`.
+3. Trend summaries are written to `fundamental_trend_summaries`.
+4. Fundamentals overview and instrument detail pages read from the stored tables rather than recalculating provider data on render.
+
+## Environment Variables
+
+Required in Vercel:
+
+- `FMP_API_KEY`
+- `FRED_API_KEY`
+- `NEWSDATA_API_KEY`
+- `OPENAI_API_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `CRON_SECRET`
+- `SCHEDULED_USER_ID`
+- `SCHEDULED_PORTFOLIO_ID`
+
+Supabase Vault must contain:
+
+- `APP_URL`
+- `CRON_SECRET`
+
+## Manual Refresh UX
+
+Admin > Data Sources centralizes refresh buttons and data-layer coverage cards. Product pages should generally avoid refresh buttons except where intentionally retained.

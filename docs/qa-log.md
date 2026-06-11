@@ -2782,3 +2782,168 @@ Validation:
 Production-readiness assessment:
 - READY as a checkpoint.
 - Future optimization should remain evidence-led using `[render-timing]` logs and should avoid adding summary tables unless scoped-query improvements are insufficient.
+
+## 2026-06-11 20:11 SGT - Current Architecture Handover Documentation Pack
+
+Scope:
+- Created the current authoritative documentation pack for ETFVision architecture, data flow, calculation methodology, scoring methodology, intelligence engines, operations, performance, security, and documentation gaps.
+- This was a documentation-only update. No app behavior, migrations, scoring logic, routes, feature flags, UI, or jobs were changed.
+
+Files added:
+- `docs/ARCHITECTURE_OVERVIEW.md`
+- `docs/DATABASE_SCHEMA.md`
+- `docs/DATA_INGESTION_AND_PROVIDERS.md`
+- `docs/INSTRUMENT_TAXONOMY_AND_COVERAGE.md`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`
+- `docs/NEWS_THEME_METHODOLOGY.md`
+- `docs/MARKET_VISION_METHODOLOGY.md`
+- `docs/ASSISTANT_ARCHITECTURE.md`
+- `docs/TELEMETRY_ARCHITECTURE.md`
+- `docs/JOBS_AND_OPERATIONS.md`
+- `docs/PERFORMANCE_ARCHITECTURE.md`
+- `docs/SECURITY_AND_ACCESS_ARCHITECTURE.md`
+- `docs/README.md`
+- `docs/DOCUMENTATION_GAPS.md`
+
+Primary code references checked:
+- `src/server/container.ts`
+- `src/server/jobs/runCronJob.ts`
+- `src/server/jobs/cronAuth.ts`
+- `src/application/services/recommendations/recommendationScoring.ts`
+- `src/application/services/recommendations/RecommendationRulesService.ts`
+- `src/application/services/portfolioReview/portfolioReviewScoring.ts`
+- `supabase/migrations`
+- `docs/scheduled-jobs.md`
+
+Findings:
+- PASS: Current service boundaries and scheduled job patterns are documented.
+- PASS: Deterministic recommendation labels, confidence behavior, and guardrails are documented from code.
+- PASS: Portfolio Review section weights are documented from code.
+- PASS: Current performance architecture documents the implemented summary/derived metric tables and the reverted instrument directory summary attempt.
+- PASS: The documentation pack explicitly separates ETF product category from look-through sector allocation.
+- PASS: Open documentation gaps are captured rather than guessed.
+
+Deferred follow-up:
+- Full RLS audit.
+- Exact formula tables for all fundamentals, risk score buckets, and type-specific recommendation component weights.
+- Live Supabase validation of active instrument counts and current cron schedule state.
+- Alpha branch feature-gate audit directly on the `alpha` branch.
+
+Validation:
+- Documentation files were created and indexed.
+- No runtime tests were run because this change does not alter executable code.
+
+## 2026-06-11 20:26 SGT - Formula-Level Score Methodology Documentation
+
+Scope:
+- Added a dedicated score methodology handover document covering formula-level scoring logic for fundamentals, fundamental trends, instrument risk, portfolio risk/diversification, recommendations, portfolio review sections, and FRED macro theme signals.
+- Cross-linked the new document from the documentation index, calculation methodology, recommendation methodology, and portfolio review methodology.
+- Narrowed documentation gaps where formula-level score documentation is now available.
+
+Files updated:
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/README.md`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+
+Primary code references checked:
+- `src/application/services/fundamentals/FundamentalScoringService.ts`
+- `src/application/services/fundamentals/FundamentalTrendCalculationService.ts`
+- `src/application/services/InstrumentRiskService.ts`
+- `src/application/services/risk/riskMath.ts`
+- `src/application/services/recommendations/RecommendationRulesService.ts`
+- `src/application/services/recommendations/recommendationScoring.ts`
+- `src/application/services/recommendations/StockRecommendationService.ts`
+- `src/application/services/recommendations/EtfRecommendationService.ts`
+- `src/application/services/recommendations/BondEtfRecommendationService.ts`
+- `src/application/services/recommendations/GoldRecommendationService.ts`
+- `src/application/services/recommendations/CryptoRecommendationService.ts`
+- `src/application/services/recommendations/portfolioFitService.ts`
+- `src/application/services/portfolioReview/*ReviewService.ts`
+- `src/application/services/macro/MacroTrendService.ts`
+- `src/application/services/macro/FredThemeSignalService.ts`
+
+Findings:
+- PASS: Fundamentals overall score weights and subscore helper formulas are now documented.
+- PASS: Fundamental trend short-term/long-term windows, direction mapping, score mapping and confidence are now documented.
+- PASS: Instrument risk score formula and buckets are now documented.
+- PASS: Recommendation score, confidence, guardrails and type-specific component weights are now documented.
+- PASS: Portfolio Review section-level formulas are now documented.
+- PASS: Macro/FRED severity, persistence and confidence score formulas are now documented.
+
+Validation:
+- Documentation-only update.
+- No runtime tests were run because no executable code changed.
+
+## 2026-06-11 20:34 SGT - Methodology Documentation Gap Closure
+
+Scope:
+- Closed the first four methodology documentation gaps requested after the handover pack review.
+- Added an additional fixed-income page methodology section after confirming the current `/bonds` page logic was only partially covered by prior design docs.
+
+Files updated:
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/DATABASE_SCHEMA.md`
+- `docs/DATA_INGESTION_AND_PROVIDERS.md`
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+
+Primary code references checked:
+- `src/application/services/PerformanceService.ts`
+- `src/application/services/AnalyticsService.ts`
+- `src/application/services/risk/riskMath.ts`
+- `src/application/services/risk/RiskAnalyticsDataService.ts`
+- `src/application/services/risk/RiskAnalyticsService.ts`
+- `src/application/services/risk/VolatilityService.ts`
+- `src/application/services/risk/DrawdownService.ts`
+- `src/application/services/risk/CorrelationService.ts`
+- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts`
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `src/infrastructure/providers/fundamentals/FmpFundamentalsProvider.ts`
+- `src/application/services/fundamentals/FundamentalsRefreshService.ts`
+- `src/application/services/fundamentals/FundamentalScoringService.ts`
+- `src/application/services/fundamentals/FundamentalTrendCalculationService.ts`
+- `src/application/services/bonds/BondAnalyticsService.ts`
+- `src/application/services/bonds/BondProfileService.ts`
+- `src/application/services/bonds/DurationAnalysisService.ts`
+- `src/application/services/bonds/CreditExposureService.ts`
+- `supabase/migrations/008_instrument_universe.sql`
+- `supabase/migrations/017_bond_profile_enrichment.sql`
+- `supabase/migrations/051_etf_lookthrough_exposure.sql`
+- `supabase/migrations/052_portfolio_lookthrough_holdings.sql`
+
+Findings:
+- PASS: Portfolio TWR and cash-flow treatment now documents deposits, withdrawals, manual capital-base override, holding-level flow adjustments, cash metrics, and risk snapshot TWR.
+- PASS: ETF look-through now has exact table names, key columns, unique keys, and portfolio allocation semantics.
+- PASS: FMP fundamentals lineage now maps endpoints and fields into internal profiles, statements, ratios, derived fallback ratios, scores, and trends.
+- PASS: Risk analytics page methodology now documents data assembly, flow-adjusted volatility/drawdown, correlation, covariance/proxy risk contribution, warnings, and benchmark context.
+- PASS: Fixed income page methodology now documents bond profile storage, seeded fallbacks, allocation metrics, exposure formulas, shock/scenario approximations, warnings, diagnostics, allocation guidance, and Portfolio Review linkage.
+
+Validation:
+- Documentation-only update.
+- No runtime tests were run because no executable code changed.
+
+## 2026-06-11 20:50 SGT - Page-Level Documentation Gap Tracker Update
+
+Scope:
+- Expanded the documentation gap tracker with the remaining page-level handover gaps across Portfolio Dashboard, Universe, Watchlist, Market Vision, News & Themes, Macro, Fundamentals, Risk, Fixed Income, Insights, and Portfolio Review.
+- Cleaned a duplicate Market Vision publish/draft lifecycle entry.
+
+Files updated:
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+
+Findings:
+- PASS: Core formula and schema methodology gaps remain marked as closed.
+- PASS: Remaining gaps are now clearly framed as page data map, UI section mapping, refresh dependency, and operational handover items.
+- PASS: A future `docs/PAGE_DATA_MAP.md` is now explicitly listed as the canonical follow-up artifact.
+
+Validation:
+- Documentation-only update.
+- No runtime tests were run because no executable code changed.
