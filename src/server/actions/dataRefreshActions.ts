@@ -362,3 +362,47 @@ export async function refreshInstrumentRiskMetricsAction(formData?: FormData) {
 
   redirect(`${destination}?${params.toString()}`);
 }
+
+export async function refreshInstrumentMetadataAction(formData?: FormData) {
+  const container = createContainer();
+  const authUser = await container.authProvider.requireUser();
+  const appUser = await container.portfolioService.ensureApplicationUser(authUser);
+  const destination = returnPath(formData);
+  const errors: string[] = [];
+  let refreshMessage = "";
+
+  const job = await container.jobRunService.runManual("instrument-metadata-refresh", async () => {
+    const result = await container.metadataRefreshService.refreshUniverseMetadataInBatches({
+      requestedByUserId: appUser.id,
+      batchSize: 25,
+      maxBatches: 14
+    });
+    refreshMessage = result.message;
+    errors.push(...result.errors);
+
+    return {
+      status: errors.length > 0 ? "partial_success" : "success",
+      ok: true,
+      message: refreshMessage,
+      errors,
+      metadata: result
+    };
+  });
+  if (job.errors.length > 0 && errors.length === 0) errors.push(...job.errors);
+  if (!refreshMessage && job.errors.length > 0) refreshMessage = "Instrument metadata refresh failed.";
+
+  revalidatePath("/admin/data-sources");
+  revalidatePath("/instruments");
+  revalidatePath("/instruments/universe");
+  revalidatePath("/instruments/watchlist");
+  revalidatePath("/universe");
+  revalidatePath("/watchlists");
+  revalidatePath("/portfolio");
+
+  const params = new URLSearchParams({
+    refreshMessage
+  });
+  if (errors.length > 0) params.set("refreshError", errors.join(" | "));
+
+  redirect(`${destination}?${params.toString()}`);
+}
