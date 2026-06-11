@@ -9,8 +9,25 @@ export class BondService {
   ) {}
 
   async getPortfolioBondAnalytics(dashboard: PortfolioDashboard) {
+    const bondSymbols = Array.from(
+      new Set(
+        dashboard.holdingValuations
+          .filter((valuation) => valuation.holding.assetType === "bond_etf" && valuation.holding.ticker)
+          .map((valuation) => valuation.holding.ticker!.trim().toUpperCase())
+      )
+    );
     const [instruments, bondProfiles] = await Promise.all([
-      this.universeRepository.listInstruments({ isActive: true }),
+      bondSymbols.length === 0
+        ? Promise.resolve([])
+        : Promise.all(
+            bondSymbols.map((symbol) =>
+              this.universeRepository.listDirectoryInstruments({
+                isActive: true,
+                query: symbol,
+                limit: 5
+              })
+            )
+          ).then((groups) => groups.flat()),
       this.universeRepository.listBondProfiles()
     ]);
 
