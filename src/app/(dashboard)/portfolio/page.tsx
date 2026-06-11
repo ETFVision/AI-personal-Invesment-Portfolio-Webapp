@@ -14,7 +14,7 @@ import {
   WinnersLosersPanel
 } from "@/components/portfolio/analytics-panels";
 import { formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
-import type { AllocationItem } from "@/domain/portfolio/types";
+import type { AllocationItem, PortfolioDashboard } from "@/domain/portfolio/types";
 import type { PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
 import type { PortfolioReviewSummary } from "@/application/ports/repositories/PortfolioReviewRepository";
@@ -67,30 +67,21 @@ function LoadingCard({ title }: { title: string }) {
   );
 }
 
-async function PortfolioAnalyticsSections({
-  portfolioId,
-  latestPortfolioReview
+async function PortfolioPerformanceSection({
+  portfolioId
 }: {
   portfolioId: string;
-  latestPortfolioReview: PortfolioReviewSummary | null;
 }) {
   const container = createContainer();
-  const dashboard = await measureRenderStep(`portfolio:${portfolioId}:deferred-analytics-panels-data`, () =>
+  const dashboard = await measureRenderStep(`portfolio:${portfolioId}:performance-history-data`, () =>
     container.portfolioService.getDashboard(portfolioId)
   );
-  const lookthroughReport = lookthroughReportFromSnapshot(latestPortfolioReview?.inputsSnapshot?.lookthroughExposure);
-  const sectorAllocation = lookthroughReport?.sectorExposures.length
-    ? allocationFromLookthrough(lookthroughReport.sectorExposures)
-    : dashboard.allocationBySector;
-  const geographyAllocation = lookthroughReport?.countryExposures.length
-    ? allocationFromLookthrough(lookthroughReport.countryExposures)
-    : dashboard.allocationByGeography;
 
   return (
     <>
       <SectionHeader
         title="Performance Command Center"
-        description="Portfolio return, allocation and exposure panels using the latest stored derived metrics."
+        description="Portfolio return and benchmark comparison panels using stored historical snapshots."
       />
       <Card>
         <CardHeader>
@@ -103,7 +94,27 @@ async function PortfolioAnalyticsSections({
           <PerformancePanel dashboard={dashboard} />
         </CardContent>
       </Card>
+    </>
+  );
+}
 
+function PortfolioAllocationSections({
+  dashboard,
+  latestPortfolioReview
+}: {
+  dashboard: PortfolioDashboard;
+  latestPortfolioReview: PortfolioReviewSummary | null;
+}) {
+  const lookthroughReport = lookthroughReportFromSnapshot(latestPortfolioReview?.inputsSnapshot?.lookthroughExposure);
+  const sectorAllocation = lookthroughReport?.sectorExposures.length
+    ? allocationFromLookthrough(lookthroughReport.sectorExposures)
+    : dashboard.allocationBySector;
+  const geographyAllocation = lookthroughReport?.countryExposures.length
+    ? allocationFromLookthrough(lookthroughReport.countryExposures)
+    : dashboard.allocationByGeography;
+
+  return (
+    <>
       <SectionHeader
         title="Allocation & Exposure"
         description="Portfolio composition with ETF look-through exposure when the latest review has cached provider data."
@@ -362,9 +373,10 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </Card>
       ) : null}
 
-      <Suspense fallback={<LoadingCard title="Performance and allocation" />}>
-        <PortfolioAnalyticsSections portfolioId={portfolio.id} latestPortfolioReview={latestPortfolioReview} />
+      <Suspense fallback={<LoadingCard title="Performance" />}>
+        <PortfolioPerformanceSection portfolioId={portfolio.id} />
       </Suspense>
+      <PortfolioAllocationSections dashboard={dashboard} latestPortfolioReview={latestPortfolioReview} />
 
     </PageContainer>
   );
