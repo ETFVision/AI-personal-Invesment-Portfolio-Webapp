@@ -2782,3 +2782,55 @@ Validation:
 Production-readiness assessment:
 - READY as a checkpoint.
 - Future optimization should remain evidence-led using `[render-timing]` logs and should avoid adding summary tables unless scoped-query improvements are insufficient.
+
+## 2026-06-11 20:11 SGT - Current Architecture Handover Documentation Pack
+
+Scope:
+- Created the current authoritative documentation pack for ETFVision architecture, data flow, calculation methodology, scoring methodology, intelligence engines, operations, performance, security, and documentation gaps.
+- This was a documentation-only update. No app behavior, migrations, scoring logic, routes, feature flags, UI, or jobs were changed.
+
+Files added:
+- `docs/ARCHITECTURE_OVERVIEW.md`
+- `docs/DATABASE_SCHEMA.md`
+- `docs/DATA_INGESTION_AND_PROVIDERS.md`
+- `docs/INSTRUMENT_TAXONOMY_AND_COVERAGE.md`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`
+- `docs/NEWS_THEME_METHODOLOGY.md`
+- `docs/MARKET_VISION_METHODOLOGY.md`
+- `docs/ASSISTANT_ARCHITECTURE.md`
+- `docs/TELEMETRY_ARCHITECTURE.md`
+- `docs/JOBS_AND_OPERATIONS.md`
+- `docs/PERFORMANCE_ARCHITECTURE.md`
+- `docs/SECURITY_AND_ACCESS_ARCHITECTURE.md`
+- `docs/README.md`
+- `docs/DOCUMENTATION_GAPS.md`
+
+Primary code references checked:
+- `src/server/container.ts`
+- `src/server/jobs/runCronJob.ts`
+- `src/server/jobs/cronAuth.ts`
+- `src/application/services/recommendations/recommendationScoring.ts`
+- `src/application/services/recommendations/RecommendationRulesService.ts`
+- `src/application/services/portfolioReview/portfolioReviewScoring.ts`
+- `supabase/migrations`
+- `docs/scheduled-jobs.md`
+
+Findings:
+- PASS: Current service boundaries and scheduled job patterns are documented.
+- PASS: Deterministic recommendation labels, confidence behavior, and guardrails are documented from code.
+- PASS: Portfolio Review section weights are documented from code.
+- PASS: Current performance architecture documents the implemented summary/derived metric tables and the reverted instrument directory summary attempt.
+- PASS: The documentation pack explicitly separates ETF product category from look-through sector allocation.
+- PASS: Open documentation gaps are captured rather than guessed.
+
+Deferred follow-up:
+- Full RLS audit.
+- Exact formula tables for all fundamentals, risk score buckets, and type-specific recommendation component weights.
+- Live Supabase validation of active instrument counts and current cron schedule state.
+- Alpha branch feature-gate audit directly on the `alpha` branch.
+
+Validation:
+- Documentation files were created and indexed.
+- No runtime tests were run because this change does not alter executable code.
