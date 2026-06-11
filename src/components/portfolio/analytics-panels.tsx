@@ -1,4 +1,4 @@
-import { AllocationItem, CashPerformance, PerformanceMetric, PortfolioDashboard, ProductPerformance } from "@/domain/portfolio/types";
+import { AllocationItem, BenchmarkComparison, CashPerformance, PerformanceMetric, PortfolioDashboard, ProductPerformance } from "@/domain/portfolio/types";
 import { HorizontalExposureBars } from "@/components/ui/charts";
 import { formatAssetTypeLabel, formatCurrencyWithCode, formatPercent } from "@/lib/utils";
 
@@ -174,7 +174,13 @@ export function WinnersLosersPanel({ dashboard }: { dashboard: PortfolioDashboar
   );
 }
 
-export function PerformancePanel({ dashboard }: { dashboard: PortfolioDashboard }) {
+type PerformancePanelData = {
+  portfolio: Pick<PortfolioDashboard["portfolio"], "baseCurrency">;
+  performance: PerformanceMetric[];
+  benchmarkComparisons: BenchmarkComparison[];
+};
+
+export function PerformancePanel({ dashboard }: { dashboard: PerformancePanelData }) {
   const shortTermMetrics = dashboard.performance.filter(
     (item) => item.label === "Daily" || item.label === "Weekly" || item.label === "Monthly"
   );
@@ -285,7 +291,7 @@ function getShortTermBenchmarkSpread(
 function LongTermPerformanceCharts({
   dashboard
 }: {
-  dashboard: PortfolioDashboard;
+  dashboard: PerformancePanelData;
 }) {
   const comparisons = dashboard.benchmarkComparisons.filter((comparison) => comparison.points.length >= 2);
   if (comparisons.length === 0) {

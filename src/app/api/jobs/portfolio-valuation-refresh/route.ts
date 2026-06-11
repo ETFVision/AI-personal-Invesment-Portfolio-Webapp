@@ -13,10 +13,12 @@ export async function POST(request: NextRequest) {
         errors: ["Missing portfolioId."]
       };
     }
-    await createContainer().portfolioService.createAnalyticsSnapshot(portfolioId);
+    const container = createContainer();
+    await container.portfolioService.createAnalyticsSnapshot(portfolioId);
+    await container.portfolioService.refreshPerformanceSummary(portfolioId);
     return {
       status: "success",
-      message: "Portfolio valuation snapshot refreshed.",
+      message: "Portfolio valuation snapshot and performance summary refreshed.",
       portfolioId
     };
   });

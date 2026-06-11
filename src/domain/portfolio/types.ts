@@ -252,6 +252,20 @@ export type PortfolioCurrentMetric = {
   updatedAt: string | null;
 };
 
+export type PortfolioPerformanceSummary = {
+  portfolioId: string;
+  asOfDate: string | null;
+  latestPriceDate: string | null;
+  performance: PerformanceMetric[];
+  benchmarkComparisons: BenchmarkComparison[];
+  calculationVersion: string;
+  status: "fresh" | "stale" | "pending" | "failed" | "insufficient_data";
+  staleReason: string | null;
+  errorMessage: string | null;
+  sourceUpdatedAt: string | null;
+  updatedAt: string;
+};
+
 export type Transaction = {
   id: string;
   portfolioId: string;

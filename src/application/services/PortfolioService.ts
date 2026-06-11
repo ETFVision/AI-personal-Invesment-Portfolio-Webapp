@@ -62,6 +62,35 @@ export class PortfolioService {
     return this.buildDashboard(portfolioId, { includeHistory: true });
   }
 
+  async getPerformanceSummary(portfolioId: string) {
+    if (!this.analyticsRepository) return null;
+    return this.analyticsRepository.getPortfolioPerformanceSummary(portfolioId);
+  }
+
+  async refreshPerformanceSummary(portfolioId: string) {
+    if (!this.analyticsRepository) throw new Error("Analytics repository is not configured.");
+    const dashboard = await this.getDashboard(portfolioId);
+    await this.savePerformanceSummaryFromDashboard(portfolioId, dashboard);
+    return this.analyticsRepository.getPortfolioPerformanceSummary(portfolioId);
+  }
+
+  async savePerformanceSummaryFromDashboard(portfolioId: string, dashboard: PortfolioDashboard) {
+    if (!this.analyticsRepository) throw new Error("Analytics repository is not configured.");
+    const asOfDate = dashboard.latestPriceDate ?? new Date().toISOString().slice(0, 10);
+    await this.analyticsRepository.upsertPortfolioPerformanceSummary({
+      portfolioId,
+      asOfDate,
+      latestPriceDate: dashboard.latestPriceDate,
+      performance: dashboard.performance,
+      benchmarkComparisons: dashboard.benchmarkComparisons,
+      calculationVersion: "portfolio-performance-summary-v1",
+      status: dashboard.performance.some((metric) => metric.percentChange != null) ? "fresh" : "insufficient_data",
+      staleReason: null,
+      errorMessage: null,
+      sourceUpdatedAt: new Date().toISOString()
+    });
+  }
+
   private async buildDashboard(portfolioId: string, options: { includeHistory: boolean }): Promise<PortfolioDashboard> {
     const [
       cashBalances,

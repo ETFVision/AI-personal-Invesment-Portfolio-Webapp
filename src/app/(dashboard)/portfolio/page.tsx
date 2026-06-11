@@ -14,7 +14,7 @@ import {
   WinnersLosersPanel
 } from "@/components/portfolio/analytics-panels";
 import { formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
-import type { AllocationItem, PortfolioDashboard } from "@/domain/portfolio/types";
+import type { AllocationItem, PortfolioDashboard, PortfolioPerformanceSummary } from "@/domain/portfolio/types";
 import type { PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
 import type { PortfolioReviewSummary } from "@/application/ports/repositories/PortfolioReviewRepository";
@@ -67,14 +67,30 @@ function LoadingCard({ title }: { title: string }) {
   );
 }
 
+function performanceDashboardFromSummary(portfolio: PortfolioDashboard["portfolio"], summary: PortfolioPerformanceSummary) {
+  return {
+    portfolio,
+    performance: summary.performance,
+    benchmarkComparisons: summary.benchmarkComparisons
+  };
+}
+
 async function PortfolioPerformanceSection({
-  portfolioId
+  dashboard: summaryDashboard
 }: {
-  portfolioId: string;
+  dashboard: PortfolioDashboard;
 }) {
   const container = createContainer();
-  const dashboard = await measureRenderStep(`portfolio:${portfolioId}:performance-history-data`, () =>
-    container.portfolioService.getDashboard(portfolioId)
+  const summary = await measureRenderStep(`portfolio:${summaryDashboard.portfolio.id}:performance-summary-data`, () =>
+    container.portfolioService.getPerformanceSummary(summaryDashboard.portfolio.id)
+  );
+  const performanceDashboard = summary
+    ? performanceDashboardFromSummary(summaryDashboard.portfolio, summary)
+    : await measureRenderStep(`portfolio:${summaryDashboard.portfolio.id}:performance-history-data`, async () => {
+        const liveDashboard = await container.portfolioService.getDashboard(summaryDashboard.portfolio.id);
+        await container.portfolioService.savePerformanceSummaryFromDashboard(summaryDashboard.portfolio.id, liveDashboard);
+        return liveDashboard;
+      }
   );
 
   return (
@@ -91,7 +107,12 @@ async function PortfolioPerformanceSection({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <PerformancePanel dashboard={dashboard} />
+          {summary?.status === "stale" || summary?.status === "failed" ? (
+            <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              Performance summary is {summary.status}; showing last stored summary.
+            </div>
+          ) : null}
+          <PerformancePanel dashboard={performanceDashboard} />
         </CardContent>
       </Card>
     </>
@@ -374,7 +395,7 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
       ) : null}
 
       <Suspense fallback={<LoadingCard title="Performance" />}>
-        <PortfolioPerformanceSection portfolioId={portfolio.id} />
+        <PortfolioPerformanceSection dashboard={dashboard} />
       </Suspense>
       <PortfolioAllocationSections dashboard={dashboard} latestPortfolioReview={latestPortfolioReview} />
 

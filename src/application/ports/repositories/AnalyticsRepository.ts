@@ -7,6 +7,7 @@ import {
   HoldingValuation,
   HoldingMarketMetric,
   PortfolioCurrentMetric,
+  PortfolioPerformanceSummary,
   PortfolioSnapshot
 } from "@/domain/portfolio/types";
 
@@ -33,6 +34,8 @@ export interface AnalyticsRepository {
   refreshHoldingPortfolioMetrics(portfolioId: string): Promise<void>;
   listHoldingMarketMetrics(portfolioId: string): Promise<HoldingMarketMetric[]>;
   getPortfolioCurrentMetric(portfolioId: string): Promise<PortfolioCurrentMetric | null>;
+  getPortfolioPerformanceSummary(portfolioId: string): Promise<PortfolioPerformanceSummary | null>;
+  upsertPortfolioPerformanceSummary(input: Omit<PortfolioPerformanceSummary, "updatedAt">): Promise<void>;
   upsertPortfolioSnapshot(input: UpsertPortfolioSnapshotInput): Promise<void>;
   upsertAssetSnapshots(input: {
     portfolioId: string;

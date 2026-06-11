@@ -9,6 +9,7 @@ import {
   HoldingSnapshot,
   HoldingValuation,
   PortfolioCurrentMetric,
+  PortfolioPerformanceSummary,
   PortfolioSnapshot
 } from "@/domain/portfolio/types";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
@@ -101,12 +102,33 @@ function mapPortfolioCurrentMetric(row: any): PortfolioCurrentMetric {
   };
 }
 
+function mapPortfolioPerformanceSummary(row: any): PortfolioPerformanceSummary {
+  return {
+    portfolioId: row.portfolio_id,
+    asOfDate: row.as_of_date,
+    latestPriceDate: row.latest_price_date,
+    performance: Array.isArray(row.performance_json) ? row.performance_json : [],
+    benchmarkComparisons: Array.isArray(row.benchmark_comparisons_json) ? row.benchmark_comparisons_json : [],
+    calculationVersion: row.calculation_version ?? "portfolio-performance-summary-v1",
+    status: row.status ?? "fresh",
+    staleReason: row.stale_reason ?? null,
+    errorMessage: row.error_message ?? null,
+    sourceUpdatedAt: row.source_updated_at ?? null,
+    updatedAt: row.updated_at
+  };
+}
+
 function isMissingSnapshotTable(error: { code?: string; message?: string } | null) {
   return Boolean(
     error &&
       (error.code === "42P01" ||
         (error.message?.toLowerCase().includes("snapshot") && error.message?.toLowerCase().includes("does not exist")))
   );
+}
+
+function isMissingPerformanceSummary(error: { code?: string; message?: string } | null) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return Boolean(error && (error.code === "42P01" || message.includes("portfolio_performance_summary")));
 }
 
 function isMissingDerivedMetrics(error: { code?: string; message?: string } | null) {
@@ -200,6 +222,38 @@ export class SupabaseAnalyticsRepository implements AnalyticsRepository {
     if (isMissingDerivedMetrics(error)) return null;
     if (error) throw new Error(error.message);
     return data ? mapPortfolioCurrentMetric(data) : null;
+  }
+
+  async getPortfolioPerformanceSummary(portfolioId: string) {
+    const { data, error } = await this.db
+      .from("portfolio_performance_summary")
+      .select("*")
+      .eq("portfolio_id", portfolioId)
+      .maybeSingle();
+    if (isMissingPerformanceSummary(error)) return null;
+    if (error) throw new Error(error.message);
+    return data ? mapPortfolioPerformanceSummary(data) : null;
+  }
+
+  async upsertPortfolioPerformanceSummary(input: Omit<PortfolioPerformanceSummary, "updatedAt">) {
+    const { error } = await this.db.from("portfolio_performance_summary").upsert(
+      {
+        portfolio_id: input.portfolioId,
+        as_of_date: input.asOfDate,
+        latest_price_date: input.latestPriceDate,
+        performance_json: input.performance,
+        benchmark_comparisons_json: input.benchmarkComparisons,
+        calculation_version: input.calculationVersion,
+        status: input.status,
+        stale_reason: input.staleReason,
+        error_message: input.errorMessage,
+        source_updated_at: input.sourceUpdatedAt,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: "portfolio_id" }
+    );
+    if (isMissingPerformanceSummary(error)) return;
+    if (error) throw new Error(error.message);
   }
 
   async upsertPortfolioSnapshot(input: UpsertPortfolioSnapshotInput) {
