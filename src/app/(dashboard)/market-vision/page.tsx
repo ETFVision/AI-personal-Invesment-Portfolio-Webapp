@@ -567,21 +567,20 @@ async function MacroContextSection() {
 async function MacroWorldNewsInputSection() {
   const container = createContainer();
   const latestGlobalNews = await measureRenderStep("market-vision:macro-world-news-data", () =>
-    Promise.all([
-      container.newsRepository.listNewsWithClassifications({ sourceProvider: "newsdata", includeDuplicates: false, limit: 20 }),
-      container.newsRepository.listNewsWithClassifications({ sourceProvider: "gdelt", includeDuplicates: false, limit: 20 })
-    ]).then(([newsDataRows, gdeltRows]) => eligibleGdeltInput([...newsDataRows, ...gdeltRows]).slice(0, 8))
+    container.newsRepository
+      .listNewsWithClassifications({ sourceProvider: "newsdata", includeDuplicates: false, limit: 12 })
+      .then((newsDataRows) => eligibleGdeltInput(newsDataRows).slice(0, 8))
   );
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Macro / world-news input</CardTitle>
-        <CardDescription>NewsData primary plus GDELT fallback macro, geopolitical, currency, energy, trade, and credit stories prepared for manual Market Vision drafting.</CardDescription>
+        <CardDescription>NewsData macro, geopolitical, currency, energy, trade, and credit stories prepared for manual Market Vision drafting.</CardDescription>
       </CardHeader>
       <CardContent>
         {latestGlobalNews.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No NewsData or GDELT macro/world-news articles have been ingested yet.</p>
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No NewsData macro/world-news articles have been ingested yet.</p>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {latestGlobalNews.slice(0, 6).map((item) => (
