@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { createContainer } from "@/server/container";
 import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,7 @@ import { formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils
 import type { AllocationItem } from "@/domain/portfolio/types";
 import type { PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
+import type { PortfolioReviewSummary } from "@/application/ports/repositories/PortfolioReviewRepository";
 
 type PortfolioPageProps = {
   searchParams?: Promise<{
@@ -51,6 +53,124 @@ function allocationFromLookthrough(rows: PortfolioLookthroughReport["sectorExpos
   }));
 }
 
+function LoadingCard({ title }: { title: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>Loading stored analytics...</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="h-24 rounded-xl border border-dashed bg-slate-50" />
+      </CardContent>
+    </Card>
+  );
+}
+
+async function PortfolioAnalyticsSections({
+  portfolioId,
+  latestPortfolioReview
+}: {
+  portfolioId: string;
+  latestPortfolioReview: PortfolioReviewSummary | null;
+}) {
+  const container = createContainer();
+  const dashboard = await measureRenderStep(`portfolio:${portfolioId}:analytics-panels-data`, () =>
+    container.portfolioService.getDashboard(portfolioId)
+  );
+  const lookthroughReport = lookthroughReportFromSnapshot(latestPortfolioReview?.inputsSnapshot?.lookthroughExposure);
+  const sectorAllocation = lookthroughReport?.sectorExposures.length
+    ? allocationFromLookthrough(lookthroughReport.sectorExposures)
+    : dashboard.allocationBySector;
+  const geographyAllocation = lookthroughReport?.countryExposures.length
+    ? allocationFromLookthrough(lookthroughReport.countryExposures)
+    : dashboard.allocationByGeography;
+
+  return (
+    <>
+      <SectionHeader
+        title="Performance Command Center"
+        description="Portfolio return, allocation and exposure panels using the latest stored derived metrics."
+      />
+      <Card>
+        <CardHeader>
+          <CardTitle>Performance</CardTitle>
+          <CardDescription>
+            Time-weighted returns from stored snapshots. Deposits and withdrawals are excluded from gains where transaction history supports it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PerformancePanel dashboard={dashboard} />
+        </CardContent>
+      </Card>
+
+      <SectionHeader
+        title="Allocation & Exposure"
+        description="Portfolio composition with ETF look-through exposure when the latest review has cached provider data."
+      />
+      <Card id="allocation">
+        <CardHeader>
+          <CardTitle>Allocation by asset type</CardTitle>
+          <CardDescription>Uses latest stored prices when available, with cost basis as fallback.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            <AllocationDonutPanel
+              title="Asset allocation"
+              items={dashboard.allocationByType}
+              labelFormatter={formatAssetTypeLabel}
+            />
+            <AllocationPanel dashboard={dashboard} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Currency exposure</CardTitle>
+            <CardDescription>Native currency exposure before FX conversion is added.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CurrencyExposurePanel dashboard={dashboard} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Sector allocation</CardTitle>
+            <CardDescription>
+              {lookthroughReport ? "ETF look-through sector exposure from the latest Portfolio Review." : "Direct sector metadata; run Portfolio Review for ETF look-through exposure."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AllocationDonutPanel title="Sector allocation" items={sectorAllocation} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Geography allocation</CardTitle>
+            <CardDescription>
+              {lookthroughReport ? "ETF look-through country exposure from the latest Portfolio Review." : "Direct geography metadata; run Portfolio Review for ETF look-through exposure."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AllocationDonutPanel title="Geography allocation" items={geographyAllocation} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Top winners/losers</CardTitle>
+            <CardDescription>Unrealised movement from average cost using refreshed prices.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <WinnersLosersPanel dashboard={dashboard} />
+          </CardContent>
+        </Card>
+      </section>
+    </>
+  );
+}
+
 export default async function PortfolioPage({ searchParams }: PortfolioPageProps) {
   const resolvedSearchParams = await searchParams;
   const container = createContainer();
@@ -67,19 +187,12 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
     );
   }
 
-  const [dashboard, latestPortfolioReview] = await measureRenderStep(`portfolio:${portfolio.id}:dashboard-data`, () =>
+  const [dashboard, latestPortfolioReview] = await measureRenderStep(`portfolio:${portfolio.id}:dashboard-summary-data`, () =>
     Promise.all([
-      container.portfolioService.getDashboard(portfolio.id),
+      container.portfolioService.getDashboardSummary(portfolio.id),
       container.portfolioReviewRepository.getLatestReportSummary(portfolio.id)
     ])
   );
-  const lookthroughReport = lookthroughReportFromSnapshot(latestPortfolioReview?.inputsSnapshot?.lookthroughExposure);
-  const sectorAllocation = lookthroughReport?.sectorExposures.length
-    ? allocationFromLookthrough(lookthroughReport.sectorExposures)
-    : dashboard.allocationBySector;
-  const geographyAllocation = lookthroughReport?.countryExposures.length
-    ? allocationFromLookthrough(lookthroughReport.countryExposures)
-    : dashboard.allocationByGeography;
   const cashCurrencies = new Set(dashboard.cashBalances.map((cash) => cash.currency));
   const holdingCurrencies = new Set(dashboard.holdingValuations.map((valuation) => valuation.valueCurrency));
   const allCurrencies = new Set([...cashCurrencies, ...holdingCurrencies]);
@@ -240,22 +353,6 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </CardContent>
       </Card>
 
-      <SectionHeader
-        title="Performance Command Center"
-        description="Portfolio return, allocation and exposure panels using the latest stored derived metrics."
-      />
-      <Card>
-        <CardHeader>
-          <CardTitle>Performance</CardTitle>
-          <CardDescription>
-            Time-weighted returns from stored snapshots. Deposits and withdrawals are excluded from gains where transaction history supports it.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <PerformancePanel dashboard={dashboard} />
-        </CardContent>
-      </Card>
-
       {hasMixedOrNonBaseCurrency ? (
         <Card>
           <CardContent className="p-4 text-sm text-muted-foreground">
@@ -265,69 +362,9 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </Card>
       ) : null}
 
-      <SectionHeader
-        title="Allocation & Exposure"
-        description="Portfolio composition with ETF look-through exposure when the latest review has cached provider data."
-      />
-      <Card id="allocation">
-        <CardHeader>
-          <CardTitle>Allocation by asset type</CardTitle>
-          <CardDescription>Uses latest stored prices when available, with cost basis as fallback.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            <AllocationDonutPanel
-              title="Asset allocation"
-              items={dashboard.allocationByType}
-              labelFormatter={formatAssetTypeLabel}
-            />
-            <AllocationPanel dashboard={dashboard} />
-          </div>
-        </CardContent>
-      </Card>
-
-      <section className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Currency exposure</CardTitle>
-            <CardDescription>Native currency exposure before FX conversion is added.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CurrencyExposurePanel dashboard={dashboard} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Sector allocation</CardTitle>
-            <CardDescription>
-              {lookthroughReport ? "ETF look-through sector exposure from the latest Portfolio Review." : "Direct sector metadata; run Portfolio Review for ETF look-through exposure."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AllocationDonutPanel title="Sector allocation" items={sectorAllocation} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Geography allocation</CardTitle>
-            <CardDescription>
-              {lookthroughReport ? "ETF look-through country exposure from the latest Portfolio Review." : "Direct geography metadata; run Portfolio Review for ETF look-through exposure."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AllocationDonutPanel title="Geography allocation" items={geographyAllocation} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Top winners/losers</CardTitle>
-            <CardDescription>Unrealised movement from average cost using refreshed prices.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <WinnersLosersPanel dashboard={dashboard} />
-          </CardContent>
-        </Card>
-      </section>
+      <Suspense fallback={<LoadingCard title="Performance and allocation" />}>
+        <PortfolioAnalyticsSections portfolioId={portfolio.id} latestPortfolioReview={latestPortfolioReview} />
+      </Suspense>
 
     </PageContainer>
   );

@@ -54,7 +54,15 @@ export class PortfolioService {
     return this.repository.updatePortfolio(portfolioId, input);
   }
 
+  async getDashboardSummary(portfolioId: string): Promise<PortfolioDashboard> {
+    return this.buildDashboard(portfolioId, { includeHistory: false });
+  }
+
   async getDashboard(portfolioId: string): Promise<PortfolioDashboard> {
+    return this.buildDashboard(portfolioId, { includeHistory: true });
+  }
+
+  private async buildDashboard(portfolioId: string, options: { includeHistory: boolean }): Promise<PortfolioDashboard> {
     const [
       cashBalances,
       holdings,
@@ -70,10 +78,10 @@ export class PortfolioService {
       this.repository.listCashBalances(portfolioId),
       this.repository.listHoldings(portfolioId),
       this.repository.listTransactions(portfolioId),
-      this.analyticsRepository?.listPortfolioSnapshots(portfolioId) ?? [],
-      this.analyticsRepository?.listCashSnapshots(portfolioId) ?? [],
-      this.benchmarkRepository?.listBenchmarks() ?? [],
-      this.benchmarkRepository?.listBenchmarkSnapshots() ?? [],
+      options.includeHistory ? this.analyticsRepository?.listPortfolioSnapshots(portfolioId) ?? [] : [],
+      options.includeHistory ? this.analyticsRepository?.listCashSnapshots(portfolioId) ?? [] : [],
+      options.includeHistory ? this.benchmarkRepository?.listBenchmarks() ?? [] : [],
+      options.includeHistory ? this.benchmarkRepository?.listBenchmarkSnapshots() ?? [] : [],
       this.analyticsRepository?.listHoldingMarketMetrics(portfolioId) ?? [],
       this.analyticsRepository?.getPortfolioCurrentMetric(portfolioId) ?? null,
       this.repository.getPortfolioById(portfolioId)
@@ -85,7 +93,7 @@ export class PortfolioService {
     const latestPrices = this.marketDataRepository && fallbackAssetIds.length > 0
       ? await this.marketDataRepository.getLatestPricesForAssets(fallbackAssetIds)
       : new Map();
-    const [holdingSnapshots, dailyPrices] = fallbackAssetIds.length > 0
+    const [holdingSnapshots, dailyPrices] = options.includeHistory && fallbackAssetIds.length > 0
       ? await Promise.all([
           this.analyticsRepository?.listHoldingSnapshots(portfolioId) ?? [],
           this.marketDataRepository
