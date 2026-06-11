@@ -131,6 +131,9 @@ class FakeMacroRepository implements MacroIndicatorRepository {
     this.logs.push({ ...input, id: `log-${this.logs.length + 1}`, createdAt: "" });
   }
   async listIngestionLogs() { return this.logs; }
+  async getDashboardSummary() {
+    return this.getDashboard();
+  }
   async getDashboard() {
     return { indicators: [], latestRegime: null, ingestionLogs: this.logs };
   }

@@ -387,4 +387,24 @@ export class SupabaseMacroIndicatorRepository implements MacroIndicatorRepositor
       ingestionLogs: logs
     };
   }
+
+  async getDashboardSummary() {
+    const [indicators, trends, latestRegime, logs] = await Promise.all([
+      this.listIndicators({ sourceProvider: "fred" }),
+      this.listLatestTrends(),
+      this.getLatestRegimeSnapshot(),
+      this.listIngestionLogs(3)
+    ]);
+    const trendByIndicator = new Map(trends.map((trend) => [trend.indicatorId, trend]));
+    return {
+      indicators: indicators.map((indicator) => ({
+        ...indicator,
+        latestTrend: trendByIndicator.get(indicator.id) ?? null,
+        latestObservation: null,
+        observations: []
+      })),
+      latestRegime,
+      ingestionLogs: logs
+    };
+  }
 }

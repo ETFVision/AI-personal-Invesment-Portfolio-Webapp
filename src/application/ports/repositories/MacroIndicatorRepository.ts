@@ -28,5 +28,6 @@ export interface MacroIndicatorRepository {
   listLatestMacroThemeSignals(asOfDate: string): Promise<MacroThemeSignal[]>;
   insertIngestionLog(input: InsertMacroIngestionLogInput): Promise<void>;
   listIngestionLogs(limit?: number): Promise<MacroIngestionLog[]>;
+  getDashboardSummary(): Promise<MacroDashboard>;
   getDashboard(): Promise<MacroDashboard>;
 }

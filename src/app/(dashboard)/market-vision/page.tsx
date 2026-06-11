@@ -545,7 +545,7 @@ function MarketVisionSupportFallback({ title, description }: { title: string; de
 async function MacroContextSection() {
   const container = createContainer();
   const macroDashboard = await measureRenderStep("market-vision:macro-context-data", () =>
-    container.macroDashboardService.getDashboard()
+    container.macroDashboardService.getDashboardSummary()
   );
   const macroContext = container.macroContextService.buildContext(macroDashboard);
 
