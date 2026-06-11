@@ -333,22 +333,27 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
 
   async listSummaryRows() {
     const instruments = await this.listEligibleStockInstruments(500);
+    return this.buildSummaryRows(instruments);
+  }
+
+  async listSummaryRowsForInstruments(instruments: Instrument[]) {
+    return this.buildSummaryRows(instruments.filter((instrument) => instrument.assetClass === "stock"));
+  }
+
+  private async buildSummaryRows(instruments: Instrument[]) {
     const ids = instruments.map((instrument) => instrument.id);
     const [profiles, ratios, scores, trends, statements] = await Promise.all([
       this.getProfiles(ids),
       this.getLatestRatios(ids),
       this.getLatestScores(ids),
       this.getLatestTrendSummaries(ids),
-      this.listStatements(ids)
+      this.listStatementCounts(ids)
     ]);
     const profileById = new Map(profiles.map((item) => [item.instrumentId, item]));
     const ratioById = new Map(ratios.map((item) => [item.instrumentId, item]));
     const scoreById = new Map(scores.map((item) => [item.instrumentId, item]));
     const trendById = new Map(trends.map((item) => [item.instrumentId, item]));
-    const statementCountById = new Map<string, number>();
-    for (const statement of statements) {
-      statementCountById.set(statement.instrumentId, (statementCountById.get(statement.instrumentId) ?? 0) + 1);
-    }
+    const statementCountById = statements;
     return instruments.map((instrument): FundamentalsSummaryRow => {
       const profile = profileById.get(instrument.id) ?? null;
       const latestRatio = ratioById.get(instrument.id) ?? null;
@@ -644,6 +649,19 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
     const { data, error } = await this.db.from("financial_statements").select("*").in("instrument_id", instrumentIds).order("report_date", { ascending: false });
     if (error) return [];
     return (data ?? []).map(mapFinancialStatement);
+  }
+
+  private async listStatementCounts(instrumentIds: string[]) {
+    if (instrumentIds.length === 0) return new Map<string, number>();
+    const { data, error } = await this.db.from("financial_statements").select("instrument_id").in("instrument_id", instrumentIds);
+    if (error) return new Map<string, number>();
+    const counts = new Map<string, number>();
+    for (const row of data ?? []) {
+      const instrumentId = String(row.instrument_id ?? "");
+      if (!instrumentId) continue;
+      counts.set(instrumentId, (counts.get(instrumentId) ?? 0) + 1);
+    }
+    return counts;
   }
 
   private async listRatios(instrumentIds: string[]) {

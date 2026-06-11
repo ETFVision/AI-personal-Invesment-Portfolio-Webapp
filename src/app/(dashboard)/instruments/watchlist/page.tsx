@@ -156,7 +156,7 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
   const [marketRows, fundamentalsRows] = await measureRenderStep("instruments-watchlist:market-and-fundamentals-data", () =>
     Promise.all([
       container.instrumentMarketService.buildInstrumentMarketViews(selectedInstruments, { lookbackYears: 1 }),
-      container.fundamentalsRepository.listSummaryRows()
+      container.fundamentalsRepository.listSummaryRowsForInstruments(selectedInstruments)
     ])
   );
   const fundamentalsByInstrumentId = new Map(fundamentalsRows.map((row) => [row.instrument.id, row]));

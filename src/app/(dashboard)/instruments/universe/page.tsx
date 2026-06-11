@@ -136,7 +136,7 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
   const [rows, fundamentalsRows] = await measureRenderStep("instruments-universe:market-and-fundamentals-data", () =>
     Promise.all([
       container.instrumentMarketService.buildInstrumentMarketViews(instruments, { lookbackYears: 1 }),
-      container.fundamentalsRepository.listSummaryRows()
+      container.fundamentalsRepository.listSummaryRowsForInstruments(instruments)
     ])
   );
   const fundamentalsByInstrumentId = new Map(fundamentalsRows.map((row) => [row.instrument.id, row]));
