@@ -27,8 +27,22 @@ import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/layout/nav-link";
 import { PortfolioAssistantDrawer } from "@/components/assistant/portfolio-assistant-drawer";
 import { ETFVisionLogo } from "@/components/brand/etfvision-logo";
+import { isAlphaRelease } from "@/config/release";
 
-const navGroups = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  alpha?: boolean;
+};
+
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+  alpha?: boolean;
+};
+
+const navGroups: NavGroup[] = [
   {
     label: "Dashboard",
     items: [{ href: "/portfolio", label: "Dashboard", icon: Home }]
@@ -52,19 +66,20 @@ const navGroups = [
     label: "Research",
     items: [
       { href: "/market-vision", label: "Market Vision", icon: Globe2 },
-      { href: "/news", label: "News & Themes", icon: Newspaper },
-      { href: "/macro", label: "Macro", icon: LineChart },
+      { href: "/news", label: "News & Themes", icon: Newspaper, alpha: false },
+      { href: "/macro", label: "Macro", icon: LineChart, alpha: false },
       { href: "/fundamentals", label: "Fundamentals", icon: BarChart3 },
       { href: "/risk", label: "Risk", icon: ShieldCheck },
       { href: "/bonds", label: "Fixed Income", icon: Landmark },
       { href: "/recommendations", label: "Insights", icon: Sparkles },
       { href: "/portfolio-review", label: "Portfolio Review", icon: ClipboardCheck },
-      { href: "/assistant", label: "Assistant", icon: Bot },
-      { href: "/telemetry", label: "Telemetry", icon: Activity }
+      { href: "/assistant", label: "Assistant", icon: Bot, alpha: false },
+      { href: "/telemetry", label: "Telemetry", icon: Activity, alpha: false }
     ]
   },
   {
     label: "Admin",
+    alpha: false,
     items: [
       { href: "/setup/taxonomy", label: "Taxonomy", icon: Search },
       { href: "/admin/data-sources", label: "Data Sources", icon: Database },
@@ -75,7 +90,15 @@ const navGroups = [
   }
 ];
 
-const mobileNavItems = navGroups.flatMap((group) => group.items);
+const visibleNavGroups = navGroups
+  .filter((group) => !isAlphaRelease || group.alpha !== false)
+  .map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !isAlphaRelease || item.alpha !== false)
+  }))
+  .filter((group) => group.items.length > 0);
+
+const mobileNavItems = visibleNavGroups.flatMap((group) => group.items);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -89,7 +112,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
-          {navGroups.map((group) => (
+          {visibleNavGroups.map((group) => (
             <div key={group.label} className="space-y-1">
               <p className="px-3 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-teal-200">{group.label}</p>
               {group.items.map((item) => {
@@ -126,7 +149,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         </header>
         <main className="mx-auto w-full max-w-[1500px] px-4 py-6 md:px-8 lg:px-10">{children}</main>
-        <PortfolioAssistantDrawer />
+        {!isAlphaRelease ? <PortfolioAssistantDrawer /> : null}
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { NewsSummaryEligibilityService } from "@/application/services/news/NewsSummaryEligibilityService";
+import { isAlphaRelease } from "@/config/release";
 import type { MacroContextCard, MacroContextIndicator } from "@/application/services/macro/MacroContextService";
 import type { NewsClassification, NewsItem } from "@/domain/news/types";
 import type { MarketThemeEvent, MarketVisionEvidencePanel, MarketVisionReport, MarketVisionThemeSummary } from "@/domain/marketVision/types";
@@ -612,7 +613,12 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
   const dashboard = await measureRenderStep("market-vision:report-dashboard-data", () =>
     container.marketVisionService.getDashboard(params?.reportId)
   );
-  const report = dashboard.selectedReport;
+  const reports = isAlphaRelease ? dashboard.reports.filter((item) => item.status === "published") : dashboard.reports;
+  const report = isAlphaRelease
+    ? dashboard.selectedReport?.status === "published"
+      ? dashboard.selectedReport
+      : reports[0] ?? null
+    : dashboard.selectedReport;
 
   return (
     <PageContainer>
@@ -628,7 +634,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
         }
         actions={
         <div className="flex flex-col gap-2 sm:flex-row">
-          <ReportSelector reports={dashboard.reports} selectedReport={report} />
+          <ReportSelector reports={reports} selectedReport={report} />
         </div>
         }
       />
@@ -644,7 +650,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
       {!report ? (
         <EmptyState
           title="No Market Vision report yet"
-          description="Create a manual or AI draft from Admin Data Sources after the latest weekly news reconciliation is ready."
+          description={isAlphaRelease ? "A published Market Vision briefing will appear here after the next reviewed weekly report." : "Create a manual or AI draft from Admin Data Sources after the latest weekly news reconciliation is ready."}
         />
       ) : (
         <>
@@ -655,7 +661,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             <MetricCard title="Confidence" value={report.confidenceScore == null ? "-" : `${report.confidenceScore}%`} footer="Generated report score" />
           </section>
 
-          {report.sourceType === "generated" ? (
+          {!isAlphaRelease && report.sourceType === "generated" ? (
             <Card>
               <CardHeader>
                 <CardTitle>Generation metadata</CardTitle>
@@ -689,7 +695,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
                 {report.reportPeriodStart ?? "No period start"} to {report.reportPeriodEnd ?? "No period end"}
               </p>
             </div>
-            <ReportActions report={report} />
+            {!isAlphaRelease ? <ReportActions report={report} /> : null}
           </div>
 
           <RegimeScorecard report={report} />
@@ -704,9 +710,11 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             <PortfolioImpactMatrix report={report} />
           </section>
 
-          <Suspense fallback={<MarketVisionSupportFallback title="FRED macro context" description="Loading stored macro trends..." />}>
-            <MacroContextSection />
-          </Suspense>
+          {!isAlphaRelease ? (
+            <Suspense fallback={<MarketVisionSupportFallback title="FRED macro context" description="Loading stored macro trends..." />}>
+              <MacroContextSection />
+            </Suspense>
+          ) : null}
 
           <section className="grid gap-4 lg:grid-cols-2">
             {reportSections.map((section) => (
@@ -735,7 +743,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             <ListCard title="Evidence Gaps" items={report.marketVisionMetadata.evidenceGaps} emptyText="No evidence gaps captured yet." />
           </section>
 
-          <Card>
+          {!isAlphaRelease ? <Card>
             <CardHeader>
               <CardTitle>Market theme classification</CardTitle>
               <CardDescription>Theme events remain deterministic/manual and separate from AI narrative generation.</CardDescription>
@@ -743,7 +751,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             <CardContent>
               <ThemeTable events={dashboard.themeEvents} />
             </CardContent>
-          </Card>
+          </Card> : null}
 
           <Card>
             <CardHeader>
@@ -765,11 +773,13 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             </CardContent>
           </Card>
 
-          <Suspense fallback={<MarketVisionSupportFallback title="Macro / world-news input" description="Loading NewsData and GDELT macro stories..." />}>
-            <MacroWorldNewsInputSection />
-          </Suspense>
+          {!isAlphaRelease ? (
+            <Suspense fallback={<MarketVisionSupportFallback title="Macro / world-news input" description="Loading NewsData and GDELT macro stories..." />}>
+              <MacroWorldNewsInputSection />
+            </Suspense>
+          ) : null}
 
-          {report.status === "draft" ? <ReportEditor report={report} /> : null}
+          {!isAlphaRelease && report.status === "draft" ? <ReportEditor report={report} /> : null}
         </>
       )}
     </PageContainer>
