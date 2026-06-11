@@ -419,49 +419,6 @@ function mapInstrumentDirectorySummary(row: any): InstrumentDirectorySummaryRow 
   };
 }
 
-const DIRECTORY_SUMMARY_BASE_COLUMNS = [
-  "instrument_id",
-  "symbol",
-  "name",
-  "asset_class",
-  "asset_category",
-  "instrument_type",
-  "stock_sector",
-  "etf_category",
-  "is_active",
-  "currency",
-  "exchange",
-  "sector",
-  "canonical_sector",
-  "canonical_themes",
-  "benchmark_tags",
-  "risk_category",
-  "volatility_bucket",
-  "latest_price",
-  "latest_price_date",
-  "daily_return",
-  "ytd_return",
-  "one_year_return",
-  "three_year_return",
-  "five_year_return",
-  "fifty_two_week_low",
-  "fifty_two_week_high",
-  "liquidity",
-  "freshness_label",
-  "freshness_tone",
-  "price_observation_count",
-  "price_history_start",
-  "price_history_end",
-  "fundamentals_overall_score",
-  "fundamentals_valuation_score",
-  "fundamentals_quality_score",
-  "fundamentals_last_refreshed_at",
-  "calculation_version",
-  "status",
-  "source_updated_at",
-  "updated_at"
-];
-
 function omitUndefined<T extends Record<string, unknown>>(value: T) {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
 }
@@ -564,12 +521,9 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     const rows: any[] = [];
 
     for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
-      const columns = filters?.includeWatchlistItems
-        ? [...DIRECTORY_SUMMARY_BASE_COLUMNS, "watchlist_items_json"].join(",")
-        : DIRECTORY_SUMMARY_BASE_COLUMNS.join(",");
       let query = this.db
         .from("instrument_directory_summary")
-        .select(columns)
+        .select("instrument_id,symbol,name,asset_class,asset_category,instrument_type,stock_sector,etf_category,is_active,currency,exchange,sector,canonical_sector,canonical_themes,benchmark_tags,risk_category,volatility_bucket,latest_price,latest_price_date,daily_return,ytd_return,one_year_return,three_year_return,five_year_return,fifty_two_week_low,fifty_two_week_high,liquidity,freshness_label,freshness_tone,price_observation_count,price_history_start,price_history_end,fundamentals_overall_score,fundamentals_valuation_score,fundamentals_quality_score,fundamentals_last_refreshed_at,watchlist_items_json,calculation_version,status,source_updated_at,updated_at")
         .order("symbol", { ascending: true })
         .range(from, from + SUPABASE_PAGE_SIZE - 1);
       if (filters?.isActive != null) query = query.eq("is_active", filters.isActive);

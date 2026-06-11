@@ -171,8 +171,7 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
       query: q || undefined,
       isActive: true,
       isWatchlisted: true,
-      watchlistTier: tier || undefined,
-      includeWatchlistItems: true
+      watchlistTier: tier || undefined
     })
   );
   const { rows, fundamentalsByInstrumentId } = summaryRows.length > 0
