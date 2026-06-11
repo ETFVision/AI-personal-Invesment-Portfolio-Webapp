@@ -292,6 +292,103 @@ function mapMetadataRefreshLog(row: any): MetadataRefreshLog {
 }
 
 function mapInstrumentDirectorySummary(row: any): InstrumentDirectorySummaryRow {
+  const instrument = mapInstrument({
+    id: row.instrument_id,
+    symbol: row.symbol,
+    name: row.name,
+    asset_class: row.asset_class,
+    asset_category: row.asset_category,
+    etf_category: row.etf_category,
+    instrument_type: row.instrument_type,
+    sector: row.sector,
+    industry: null,
+    canonical_sector: row.canonical_sector,
+    canonical_themes: row.canonical_themes ?? [],
+    taxonomy_is_manual_override: false,
+    taxonomy_review_status: "mapped",
+    geography: null,
+    currency: row.currency,
+    exchange: row.exchange,
+    watchlist_tier: null,
+    benchmark_tags: row.benchmark_tags ?? [],
+    thematic_tags: [],
+    risk_category: row.risk_category,
+    volatility_bucket: row.volatility_bucket,
+    duration_category: null,
+    treasury_classification: null,
+    inflation_linked: null,
+    credit_quality: null,
+    geo_exposure: null,
+    rate_sensitivity: null,
+    inflation_sensitivity: null,
+    recession_sensitivity: null,
+    liquidity_role: null,
+    crypto_classification: null,
+    metadata_last_refreshed_at: null,
+    provider_primary: null,
+    provider_metadata: {},
+    source_type: "summary",
+    is_active: row.is_active
+  });
+  const latestScore = row.fundamentals_overall_score == null && row.fundamentals_valuation_score == null && row.fundamentals_quality_score == null
+    ? null
+    : {
+        instrumentId: row.instrument_id,
+        symbol: row.symbol ?? "",
+        asOfDate: row.latest_price_date ?? "",
+        growthScore: null,
+        profitabilityScore: null,
+        valuationScore: row.fundamentals_valuation_score == null ? null : Number(row.fundamentals_valuation_score),
+        balanceSheetScore: null,
+        cashFlowScore: null,
+        qualityScore: row.fundamentals_quality_score == null ? null : Number(row.fundamentals_quality_score),
+        overallFundamentalScore: row.fundamentals_overall_score == null ? null : Number(row.fundamentals_overall_score),
+        scoreConfidence: 0,
+        explanation: "",
+        inputsSnapshot: {}
+      };
+  const profile = row.fundamentals_last_refreshed_at == null
+    ? null
+    : {
+        instrumentId: row.instrument_id,
+        symbol: row.symbol ?? "",
+        companyName: row.name,
+        sector: row.sector,
+        industry: null,
+        country: null,
+        exchange: row.exchange,
+        currency: row.currency,
+        marketCap: null,
+        beta: null,
+        description: null,
+        website: null,
+        ceo: null,
+        ipoDate: null,
+        employees: null,
+        lastRefreshedAt: row.fundamentals_last_refreshed_at,
+        provider: "summary",
+        providerMetadata: {}
+      };
+  const marketView = {
+    instrument,
+    rank: 0,
+    latestPrice: row.latest_price == null ? null : Number(row.latest_price),
+    latestPriceDate: row.latest_price_date,
+    dailyReturn: row.daily_return == null ? null : Number(row.daily_return),
+    ytdReturn: row.ytd_return == null ? null : Number(row.ytd_return),
+    oneYearReturn: row.one_year_return == null ? null : Number(row.one_year_return),
+    threeYearReturn: row.three_year_return == null ? null : Number(row.three_year_return),
+    fiveYearReturn: row.five_year_return == null ? null : Number(row.five_year_return),
+    fiftyTwoWeekLow: row.fifty_two_week_low == null ? null : Number(row.fifty_two_week_low),
+    fiftyTwoWeekHigh: row.fifty_two_week_high == null ? null : Number(row.fifty_two_week_high),
+    liquidity: row.liquidity ?? "-",
+    freshnessLabel: row.freshness_label ?? "Not refreshed",
+    freshnessTone: row.freshness_tone ?? "neutral",
+    priceObservationCount: Number(row.price_observation_count ?? 0),
+    priceHistoryStart: row.price_history_start,
+    priceHistoryEnd: row.price_history_end,
+    detailFields: []
+  };
   return {
     instrumentId: row.instrument_id,
     symbol: row.symbol,
@@ -304,8 +401,16 @@ function mapInstrumentDirectorySummary(row: any): InstrumentDirectorySummaryRow 
     isActive: Boolean(row.is_active),
     latestPriceDate: row.latest_price_date,
     dailyReturn: row.daily_return == null ? null : Number(row.daily_return),
-    marketView: row.market_view_json,
-    fundamentalsSummary: row.fundamentals_summary_json ?? null,
+    marketView,
+    fundamentalsSummary: latestScore || profile ? {
+      instrument,
+      profile,
+      latestRatio: null,
+      latestScore,
+      latestTrendSummary: null,
+      statementCount: 0,
+      missingDataWarnings: []
+    } : null,
     watchlistItems: Array.isArray(row.watchlist_items_json) ? row.watchlist_items_json : [],
     calculationVersion: row.calculation_version ?? "instrument-directory-summary-v1",
     status: ["fresh", "stale", "pending", "failed"].includes(row.status) ? row.status : "fresh",
@@ -418,10 +523,12 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
       let query = this.db
         .from("instrument_directory_summary")
-        .select("instrument_id,symbol,name,asset_class,asset_category,instrument_type,stock_sector,etf_category,is_active,latest_price_date,daily_return,market_view_json,fundamentals_summary_json,watchlist_items_json,calculation_version,status,source_updated_at,updated_at")
+        .select("instrument_id,symbol,name,asset_class,asset_category,instrument_type,stock_sector,etf_category,is_active,currency,exchange,sector,canonical_sector,canonical_themes,benchmark_tags,risk_category,volatility_bucket,latest_price,latest_price_date,daily_return,ytd_return,one_year_return,three_year_return,five_year_return,fifty_two_week_low,fifty_two_week_high,liquidity,freshness_label,freshness_tone,price_observation_count,price_history_start,price_history_end,fundamentals_overall_score,fundamentals_valuation_score,fundamentals_quality_score,fundamentals_last_refreshed_at,watchlist_items_json,calculation_version,status,source_updated_at,updated_at")
         .order("symbol", { ascending: true })
         .range(from, from + SUPABASE_PAGE_SIZE - 1);
       if (filters?.isActive != null) query = query.eq("is_active", filters.isActive);
+      if (filters?.isWatchlisted != null) query = query.eq("is_watchlisted", filters.isWatchlisted);
+      if (filters?.watchlistTier) query = query.contains("active_watchlist_tiers", [filters.watchlistTier]);
       if (filters?.query?.trim()) {
         const safeQuery = filters.query.trim();
         query = query.or(`symbol.ilike.%${safeQuery}%,name.ilike.%${safeQuery}%`);
@@ -452,8 +559,35 @@ export class SupabaseUniverseRepository implements UniverseRepository {
           etf_category: item.etfCategory,
           is_active: item.isActive,
           directory_search_text: `${item.symbol ?? ""} ${item.name}`.trim().toLowerCase(),
+          currency: item.marketView.instrument.currency,
+          exchange: item.marketView.instrument.exchange,
+          sector: item.marketView.instrument.sector,
+          canonical_sector: item.marketView.instrument.canonicalSector,
+          canonical_themes: item.marketView.instrument.canonicalThemes,
+          benchmark_tags: item.marketView.instrument.benchmarkTags,
+          risk_category: item.marketView.instrument.riskCategory,
+          volatility_bucket: item.marketView.instrument.volatilityBucket,
+          latest_price: item.marketView.latestPrice,
           latest_price_date: item.latestPriceDate,
           daily_return: item.dailyReturn,
+          ytd_return: item.marketView.ytdReturn,
+          one_year_return: item.marketView.oneYearReturn,
+          three_year_return: item.marketView.threeYearReturn,
+          five_year_return: item.marketView.fiveYearReturn,
+          fifty_two_week_low: item.marketView.fiftyTwoWeekLow,
+          fifty_two_week_high: item.marketView.fiftyTwoWeekHigh,
+          liquidity: item.marketView.liquidity,
+          freshness_label: item.marketView.freshnessLabel,
+          freshness_tone: item.marketView.freshnessTone,
+          price_observation_count: item.marketView.priceObservationCount,
+          price_history_start: item.marketView.priceHistoryStart,
+          price_history_end: item.marketView.priceHistoryEnd,
+          fundamentals_overall_score: item.fundamentalsSummary?.latestScore?.overallFundamentalScore ?? null,
+          fundamentals_valuation_score: item.fundamentalsSummary?.latestScore?.valuationScore ?? null,
+          fundamentals_quality_score: item.fundamentalsSummary?.latestScore?.qualityScore ?? null,
+          fundamentals_last_refreshed_at: item.fundamentalsSummary?.profile?.lastRefreshedAt ?? null,
+          is_watchlisted: item.watchlistItems.some((watchlistItem) => watchlistItem.isActive),
+          active_watchlist_tiers: Array.from(new Set(item.watchlistItems.filter((watchlistItem) => watchlistItem.isActive).map((watchlistItem) => watchlistItem.watchlistTier))),
           market_view_json: item.marketView,
           fundamentals_summary_json: item.fundamentalsSummary,
           watchlist_items_json: item.watchlistItems,

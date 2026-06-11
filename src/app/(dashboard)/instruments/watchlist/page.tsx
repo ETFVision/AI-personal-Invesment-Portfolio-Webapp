@@ -167,7 +167,12 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
   const sector = params?.sector?.trim() ?? "";
   const tier = params?.tier ?? "";
   const summaryRows = await measureRenderStep("instruments-watchlist:directory-summary-data", () =>
-    container.instrumentDirectorySummaryService.listSummaries({ query: q || undefined, isActive: true })
+    container.instrumentDirectorySummaryService.listSummaries({
+      query: q || undefined,
+      isActive: true,
+      isWatchlisted: true,
+      watchlistTier: tier || undefined
+    })
   );
   const { rows, fundamentalsByInstrumentId } = summaryRows.length > 0
     ? rowsFromSummaries(filterSummaryRows(summaryRows, { q, tier }), tier)

@@ -13,7 +13,7 @@ export class InstrumentDirectorySummaryService {
     private readonly instrumentMarketService: InstrumentMarketService
   ) {}
 
-  listSummaries(filters?: { query?: string; isActive?: boolean }) {
+  listSummaries(filters?: { query?: string; isActive?: boolean; isWatchlisted?: boolean; watchlistTier?: string }) {
     return this.universeRepository.listInstrumentDirectorySummaries(filters);
   }
 
