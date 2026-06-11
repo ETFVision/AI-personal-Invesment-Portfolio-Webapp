@@ -211,8 +211,34 @@ export class SupabaseNewsRepository implements NewsRepository {
 
   async listNewsWithClassifications(filters?: NewsFilters) {
     const items = await this.listNewsItems(filters);
-    const rows = await Promise.all(items.map(async (item) => ({ ...item, classification: await this.getClassification(item.id) })));
+    const classificationByNewsItemId = await this.listPreferredClassificationsByNewsItemId(items.map((item) => item.id));
+    const rows = items.map((item) => ({
+      ...item,
+      classification: classificationByNewsItemId.get(item.id) ?? null
+    }));
     return filters?.classification ? rows.filter((row) => row.classification?.classification === filters.classification) : rows;
+  }
+
+  private async listPreferredClassificationsByNewsItemId(newsItemIds: string[]) {
+    const output = new Map<string, NewsClassification>();
+    if (newsItemIds.length === 0) return output;
+    const { data, error } = await this.db
+      .from("news_classifications")
+      .select("*")
+      .in("news_item_id", newsItemIds);
+    if (isMissingNewsTable(error)) return output;
+    if (error) throw new Error(error.message);
+    const grouped = new Map<string, any[]>();
+    for (const row of data ?? []) {
+      const newsItemId = row.news_item_id;
+      if (!newsItemId) continue;
+      grouped.set(newsItemId, [...(grouped.get(newsItemId) ?? []), row]);
+    }
+    for (const [newsItemId, rows] of grouped) {
+      const classification = preferredClassification(rows);
+      if (classification) output.set(newsItemId, mapClassification(classification));
+    }
+    return output;
   }
 
   async getDashboardStats(): Promise<NewsDashboardStats> {
