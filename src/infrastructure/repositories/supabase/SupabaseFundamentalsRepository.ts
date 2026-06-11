@@ -350,6 +350,32 @@ function mapOverviewTrendSummary(row: any): FundamentalTrendSummary | null {
   });
 }
 
+function mapFundamentalsDetailSnapshot(value: any): FundamentalsDetail | null {
+  if (!value?.instrument) return null;
+  const instrument = mapInstrument(value.instrument);
+  const profile = value.profile ? mapCompanyProfile(value.profile) : null;
+  const latestRatio = value.latest_ratio ? mapFinancialRatio(value.latest_ratio) : null;
+  const latestScore = value.latest_score ? mapFundamentalScore(value.latest_score) : null;
+  const statements = Array.isArray(value.statements) ? value.statements.map(mapFinancialStatement) : [];
+  const trends = Array.isArray(value.trends) ? value.trends.map(mapFundamentalTrend) : [];
+  const trendSummary = value.trend_summary ? mapFundamentalTrendSummary(value.trend_summary) : null;
+
+  return {
+    instrument,
+    profile,
+    latestRatio,
+    latestScore,
+    latestTrendSummary: trendSummary,
+    statementCount: statements.length,
+    missingDataWarnings: warnings(profile, latestRatio, latestScore, statements.length),
+    statements,
+    ratios: latestRatio ? [latestRatio] : [],
+    scores: latestScore ? [latestScore] : [],
+    trends,
+    trendSummary
+  };
+}
+
 function mapRefreshLog(row: any): FundamentalsRefreshLog {
   return {
     id: row.id,
@@ -565,6 +591,21 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
   }
 
   async getDetailBySymbol(symbol: string) {
+    const snapshotDetail = await this.getDetailSnapshotBySymbol(symbol);
+    if (snapshotDetail) return snapshotDetail;
+    if (snapshotDetail === null) return null;
+    return this.getDetailBySymbolFallback(symbol);
+  }
+
+  private async getDetailSnapshotBySymbol(symbol: string): Promise<FundamentalsDetail | null | undefined> {
+    const { data, error } = await this.db.rpc("get_fundamentals_detail_snapshot", {
+      input_symbol: symbol.toUpperCase()
+    });
+    if (error) return undefined;
+    return mapFundamentalsDetailSnapshot(data);
+  }
+
+  private async getDetailBySymbolFallback(symbol: string) {
     const { data, error } = await this.db
       .from("instruments")
       .select("*")
