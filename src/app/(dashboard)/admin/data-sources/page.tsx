@@ -158,6 +158,31 @@ function etfLookthroughCoverageSummary(
   };
 }
 
+function metadataCoverageSummary(instruments: Instrument[], batchSize: number, staleAfterDays: number) {
+  const staleCutoffIso = daysAgoIso(staleAfterDays);
+  const refreshed = instruments.filter((instrument) => Boolean(instrument.metadataLastRefreshedAt));
+  const stale = refreshed.filter((instrument) => instrument.metadataLastRefreshedAt && instrument.metadataLastRefreshedAt.slice(0, 10) < staleCutoffIso);
+  const neverRefreshed = instruments.length - refreshed.length;
+  const actionable = stale.length + neverRefreshed;
+
+  return {
+    totalEligible: instruments.length,
+    refreshedCount: refreshed.length,
+    freshCount: refreshed.length - stale.length,
+    staleCount: stale.length,
+    neverRefreshed,
+    latestRefresh: latestString(refreshed.map((instrument) => instrument.metadataLastRefreshedAt)),
+    oldestRefresh: refreshed
+      .map((instrument) => instrument.metadataLastRefreshedAt)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(0) ?? null,
+    staleCutoff: staleCutoffIso,
+    batchSize,
+    estimatedManualClicks: estimateClicks(actionable, batchSize)
+  };
+}
+
 function sourceLabel(value: string) {
   if (value === "gdelt") return "GDELT";
   if (value === "newsdata") return "NewsData";
@@ -285,25 +310,38 @@ function OperationSection({
   description,
   whereUsed,
   actions,
+  actionsFirst = false,
   children
 }: {
   title: string;
   description: string;
   whereUsed: string;
   actions?: ReactNode;
+  actionsFirst?: boolean;
   children: ReactNode;
 }) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
-          <div>
-            <CardTitle>{title}</CardTitle>
-            <CardDescription>{description}</CardDescription>
-            <p className="mt-2 text-xs text-muted-foreground">Used for: {whereUsed}</p>
+        {actionsFirst ? (
+          <div className="space-y-4">
+            {actions ? <div className="flex flex-wrap justify-center gap-2">{actions}</div> : null}
+            <div className="text-center">
+              <CardTitle>{title}</CardTitle>
+              <CardDescription>{description}</CardDescription>
+              <p className="mt-2 text-xs text-muted-foreground">Used for: {whereUsed}</p>
+            </div>
           </div>
-          {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
-        </div>
+        ) : (
+          <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+            <div>
+              <CardTitle>{title}</CardTitle>
+              <CardDescription>{description}</CardDescription>
+              <p className="mt-2 text-xs text-muted-foreground">Used for: {whereUsed}</p>
+            </div>
+            {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
+          </div>
+        )}
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
@@ -363,14 +401,13 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
   const container = createContainer();
   await container.authProvider.requireUser();
 
-  const [newsDashboard, macroDashboard, fundamentalsLogs, fundamentalsRows, etfExposureLogs, marketVisionDashboard, metadataLogs, instruments, jobRuns] = await Promise.all([
+  const [newsDashboard, macroDashboard, fundamentalsLogs, fundamentalsRows, etfExposureLogs, marketVisionDashboard, instruments, jobRuns] = await Promise.all([
     container.newsDashboardService.getDashboard({ includeDuplicates: true, limit: 10 }),
     container.macroDashboardService.getDashboard(),
     container.fundamentalsRepository.listRefreshLogs(8),
     container.fundamentalsRepository.listSummaryRows(),
     container.etfExposureRepository.listRefreshLogs(8),
     container.marketVisionService.getDashboard(),
-    container.instrumentService.listMetadataRefreshLogs(8),
     container.instrumentService.listInstruments({ isActive: true }),
     container.jobRunService.listRecent(60)
   ]);
@@ -400,6 +437,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
     env.ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN,
     env.ETF_LOOKTHROUGH_STALE_AFTER_DAYS
   );
+  const metadataCoverage = metadataCoverageSummary(instruments, 25, 30);
   const marketDataJobRuns = jobRuns
     .filter((run) =>
       [
@@ -485,6 +523,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         title="Market Data and ETF Look-Through"
         description="FMP-driven market metadata and ETF exposure refresh diagnostics."
         whereUsed="portfolio, holdings, universe, watchlist, risk, portfolio review, insights"
+        actionsFirst
         actions={
           <>
             <form action={seedUniverseAction}>
@@ -526,11 +565,31 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
           </>
         }
       >
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-3">
           <StatBox label="ETF exposure status" value={latestEtfLog?.status ?? "No run"} className={statusTone(latestEtfLog?.status)} />
           <StatBox label="ETF exposure latest run" value={formatDateTime(latestEtfLog?.completedAt ?? latestEtfLog?.startedAt)} />
           <StatBox label="ETFs refreshed" value={latestEtfLog ? `${latestEtfLog.etfsRefreshed}/${latestEtfLog.etfsRequested}` : "-"} />
-          <StatBox label="Metadata latest run" value={formatDateTime(metadataLogs[0]?.completedAt ?? metadataLogs[0]?.createdAt)} />
+        </div>
+        <div className="mt-4 rounded-md border bg-muted/30 p-3">
+          <p className="text-sm font-medium">Instrument metadata coverage</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Tracks FMP profile metadata stored on active instruments, including name, exchange, currency, geography, sector, industry and normalized taxonomy inputs.
+          </p>
+          <div className="mt-3 grid gap-3 md:grid-cols-3 lg:grid-cols-8">
+            <StatBox label="Active instruments" value={metadataCoverage.totalEligible} />
+            <StatBox label="Metadata refreshed" value={metadataCoverage.refreshedCount} />
+            <StatBox label="Fresh 30D" value={metadataCoverage.freshCount} />
+            <StatBox label="Stale 30D" value={metadataCoverage.staleCount} className={metadataCoverage.staleCount > 0 ? "text-amber-600" : undefined} />
+            <StatBox label="Never refreshed" value={metadataCoverage.neverRefreshed} className={metadataCoverage.neverRefreshed > 0 ? "text-destructive" : undefined} />
+            <StatBox label="Latest refresh" value={formatDateTime(metadataCoverage.latestRefresh)} />
+            <StatBox label="Batch size" value={metadataCoverage.batchSize} />
+            <StatBox label="Est. manual clicks" value={metadataCoverage.estimatedManualClicks} />
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {metadataCoverage.staleCount === 0 && metadataCoverage.neverRefreshed === 0
+              ? "Instrument metadata is fresh for all active instruments."
+              : `${metadataCoverage.staleCount} instrument${metadataCoverage.staleCount === 1 ? "" : "s"} have metadata older than ${metadataCoverage.staleCutoff}; ${metadataCoverage.neverRefreshed} instrument${metadataCoverage.neverRefreshed === 1 ? "" : "s"} have never had metadata refreshed. Run Instrument metadata until both counts reach zero.`}
+          </p>
         </div>
         <div className="mt-4 rounded-md border bg-muted/30 p-3">
           <p className="text-sm font-medium">ETF look-through coverage</p>
@@ -649,7 +708,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
             ))}
           </div>
         </div>
-        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="mt-4">
           <div className="rounded-md border p-3">
             <p className="text-sm font-medium">ETF exposure refresh logs</p>
             <div className="mt-3 space-y-2 text-sm">
@@ -658,18 +717,6 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
                   <p className={`font-medium ${statusTone(log.status)}`}>{log.status} - {formatDateTime(log.completedAt ?? log.startedAt)}</p>
                   <p className="text-muted-foreground">{log.etfsRefreshed}/{log.etfsRequested} ETFs, {log.sectorRows} sector rows, {log.countryRows} country rows, {log.topHoldingRows} top holding rows</p>
                   {log.errorMessage ? <p className="text-destructive">{log.errorMessage}</p> : null}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-sm font-medium">Instrument metadata refresh logs</p>
-            <div className="mt-3 space-y-2 text-sm">
-              {metadataLogs.length === 0 ? <p className="text-muted-foreground">No metadata refresh has run yet.</p> : metadataLogs.map((log) => (
-                <div key={log.id} className="rounded-md bg-muted/40 p-3">
-                  <p className={`font-medium ${statusTone(log.status)}`}>{log.status} - {formatDateTime(log.completedAt ?? log.createdAt)}</p>
-                  <p className="text-muted-foreground">{log.updatedCount}/{log.requestedCount} instruments updated, {log.missingCount} missing</p>
-                  {log.message ? <p className="text-destructive">{log.message}</p> : null}
                 </div>
               ))}
             </div>
