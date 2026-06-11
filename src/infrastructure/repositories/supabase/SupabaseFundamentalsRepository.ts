@@ -336,11 +336,16 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
     return this.buildSummaryRows(instruments, { includeDiagnostics: true });
   }
 
-  async listSummaryRowsForInstruments(instruments: Instrument[]) {
-    return this.buildSummaryRows(instruments.filter((instrument) => instrument.assetClass === "stock"), { includeDiagnostics: false });
+  async listOverviewRows() {
+    const instruments = await this.listEligibleStockInstruments(500);
+    return this.buildSummaryRows(instruments, { includeDiagnostics: false, includeTrends: true });
   }
 
-  private async buildSummaryRows(instruments: Instrument[], options: { includeDiagnostics: boolean }) {
+  async listSummaryRowsForInstruments(instruments: Instrument[]) {
+    return this.buildSummaryRows(instruments.filter((instrument) => instrument.assetClass === "stock"), { includeDiagnostics: false, includeTrends: false });
+  }
+
+  private async buildSummaryRows(instruments: Instrument[], options: { includeDiagnostics: boolean; includeTrends?: boolean }) {
     const ids = instruments.map((instrument) => instrument.id);
     const [profiles, ratios, scores, trends, statements] = options.includeDiagnostics
       ? await Promise.all([
@@ -354,7 +359,7 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
           this.getSummaryProfiles(ids),
           Promise.resolve([]),
           this.getLatestSummaryScores(ids),
-          Promise.resolve([]),
+          options.includeTrends ? this.getLatestSummaryTrendSummaries(ids) : Promise.resolve([]),
           Promise.resolve(new Map<string, number>())
         ]);
     const profileById = new Map(profiles.map((item) => [item.instrumentId, item]));

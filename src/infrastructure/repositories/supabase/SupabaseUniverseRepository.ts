@@ -915,12 +915,21 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     if (isMissingUniverseTable(error)) return [];
     if (error) throw new Error(error.message);
 
-    const watchlists = await this.listWatchlists();
-    const instruments = await this.listInstruments({ isActive: true });
-    const watchlistById = new Map(watchlists.map((watchlist) => [watchlist.id, watchlist]));
-    const instrumentById = new Map(instruments.map((instrument) => [instrument.id, instrument]));
+    const itemRows = data ?? [];
+    const instrumentIds = Array.from(new Set(itemRows.map((row) => row.instrument_id).filter(Boolean)));
+    const [watchlists, instrumentsResult] = await Promise.all([
+      this.listWatchlists(),
+      instrumentIds.length > 0
+        ? this.db.from("instruments").select("id,symbol,name").in("id", instrumentIds)
+        : Promise.resolve({ data: [], error: null })
+    ]);
+    if (isMissingUniverseTable(instrumentsResult.error)) return [];
+    if (instrumentsResult.error) throw new Error(instrumentsResult.error.message);
 
-    return (data ?? []).map((row) => {
+    const watchlistById = new Map(watchlists.map((watchlist) => [watchlist.id, watchlist]));
+    const instrumentById = new Map((instrumentsResult.data ?? []).map((instrument) => [instrument.id, instrument]));
+
+    return itemRows.map((row) => {
       const watchlist = watchlistById.get(row.watchlist_id);
       const instrument = instrumentById.get(row.instrument_id);
       return {

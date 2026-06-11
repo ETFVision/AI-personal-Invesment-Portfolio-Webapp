@@ -78,6 +78,10 @@ class FakeFundamentalsRepository implements FundamentalsRepository {
     return [];
   }
 
+  async listOverviewRows(): Promise<FundamentalsSummaryRow[]> {
+    return [];
+  }
+
   async listSummaryRowsForInstruments(): Promise<FundamentalsSummaryRow[]> {
     return [];
   }

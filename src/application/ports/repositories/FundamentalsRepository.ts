@@ -14,6 +14,7 @@ import type { Instrument } from "@/domain/universe/types";
 export interface FundamentalsRepository {
   listEligibleStockInstruments(limit?: number): Promise<Instrument[]>;
   listSummaryRows(): Promise<FundamentalsSummaryRow[]>;
+  listOverviewRows(): Promise<FundamentalsSummaryRow[]>;
   listSummaryRowsForInstruments(instruments: Instrument[]): Promise<FundamentalsSummaryRow[]>;
   getDetailBySymbol(symbol: string): Promise<FundamentalsDetail | null>;
   getProfiles(instrumentIds: string[]): Promise<CompanyProfile[]>;

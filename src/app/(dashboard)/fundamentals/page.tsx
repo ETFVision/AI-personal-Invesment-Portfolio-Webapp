@@ -26,7 +26,7 @@ export default async function FundamentalsPage({ searchParams }: { searchParams:
   await container.authProvider.requireUser();
   const [rows, logs] = await measureRenderStep("fundamentals:summary-data", () =>
     Promise.all([
-      container.fundamentalsRepository.listSummaryRows(),
+      container.fundamentalsRepository.listOverviewRows(),
       container.fundamentalsRepository.listRefreshLogs(5)
     ])
   );
