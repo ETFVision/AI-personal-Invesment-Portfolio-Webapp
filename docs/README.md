@@ -11,6 +11,7 @@ This folder contains both current handover documents and older historical audits
 - [Data Ingestion and Providers](DATA_INGESTION_AND_PROVIDERS.md)
 - [Instrument Taxonomy and Coverage](INSTRUMENT_TAXONOMY_AND_COVERAGE.md)
 - [Calculation Methodology](CALCULATION_METHODOLOGY.md)
+- [Score Methodology](SCORE_METHODOLOGY.md)
 - [Portfolio Review Methodology](PORTFOLIO_REVIEW_METHODOLOGY.md)
 - [Recommendation Insights Methodology](RECOMMENDATION_INSIGHTS_METHODOLOGY.md)
 - [News and Theme Methodology](NEWS_THEME_METHODOLOGY.md)

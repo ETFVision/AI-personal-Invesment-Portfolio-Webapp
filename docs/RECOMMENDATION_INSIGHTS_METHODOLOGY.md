@@ -32,6 +32,8 @@ Recommendation inputs can include:
 
 Available components are weighted by instrument type. Missing components reduce confidence and may create data limitations.
 
+Formula-level component weights by instrument type are documented in [Score Methodology](SCORE_METHODOLOGY.md).
+
 ## Generic Scoring Helpers
 
 From `RecommendationRulesService.ts`:

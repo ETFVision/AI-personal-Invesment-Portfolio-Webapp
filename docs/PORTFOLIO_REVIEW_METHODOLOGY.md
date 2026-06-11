@@ -32,6 +32,8 @@ Current weights from `portfolioReviewScoring.ts`:
 
 The overall score is a weighted average of available section scores and is clamped from 0 to 100.
 
+Formula-level section score calculations are documented in [Score Methodology](SCORE_METHODOLOGY.md).
+
 ## Review Sections
 
 Portfolio Review includes:

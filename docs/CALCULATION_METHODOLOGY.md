@@ -100,3 +100,15 @@ Benchmarks are refreshed separately. Recent benchmark data is refreshed daily; l
 ## Display Units
 
 Internal returns and volatility should be decimals. UI formatting converts to percentages. The app should avoid mixing decimal and percent-scale numbers in storage.
+
+## Score Methodology Reference
+
+Formula-level scoring details are documented in [Score Methodology](SCORE_METHODOLOGY.md), including:
+
+- Fundamentals score.
+- Fundamental trend score.
+- Instrument risk score.
+- Portfolio risk and diversification scores.
+- Recommendation score and confidence.
+- Portfolio Review section scores.
+- Macro/FRED trend and theme scores.

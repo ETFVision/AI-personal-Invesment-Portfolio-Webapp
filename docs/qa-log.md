@@ -2834,3 +2834,48 @@ Deferred follow-up:
 Validation:
 - Documentation files were created and indexed.
 - No runtime tests were run because this change does not alter executable code.
+
+## 2026-06-11 20:26 SGT - Formula-Level Score Methodology Documentation
+
+Scope:
+- Added a dedicated score methodology handover document covering formula-level scoring logic for fundamentals, fundamental trends, instrument risk, portfolio risk/diversification, recommendations, portfolio review sections, and FRED macro theme signals.
+- Cross-linked the new document from the documentation index, calculation methodology, recommendation methodology, and portfolio review methodology.
+- Narrowed documentation gaps where formula-level score documentation is now available.
+
+Files updated:
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/README.md`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+
+Primary code references checked:
+- `src/application/services/fundamentals/FundamentalScoringService.ts`
+- `src/application/services/fundamentals/FundamentalTrendCalculationService.ts`
+- `src/application/services/InstrumentRiskService.ts`
+- `src/application/services/risk/riskMath.ts`
+- `src/application/services/recommendations/RecommendationRulesService.ts`
+- `src/application/services/recommendations/recommendationScoring.ts`
+- `src/application/services/recommendations/StockRecommendationService.ts`
+- `src/application/services/recommendations/EtfRecommendationService.ts`
+- `src/application/services/recommendations/BondEtfRecommendationService.ts`
+- `src/application/services/recommendations/GoldRecommendationService.ts`
+- `src/application/services/recommendations/CryptoRecommendationService.ts`
+- `src/application/services/recommendations/portfolioFitService.ts`
+- `src/application/services/portfolioReview/*ReviewService.ts`
+- `src/application/services/macro/MacroTrendService.ts`
+- `src/application/services/macro/FredThemeSignalService.ts`
+
+Findings:
+- PASS: Fundamentals overall score weights and subscore helper formulas are now documented.
+- PASS: Fundamental trend short-term/long-term windows, direction mapping, score mapping and confidence are now documented.
+- PASS: Instrument risk score formula and buckets are now documented.
+- PASS: Recommendation score, confidence, guardrails and type-specific component weights are now documented.
+- PASS: Portfolio Review section-level formulas are now documented.
+- PASS: Macro/FRED severity, persistence and confidence score formulas are now documented.
+
+Validation:
+- Documentation-only update.
+- No runtime tests were run because no executable code changed.
