@@ -80,6 +80,7 @@ export type InstrumentDailyReturnStats = {
 
 export interface UniverseRepository {
   listInstruments(filters?: ListInstrumentsFilters): Promise<Instrument[]>;
+  listDirectoryInstruments(filters?: ListInstrumentsFilters): Promise<Instrument[]>;
   upsertInstruments(input: UpsertInstrumentInput[]): Promise<void>;
   setInstrumentActive(instrumentId: string, isActive: boolean): Promise<void>;
   updateInstrumentTags(input: Array<{ instrumentId: string; benchmarkTags: string[]; thematicTags: string[] }>): Promise<void>;

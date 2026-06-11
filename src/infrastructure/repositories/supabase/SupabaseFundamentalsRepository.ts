@@ -333,22 +333,30 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
 
   async listSummaryRows() {
     const instruments = await this.listEligibleStockInstruments(500);
-    return this.buildSummaryRows(instruments);
+    return this.buildSummaryRows(instruments, { includeDiagnostics: true });
   }
 
   async listSummaryRowsForInstruments(instruments: Instrument[]) {
-    return this.buildSummaryRows(instruments.filter((instrument) => instrument.assetClass === "stock"));
+    return this.buildSummaryRows(instruments.filter((instrument) => instrument.assetClass === "stock"), { includeDiagnostics: false });
   }
 
-  private async buildSummaryRows(instruments: Instrument[]) {
+  private async buildSummaryRows(instruments: Instrument[], options: { includeDiagnostics: boolean }) {
     const ids = instruments.map((instrument) => instrument.id);
-    const [profiles, ratios, scores, trends, statements] = await Promise.all([
-      this.getProfiles(ids),
-      this.getLatestRatios(ids),
-      this.getLatestScores(ids),
-      this.getLatestTrendSummaries(ids),
-      this.listStatementCounts(ids)
-    ]);
+    const [profiles, ratios, scores, trends, statements] = options.includeDiagnostics
+      ? await Promise.all([
+          this.getSummaryProfiles(ids),
+          this.getLatestSummaryRatios(ids),
+          this.getLatestSummaryScores(ids),
+          this.getLatestSummaryTrendSummaries(ids),
+          this.listStatementCounts(ids)
+        ])
+      : await Promise.all([
+          this.getSummaryProfiles(ids),
+          Promise.resolve([]),
+          this.getLatestSummaryScores(ids),
+          Promise.resolve([]),
+          Promise.resolve(new Map<string, number>())
+        ]);
     const profileById = new Map(profiles.map((item) => [item.instrumentId, item]));
     const ratioById = new Map(ratios.map((item) => [item.instrumentId, item]));
     const scoreById = new Map(scores.map((item) => [item.instrumentId, item]));
@@ -416,10 +424,36 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
     return (data ?? []).map(mapCompanyProfile);
   }
 
+  private async getSummaryProfiles(instrumentIds: string[]) {
+    if (instrumentIds.length === 0) return [];
+    const { data, error } = await this.db
+      .from("company_profiles")
+      .select("id,instrument_id,symbol,company_name,sector,industry,country,exchange,currency,market_cap,beta,ipo_date,employees,last_refreshed_at,provider")
+      .in("instrument_id", instrumentIds);
+    if (error) return [];
+    return (data ?? []).map((row) => mapCompanyProfile({ ...row, description: null, website: null, ceo: null, provider_metadata: {} }));
+  }
+
   async getLatestRatios(instrumentIds: string[]) {
     const ratios = await this.listRatios(instrumentIds);
     const seen = new Set<string>();
     return ratios.filter((ratio) => {
+      if (seen.has(ratio.instrumentId)) return false;
+      seen.add(ratio.instrumentId);
+      return true;
+    });
+  }
+
+  private async getLatestSummaryRatios(instrumentIds: string[]) {
+    if (instrumentIds.length === 0) return [];
+    const { data, error } = await this.db
+      .from("financial_ratios")
+      .select("id,instrument_id,symbol,period,fiscal_year,fiscal_quarter,report_date,pe_ratio,forward_pe,price_to_sales,price_to_book,ev_to_ebitda,ev_to_sales,gross_margin,operating_margin,net_margin,roe,roic,roa,debt_to_equity,net_debt_to_ebitda,current_ratio,quick_ratio,free_cash_flow_yield,revenue_growth,eps_growth,net_income_growth,free_cash_flow_growth,provider")
+      .in("instrument_id", instrumentIds)
+      .order("report_date", { ascending: false });
+    if (error) return [];
+    const seen = new Set<string>();
+    return (data ?? []).map((row) => mapFinancialRatio({ ...row, provider_metadata: {} })).filter((ratio) => {
       if (seen.has(ratio.instrumentId)) return false;
       seen.add(ratio.instrumentId);
       return true;
@@ -436,10 +470,42 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
     });
   }
 
+  private async getLatestSummaryScores(instrumentIds: string[]) {
+    if (instrumentIds.length === 0) return [];
+    const { data, error } = await this.db
+      .from("fundamental_scores")
+      .select("id,instrument_id,symbol,as_of_date,growth_score,profitability_score,valuation_score,balance_sheet_score,cash_flow_score,quality_score,overall_fundamental_score,score_confidence")
+      .in("instrument_id", instrumentIds)
+      .order("as_of_date", { ascending: false });
+    if (error) return [];
+    const seen = new Set<string>();
+    return (data ?? []).map((row) => mapFundamentalScore({ ...row, explanation: "", inputs_snapshot: {} })).filter((score) => {
+      if (seen.has(score.instrumentId)) return false;
+      seen.add(score.instrumentId);
+      return true;
+    });
+  }
+
   async getLatestTrendSummaries(instrumentIds: string[]) {
     const summaries = await this.listTrendSummaries(instrumentIds);
     const seen = new Set<string>();
     return summaries.filter((summary) => {
+      if (seen.has(summary.instrumentId)) return false;
+      seen.add(summary.instrumentId);
+      return true;
+    });
+  }
+
+  private async getLatestSummaryTrendSummaries(instrumentIds: string[]) {
+    if (instrumentIds.length === 0) return [];
+    const { data, error } = await this.db
+      .from("fundamental_trend_summaries")
+      .select("id,instrument_id,symbol,as_of_date,overall_trend_score,overall_confidence_score,overall_trend_direction,improving_metrics_count,deteriorating_metrics_count,stable_metrics_count,volatile_metrics_count,insufficient_data_metrics_count,growth_trend_score,margin_trend_score,profitability_trend_score,balance_sheet_trend_score,quality_trend_score,warnings")
+      .in("instrument_id", instrumentIds)
+      .order("as_of_date", { ascending: false });
+    if (error) return [];
+    const seen = new Set<string>();
+    return (data ?? []).map((row) => mapFundamentalTrendSummary({ ...row, explanation: "", inputs_snapshot: {} })).filter((summary) => {
       if (seen.has(summary.instrumentId)) return false;
       seen.add(summary.instrumentId);
       return true;

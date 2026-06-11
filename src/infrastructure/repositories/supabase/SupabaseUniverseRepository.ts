@@ -299,6 +299,42 @@ function uuidOrNull(value: string | null | undefined) {
 
 const SUPABASE_PAGE_SIZE = 1000;
 const INSTRUMENT_PRICE_UPSERT_BATCH_SIZE = 500;
+const DIRECTORY_INSTRUMENT_COLUMNS = [
+  "id",
+  "symbol",
+  "name",
+  "asset_class",
+  "asset_category",
+  "etf_category",
+  "instrument_type",
+  "sector",
+  "industry",
+  "canonical_sector",
+  "canonical_themes",
+  "taxonomy_is_manual_override",
+  "taxonomy_review_status",
+  "currency",
+  "exchange",
+  "watchlist_tier",
+  "benchmark_tags",
+  "thematic_tags",
+  "risk_category",
+  "volatility_bucket",
+  "duration_category",
+  "treasury_classification",
+  "inflation_linked",
+  "credit_quality",
+  "geo_exposure",
+  "rate_sensitivity",
+  "inflation_sensitivity",
+  "recession_sensitivity",
+  "liquidity_role",
+  "crypto_classification",
+  "metadata_last_refreshed_at",
+  "provider_primary",
+  "source_type",
+  "is_active"
+].join(",");
 
 function chunkArray<T>(items: T[], size: number) {
   const chunks: T[][] = [];
@@ -308,26 +344,42 @@ function chunkArray<T>(items: T[], size: number) {
   return chunks;
 }
 
+function applyInstrumentFilters(query: any, filters?: ListInstrumentsFilters) {
+  let scopedQuery = query;
+  if (filters?.isActive != null) scopedQuery = scopedQuery.eq("is_active", filters.isActive);
+  if (filters?.assetClass) scopedQuery = scopedQuery.eq("asset_class", filters.assetClass);
+  if (filters?.watchlistTier) scopedQuery = scopedQuery.eq("watchlist_tier", filters.watchlistTier);
+  if (filters?.query) {
+    const safeQuery = filters.query.trim();
+    if (safeQuery) {
+      scopedQuery = scopedQuery.or(`symbol.ilike.%${safeQuery}%,name.ilike.%${safeQuery}%`);
+    }
+  }
+  if (filters?.limit) scopedQuery = scopedQuery.limit(filters.limit);
+  return scopedQuery;
+}
+
 export class SupabaseUniverseRepository implements UniverseRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
   async listInstruments(filters?: ListInstrumentsFilters) {
     let query = this.db.from("instruments").select("*").order("symbol", { ascending: true });
-    if (filters?.isActive != null) query = query.eq("is_active", filters.isActive);
-    if (filters?.assetClass) query = query.eq("asset_class", filters.assetClass);
-    if (filters?.watchlistTier) query = query.eq("watchlist_tier", filters.watchlistTier);
-    if (filters?.query) {
-      const safeQuery = filters.query.trim();
-      if (safeQuery) {
-        query = query.or(`symbol.ilike.%${safeQuery}%,name.ilike.%${safeQuery}%`);
-      }
-    }
-    if (filters?.limit) query = query.limit(filters.limit);
+    query = applyInstrumentFilters(query, filters);
 
     const { data, error } = await query;
     if (isMissingUniverseTable(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapInstrument);
+  }
+
+  async listDirectoryInstruments(filters?: ListInstrumentsFilters) {
+    let query = this.db.from("instruments").select(DIRECTORY_INSTRUMENT_COLUMNS).order("symbol", { ascending: true });
+    query = applyInstrumentFilters(query, filters);
+
+    const { data, error } = await query;
+    if (isMissingUniverseTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as any[]).map((row) => mapInstrument({ ...row, provider_metadata: {} }));
   }
 
   async listInstrumentPrices(instrumentIds?: string[], sinceDate?: string) {

@@ -143,7 +143,7 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
     Promise.all([
       container.watchlistService.listWatchlists(),
       container.watchlistService.listWatchlistItems(),
-      container.instrumentService.listInstruments({ query: q || undefined, isActive: true })
+      container.instrumentService.listDirectoryInstruments({ query: q || undefined, isActive: true })
     ])
   );
 
@@ -155,7 +155,7 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
     .filter((instrument): instrument is NonNullable<typeof instrument> => Boolean(instrument));
   const [marketRows, fundamentalsRows] = await measureRenderStep("instruments-watchlist:market-and-fundamentals-data", () =>
     Promise.all([
-      container.instrumentMarketService.buildInstrumentMarketViews(selectedInstruments, { lookbackYears: 1 }),
+      container.instrumentMarketService.buildInstrumentDirectoryMarketViews(selectedInstruments),
       container.fundamentalsRepository.listSummaryRowsForInstruments(selectedInstruments)
     ])
   );

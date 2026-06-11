@@ -128,14 +128,14 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
   const sector = params?.sector?.trim() ?? "";
   const status = params?.status?.trim() ?? "";
   const instruments = await measureRenderStep("instruments-universe:instrument-list", () =>
-    container.instrumentService.listInstruments({
+    container.instrumentService.listDirectoryInstruments({
       query: q || undefined,
       isActive: status === "inactive" ? false : status === "all" ? undefined : true
     })
   );
   const [rows, fundamentalsRows] = await measureRenderStep("instruments-universe:market-and-fundamentals-data", () =>
     Promise.all([
-      container.instrumentMarketService.buildInstrumentMarketViews(instruments, { lookbackYears: 1 }),
+      container.instrumentMarketService.buildInstrumentDirectoryMarketViews(instruments),
       container.fundamentalsRepository.listSummaryRowsForInstruments(instruments)
     ])
   );

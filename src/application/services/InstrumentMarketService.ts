@@ -873,6 +873,17 @@ export class InstrumentMarketService {
     return this.buildInstrumentMarketViewsFromPrices(instruments, options);
   }
 
+  async buildInstrumentDirectoryMarketViews(instruments: Instrument[]): Promise<InstrumentMarketView[]> {
+    if (instruments.length === 0) return [];
+
+    const metrics = await this.repository.listInstrumentMarketMetrics(instruments.map((instrument) => instrument.id));
+    const metricsByInstrumentId = new Map(metrics.map((metric) => [metric.instrumentId, metric]));
+    return instruments.map((instrument) => {
+      const metric = metricsByInstrumentId.get(instrument.id);
+      return metric ? this.marketViewFromMetric(instrument, metric) : this.emptyMarketView(instrument);
+    });
+  }
+
   private async buildInstrumentMarketViewsFromPrices(instruments: Instrument[], options?: { lookbackYears?: number }): Promise<InstrumentMarketView[]> {
     if (instruments.length === 0) return [];
 

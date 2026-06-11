@@ -7,6 +7,10 @@ export class InstrumentService {
     return this.repository.listInstruments(filters);
   }
 
+  listDirectoryInstruments(filters?: Parameters<UniverseRepository["listDirectoryInstruments"]>[0]) {
+    return this.repository.listDirectoryInstruments(filters);
+  }
+
   listBondProfiles() {
     return this.repository.listBondProfiles();
   }
