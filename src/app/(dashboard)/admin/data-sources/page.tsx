@@ -1,4 +1,5 @@
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import {
   reclassifyPendingNewsAction,
   runDailyNewsIngestionAction,
@@ -401,33 +402,42 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
   const container = createContainer();
   await container.authProvider.requireUser();
 
-  const [newsDashboard, macroDashboard, fundamentalsLogs, fundamentalsRows, etfExposureLogs, marketVisionDashboard, instruments, jobRuns] = await Promise.all([
-    container.newsDashboardService.getDashboard({ includeDuplicates: true, limit: 10 }),
-    container.macroDashboardService.getDashboard(),
-    container.fundamentalsRepository.listRefreshLogs(8),
-    container.fundamentalsRepository.listSummaryRows(),
-    container.etfExposureRepository.listRefreshLogs(8),
-    container.marketVisionService.getDashboard(),
-    container.instrumentService.listInstruments({ isActive: true }),
-    container.jobRunService.listRecent(60)
-  ]);
+  const [newsDashboard, macroDashboard, fundamentalsLogs, fundamentalsRows, etfExposureLogs, marketVisionDashboard, instruments, jobRuns] =
+    await measureRenderStep("admin-data-sources:primary-data", () =>
+      Promise.all([
+        container.newsDashboardService.getDashboard({ includeDuplicates: true, limit: 10 }),
+        container.macroDashboardService.getDashboard(),
+        container.fundamentalsRepository.listRefreshLogs(8),
+        container.fundamentalsRepository.listSummaryRows(),
+        container.etfExposureRepository.listRefreshLogs(8),
+        container.marketVisionService.getDashboard(),
+        container.instrumentService.listInstruments({ isActive: true }),
+        container.jobRunService.listRecent(60)
+      ])
+    );
   const eligibleLookthroughEtfs = etfLookthroughEligible(instruments);
   const eligibleLookthroughEtfIds = eligibleLookthroughEtfs.map((instrument) => instrument.id);
   const [etfSectorExposures, etfCountryExposures, etfTopHoldings] = eligibleLookthroughEtfIds.length > 0
-    ? await Promise.all([
-        container.etfExposureRepository.listLatestSectorExposures(eligibleLookthroughEtfIds),
-        container.etfExposureRepository.listLatestCountryExposures(eligibleLookthroughEtfIds),
-        container.etfExposureRepository.listLatestTopHoldings(eligibleLookthroughEtfIds)
-      ])
+    ? await measureRenderStep("admin-data-sources:etf-exposures", () =>
+        Promise.all([
+          container.etfExposureRepository.listLatestSectorExposures(eligibleLookthroughEtfIds),
+          container.etfExposureRepository.listLatestCountryExposures(eligibleLookthroughEtfIds),
+          container.etfExposureRepository.listLatestTopHoldings(eligibleLookthroughEtfIds)
+        ])
+      )
     : [[], [], []];
-  const latestPriceCoverage = await container.instrumentMarketService.getLatestPriceCoverageSummary(instruments, 75);
-  const historyCoverage = await container.instrumentMarketService.getHistoryCoverageSummary(instruments, 8);
-  const metricLayerCoverage = await container.instrumentMarketService.getMetricLayerCoverageSummary(instruments, {
-    dailyReturnsBatchSize: 350,
-    returnAnchorsBatchSize: 350,
-    marketMetricsBatchSize: 350,
-    riskMetricsBatchSize: 200
-  });
+  const [latestPriceCoverage, historyCoverage, metricLayerCoverage] = await measureRenderStep("admin-data-sources:market-coverage", () =>
+    Promise.all([
+      container.instrumentMarketService.getLatestPriceCoverageSummary(instruments, 75),
+      container.instrumentMarketService.getHistoryCoverageSummary(instruments, 8),
+      container.instrumentMarketService.getMetricLayerCoverageSummary(instruments, {
+        dailyReturnsBatchSize: 350,
+        returnAnchorsBatchSize: 350,
+        marketMetricsBatchSize: 350,
+        riskMetricsBatchSize: 200
+      })
+    ])
+  );
   const fundamentalsCoverage = fundamentalsCoverageSummary(fundamentalsRows, env.FUNDAMENTALS_MAX_STOCKS_PER_REFRESH, env.FUNDAMENTALS_REFRESH_FREQUENCY_DAYS);
   const etfCoverage = etfLookthroughCoverageSummary(
     eligibleLookthroughEtfs,

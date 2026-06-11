@@ -1,5 +1,6 @@
 import { Archive, FilePenLine, Send } from "lucide-react";
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import {
   archiveMarketVisionReportAction,
   publishMarketVisionReportAction,
@@ -530,14 +531,16 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
   const params = await searchParams;
   const container = createContainer();
   await container.authProvider.requireUser();
-  const [dashboard, latestGlobalNews, macroDashboard] = await Promise.all([
-    container.marketVisionService.getDashboard(params?.reportId),
+  const [dashboard, latestGlobalNews, macroDashboard] = await measureRenderStep("market-vision:dashboard-data", () =>
     Promise.all([
-      container.newsRepository.listNewsWithClassifications({ sourceProvider: "newsdata", includeDuplicates: false, limit: 40 }),
-      container.newsRepository.listNewsWithClassifications({ sourceProvider: "gdelt", includeDuplicates: false, limit: 40 })
-    ]).then(([newsDataRows, gdeltRows]) => eligibleGdeltInput([...newsDataRows, ...gdeltRows]).slice(0, 8)),
-    container.macroDashboardService.getDashboard()
-  ]);
+      container.marketVisionService.getDashboard(params?.reportId),
+      Promise.all([
+        container.newsRepository.listNewsWithClassifications({ sourceProvider: "newsdata", includeDuplicates: false, limit: 40 }),
+        container.newsRepository.listNewsWithClassifications({ sourceProvider: "gdelt", includeDuplicates: false, limit: 40 })
+      ]).then(([newsDataRows, gdeltRows]) => eligibleGdeltInput([...newsDataRows, ...gdeltRows]).slice(0, 8)),
+      container.macroDashboardService.getDashboard()
+    ])
+  );
   const macroContext = container.macroContextService.buildContext(macroDashboard);
   const report = dashboard.selectedReport;
 

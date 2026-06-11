@@ -11,6 +11,10 @@ export class InstrumentService {
     return this.repository.listBondProfiles();
   }
 
+  getBondProfile(instrumentId: string) {
+    return this.repository.getBondProfile(instrumentId);
+  }
+
   listBenchmarkProfiles() {
     return this.repository.listBenchmarkProfiles();
   }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HorizontalExposureBars } from "@/components/ui/charts";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -200,20 +201,24 @@ export default async function RiskPage() {
     );
   }
 
-  const [dashboard, macroDashboard, cachedRiskReport] = await Promise.all([
-    container.portfolioService.getDashboard(portfolio.id),
-    container.macroDashboardService.getDashboard(),
-    container.riskAnalyticsRepository.getLatestRiskReport(portfolio.id)
-  ]);
+  const [dashboard, macroDashboard, cachedRiskReport] = await measureRenderStep(`risk:${portfolio.id}:base-data`, () =>
+    Promise.all([
+      container.portfolioService.getDashboard(portfolio.id),
+      container.macroDashboardService.getDashboard(),
+      container.riskAnalyticsRepository.getLatestRiskReport(portfolio.id)
+    ])
+  );
   const macroContext = container.macroContextService.buildContext(macroDashboard);
   const cachedReport = cachedRiskReport?.report as Partial<RiskAnalyticsReport> | null | undefined;
   const canUseCachedReport = cachedReport?.taxonomyVersion === RISK_TAXONOMY_VERSION;
-  const [bondReport, report] = await Promise.all([
-    container.bondService.getPortfolioBondAnalytics(dashboard),
-    canUseCachedReport
-      ? Promise.resolve(cachedReport as RiskAnalyticsReport)
-      : container.riskAnalyticsDataService.buildReport(portfolio.id, dashboard)
-  ]);
+  const [bondReport, report] = await measureRenderStep(`risk:${portfolio.id}:report-data`, () =>
+    Promise.all([
+      container.bondService.getPortfolioBondAnalytics(dashboard),
+      canUseCachedReport
+        ? Promise.resolve(cachedReport as RiskAnalyticsReport)
+        : container.riskAnalyticsDataService.buildReport(portfolio.id, dashboard)
+    ])
+  );
   if (!canUseCachedReport) {
     await container.riskAnalyticsRepository.upsertRiskReport({
       portfolioId: portfolio.id,

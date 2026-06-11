@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricCard, PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
@@ -66,10 +67,12 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
     );
   }
 
-  const [dashboard, latestPortfolioReview] = await Promise.all([
-    container.portfolioService.getDashboard(portfolio.id),
-    container.portfolioReviewRepository.getLatestReportSummary(portfolio.id)
-  ]);
+  const [dashboard, latestPortfolioReview] = await measureRenderStep(`portfolio:${portfolio.id}:dashboard-data`, () =>
+    Promise.all([
+      container.portfolioService.getDashboard(portfolio.id),
+      container.portfolioReviewRepository.getLatestReportSummary(portfolio.id)
+    ])
+  );
   const lookthroughReport = lookthroughReportFromSnapshot(latestPortfolioReview?.inputsSnapshot?.lookthroughExposure);
   const sectorAllocation = lookthroughReport?.sectorExposures.length
     ? allocationFromLookthrough(lookthroughReport.sectorExposures)

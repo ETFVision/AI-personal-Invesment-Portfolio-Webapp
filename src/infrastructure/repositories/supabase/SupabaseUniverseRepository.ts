@@ -919,6 +919,22 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     }));
   }
 
+  async getBondProfile(instrumentId: string) {
+    const { data, error } = await this.db
+      .from("bond_profiles")
+      .select("*, instruments(symbol)")
+      .eq("instrument_id", instrumentId)
+      .maybeSingle();
+    if (isMissingUniverseTable(error)) return null;
+    if (error) throw new Error(error.message);
+    return data
+      ? {
+          ...mapBondProfile(data),
+          symbol: data.instruments?.symbol ?? data.symbol ?? null
+        }
+      : null;
+  }
+
   async upsertBondProfiles(input: BondProfile[]) {
     if (input.length === 0) return;
 

@@ -118,6 +118,7 @@ export interface UniverseRepository {
   listWatchlistItems(watchlistIds?: string[]): Promise<WatchlistItem[]>;
   upsertWatchlistItems(input: UpsertWatchlistItemInput[]): Promise<void>;
   listBondProfiles(): Promise<BondProfile[]>;
+  getBondProfile(instrumentId: string): Promise<BondProfile | null>;
   upsertBondProfiles(input: BondProfile[]): Promise<void>;
   listBenchmarkProfiles(): Promise<BenchmarkProfile[]>;
   upsertBenchmarkProfiles(input: BenchmarkProfile[]): Promise<void>;
