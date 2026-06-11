@@ -2,7 +2,7 @@
 
 Date: 2026-06-11  
 Branch: `development`  
-Scope: Phase 1 audit only. No schema, route, calculation, or UI behavior changes.
+Scope: Page-rendering audit and implementation checkpoint. This document now records the original audit, the implemented optimization phases, deferred phases, QA notes, and recommended next actions.
 
 ## 1. Objective
 
@@ -483,3 +483,258 @@ Validation:
 Next recommended measurement:
 
 Set `ENABLE_RENDER_TIMING=true` in a development or preview environment, open the slowest pages, and compare `[render-timing]` server logs. Use those timings to decide whether the first summary target should be `portfolio_dashboard_summary`, `instrument_page_summary`, or an Admin/Data Sources health summary.
+
+## 17. 2026-06-11 Rendering Optimization Execution Update
+
+This section supersedes the earlier phase-order notes where later testing changed the plan.
+
+### 17.1 What Has Been Implemented
+
+#### Render Timing Instrumentation
+
+Implemented:
+
+- Added `measureRenderStep` in `src/infrastructure/observability/renderTiming.ts`.
+- Render timing is guarded by `ENABLE_RENDER_TIMING=true`.
+- Main user and admin pages now emit page-level or section-level timings, including:
+  - `/portfolio`
+  - `/holdings`
+  - `/cash`
+  - `/transactions`
+  - `/instruments/universe`
+  - `/instruments/watchlist`
+  - `/instruments/[symbol]`
+  - `/fundamentals`
+  - `/risk`
+  - `/bonds`
+  - `/recommendations`
+  - `/portfolio-review`
+  - `/market-vision`
+  - `/news`
+  - `/macro`
+  - `/telemetry`
+  - `/assistant`
+  - Admin/Data Sources
+  - Admin/Jobs
+  - Admin/Assistant Usage
+  - Setup/Taxonomy
+
+Result:
+
+- The timing layer made it clear that raw server data load, not client rendering, was the main bottleneck for the slowest pages.
+- The most useful measurements were portfolio summary load, fundamentals overview load, instrument detail fundamentals load, universe/watchlist market/fundamentals load, and portfolio analytics panels.
+
+#### Portfolio Performance Summary
+
+Implemented:
+
+- Added `portfolio_performance_summary`.
+- Added `/api/jobs/portfolio-performance-summary-refresh`.
+- Added `PortfolioService.getPerformanceSummary`.
+- `/portfolio` reads stored performance and benchmark comparison rows first.
+- If missing, `/portfolio` falls back to live dashboard calculation and stores the summary.
+
+Result:
+
+- `/portfolio` performance chart load dropped to roughly the 250-300ms range in preview logs when summary rows were available.
+- This is the strongest successful proof-of-pattern summary table so far.
+
+#### Portfolio Dashboard Summary
+
+Implemented:
+
+- Added `portfolio_dashboard_summary`.
+- Added `/api/jobs/portfolio-dashboard-summary-refresh`.
+- Added `/api/jobs/portfolio-summary-refresh` to refresh dashboard and performance summaries together.
+- Added daily scheduled refresh for `portfolio-summary-refresh`.
+- `portfolio-valuation-refresh` now refreshes dashboard and performance summaries after valuation snapshot creation.
+- `/portfolio`, `/holdings`, and `/cash` read the cached dashboard summary through `PortfolioService.getCachedDashboardSummary`.
+
+Result:
+
+- `/holdings` and `/cash` typically moved into the roughly 250-700ms range in preview logs.
+- `/portfolio` first-paint summary/card data is now summary-backed.
+- `/portfolio` still has deferred performance/analytics panels, but the heaviest repeated dashboard recomputation has been reduced.
+
+#### Fundamentals Overview And Detail Optimization
+
+Implemented:
+
+- Added `fundamentals_overview_metrics` view.
+- Added `get_fundamentals_detail_snapshot(input_symbol text)` RPC.
+- `/fundamentals` reads the overview view instead of rebuilding from raw statements/ratios.
+- `/instruments/[symbol]` reads the fundamentals detail snapshot for the selected instrument.
+
+Result:
+
+- `/fundamentals` moved from roughly 1.5s+ to roughly 500-700ms in later preview logs, with occasional variation.
+- `/instruments/[symbol]` fundamentals detail improved materially, with later GOOGL logs around 300-450ms after the final refinements, although some earlier detail loads were still around 1.1-1.4s.
+
+#### Instrument Detail Narrowing
+
+Implemented:
+
+- Instrument detail lookup was narrowed to the requested symbol query window.
+- Bond profile loading was narrowed to the selected instrument instead of loading all bond profiles.
+- Fundamentals detail now uses the detail snapshot RPC.
+
+Result:
+
+- The route is no longer doing the broadest all-instrument/all-bond-profile reads for a single symbol.
+- Remaining work is to combine market, risk, recommendation, and fundamentals data into a single per-symbol summary/read model only if real timings remain high.
+
+#### Universe And Watchlist Optimization
+
+Implemented:
+
+- Universe/watchlist pages still use live directory reads, but they now avoid full fundamentals summary loading.
+- Added `listSummaryRowsForInstruments(instruments)` and use it for displayed instruments/watchlist subset.
+- Watchlist reads market and fundamentals rows only for selected watchlist instruments.
+- An attempted instrument directory summary-table approach was tested and then reverted because the universe page became slower in preview logs.
+
+Result:
+
+- `/instruments/watchlist` generally improved to roughly 280-320ms after warm runs.
+- `/instruments/universe` remains variable and often sits around 550-900ms, sometimes higher.
+- Current recommendation is not to reintroduce the reverted directory summary table until there is a narrower query/materialized view design or server-side pagination.
+
+#### Admin Data Sources Controls For Summary Refreshes
+
+Implemented:
+
+- Added Admin/Data Sources refresh control for portfolio summary tables.
+- Added daily refresh status cards for the scheduled chain.
+- Added summary read-model job cards/log surfaces.
+
+Result:
+
+- Operators can now manually refresh portfolio summaries and inspect daily summary job status.
+- This remains internal/full-mode functionality and should not be exposed to consumer alpha users.
+
+#### Alpha Branch Alignment
+
+Implemented:
+
+- `alpha` was realigned to `main` plus release flags instead of remaining a manually patchworked partial branch.
+- Alpha now receives the same page-rendering optimizations as main.
+- Alpha-specific behavior is handled through:
+  - `src/config/release.ts`
+  - `src/middleware.ts`
+  - `src/components/layout/app-shell.tsx`
+  - alpha-safe Market Vision display rules
+
+Result:
+
+- Future main-to-alpha updates should be simpler.
+- Alpha can keep consumer-facing limitations without missing core performance fixes.
+
+### 17.2 Corrected 10-Phase Status
+
+| Phase | Area | Status | Current Notes |
+|---|---|---|---|
+| 1 | Portfolio Performance Summary | Done | `portfolio_performance_summary` is implemented and used by `/portfolio` performance panels. |
+| 2 | Instrument Directory Summary | Deferred / changed approach | Summary-table attempt was slower and reverted. Current approach is scoped fundamentals rows plus existing market metrics. Watchlist is acceptable; universe remains a future optimization target. |
+| 3 | Instrument Detail Summary | Partially done | Broad reads reduced; fundamentals snapshot RPC added. No full `instrument_page_summary` table yet. |
+| 4 | Portfolio Dashboard Summary | Done | `portfolio_dashboard_summary` is implemented and used by `/portfolio`, `/holdings`, and `/cash`. |
+| 5 | Portfolio Risk Summary | Deferred by decision | Risk summary work was started conceptually but intentionally not kept. `/risk` still reads dashboard summary plus cached risk/bond/macro data. |
+| 6 | Bond / Fixed Income Summary | Not started | `/bonds` is instrumented and uses summary dashboard/macro summary, but no bond page summary table exists. |
+| 7 | News / Theme Summary | Not started | `/news` is instrumented. Existing dashboard/reconciliation structures are used; no `news_theme_summary` table yet. |
+| 8 | Market Vision Display Summary | Partially done by page structure | Market Vision reports are already stored. Raw macro/news support sections are measured and can be hidden/lazy in alpha; no new display summary table added. |
+| 9 | Telemetry Summary | Not started | `/telemetry` is instrumented and still showed slow build-time data in one production build log. Candidate for future summary/read model. |
+| 10 | Admin Data Sources Health Summary | Not started | Admin page has more timing and summary controls, but no `data_source_health_summary` table. Internal-only; lower user-facing priority. |
+
+### 17.3 Development Branch QA Findings
+
+Current development branch state:
+
+- Working tree was clean before this documentation update.
+- `portfolio_performance_summary` and `portfolio_dashboard_summary` are present in migrations and repository/service code.
+- `/portfolio` uses:
+  - `getCachedDashboardSummary` for top/dashboard data.
+  - `getPerformanceSummary` for performance/benchmark panels.
+  - live fallback only when summary rows are absent.
+- `/holdings` and `/cash` use `getCachedDashboardSummary`.
+- `/risk` and `/bonds` use `getDashboardSummary`, not the full historical dashboard, for their portfolio base.
+- `/instruments/universe` and `/instruments/watchlist` use `listSummaryRowsForInstruments`, avoiding full fundamentals summary scans.
+- `/instruments/[symbol]` uses `get_fundamentals_detail_snapshot` for fundamentals detail.
+- Admin/Data Sources includes portfolio summary refresh controls and job status cards.
+- No retained `instrument_directory_summary`, `portfolio_risk_summary`, `telemetry_summary`, or `data_source_health_summary` implementation exists on development.
+
+Validation previously run during implementation:
+
+- `npm.cmd run typecheck`
+- `npm.cmd run lint`
+- `npm.cmd run build`
+
+Documentation-only update note:
+
+- This checkpoint updates documentation and does not change executable application code.
+
+### 17.4 Remaining Work And Recommendations
+
+High priority:
+
+1. Keep the current portfolio summary implementation.
+   - It produced the clearest improvement.
+   - Keep the live fallback path for missing/stale rows.
+   - Keep daily `portfolio-summary-refresh` scheduled after portfolio valuation.
+
+2. Do not reintroduce the previous instrument directory summary table as-is.
+   - It made `/instruments/universe` slower in preview testing.
+   - If universe remains slow, use server-side pagination, category-level lazy sections, or a narrower materialized directory view with explicit indexes.
+
+3. Optimize `/instruments/[symbol]` only if new logs still show >800-1000ms.
+   - Preferred next step: a compact per-symbol read method or RPC that returns market metrics, risk metrics, fundamentals snapshot, recommendation, and recommendation history for one symbol.
+   - Avoid a large JSON summary table until the per-symbol query is proven slow.
+
+Medium priority:
+
+4. Portfolio Risk Summary remains optional.
+   - The user explicitly asked to revert/not proceed with portfolio risk summary.
+   - Revisit only if `/risk` remains a major bottleneck after cached reports are confirmed fresh.
+
+5. Telemetry Summary is a good candidate later.
+   - Telemetry is hidden from alpha and not core consumer first-paint.
+   - Build-time/render timing showed it can be heavy.
+   - Implement after user-facing pages are stable.
+
+6. Admin Data Sources Health Summary is useful but internal.
+   - It can consolidate coverage, job status, provider diagnostics and freshness.
+   - Do it only if internal admin usage is painful.
+
+Lower priority:
+
+7. Bond / Fixed Income Summary.
+   - `/bonds` is now using lighter dashboard/macro summary inputs.
+   - Add a summary only if preview logs show it remains slow.
+
+8. News / Theme Summary.
+   - Existing weekly reconciliation and theme intelligence are already stored.
+   - Add a summary only if `/news` repeatedly exceeds acceptable load times after article limits/pagination.
+
+9. Market Vision Display Summary.
+   - Market Vision reports are already stored outputs.
+   - Next work should focus on hiding/lazy-loading support diagnostics rather than adding another table.
+
+10. Assistant context summary.
+   - Not part of the page-rendering implementation yet.
+   - Later assistant performance can improve by reading compact portfolio/review/insight/Market Vision/telemetry summaries instead of broad context every chat turn.
+
+### 17.5 Operational Checklist
+
+After deploying a branch containing summary-read changes:
+
+1. Run migrations through the latest migration on the target environment.
+2. Ensure `portfolio-summary-refresh` appears in Supabase cron.
+3. Manually run `/api/jobs/portfolio-summary-refresh` once or use the Admin/Data Sources button.
+4. Confirm rows exist:
+   - `portfolio_dashboard_summary`
+   - `portfolio_performance_summary`
+5. Open `/portfolio`, `/holdings`, and `/cash` with `ENABLE_RENDER_TIMING=true`.
+6. Confirm logs show summary-backed timings.
+7. Keep checking:
+   - `/instruments/universe`
+   - `/instruments/watchlist`
+   - `/instruments/[symbol]`
+   - `/fundamentals`
+8. Do not create new summary tables unless fresh logs show persistent slow paths after scoped-query optimization.
