@@ -221,7 +221,7 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
 
   const [dashboard, latestPortfolioReview] = await measureRenderStep(`portfolio:${portfolio.id}:summary-top-cards-data`, () =>
     Promise.all([
-      container.portfolioService.getDashboardSummary(portfolio.id),
+      container.portfolioService.getCachedDashboardSummary(portfolio.id),
       container.portfolioReviewRepository.getLatestReportSummary(portfolio.id)
     ])
   );

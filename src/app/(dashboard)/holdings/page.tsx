@@ -21,7 +21,7 @@ export default async function HoldingsPage({ searchParams }: { searchParams: Pro
   if (!portfolio) redirect("/setup");
 
   const dashboard = await measureRenderStep(`holdings:${portfolio.id}:summary-data`, () =>
-    container.portfolioService.getDashboardSummary(portfolio.id)
+    container.portfolioService.getCachedDashboardSummary(portfolio.id)
   );
   const holdings = dashboard.holdings;
   const editing = holdings.find((item) => item.id === params.edit);

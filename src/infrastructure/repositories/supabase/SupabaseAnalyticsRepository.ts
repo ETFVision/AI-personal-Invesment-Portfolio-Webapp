@@ -9,6 +9,7 @@ import {
   HoldingSnapshot,
   HoldingValuation,
   PortfolioCurrentMetric,
+  PortfolioDashboardSummary,
   PortfolioPerformanceSummary,
   PortfolioSnapshot
 } from "@/domain/portfolio/types";
@@ -118,6 +119,21 @@ function mapPortfolioPerformanceSummary(row: any): PortfolioPerformanceSummary {
   };
 }
 
+function mapPortfolioDashboardSummary(row: any): PortfolioDashboardSummary {
+  return {
+    portfolioId: row.portfolio_id,
+    asOfDate: row.as_of_date,
+    latestPriceDate: row.latest_price_date,
+    dashboard: row.dashboard_json,
+    calculationVersion: row.calculation_version ?? "portfolio-dashboard-summary-v1",
+    status: row.status ?? "fresh",
+    staleReason: row.stale_reason ?? null,
+    errorMessage: row.error_message ?? null,
+    sourceUpdatedAt: row.source_updated_at ?? null,
+    updatedAt: row.updated_at
+  };
+}
+
 function isMissingSnapshotTable(error: { code?: string; message?: string } | null) {
   return Boolean(
     error &&
@@ -129,6 +145,11 @@ function isMissingSnapshotTable(error: { code?: string; message?: string } | nul
 function isMissingPerformanceSummary(error: { code?: string; message?: string } | null) {
   const message = error?.message?.toLowerCase() ?? "";
   return Boolean(error && (error.code === "42P01" || message.includes("portfolio_performance_summary")));
+}
+
+function isMissingDashboardSummary(error: { code?: string; message?: string } | null) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return Boolean(error && (error.code === "42P01" || message.includes("portfolio_dashboard_summary")));
 }
 
 function isMissingDerivedMetrics(error: { code?: string; message?: string } | null) {
@@ -222,6 +243,37 @@ export class SupabaseAnalyticsRepository implements AnalyticsRepository {
     if (isMissingDerivedMetrics(error)) return null;
     if (error) throw new Error(error.message);
     return data ? mapPortfolioCurrentMetric(data) : null;
+  }
+
+  async getPortfolioDashboardSummary(portfolioId: string) {
+    const { data, error } = await this.db
+      .from("portfolio_dashboard_summary")
+      .select("*")
+      .eq("portfolio_id", portfolioId)
+      .maybeSingle();
+    if (isMissingDashboardSummary(error)) return null;
+    if (error) throw new Error(error.message);
+    return data ? mapPortfolioDashboardSummary(data) : null;
+  }
+
+  async upsertPortfolioDashboardSummary(input: Omit<PortfolioDashboardSummary, "updatedAt">) {
+    const { error } = await this.db.from("portfolio_dashboard_summary").upsert(
+      {
+        portfolio_id: input.portfolioId,
+        as_of_date: input.asOfDate,
+        latest_price_date: input.latestPriceDate,
+        dashboard_json: input.dashboard,
+        calculation_version: input.calculationVersion,
+        status: input.status,
+        stale_reason: input.staleReason,
+        error_message: input.errorMessage,
+        source_updated_at: input.sourceUpdatedAt,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: "portfolio_id" }
+    );
+    if (isMissingDashboardSummary(error)) return;
+    if (error) throw new Error(error.message);
   }
 
   async getPortfolioPerformanceSummary(portfolioId: string) {

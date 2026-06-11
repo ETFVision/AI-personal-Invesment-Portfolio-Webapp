@@ -62,6 +62,40 @@ export class PortfolioService {
     return this.buildDashboard(portfolioId, { includeHistory: true });
   }
 
+  async getCachedDashboardSummary(portfolioId: string): Promise<PortfolioDashboard> {
+    const stored = await this.analyticsRepository?.getPortfolioDashboardSummary(portfolioId);
+    if (stored?.dashboard?.portfolio?.id) return stored.dashboard;
+
+    const dashboard = await this.getDashboardSummary(portfolioId);
+    if (this.analyticsRepository) {
+      await this.saveDashboardSummaryFromDashboard(portfolioId, dashboard);
+    }
+    return dashboard;
+  }
+
+  async refreshDashboardSummary(portfolioId: string) {
+    if (!this.analyticsRepository) throw new Error("Analytics repository is not configured.");
+    const dashboard = await this.getDashboardSummary(portfolioId);
+    await this.saveDashboardSummaryFromDashboard(portfolioId, dashboard);
+    return this.analyticsRepository.getPortfolioDashboardSummary(portfolioId);
+  }
+
+  async saveDashboardSummaryFromDashboard(portfolioId: string, dashboard: PortfolioDashboard) {
+    if (!this.analyticsRepository) throw new Error("Analytics repository is not configured.");
+    const asOfDate = dashboard.latestPriceDate ?? new Date().toISOString().slice(0, 10);
+    await this.analyticsRepository.upsertPortfolioDashboardSummary({
+      portfolioId,
+      asOfDate,
+      latestPriceDate: dashboard.latestPriceDate,
+      dashboard,
+      calculationVersion: "portfolio-dashboard-summary-v1",
+      status: dashboard.holdings.length > 0 || dashboard.cashBalances.length > 0 ? "fresh" : "insufficient_data",
+      staleReason: null,
+      errorMessage: null,
+      sourceUpdatedAt: new Date().toISOString()
+    });
+  }
+
   async getPerformanceSummary(portfolioId: string) {
     if (!this.analyticsRepository) return null;
     return this.analyticsRepository.getPortfolioPerformanceSummary(portfolioId);

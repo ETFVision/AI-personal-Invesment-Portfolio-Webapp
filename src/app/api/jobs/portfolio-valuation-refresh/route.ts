@@ -15,10 +15,11 @@ export async function POST(request: NextRequest) {
     }
     const container = createContainer();
     await container.portfolioService.createAnalyticsSnapshot(portfolioId);
+    await container.portfolioService.refreshDashboardSummary(portfolioId);
     await container.portfolioService.refreshPerformanceSummary(portfolioId);
     return {
       status: "success",
-      message: "Portfolio valuation snapshot and performance summary refreshed.",
+      message: "Portfolio valuation snapshot, dashboard summary and performance summary refreshed.",
       portfolioId
     };
   });

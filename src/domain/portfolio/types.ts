@@ -266,6 +266,19 @@ export type PortfolioPerformanceSummary = {
   updatedAt: string;
 };
 
+export type PortfolioDashboardSummary = {
+  portfolioId: string;
+  asOfDate: string | null;
+  latestPriceDate: string | null;
+  dashboard: PortfolioDashboard;
+  calculationVersion: string;
+  status: "fresh" | "stale" | "pending" | "failed" | "insufficient_data";
+  staleReason: string | null;
+  errorMessage: string | null;
+  sourceUpdatedAt: string | null;
+  updatedAt: string;
+};
+
 export type Transaction = {
   id: string;
   portfolioId: string;
