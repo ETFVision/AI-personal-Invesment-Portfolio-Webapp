@@ -2,7 +2,9 @@ import type { FundamentalsRepository } from "@/application/ports/repositories/Fu
 import type { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
 import type { InstrumentMarketService } from "@/application/services/InstrumentMarketService";
 import type { InstrumentDirectorySummaryRow, InstrumentDirectoryWatchlistItem } from "@/domain/instruments/directorySummary";
+import type { FundamentalsSummaryRow } from "@/domain/fundamentals/types";
 import type { Instrument } from "@/domain/universe/types";
+import type { InstrumentMarketView } from "@/domain/universe/types";
 
 export class InstrumentDirectorySummaryService {
   constructor(
@@ -11,8 +13,8 @@ export class InstrumentDirectorySummaryService {
     private readonly instrumentMarketService: InstrumentMarketService
   ) {}
 
-  listSummaries() {
-    return this.universeRepository.listInstrumentDirectorySummaries();
+  listSummaries(filters?: { query?: string; isActive?: boolean }) {
+    return this.universeRepository.listInstrumentDirectorySummaries(filters);
   }
 
   async refreshSummaries() {
@@ -59,8 +61,8 @@ export class InstrumentDirectorySummaryService {
           isActive: instrument.isActive,
           latestPriceDate: marketView.latestPriceDate,
           dailyReturn: marketView.dailyReturn,
-          marketView,
-          fundamentalsSummary: fundamentalsByInstrumentId.get(instrument.id) ?? null,
+          marketView: compactMarketView(marketView),
+          fundamentalsSummary: compactFundamentalsSummary(fundamentalsByInstrumentId.get(instrument.id) ?? null),
           watchlistItems: watchlistItemsByInstrumentId.get(instrument.id) ?? [],
           calculationVersion: "instrument-directory-summary-v1",
           status: "fresh",
@@ -91,4 +93,36 @@ function stockSector(instrument: Instrument) {
 
 function latestDate(values: Array<string | null>) {
   return values.filter((value): value is string => Boolean(value)).sort().at(-1) ?? null;
+}
+
+function compactMarketView(row: InstrumentMarketView): InstrumentMarketView {
+  return {
+    ...row,
+    detailFields: []
+  };
+}
+
+function compactFundamentalsSummary(row: FundamentalsSummaryRow | null): FundamentalsSummaryRow | null {
+  if (!row) return null;
+  return {
+    instrument: row.instrument,
+    profile: row.profile
+      ? {
+          ...row.profile,
+          description: null,
+          providerMetadata: {}
+        }
+      : null,
+    latestRatio: null,
+    latestScore: row.latestScore
+      ? {
+          ...row.latestScore,
+          explanation: "",
+          inputsSnapshot: {}
+        }
+      : null,
+    latestTrendSummary: null,
+    statementCount: 0,
+    missingDataWarnings: []
+  };
 }

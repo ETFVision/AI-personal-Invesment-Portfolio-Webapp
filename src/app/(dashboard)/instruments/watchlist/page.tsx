@@ -132,12 +132,10 @@ function uniqueOptions(
 }
 
 function filterSummaryRows(rows: InstrumentDirectorySummaryRow[], filters: { q: string; tier: WatchlistTier | "" }) {
-  const query = filters.q.toLowerCase();
   return rows.filter((row) => {
     const activeItems = row.watchlistItems.filter((item) => item.isActive && (!filters.tier || item.watchlistTier === filters.tier));
     if (activeItems.length === 0) return false;
-    if (!query) return true;
-    return `${row.symbol ?? ""} ${row.name}`.toLowerCase().includes(query);
+    return true;
   });
 }
 
@@ -169,7 +167,7 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
   const sector = params?.sector?.trim() ?? "";
   const tier = params?.tier ?? "";
   const summaryRows = await measureRenderStep("instruments-watchlist:directory-summary-data", () =>
-    container.instrumentDirectorySummaryService.listSummaries()
+    container.instrumentDirectorySummaryService.listSummaries({ query: q || undefined, isActive: true })
   );
   const { rows, fundamentalsByInstrumentId } = summaryRows.length > 0
     ? rowsFromSummaries(filterSummaryRows(summaryRows, { q, tier }), tier)

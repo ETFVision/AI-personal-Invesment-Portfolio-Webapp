@@ -120,11 +120,9 @@ function uniqueOptions(rows: InstrumentMarketView[], getValue: (row: InstrumentM
 }
 
 function filterSummaryRows(rows: InstrumentDirectorySummaryRow[], filters: { q: string; status: string }) {
-  const query = filters.q.toLowerCase();
   return rows.filter((row) => {
     if (filters.status !== "all" && row.isActive !== (filters.status === "inactive" ? false : true)) return false;
-    if (!query) return true;
-    return `${row.symbol ?? ""} ${row.name}`.toLowerCase().includes(query);
+    return true;
   });
 }
 
@@ -148,7 +146,10 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
   const sector = params?.sector?.trim() ?? "";
   const status = params?.status?.trim() ?? "";
   const summaryRows = await measureRenderStep("instruments-universe:directory-summary-data", () =>
-    container.instrumentDirectorySummaryService.listSummaries()
+    container.instrumentDirectorySummaryService.listSummaries({
+      query: q || undefined,
+      isActive: status === "inactive" ? false : status === "all" ? undefined : true
+    })
   );
   const { rows, fundamentalsByInstrumentId } = summaryRows.length > 0
     ? rowsFromSummaries(filterSummaryRows(summaryRows, { q, status: status || "active" }))
