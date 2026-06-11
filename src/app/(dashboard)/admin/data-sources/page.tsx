@@ -15,7 +15,6 @@ import {
   refreshInstrumentDailyReturnsAction,
   refreshInstrumentMarketMetricsAction,
   refreshInstrumentMetadataAction,
-  refreshInstrumentDirectorySummaryAction,
   refreshInstrumentPricesAction,
   refreshInstrumentReturnAnchorsAction,
   refreshInstrumentRiskMetricsAction
@@ -460,8 +459,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         "backfill_market_history",
         "instrument-market-metrics-refresh",
         "refresh_instrument_risk_metrics",
-        "instrument-metadata-refresh",
-        "instrument-directory-summary-refresh"
+        "instrument-metadata-refresh"
       ].includes(run.jobName)
     )
     .slice(0, 12);
@@ -565,10 +563,6 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
             <form action={refreshInstrumentMetadataAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
               <SubmitButton variant="secondary" pendingLabel="Refreshing metadata...">6. Instrument metadata</SubmitButton>
-            </form>
-            <form action={refreshInstrumentDirectorySummaryAction}>
-              <input type="hidden" name="returnTo" value="/admin/data-sources" />
-              <SubmitButton variant="secondary" pendingLabel="Refreshing directory summary...">7. Directory summary</SubmitButton>
             </form>
             <form action={backfillUniverseHistoryAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />

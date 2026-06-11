@@ -17,7 +17,6 @@ import { AllocationService } from "@/application/services/AllocationService";
 import { AssetMetadataService } from "@/application/services/AssetMetadataService";
 import { AnalyticsService } from "@/application/services/AnalyticsService";
 import { InstrumentMarketService } from "@/application/services/InstrumentMarketService";
-import { InstrumentDirectorySummaryService } from "@/application/services/InstrumentDirectorySummaryService";
 import { InstrumentRiskService } from "@/application/services/InstrumentRiskService";
 import { InstrumentService } from "@/application/services/InstrumentService";
 import { PortfolioService } from "@/application/services/PortfolioService";
@@ -141,7 +140,6 @@ export function createContainer() {
   const benchmarkComparisonService = new BenchmarkComparisonService();
   const assetMetadataService = new AssetMetadataService(marketDataRepository, assetMetadataProvider);
   const instrumentMarketService = new InstrumentMarketService(universeRepository, marketDataProvider);
-  const instrumentDirectorySummaryService = new InstrumentDirectorySummaryService(universeRepository, fundamentalsRepository, instrumentMarketService);
   const instrumentRiskService = new InstrumentRiskService(universeRepository);
   const instrumentService = new InstrumentService(universeRepository);
   const bondService = new BondService(universeRepository);
@@ -356,7 +354,6 @@ export function createContainer() {
     instrumentService,
     bondService,
     instrumentMarketService,
-    instrumentDirectorySummaryService,
     instrumentRiskService,
     watchlistService,
     universeManagementService,

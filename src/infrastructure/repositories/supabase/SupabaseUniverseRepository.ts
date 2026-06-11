@@ -10,7 +10,6 @@ import {
   Watchlist,
   WatchlistItem
 } from "@/domain/universe/types";
-import type { InstrumentDirectorySummaryRow } from "@/domain/instruments/directorySummary";
 import {
   CanonicalTaxonomyItem,
   InstrumentTaxonomyMapping,
@@ -45,11 +44,6 @@ function isMissingMetricsSupport(error: { code?: string; message?: string } | nu
         error.message?.toLowerCase().includes("instrument_risk_metrics") ||
         error.message?.toLowerCase().includes("refresh_instrument_market_metrics"))
   );
-}
-
-function isMissingDirectorySummary(error: { code?: string; message?: string } | null) {
-  const message = error?.message?.toLowerCase() ?? "";
-  return Boolean(error && (error.code === "42P01" || message.includes("instrument_directory_summary")));
 }
 
 function toStringArray(value: unknown) {
@@ -290,29 +284,6 @@ function mapMetadataRefreshLog(row: any): MetadataRefreshLog {
   };
 }
 
-function mapInstrumentDirectorySummary(row: any): InstrumentDirectorySummaryRow {
-  return {
-    instrumentId: row.instrument_id,
-    symbol: row.symbol,
-    name: row.name,
-    assetClass: row.asset_class,
-    assetCategory: row.asset_category,
-    instrumentType: row.instrument_type,
-    stockSector: row.stock_sector,
-    etfCategory: row.etf_category,
-    isActive: Boolean(row.is_active),
-    latestPriceDate: row.latest_price_date,
-    dailyReturn: row.daily_return == null ? null : Number(row.daily_return),
-    marketView: row.market_view_json,
-    fundamentalsSummary: row.fundamentals_summary_json ?? null,
-    watchlistItems: Array.isArray(row.watchlist_items_json) ? row.watchlist_items_json : [],
-    calculationVersion: row.calculation_version ?? "instrument-directory-summary-v1",
-    status: ["fresh", "stale", "pending", "failed"].includes(row.status) ? row.status : "fresh",
-    sourceUpdatedAt: row.source_updated_at ?? null,
-    updatedAt: row.updated_at ?? null
-  };
-}
-
 function omitUndefined<T extends Record<string, unknown>>(value: T) {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
 }
@@ -409,57 +380,6 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     if (isMissingUniverseTable(error)) return [];
     if (error) throw new Error(error.message);
     return ((data ?? []) as any[]).map((row) => mapInstrument({ ...row, provider_metadata: {} }));
-  }
-
-  async listInstrumentDirectorySummaries() {
-    const rows: any[] = [];
-
-    for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
-      const { data, error } = await this.db
-        .from("instrument_directory_summary")
-        .select("*")
-        .order("symbol", { ascending: true })
-        .range(from, from + SUPABASE_PAGE_SIZE - 1);
-      if (isMissingDirectorySummary(error)) return [];
-      if (error) throw new Error(error.message);
-      rows.push(...(data ?? []));
-      if ((data ?? []).length < SUPABASE_PAGE_SIZE) break;
-    }
-
-    return rows.map(mapInstrumentDirectorySummary);
-  }
-
-  async upsertInstrumentDirectorySummaries(input: InstrumentDirectorySummaryRow[]) {
-    if (input.length === 0) return;
-
-    for (const chunk of chunkArray(input, 250)) {
-      const { error } = await this.db.from("instrument_directory_summary").upsert(
-        chunk.map((item) => ({
-          instrument_id: item.instrumentId,
-          symbol: item.symbol,
-          name: item.name,
-          asset_class: item.assetClass,
-          asset_category: item.assetCategory,
-          instrument_type: item.instrumentType,
-          stock_sector: item.stockSector,
-          etf_category: item.etfCategory,
-          is_active: item.isActive,
-          directory_search_text: `${item.symbol ?? ""} ${item.name}`.trim().toLowerCase(),
-          latest_price_date: item.latestPriceDate,
-          daily_return: item.dailyReturn,
-          market_view_json: item.marketView,
-          fundamentals_summary_json: item.fundamentalsSummary,
-          watchlist_items_json: item.watchlistItems,
-          calculation_version: item.calculationVersion,
-          status: item.status,
-          source_updated_at: item.sourceUpdatedAt,
-          updated_at: new Date().toISOString()
-        })),
-        { onConflict: "instrument_id" }
-      );
-      if (isMissingDirectorySummary(error)) return;
-      if (error) throw new Error(error.message);
-    }
   }
 
   async listInstrumentPrices(instrumentIds?: string[], sinceDate?: string) {

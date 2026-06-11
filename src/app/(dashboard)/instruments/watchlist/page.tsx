@@ -6,8 +6,6 @@ import { Input } from "@/components/ui/input";
 import { PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
 import { InstrumentDirectoryTable } from "@/components/instruments/instrument-directory-table";
 import type { InstrumentMarketView, WatchlistTier } from "@/domain/universe/types";
-import type { InstrumentDirectorySummaryRow } from "@/domain/instruments/directorySummary";
-import type { FundamentalsSummaryRow } from "@/domain/fundamentals/types";
 import { ASSET_CATEGORY_LABELS, ETF_CATEGORY_LABELS } from "@/domain/universe/alphaUniverse";
 
 type WatchlistPageProps = {
@@ -131,33 +129,6 @@ function uniqueOptions(
   return Array.from(options.entries()).sort((a, b) => a[1].localeCompare(b[1]));
 }
 
-function filterSummaryRows(rows: InstrumentDirectorySummaryRow[], filters: { q: string; tier: WatchlistTier | "" }) {
-  const query = filters.q.toLowerCase();
-  return rows.filter((row) => {
-    const activeItems = row.watchlistItems.filter((item) => item.isActive && (!filters.tier || item.watchlistTier === filters.tier));
-    if (activeItems.length === 0) return false;
-    if (!query) return true;
-    return `${row.symbol ?? ""} ${row.name}`.toLowerCase().includes(query);
-  });
-}
-
-function rowsFromSummaries(summaryRows: InstrumentDirectorySummaryRow[], tier: WatchlistTier | "") {
-  const fundamentalsByInstrumentId = new Map<string, FundamentalsSummaryRow>();
-  const rows = summaryRows.map((row) => {
-    const item = row.watchlistItems
-      .filter((watchlistItem) => watchlistItem.isActive && (!tier || watchlistItem.watchlistTier === tier))
-      .sort((a, b) => (a.itemRank ?? 999) - (b.itemRank ?? 999))[0];
-    if (row.fundamentalsSummary) fundamentalsByInstrumentId.set(row.instrumentId, row.fundamentalsSummary);
-    return {
-      ...row.marketView,
-      rank: item?.itemRank ?? row.marketView.rank,
-      watchlistTierLabel: item ? tierLabels[item.watchlistTier] : undefined,
-      thesis: item?.rationale ?? null
-    };
-  });
-  return { rows, fundamentalsByInstrumentId };
-}
-
 export default async function InstrumentWatchlistPage({ searchParams }: WatchlistPageProps) {
   const params = await searchParams;
   const container = createContainer();
@@ -168,42 +139,38 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
   const type = params?.type?.trim() ?? "";
   const sector = params?.sector?.trim() ?? "";
   const tier = params?.tier ?? "";
-  const summaryRows = await measureRenderStep("instruments-watchlist:directory-summary-data", () =>
-    container.instrumentDirectorySummaryService.listSummaries()
+  const [watchlists, watchlistItems, instruments] = await measureRenderStep("instruments-watchlist:watchlist-base-data", () =>
+    Promise.all([
+      container.watchlistService.listWatchlists(),
+      container.watchlistService.listWatchlistItems(),
+      container.instrumentService.listDirectoryInstruments({ query: q || undefined, isActive: true })
+    ])
   );
-  const { rows, fundamentalsByInstrumentId } = summaryRows.length > 0
-    ? rowsFromSummaries(filterSummaryRows(summaryRows, { q, tier }), tier)
-    : await measureRenderStep("instruments-watchlist:market-and-fundamentals-data", async () => {
-        const [watchlists, watchlistItems, instruments] = await Promise.all([
-          container.watchlistService.listWatchlists(),
-          container.watchlistService.listWatchlistItems(),
-          container.instrumentService.listDirectoryInstruments({ query: q || undefined, isActive: true })
-        ]);
-        const activeItems = watchlistItems.filter((item) => item.isActive && (!tier || item.watchlistTier === tier));
-        const instrumentById = new Map(instruments.map((instrument) => [instrument.id, instrument]));
-        const watchlistById = new Map(watchlists.map((watchlist) => [watchlist.id, watchlist]));
-        const selectedInstruments = activeItems
-          .map((item) => instrumentById.get(item.instrumentId))
-          .filter((instrument): instrument is NonNullable<typeof instrument> => Boolean(instrument));
-        const [marketRows, fundamentalsRows] = await Promise.all([
-          container.instrumentMarketService.buildInstrumentDirectoryMarketViews(selectedInstruments),
-          container.fundamentalsRepository.listSummaryRowsForInstruments(selectedInstruments)
-        ]);
-        const itemByInstrumentId = new Map(activeItems.map((item) => [item.instrumentId, item]));
-        return {
-          fundamentalsByInstrumentId: new Map(fundamentalsRows.map((row) => [row.instrument.id, row])),
-          rows: marketRows.map((row) => {
-            const item = itemByInstrumentId.get(row.instrument.id);
-            const listName = item ? watchlistById.get(item.watchlistId)?.name : null;
-            return {
-              ...row,
-              rank: item?.itemRank ?? row.rank,
-              watchlistTierLabel: item ? tierLabels[item.watchlistTier] : listName ?? undefined,
-              thesis: item?.rationale ?? null
-            };
-          })
-        };
-      });
+
+  const activeItems = watchlistItems.filter((item) => item.isActive && (!tier || item.watchlistTier === tier));
+  const instrumentById = new Map(instruments.map((instrument) => [instrument.id, instrument]));
+  const watchlistById = new Map(watchlists.map((watchlist) => [watchlist.id, watchlist]));
+  const selectedInstruments = activeItems
+    .map((item) => instrumentById.get(item.instrumentId))
+    .filter((instrument): instrument is NonNullable<typeof instrument> => Boolean(instrument));
+  const [marketRows, fundamentalsRows] = await measureRenderStep("instruments-watchlist:market-and-fundamentals-data", () =>
+    Promise.all([
+      container.instrumentMarketService.buildInstrumentDirectoryMarketViews(selectedInstruments),
+      container.fundamentalsRepository.listSummaryRowsForInstruments(selectedInstruments)
+    ])
+  );
+  const fundamentalsByInstrumentId = new Map(fundamentalsRows.map((row) => [row.instrument.id, row]));
+  const itemByInstrumentId = new Map(activeItems.map((item) => [item.instrumentId, item]));
+  const rows = marketRows.map((row) => {
+    const item = itemByInstrumentId.get(row.instrument.id);
+    const listName = item ? watchlistById.get(item.watchlistId)?.name : null;
+    return {
+      ...row,
+      rank: item?.itemRank ?? row.rank,
+      watchlistTierLabel: item ? tierLabels[item.watchlistTier] : listName ?? undefined,
+      thesis: item?.rationale ?? null
+    };
+  });
   const assetOptions = uniqueOptions(rows, (row) => row.instrument.assetCategory ?? "UNKNOWN", (value) => ASSET_CATEGORY_LABELS[value as keyof typeof ASSET_CATEGORY_LABELS] ?? value);
   const rowsForSectorOptions = rows.filter((row) => (!asset || assetClassGroupKey(row) === asset) && (!type || instrumentBucket(row) === type));
   const sectorOptions = uniqueOptions(rowsForSectorOptions, sectorFilterValue, sectorFilterLabel);
