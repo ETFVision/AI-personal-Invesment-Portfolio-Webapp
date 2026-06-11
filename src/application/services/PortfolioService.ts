@@ -55,37 +55,48 @@ export class PortfolioService {
   }
 
   async getDashboard(portfolioId: string): Promise<PortfolioDashboard> {
-    const [cashBalances, holdings, transactions, snapshots, holdingSnapshots, cashSnapshots, benchmarks, benchmarkSnapshots] = await Promise.all([
+    const [
+      cashBalances,
+      holdings,
+      transactions,
+      snapshots,
+      cashSnapshots,
+      benchmarks,
+      benchmarkSnapshots,
+      holdingMarketMetrics,
+      portfolioCurrentMetric,
+      portfolio
+    ] = await Promise.all([
       this.repository.listCashBalances(portfolioId),
       this.repository.listHoldings(portfolioId),
       this.repository.listTransactions(portfolioId),
       this.analyticsRepository?.listPortfolioSnapshots(portfolioId) ?? [],
-      this.analyticsRepository?.listHoldingSnapshots(portfolioId) ?? [],
       this.analyticsRepository?.listCashSnapshots(portfolioId) ?? [],
       this.benchmarkRepository?.listBenchmarks() ?? [],
-      this.benchmarkRepository?.listBenchmarkSnapshots() ?? []
-    ]);
-
-    if (this.analyticsRepository) {
-      await this.analyticsRepository.refreshHoldingPortfolioMetrics(portfolioId);
-    }
-    const [holdingMarketMetrics, portfolioCurrentMetric] = await Promise.all([
+      this.benchmarkRepository?.listBenchmarkSnapshots() ?? [],
       this.analyticsRepository?.listHoldingMarketMetrics(portfolioId) ?? [],
-      this.analyticsRepository?.getPortfolioCurrentMetric(portfolioId) ?? null
+      this.analyticsRepository?.getPortfolioCurrentMetric(portfolioId) ?? null,
+      this.repository.getPortfolioById(portfolioId)
     ]);
     const holdingMetricById = new Map(holdingMarketMetrics.map((metric) => [metric.holdingId, metric]));
+    const holdingsMissingDerivedMetrics = holdings.filter((holding) => !holdingMetricById.has(holding.id));
+    const fallbackAssetIds = holdingsMissingDerivedMetrics.map((holding) => holding.assetId);
 
-    const latestPrices = this.marketDataRepository
-      ? await this.marketDataRepository.getLatestPricesForAssets(holdings.map((holding) => holding.assetId))
+    const latestPrices = this.marketDataRepository && fallbackAssetIds.length > 0
+      ? await this.marketDataRepository.getLatestPricesForAssets(fallbackAssetIds)
       : new Map();
-    const priceHistorySince = (() => {
-      const date = new Date();
-      date.setUTCFullYear(date.getUTCFullYear() - 5);
-      return date.toISOString().slice(0, 10);
-    })();
-    const dailyPrices = this.marketDataRepository
-      ? await this.marketDataRepository.listDailyPricesForAssets(holdings.map((holding) => holding.assetId), priceHistorySince)
-      : [];
+    const [holdingSnapshots, dailyPrices] = fallbackAssetIds.length > 0
+      ? await Promise.all([
+          this.analyticsRepository?.listHoldingSnapshots(portfolioId) ?? [],
+          this.marketDataRepository
+            ? this.marketDataRepository.listDailyPricesForAssets(fallbackAssetIds, (() => {
+                const date = new Date();
+                date.setUTCFullYear(date.getUTCFullYear() - 5);
+                return date.toISOString().slice(0, 10);
+              })())
+            : []
+        ])
+      : [[], []];
     const holdingValuations = holdings.map((holding) => {
       const price = latestPrices.get(holding.assetId);
       const derivedMetric = holdingMetricById.get(holding.id);
@@ -121,8 +132,6 @@ export class PortfolioService {
       transactions,
       minimumCapitalBase: analytics.investedAmount + analytics.totalCash
     }) ?? [];
-
-    const portfolio = await this.repository.getPortfolioById(portfolioId);
 
     return {
       portfolio: portfolio ?? {

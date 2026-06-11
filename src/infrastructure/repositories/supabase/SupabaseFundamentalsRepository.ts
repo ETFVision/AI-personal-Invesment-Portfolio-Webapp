@@ -260,6 +260,14 @@ function warnings(profile: CompanyProfile | null, ratio: FinancialRatio | null, 
   return result;
 }
 
+function overviewWarnings(profile: CompanyProfile | null, score: FundamentalScore | null) {
+  const result: string[] = [];
+  if (!profile) result.push("Missing company profile");
+  if (!score || score.overallFundamentalScore == null) result.push("Insufficient data for score");
+  if (score && score.scoreConfidence < 60) result.push("Low score confidence");
+  return result;
+}
+
 export class SupabaseFundamentalsRepository implements FundamentalsRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
@@ -337,8 +345,37 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
   }
 
   async listOverviewRows() {
-    const instruments = await this.listEligibleStockInstruments(500);
-    return this.buildSummaryRows(instruments, { includeDiagnostics: false, includeTrends: true });
+    const { data, error } = await this.db
+      .from("instruments")
+      .select("*")
+      .eq("is_active", true)
+      .eq("asset_class", "stock")
+      .order("symbol")
+      .limit(500);
+    if (error) throw new Error(error.message);
+    const instruments = (data ?? []).map(mapInstrument).filter((instrument) => Boolean(instrument.symbol));
+    const ids = instruments.map((instrument) => instrument.id);
+    const [profiles, scores, trends] = await Promise.all([
+      this.getSummaryProfiles(ids),
+      this.getLatestSummaryScores(ids),
+      this.getLatestSummaryTrendSummaries(ids)
+    ]);
+    const profileById = new Map(profiles.map((item) => [item.instrumentId, item]));
+    const scoreById = new Map(scores.map((item) => [item.instrumentId, item]));
+    const trendById = new Map(trends.map((item) => [item.instrumentId, item]));
+    return instruments.map((instrument): FundamentalsSummaryRow => {
+      const profile = profileById.get(instrument.id) ?? null;
+      const latestScore = scoreById.get(instrument.id) ?? null;
+      return {
+        instrument,
+        profile,
+        latestRatio: null,
+        latestScore,
+        latestTrendSummary: trendById.get(instrument.id) ?? null,
+        statementCount: 0,
+        missingDataWarnings: overviewWarnings(profile, latestScore)
+      };
+    });
   }
 
   async listSummaryRowsForInstruments(instruments: Instrument[]) {
@@ -481,7 +518,8 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
       .from("fundamental_scores")
       .select("id,instrument_id,symbol,as_of_date,growth_score,profitability_score,valuation_score,balance_sheet_score,cash_flow_score,quality_score,overall_fundamental_score,score_confidence")
       .in("instrument_id", instrumentIds)
-      .order("as_of_date", { ascending: false });
+      .order("as_of_date", { ascending: false })
+      .limit(Math.max(500, instrumentIds.length * 5));
     if (error) return [];
     const seen = new Set<string>();
     return (data ?? []).map((row) => mapFundamentalScore({ ...row, explanation: "", inputs_snapshot: {} })).filter((score) => {
@@ -507,7 +545,8 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
       .from("fundamental_trend_summaries")
       .select("id,instrument_id,symbol,as_of_date,overall_trend_score,overall_confidence_score,overall_trend_direction,improving_metrics_count,deteriorating_metrics_count,stable_metrics_count,volatile_metrics_count,insufficient_data_metrics_count,growth_trend_score,margin_trend_score,profitability_trend_score,balance_sheet_trend_score,quality_trend_score,warnings")
       .in("instrument_id", instrumentIds)
-      .order("as_of_date", { ascending: false });
+      .order("as_of_date", { ascending: false })
+      .limit(Math.max(500, instrumentIds.length * 5));
     if (error) return [];
     const seen = new Set<string>();
     return (data ?? []).map((row) => mapFundamentalTrendSummary({ ...row, explanation: "", inputs_snapshot: {} })).filter((summary) => {
