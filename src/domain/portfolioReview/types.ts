@@ -151,8 +151,23 @@ export type PortfolioReviewRun = {
   updatedAt: string;
 };
 
+export type PortfolioReviewReportListItem = Pick<
+  PortfolioReviewReport,
+  | "id"
+  | "portfolioId"
+  | "portfolioReviewRunId"
+  | "reviewDate"
+  | "periodStart"
+  | "periodEnd"
+  | "status"
+  | "overallPortfolioScore"
+  | "confidenceScore"
+  | "createdAt"
+  | "updatedAt"
+>;
+
 export type PortfolioReviewDashboard = {
   latestReport: PortfolioReviewReport | null;
-  reports: PortfolioReviewReport[];
+  reports: PortfolioReviewReportListItem[];
   runs: PortfolioReviewRun[];
 };

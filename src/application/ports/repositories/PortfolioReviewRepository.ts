@@ -1,5 +1,6 @@
 import type {
   PortfolioReviewReport,
+  PortfolioReviewReportListItem,
   PortfolioReviewRun,
   PortfolioReviewRunStatus,
   PortfolioReviewRunType,
@@ -41,6 +42,7 @@ export interface PortfolioReviewRepository {
   updateRunStatus(runId: string, status: PortfolioReviewRunStatus, errorMessage?: string | null): Promise<void>;
   upsertReport(input: UpsertPortfolioReviewReportInput): Promise<PortfolioReviewReport>;
   listReports(portfolioId: string, limit?: number): Promise<PortfolioReviewReport[]>;
+  listReportSummaries(portfolioId: string, limit?: number): Promise<PortfolioReviewReportListItem[]>;
   getLatestReport(portfolioId: string): Promise<PortfolioReviewReport | null>;
   getLatestReportSummary(portfolioId: string): Promise<PortfolioReviewSummary | null>;
   listRuns(portfolioId: string, limit?: number): Promise<PortfolioReviewRun[]>;

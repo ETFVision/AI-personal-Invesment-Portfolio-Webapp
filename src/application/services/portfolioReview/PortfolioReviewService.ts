@@ -105,12 +105,13 @@ export class PortfolioReviewService {
   ) {}
 
   async getDashboard(portfolioId: string): Promise<PortfolioReviewDashboard> {
-    const [reports, runs] = await Promise.all([
-      this.repository.listReports(portfolioId, 10),
+    const [latestReport, reports, runs] = await Promise.all([
+      this.repository.getLatestReport(portfolioId),
+      this.repository.listReportSummaries(portfolioId, 10),
       this.repository.listRuns(portfolioId, 10)
     ]);
     return {
-      latestReport: reports[0] ?? null,
+      latestReport,
       reports,
       runs
     };

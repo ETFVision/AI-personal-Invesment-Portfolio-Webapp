@@ -7,6 +7,7 @@ import type {
 import type {
   PortfolioPotentialAction,
   PortfolioReviewFinding,
+  PortfolioReviewReportListItem,
   PortfolioReviewReport,
   PortfolioReviewRun,
   PortfolioReviewSection,
@@ -103,6 +104,22 @@ function mapSummary(row: any): PortfolioReviewSummary {
   };
 }
 
+function mapReportListItem(row: any): PortfolioReviewReportListItem {
+  return {
+    id: row.id,
+    portfolioId: row.portfolio_id,
+    portfolioReviewRunId: row.portfolio_review_run_id,
+    reviewDate: row.review_date,
+    periodStart: row.period_start,
+    periodEnd: row.period_end,
+    status: row.status,
+    overallPortfolioScore: row.overall_portfolio_score == null ? null : Number(row.overall_portfolio_score),
+    confidenceScore: Number(row.confidence_score ?? 0),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 function reportPayload(input: UpsertPortfolioReviewReportInput) {
   return {
     id: input.id,
@@ -180,6 +197,19 @@ export class SupabasePortfolioReviewRepository implements PortfolioReviewReposit
     if (isMissingPortfolioReviewTable(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapReport);
+  }
+
+  async listReportSummaries(portfolioId: string, limit = 10) {
+    const { data, error } = await this.db
+      .from("portfolio_review_reports")
+      .select("id,portfolio_id,portfolio_review_run_id,review_date,period_start,period_end,status,overall_portfolio_score,confidence_score,created_at,updated_at")
+      .eq("portfolio_id", portfolioId)
+      .order("review_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (isMissingPortfolioReviewTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapReportListItem);
   }
 
   async getLatestReport(portfolioId: string) {
