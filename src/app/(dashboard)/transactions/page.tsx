@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { deleteTransactionAction, upsertTransactionAction } from "@/server/actions/portfolioActions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +19,9 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
   if (!portfolio) redirect("/setup");
 
-  const transactions = await container.portfolioRepository.listTransactions(portfolio.id);
+  const transactions = await measureRenderStep(`transactions:${portfolio.id}:transactions-data`, () =>
+    container.portfolioRepository.listTransactions(portfolio.id)
+  );
   const editing = transactions.find((item) => item.id === params.edit);
   const buySellCount = transactions.filter((item) => item.transactionType === "buy" || item.transactionType === "sell").length;
   const cashMovementCount = transactions.filter((item) => item.transactionType.includes("cash")).length;

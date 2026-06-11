@@ -1,4 +1,5 @@
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { approveTaxonomyMappingAction, saveInstrumentTaxonomyAction } from "@/server/actions/taxonomyActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,12 +22,14 @@ export default async function TaxonomyPage({ searchParams }: TaxonomyPageProps) 
   const container = createContainer();
   await container.authProvider.requireUser();
 
-  const [sectors, themes, providerMappings, instrumentMappings] = await Promise.all([
-    container.instrumentService.listCanonicalSectors(),
-    container.instrumentService.listCanonicalThemes(),
-    container.instrumentService.listProviderTaxonomyMappings(),
-    container.instrumentService.listInstrumentTaxonomyMappings()
-  ]);
+  const [sectors, themes, providerMappings, instrumentMappings] = await measureRenderStep("setup-taxonomy:taxonomy-data", () =>
+    Promise.all([
+      container.instrumentService.listCanonicalSectors(),
+      container.instrumentService.listCanonicalThemes(),
+      container.instrumentService.listProviderTaxonomyMappings(),
+      container.instrumentService.listInstrumentTaxonomyMappings()
+    ])
+  );
 
   const unmapped = instrumentMappings.filter(
     (mapping) =>

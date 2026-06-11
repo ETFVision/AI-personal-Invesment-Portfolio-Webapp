@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { runPortfolioReviewAction } from "@/server/actions/portfolioReviewActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HorizontalExposureBars, StackedExposureBar } from "@/components/ui/charts";
@@ -506,10 +507,12 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
     );
   }
 
-  const [dashboard, etfExposureLogs] = await Promise.all([
-    container.portfolioReviewService.getDashboard(portfolio.id),
-    container.etfExposureRepository.listRefreshLogs(1)
-  ]);
+  const [dashboard, etfExposureLogs] = await measureRenderStep(`portfolio-review:${portfolio.id}:dashboard-data`, () =>
+    Promise.all([
+      container.portfolioReviewService.getDashboard(portfolio.id),
+      container.etfExposureRepository.listRefreshLogs(1)
+    ])
+  );
   const latestEtfExposureLog = etfExposureLogs[0] ?? null;
   const report = dashboard.latestReport;
 

@@ -1,5 +1,6 @@
 import { ArrowRight, CheckCircle2, Clock3, Database, LineChart, SearchCheck } from "lucide-react";
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
 import { cn, formatPercent } from "@/lib/utils";
@@ -332,7 +333,9 @@ function MiniStat({ title, value, detail }: { title: string; value: React.ReactN
 }
 
 export default async function TelemetryPage() {
-  const dashboard = await createContainer().telemetryDashboardService.getDashboard();
+  const dashboard = await measureRenderStep("telemetry:dashboard-data", () =>
+    createContainer().telemetryDashboardService.getDashboard()
+  );
   const overview = dashboard.overview;
   const hasRecommendationEvidence = dashboard.recommendationSummary.length > 0;
   const marketVisionAccuracy = summarizeMarketVision(dashboard.marketVisionOutcomes);

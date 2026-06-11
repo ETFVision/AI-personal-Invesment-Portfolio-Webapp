@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Bot, Clock3, ShieldCheck } from "lucide-react";
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { PortfolioAssistantDrawer } from "@/components/assistant/portfolio-assistant-drawer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
@@ -23,15 +24,23 @@ export default async function AssistantPage({ searchParams }: AssistantPageProps
   const params = await searchParams;
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();
-  const { user, portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
-  const conversations = await container.assistantRepository.listConversations(user.id, 12);
-  const requestedConversation = params?.conversationId
-    ? await container.assistantRepository.getConversation(params.conversationId)
-    : conversations[0] ?? null;
+  const { user, portfolio } = await measureRenderStep("assistant:portfolio-context", () =>
+    container.portfolioService.getOrCreateDefaultPortfolio(authUser)
+  );
+  const conversations = await measureRenderStep(`assistant:${user.id}:conversation-list`, () =>
+    container.assistantRepository.listConversations(user.id, 12)
+  );
+  const requestedConversation = await measureRenderStep(`assistant:${user.id}:selected-conversation`, () =>
+    params?.conversationId
+      ? container.assistantRepository.getConversation(params.conversationId)
+      : Promise.resolve(conversations[0] ?? null)
+  );
   const selectedConversation = requestedConversation?.userId === user.id ? requestedConversation : null;
-  const selectedMessages = selectedConversation
-    ? await container.assistantRepository.listMessages(selectedConversation.id, 20)
-    : [];
+  const selectedMessages = await measureRenderStep(`assistant:${user.id}:selected-messages`, () =>
+    selectedConversation
+      ? container.assistantRepository.listMessages(selectedConversation.id, 20)
+      : Promise.resolve([])
+  );
 
   return (
     <PageContainer>

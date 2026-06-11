@@ -1,4 +1,5 @@
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { runTelemetryEvaluationAction } from "@/server/actions/jobActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
@@ -46,7 +47,9 @@ function summarize(summary: Record<string, unknown>) {
 export default async function JobsPage({ searchParams }: JobsPageProps) {
   const container = createContainer();
   await container.authProvider.requireUser();
-  const runs = await container.jobRunService.listRecent(30);
+  const runs = await measureRenderStep("admin-jobs:recent-runs", () =>
+    container.jobRunService.listRecent(30)
+  );
   const params = await searchParams;
 
   return (

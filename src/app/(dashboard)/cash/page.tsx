@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { deleteCashBalanceAction, upsertCashBalanceAction } from "@/server/actions/portfolioActions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +19,9 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
   const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
   if (!portfolio) redirect("/setup");
 
-  const dashboard = await container.portfolioService.getDashboard(portfolio.id);
+  const dashboard = await measureRenderStep(`cash:${portfolio.id}:dashboard-data`, () =>
+    container.portfolioService.getDashboard(portfolio.id)
+  );
   const cashBalances = dashboard.cashBalances;
   const editing = cashBalances.find((item) => item.id === params.edit);
   const currencies = Array.from(new Set(cashBalances.map((cash) => cash.currency)));

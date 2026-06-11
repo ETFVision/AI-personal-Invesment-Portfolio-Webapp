@@ -1,5 +1,6 @@
 import { duplicateOverrideAction } from "@/server/actions/newsActions";
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -75,14 +76,16 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
   const params = await searchParams;
   const container = createContainer();
   await container.authProvider.requireUser();
-  const dashboard = await container.newsDashboardService.getDashboard({
-    query: params?.q || undefined,
-    classification: params?.classification || undefined,
-    sentiment: params?.sentiment || undefined,
-    sourceProvider: params?.source || undefined,
-    includeDuplicates: true,
-    limit: 60
-  });
+  const dashboard = await measureRenderStep("news:dashboard-data", () =>
+    container.newsDashboardService.getDashboard({
+      query: params?.q || undefined,
+      classification: params?.classification || undefined,
+      sentiment: params?.sentiment || undefined,
+      sourceProvider: params?.source || undefined,
+      includeDuplicates: true,
+      limit: 60
+    })
+  );
 
   const latestNewsDate = latestSourceDate(dashboard.latestNews);
   const latestWeekly = dashboard.weeklyReconciliations[0] ?? null;

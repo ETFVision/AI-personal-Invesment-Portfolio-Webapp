@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -74,7 +75,9 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();
   const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
-  const dashboard = await container.recommendationService.getDashboard(portfolio?.id ?? null);
+  const dashboard = await measureRenderStep(`recommendations:${portfolio?.id ?? "no-portfolio"}:dashboard-data`, () =>
+    container.recommendationService.getDashboard(portfolio?.id ?? null)
+  );
   const recommendations = dashboard.recommendations.slice().sort((a, b) => (b.overallScore ?? -1) - (a.overallScore ?? -1));
   const labelCounts = recommendations.reduce<Record<string, number>>((counts, item) => {
     counts[item.recommendationLabel] = (counts[item.recommendationLabel] ?? 0) + 1;

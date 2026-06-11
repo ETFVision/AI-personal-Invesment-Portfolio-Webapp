@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { saveBondProfileAction } from "@/server/actions/universeActions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -238,11 +239,15 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
     );
   }
 
-  const [dashboard, macroDashboard] = await Promise.all([
-    container.portfolioService.getDashboard(portfolio.id),
-    container.macroDashboardService.getDashboard()
-  ]);
-  const report = await container.bondService.getPortfolioBondAnalytics(dashboard);
+  const [dashboard, macroDashboard] = await measureRenderStep(`bonds:${portfolio.id}:base-data`, () =>
+    Promise.all([
+      container.portfolioService.getDashboard(portfolio.id),
+      container.macroDashboardService.getDashboard()
+    ])
+  );
+  const report = await measureRenderStep(`bonds:${portfolio.id}:bond-analytics`, () =>
+    container.bondService.getPortfolioBondAnalytics(dashboard)
+  );
   const macroContext = container.macroContextService.buildContext(macroDashboard);
 
   if (report.bondHoldings.length === 0) {

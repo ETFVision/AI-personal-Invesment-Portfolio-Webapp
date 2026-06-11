@@ -1,4 +1,5 @@
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkline } from "@/components/ui/charts";
 import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
@@ -47,7 +48,9 @@ function RegimeCard({ title, value }: { title: string; value: string | null | un
 export default async function MacroPage({ searchParams }: MacroPageProps) {
   const params = await searchParams;
   const container = createContainer();
-  const dashboard = await container.macroDashboardService.getDashboard();
+  const dashboard = await measureRenderStep("macro:dashboard-data", () =>
+    container.macroDashboardService.getDashboard()
+  );
   const latestLog = dashboard.ingestionLogs[0];
 
   return (

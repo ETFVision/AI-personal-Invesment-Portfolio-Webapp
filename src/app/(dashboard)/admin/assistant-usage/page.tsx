@@ -1,4 +1,5 @@
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { formatNumber } from "@/lib/utils";
@@ -21,7 +22,9 @@ function formatDate(value: string) {
 export default async function AssistantUsagePage() {
   const container = createContainer();
   await container.authProvider.requireUser();
-  const summary = await container.assistantRepository.getUsageSummary(500);
+  const summary = await measureRenderStep("admin-assistant-usage:usage-summary", () =>
+    container.assistantRepository.getUsageSummary(500)
+  );
 
   return (
     <PageContainer>

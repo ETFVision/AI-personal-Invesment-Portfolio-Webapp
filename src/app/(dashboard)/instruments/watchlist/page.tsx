@@ -1,4 +1,5 @@
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -138,11 +139,13 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
   const type = params?.type?.trim() ?? "";
   const sector = params?.sector?.trim() ?? "";
   const tier = params?.tier ?? "";
-  const [watchlists, watchlistItems, instruments] = await Promise.all([
-    container.watchlistService.listWatchlists(),
-    container.watchlistService.listWatchlistItems(),
-    container.instrumentService.listInstruments({ query: q || undefined, isActive: true })
-  ]);
+  const [watchlists, watchlistItems, instruments] = await measureRenderStep("instruments-watchlist:watchlist-base-data", () =>
+    Promise.all([
+      container.watchlistService.listWatchlists(),
+      container.watchlistService.listWatchlistItems(),
+      container.instrumentService.listInstruments({ query: q || undefined, isActive: true })
+    ])
+  );
 
   const activeItems = watchlistItems.filter((item) => item.isActive && (!tier || item.watchlistTier === tier));
   const instrumentById = new Map(instruments.map((instrument) => [instrument.id, instrument]));
@@ -150,10 +153,12 @@ export default async function InstrumentWatchlistPage({ searchParams }: Watchlis
   const selectedInstruments = activeItems
     .map((item) => instrumentById.get(item.instrumentId))
     .filter((instrument): instrument is NonNullable<typeof instrument> => Boolean(instrument));
-  const [marketRows, fundamentalsRows] = await Promise.all([
-    container.instrumentMarketService.buildInstrumentMarketViews(selectedInstruments, { lookbackYears: 1 }),
-    container.fundamentalsRepository.listSummaryRows()
-  ]);
+  const [marketRows, fundamentalsRows] = await measureRenderStep("instruments-watchlist:market-and-fundamentals-data", () =>
+    Promise.all([
+      container.instrumentMarketService.buildInstrumentMarketViews(selectedInstruments, { lookbackYears: 1 }),
+      container.fundamentalsRepository.listSummaryRows()
+    ])
+  );
   const fundamentalsByInstrumentId = new Map(fundamentalsRows.map((row) => [row.instrument.id, row]));
   const itemByInstrumentId = new Map(activeItems.map((item) => [item.instrumentId, item]));
   const rows = marketRows.map((row) => {

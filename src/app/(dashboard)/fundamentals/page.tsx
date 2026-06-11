@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createContainer } from "@/server/container";
+import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
@@ -23,8 +24,12 @@ export default async function FundamentalsPage({ searchParams }: { searchParams:
   const params = await searchParams;
   const container = createContainer();
   await container.authProvider.requireUser();
-  const rows = await container.fundamentalsRepository.listSummaryRows();
-  const logs = await container.fundamentalsRepository.listRefreshLogs(5);
+  const [rows, logs] = await measureRenderStep("fundamentals:summary-data", () =>
+    Promise.all([
+      container.fundamentalsRepository.listSummaryRows(),
+      container.fundamentalsRepository.listRefreshLogs(5)
+    ])
+  );
   const covered = rows.filter((row) => row.latestScore?.overallFundamentalScore != null).length;
 
   return (
