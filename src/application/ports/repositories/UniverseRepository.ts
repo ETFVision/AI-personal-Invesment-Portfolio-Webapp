@@ -52,8 +52,6 @@ export type ListInstrumentsFilters = {
 export type ListInstrumentDirectorySummaryFilters = {
   query?: string;
   isActive?: boolean;
-  isWatchlisted?: boolean;
-  watchlistTier?: string;
 };
 
 export type UpsertInstrumentInput = Omit<Instrument, "id"> & { id?: string };
