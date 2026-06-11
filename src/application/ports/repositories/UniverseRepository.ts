@@ -10,6 +10,7 @@ import {
   Watchlist,
   WatchlistItem
 } from "@/domain/universe/types";
+import type { InstrumentDirectorySummaryRow } from "@/domain/instruments/directorySummary";
 
 export type CanonicalTaxonomyItem = {
   id: string;
@@ -141,4 +142,6 @@ export interface UniverseRepository {
   refreshInstrumentRiskMetricsOnly(instrumentIds?: string[]): Promise<void>;
   upsertInstrumentRiskMetrics(input: UpsertInstrumentRiskMetricInput[]): Promise<void>;
   upsertInstrumentPrices(input: UpsertInstrumentPriceInput[]): Promise<void>;
+  listInstrumentDirectorySummaries(): Promise<InstrumentDirectorySummaryRow[]>;
+  upsertInstrumentDirectorySummaries(input: InstrumentDirectorySummaryRow[]): Promise<void>;
 }

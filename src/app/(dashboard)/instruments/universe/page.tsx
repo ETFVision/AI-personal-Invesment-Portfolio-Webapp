@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
 import { InstrumentDirectoryTable } from "@/components/instruments/instrument-directory-table";
 import type { InstrumentMarketView } from "@/domain/universe/types";
+import type { InstrumentDirectorySummaryRow } from "@/domain/instruments/directorySummary";
+import type { FundamentalsSummaryRow } from "@/domain/fundamentals/types";
 import { ASSET_CATEGORY_LABELS, ETF_CATEGORY_LABELS } from "@/domain/universe/alphaUniverse";
 
 type UniversePageProps = {
@@ -117,6 +119,24 @@ function uniqueOptions(rows: InstrumentMarketView[], getValue: (row: InstrumentM
   return Array.from(options.entries()).sort((a, b) => a[1].localeCompare(b[1]));
 }
 
+function filterSummaryRows(rows: InstrumentDirectorySummaryRow[], filters: { q: string; status: string }) {
+  const query = filters.q.toLowerCase();
+  return rows.filter((row) => {
+    if (filters.status !== "all" && row.isActive !== (filters.status === "inactive" ? false : true)) return false;
+    if (!query) return true;
+    return `${row.symbol ?? ""} ${row.name}`.toLowerCase().includes(query);
+  });
+}
+
+function rowsFromSummaries(summaryRows: InstrumentDirectorySummaryRow[]) {
+  const rows = summaryRows.map((row) => row.marketView);
+  const fundamentalsByInstrumentId = new Map<string, FundamentalsSummaryRow>();
+  for (const row of summaryRows) {
+    if (row.fundamentalsSummary) fundamentalsByInstrumentId.set(row.instrumentId, row.fundamentalsSummary);
+  }
+  return { rows, fundamentalsByInstrumentId };
+}
+
 export default async function InstrumentUniversePage({ searchParams }: UniversePageProps) {
   const params = await searchParams;
   const container = createContainer();
@@ -127,19 +147,25 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
   const type = params?.type?.trim() ?? "";
   const sector = params?.sector?.trim() ?? "";
   const status = params?.status?.trim() ?? "";
-  const instruments = await measureRenderStep("instruments-universe:instrument-list", () =>
-    container.instrumentService.listDirectoryInstruments({
-      query: q || undefined,
-      isActive: status === "inactive" ? false : status === "all" ? undefined : true
-    })
+  const summaryRows = await measureRenderStep("instruments-universe:directory-summary-data", () =>
+    container.instrumentDirectorySummaryService.listSummaries()
   );
-  const [rows, fundamentalsRows] = await measureRenderStep("instruments-universe:market-and-fundamentals-data", () =>
-    Promise.all([
-      container.instrumentMarketService.buildInstrumentDirectoryMarketViews(instruments),
-      container.fundamentalsRepository.listSummaryRowsForInstruments(instruments)
-    ])
-  );
-  const fundamentalsByInstrumentId = new Map(fundamentalsRows.map((row) => [row.instrument.id, row]));
+  const { rows, fundamentalsByInstrumentId } = summaryRows.length > 0
+    ? rowsFromSummaries(filterSummaryRows(summaryRows, { q, status: status || "active" }))
+    : await measureRenderStep("instruments-universe:market-and-fundamentals-data", async () => {
+        const instruments = await container.instrumentService.listDirectoryInstruments({
+          query: q || undefined,
+          isActive: status === "inactive" ? false : status === "all" ? undefined : true
+        });
+        const [marketRows, fundamentalsRows] = await Promise.all([
+          container.instrumentMarketService.buildInstrumentDirectoryMarketViews(instruments),
+          container.fundamentalsRepository.listSummaryRowsForInstruments(instruments)
+        ]);
+        return {
+          rows: marketRows,
+          fundamentalsByInstrumentId: new Map(fundamentalsRows.map((row) => [row.instrument.id, row]))
+        };
+      });
   const assetOptions = uniqueOptions(rows, (row) => row.instrument.assetCategory ?? "UNKNOWN", (value) => ASSET_CATEGORY_LABELS[value as keyof typeof ASSET_CATEGORY_LABELS] ?? value);
   const rowsForSectorOptions = rows.filter((row) => (!asset || assetClassGroupKey(row) === asset) && (!type || instrumentBucket(row) === type));
   const sectorOptions = uniqueOptions(rowsForSectorOptions, sectorFilterValue, sectorFilterLabel);

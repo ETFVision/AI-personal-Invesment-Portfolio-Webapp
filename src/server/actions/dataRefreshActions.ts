@@ -406,3 +406,39 @@ export async function refreshInstrumentMetadataAction(formData?: FormData) {
 
   redirect(`${destination}?${params.toString()}`);
 }
+
+export async function refreshInstrumentDirectorySummaryAction(formData?: FormData) {
+  const container = createContainer();
+  await container.authProvider.requireUser();
+  const destination = returnPath(formData);
+  const errors: string[] = [];
+  let refreshMessage = "";
+
+  const job = await container.jobRunService.runManual("instrument-directory-summary-refresh", async () => {
+    const result = await container.instrumentDirectorySummaryService.refreshSummaries();
+    refreshMessage = result.message;
+
+    return {
+      ok: true,
+      message: refreshMessage,
+      errors,
+      metadata: result
+    };
+  });
+  if (job.errors.length > 0 && errors.length === 0) errors.push(...job.errors);
+  if (!refreshMessage && job.errors.length > 0) refreshMessage = "Instrument directory summary refresh failed.";
+
+  revalidatePath("/admin/data-sources");
+  revalidatePath("/instruments");
+  revalidatePath("/instruments/universe");
+  revalidatePath("/instruments/watchlist");
+  revalidatePath("/universe");
+  revalidatePath("/watchlists");
+
+  const params = new URLSearchParams({
+    refreshMessage
+  });
+  if (errors.length > 0) params.set("refreshError", errors.join(" | "));
+
+  redirect(`${destination}?${params.toString()}`);
+}
