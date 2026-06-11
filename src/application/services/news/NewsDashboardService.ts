@@ -23,20 +23,25 @@ export class NewsDashboardService {
   ) {}
 
   async getDashboard(filters?: NewsFilters) {
-    const [latestNews, stats, weeklyReconciliations, ingestionLogs, latestWeeklyReconciliation, gdeltQueryStatuses, newsDataQueryStatuses] = await Promise.all([
+    const [articleDashboard, intelligenceDashboard] = await Promise.all([
+      this.getArticleDashboard(filters),
+      this.getThemeDashboard()
+    ]);
+    return {
+      ...articleDashboard,
+      ...intelligenceDashboard
+    };
+  }
+
+  async getArticleDashboard(filters?: NewsFilters) {
+    const [latestNews, stats, weeklyReconciliations, ingestionLogs, gdeltQueryStatuses, newsDataQueryStatuses] = await Promise.all([
       this.repository.listNewsWithClassifications({ ...filters, limit: filters?.limit ?? 50 }),
       this.repository.getDashboardStats(),
-      this.repository.listWeeklyReconciliations(8),
-      this.repository.listIngestionLogs(50),
-      this.repository.getLatestWeeklyReconciliation(),
+      this.repository.listWeeklyReconciliations(1),
+      this.repository.listIngestionLogs(10),
       this.getGdeltQueryStatuses(),
       this.getNewsDataQueryStatuses()
     ]);
-    const periodStart = latestWeeklyReconciliation?.periodStart;
-    const periodEnd = latestWeeklyReconciliation?.periodEnd;
-    const themeIntelligence = periodStart && periodEnd
-      ? await this.themeIntelligenceService.getThemeIntelligence(periodStart, periodEnd)
-      : this.emptyThemeIntelligence();
 
     return {
       latestNews,
@@ -45,7 +50,21 @@ export class NewsDashboardService {
       ingestionLogs,
       gdeltQueryStatuses,
       newsDataQueryStatuses,
+      latestWeeklyReconciliation: weeklyReconciliations[0] ?? null
+    };
+  }
+
+  async getThemeDashboard() {
+    const latestWeeklyReconciliation = await this.repository.getLatestWeeklyReconciliation();
+    const periodStart = latestWeeklyReconciliation?.periodStart;
+    const periodEnd = latestWeeklyReconciliation?.periodEnd;
+    const themeIntelligence = periodStart && periodEnd
+      ? await this.themeIntelligenceService.getThemeIntelligence(periodStart, periodEnd)
+      : this.emptyThemeIntelligence();
+
+    return {
       latestWeeklyReconciliation,
+      weeklyReconciliations: latestWeeklyReconciliation ? [latestWeeklyReconciliation] : [],
       themeSummary: themeIntelligence.topThemesThisWeek.length
         ? themeIntelligence.topThemesThisWeek
         : this.themeSummaryFromCoverage(latestWeeklyReconciliation?.coverageMetadata),

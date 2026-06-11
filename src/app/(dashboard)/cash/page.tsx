@@ -19,8 +19,8 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
   const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
   if (!portfolio) redirect("/setup");
 
-  const dashboard = await measureRenderStep(`cash:${portfolio.id}:dashboard-data`, () =>
-    container.portfolioService.getDashboard(portfolio.id)
+  const dashboard = await measureRenderStep(`cash:${portfolio.id}:summary-data`, () =>
+    container.portfolioService.getDashboardSummary(portfolio.id)
   );
   const cashBalances = dashboard.cashBalances;
   const editing = cashBalances.find((item) => item.id === params.edit);

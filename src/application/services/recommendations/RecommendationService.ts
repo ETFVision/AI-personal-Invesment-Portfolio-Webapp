@@ -94,6 +94,22 @@ export class RecommendationService {
     };
   }
 
+  async getDashboardOverview() {
+    const [runs, recommendations] = await Promise.all([
+      this.recommendationRepository.listRuns(1),
+      this.recommendationRepository.listLatestRecommendations(500)
+    ]);
+    const labelCounts = recommendations.reduce<Record<string, number>>((counts, item) => {
+      counts[item.recommendationLabel] = (counts[item.recommendationLabel] ?? 0) + 1;
+      return counts;
+    }, {});
+    return {
+      latestRun: runs[0] ?? null,
+      recommendationsCount: recommendations.length,
+      labelCounts
+    };
+  }
+
   getLatestForInstrument(instrumentId: string) {
     return this.recommendationRepository.getLatestRecommendationForInstrument(instrumentId);
   }

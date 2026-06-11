@@ -203,7 +203,7 @@ export default async function RiskPage() {
 
   const [dashboard, macroDashboard, cachedRiskReport] = await measureRenderStep(`risk:${portfolio.id}:base-data`, () =>
     Promise.all([
-      container.portfolioService.getDashboard(portfolio.id),
+      container.portfolioService.getDashboardSummary(portfolio.id),
       container.macroDashboardService.getDashboard(),
       container.riskAnalyticsRepository.getLatestRiskReport(portfolio.id)
     ])

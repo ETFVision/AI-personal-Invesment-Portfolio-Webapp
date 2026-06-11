@@ -241,7 +241,7 @@ export default async function BondsPage({ searchParams }: BondsPageProps) {
 
   const [dashboard, macroDashboard] = await measureRenderStep(`bonds:${portfolio.id}:base-data`, () =>
     Promise.all([
-      container.portfolioService.getDashboard(portfolio.id),
+      container.portfolioService.getDashboardSummary(portfolio.id),
       container.macroDashboardService.getDashboard()
     ])
   );

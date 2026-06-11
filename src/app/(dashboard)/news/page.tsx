@@ -1,6 +1,7 @@
 import { duplicateOverrideAction } from "@/server/actions/newsActions";
 import { createContainer } from "@/server/container";
 import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
+import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -72,12 +73,172 @@ function latestSourceDate(items: Array<{ publishedAt: string | null }>) {
   return items.map((item) => item.publishedAt).filter((value): value is string => Boolean(value)).sort().at(-1) ?? null;
 }
 
+function NewsIntelligenceFallback() {
+  return (
+    <section className="grid gap-4 xl:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Weekly reconciliation</CardTitle>
+          <CardDescription>Loading stored weekly reconciliation...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-28 rounded-xl border border-dashed bg-slate-50" />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Theme Intelligence Summary</CardTitle>
+          <CardDescription>Loading canonical theme intelligence...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-28 rounded-xl border border-dashed bg-slate-50" />
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+async function NewsIntelligenceSection() {
+  const container = createContainer();
+  const dashboard = await measureRenderStep("news:theme-intelligence-data", () =>
+    container.newsDashboardService.getThemeDashboard()
+  );
+  const latestWeekly = dashboard.latestWeeklyReconciliation;
+
+  return (
+    <section className="grid gap-4 xl:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Weekly reconciliation</CardTitle>
+          <CardDescription>Latest weekly summary sections prepared for Market Vision attachment.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          {!latestWeekly ? (
+            <p className="text-muted-foreground">No weekly reconciliation has been created yet.</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-md border bg-muted/30 p-3">
+                <div className="font-medium">{latestWeekly.periodStart} to {latestWeekly.periodEnd} - {latestWeekly.status}</div>
+                <div className="mt-1 text-xs text-muted-foreground">Newest reconciliation shown. Older drafts remain stored in the database.</div>
+              </div>
+              <div className="grid gap-3 text-sm md:grid-cols-4 xl:grid-cols-2">
+                <div className="rounded-md border p-3">
+                  <p className="text-xs uppercase text-muted-foreground">Classified</p>
+                  <p className="mt-1 text-xl font-semibold">{coverageNumber(latestWeekly.coverageMetadata, "classifiedInPeriod")}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs uppercase text-muted-foreground">Included</p>
+                  <p className="mt-1 text-xl font-semibold">{coverageNumber(latestWeekly.coverageMetadata, "includedInReconciliation")}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs uppercase text-muted-foreground">Excluded</p>
+                  <p className="mt-1 text-xl font-semibold">{coverageNumber(latestWeekly.coverageMetadata, "excludedByEligibility")}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs uppercase text-muted-foreground">Equity items</p>
+                  <p className="mt-1 text-xl font-semibold">{bucketCount(latestWeekly.coverageMetadata, "equities")}</p>
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <ReconciliationSection title="Equities" value={latestWeekly.equitiesSummary} />
+                <ReconciliationSection title="Bonds" value={latestWeekly.bondsSummary} />
+                <ReconciliationSection title="Gold / Commodities" value={latestWeekly.goldSummary} />
+                <ReconciliationSection title="Crypto" value={latestWeekly.cryptoSummary} />
+                <ReconciliationSection title="Macro" value={latestWeekly.macroSummary} />
+                <ReconciliationSection title="Rates" value={latestWeekly.ratesSummary} />
+                <ReconciliationSection title="Inflation" value={latestWeekly.inflationSummary} />
+                <ReconciliationSection title="Currency" value={latestWeekly.currencySummary} />
+                <ReconciliationSection title="Geopolitical" value={latestWeekly.geopoliticalSummary} />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Theme Intelligence Summary</CardTitle>
+          <CardDescription>Canonical themes run alongside asset-class buckets so Market Vision and scoring can separate asset exposure from market drivers.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {dashboard.themeSummary.length === 0 ? (
+            <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">No theme summary yet. Run weekly reconciliation from Admin after articles are classified.</div>
+          ) : (
+            <>
+              <div className="grid gap-3">
+                {dashboard.themeSummary.slice(0, 9).map((theme) => (
+                  <div key={theme.theme} className="rounded-md border p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{theme.theme}</p>
+                        <p className="text-xs text-muted-foreground">{theme.categories?.join(" / ") ?? "Theme"} - {(theme.sources ?? ["News"]).join(" + ")}</p>
+                      </div>
+                      <span className="text-sm text-muted-foreground">{theme.count} signals</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-5 gap-2 text-xs text-muted-foreground">
+                      <span>Conf {formatThemeConfidence(theme.averageConfidence)}</span>
+                      <span>Sev {theme.averageSeverity}/100</span>
+                      <span>Persist {theme.averagePersistence}/100</span>
+                      <span>Impact {theme.impactScore ?? 0}</span>
+                      <span className={trendTone(theme.trend)}>{theme.trend ?? "Stable"}</span>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">News {theme.newsItemCount ?? theme.count} - FRED signals {theme.macroSignalCount ?? 0}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">{theme.topHeadlines.slice(0, 2).join("; ") || theme.topMacroSignals?.slice(0, 2).join("; ") || "No sample available."}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
+                <div className="rounded-md border p-3">
+                  <p className="text-sm font-medium">Emerging themes</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {dashboard.themeIntelligence.emergingThemes.length ? dashboard.themeIntelligence.emergingThemes.map((theme) => theme.theme).join(", ") : "No rising theme signal yet."}
+                  </p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-sm font-medium">Persistent themes</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {dashboard.themeIntelligence.persistentThemes.length ? dashboard.themeIntelligence.persistentThemes.map((theme) => theme.theme).join(", ") : "No persistent theme signal yet."}
+                  </p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-sm font-medium">Structural themes</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {dashboard.themeIntelligence.structuralThemes.length ? dashboard.themeIntelligence.structuralThemes.map((theme) => theme.theme).join(", ") : "No structural theme signal yet."}
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-md border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium">Classification review queue</p>
+                  <span className="text-xs text-muted-foreground">{dashboard.themeIntelligence.reviewQueue.length} flagged</span>
+                </div>
+                {dashboard.themeIntelligence.reviewQueue.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted-foreground">No suspicious or low-confidence theme classifications in the current weekly set.</p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {dashboard.themeIntelligence.reviewQueue.slice(0, 5).map((item) => (
+                      <div key={item.newsItemId} className="rounded-md bg-muted/40 p-2 text-sm">
+                        <div className="font-medium">{item.title}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{item.primaryTheme ?? "Unmapped"} - {formatThemeConfidence(item.themeConfidence)} - {item.reason}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
 export default async function NewsPage({ searchParams }: NewsPageProps) {
   const params = await searchParams;
   const container = createContainer();
   await container.authProvider.requireUser();
-  const dashboard = await measureRenderStep("news:dashboard-data", () =>
-    container.newsDashboardService.getDashboard({
+  const dashboard = await measureRenderStep("news:article-dashboard-data", () =>
+    container.newsDashboardService.getArticleDashboard({
       query: params?.q || undefined,
       classification: params?.classification || undefined,
       sentiment: params?.sentiment || undefined,
@@ -209,130 +370,9 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
         </CardContent>
       </Card>
 
-      <section className="grid gap-4 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Weekly reconciliation</CardTitle>
-            <CardDescription>Latest weekly summary sections prepared for Market Vision attachment.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            {!latestWeekly ? (
-              <p className="text-muted-foreground">No weekly reconciliation has been created yet.</p>
-            ) : (
-              <div className="space-y-4">
-                <div className="rounded-md border bg-muted/30 p-3">
-                  <div className="font-medium">{latestWeekly.periodStart} to {latestWeekly.periodEnd} - {latestWeekly.status}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">Newest reconciliation shown. Older drafts remain stored in the database.</div>
-                </div>
-                <div className="grid gap-3 text-sm md:grid-cols-4 xl:grid-cols-2">
-                  <div className="rounded-md border p-3">
-                    <p className="text-xs uppercase text-muted-foreground">Classified</p>
-                    <p className="mt-1 text-xl font-semibold">{coverageNumber(latestWeekly.coverageMetadata, "classifiedInPeriod")}</p>
-                  </div>
-                  <div className="rounded-md border p-3">
-                    <p className="text-xs uppercase text-muted-foreground">Included</p>
-                    <p className="mt-1 text-xl font-semibold">{coverageNumber(latestWeekly.coverageMetadata, "includedInReconciliation")}</p>
-                  </div>
-                  <div className="rounded-md border p-3">
-                    <p className="text-xs uppercase text-muted-foreground">Excluded</p>
-                    <p className="mt-1 text-xl font-semibold">{coverageNumber(latestWeekly.coverageMetadata, "excludedByEligibility")}</p>
-                  </div>
-                  <div className="rounded-md border p-3">
-                    <p className="text-xs uppercase text-muted-foreground">Equity items</p>
-                    <p className="mt-1 text-xl font-semibold">{bucketCount(latestWeekly.coverageMetadata, "equities")}</p>
-                  </div>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <ReconciliationSection title="Equities" value={latestWeekly.equitiesSummary} />
-                  <ReconciliationSection title="Bonds" value={latestWeekly.bondsSummary} />
-                  <ReconciliationSection title="Gold / Commodities" value={latestWeekly.goldSummary} />
-                  <ReconciliationSection title="Crypto" value={latestWeekly.cryptoSummary} />
-                  <ReconciliationSection title="Macro" value={latestWeekly.macroSummary} />
-                  <ReconciliationSection title="Rates" value={latestWeekly.ratesSummary} />
-                  <ReconciliationSection title="Inflation" value={latestWeekly.inflationSummary} />
-                  <ReconciliationSection title="Currency" value={latestWeekly.currencySummary} />
-                  <ReconciliationSection title="Geopolitical" value={latestWeekly.geopoliticalSummary} />
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Theme Intelligence Summary</CardTitle>
-            <CardDescription>Canonical themes run alongside asset-class buckets so Market Vision and scoring can separate asset exposure from market drivers.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {dashboard.themeSummary.length === 0 ? (
-              <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">No theme summary yet. Run weekly reconciliation from Admin after articles are classified.</div>
-            ) : (
-              <>
-                <div className="grid gap-3">
-                  {dashboard.themeSummary.slice(0, 9).map((theme) => (
-                    <div key={theme.theme} className="rounded-md border p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="font-medium">{theme.theme}</p>
-                          <p className="text-xs text-muted-foreground">{theme.categories?.join(" / ") ?? "Theme"} - {(theme.sources ?? ["News"]).join(" + ")}</p>
-                        </div>
-                        <span className="text-sm text-muted-foreground">{theme.count} signals</span>
-                      </div>
-                      <div className="mt-2 grid grid-cols-5 gap-2 text-xs text-muted-foreground">
-                        <span>Conf {formatThemeConfidence(theme.averageConfidence)}</span>
-                        <span>Sev {theme.averageSeverity}/100</span>
-                        <span>Persist {theme.averagePersistence}/100</span>
-                        <span>Impact {theme.impactScore ?? 0}</span>
-                        <span className={trendTone(theme.trend)}>{theme.trend ?? "Stable"}</span>
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">News {theme.newsItemCount ?? theme.count} - FRED signals {theme.macroSignalCount ?? 0}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">{theme.topHeadlines.slice(0, 2).join("; ") || theme.topMacroSignals?.slice(0, 2).join("; ") || "No sample available."}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
-                  <div className="rounded-md border p-3">
-                    <p className="text-sm font-medium">Emerging themes</p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {dashboard.themeIntelligence.emergingThemes.length ? dashboard.themeIntelligence.emergingThemes.map((theme) => theme.theme).join(", ") : "No rising theme signal yet."}
-                    </p>
-                  </div>
-                  <div className="rounded-md border p-3">
-                    <p className="text-sm font-medium">Persistent themes</p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {dashboard.themeIntelligence.persistentThemes.length ? dashboard.themeIntelligence.persistentThemes.map((theme) => theme.theme).join(", ") : "No persistent theme signal yet."}
-                    </p>
-                  </div>
-                  <div className="rounded-md border p-3">
-                    <p className="text-sm font-medium">Structural themes</p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {dashboard.themeIntelligence.structuralThemes.length ? dashboard.themeIntelligence.structuralThemes.map((theme) => theme.theme).join(", ") : "No structural theme signal yet."}
-                    </p>
-                  </div>
-                </div>
-                <div className="rounded-md border p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium">Classification review queue</p>
-                    <span className="text-xs text-muted-foreground">{dashboard.themeIntelligence.reviewQueue.length} flagged</span>
-                  </div>
-                  {dashboard.themeIntelligence.reviewQueue.length === 0 ? (
-                    <p className="mt-2 text-sm text-muted-foreground">No suspicious or low-confidence theme classifications in the current weekly set.</p>
-                  ) : (
-                    <div className="mt-3 space-y-2">
-                      {dashboard.themeIntelligence.reviewQueue.slice(0, 5).map((item) => (
-                        <div key={item.newsItemId} className="rounded-md bg-muted/40 p-2 text-sm">
-                          <div className="font-medium">{item.title}</div>
-                          <div className="mt-1 text-xs text-muted-foreground">{item.primaryTheme ?? "Unmapped"} - {formatThemeConfidence(item.themeConfidence)} - {item.reason}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </section>
+      <Suspense fallback={<NewsIntelligenceFallback />}>
+        <NewsIntelligenceSection />
+      </Suspense>
     </PageContainer>
   );
 }

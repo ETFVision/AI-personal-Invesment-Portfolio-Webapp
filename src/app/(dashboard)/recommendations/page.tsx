@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { createContainer } from "@/server/container";
 import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,19 +71,50 @@ function InsightTable({ title, description, rows }: { title: string; description
   );
 }
 
+function InsightTablesFallback() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Loading insight tables</CardTitle>
+        <CardDescription>Preparing portfolio, watchlist and universe classifications.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-16 animate-pulse rounded-md bg-muted" />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+async function RecommendationInsightTables({ portfolioId }: { portfolioId: string | null }) {
+  const container = createContainer();
+  const dashboard = await measureRenderStep(`recommendations:${portfolioId ?? "no-portfolio"}:detail-tables-data`, () =>
+    container.recommendationService.getDashboard(portfolioId)
+  );
+  const recommendations = dashboard.recommendations.slice().sort((a, b) => (b.overallScore ?? -1) - (a.overallScore ?? -1));
+
+  return (
+    <>
+      <InsightTable title="Universe Characteristics" description="Highest-scoring approved instruments after deterministic guardrails." rows={dashboard.universeOpportunities} />
+      <InsightTable title="Portfolio Instrument Insights" description="Latest analytical assessments for instruments currently held in the default portfolio." rows={dashboard.portfolioRecommendations.slice(0, 50)} />
+      <InsightTable title="Watchlist Instrument Insights" description="Latest analytical assessments for active watchlist instruments." rows={dashboard.watchlistRecommendations.slice(0, 50)} />
+      <InsightTable title="All Instrument Insights" description="Full latest instrument insight set for QA and traceability." rows={recommendations.slice(0, 100)} />
+    </>
+  );
+}
+
 export default async function RecommendationsPage({ searchParams }: RecommendationsPageProps) {
   const params = await searchParams;
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();
   const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
-  const dashboard = await measureRenderStep(`recommendations:${portfolio?.id ?? "no-portfolio"}:dashboard-data`, () =>
-    container.recommendationService.getDashboard(portfolio?.id ?? null)
+  const overview = await measureRenderStep(`recommendations:${portfolio?.id ?? "no-portfolio"}:overview-data`, () =>
+    container.recommendationService.getDashboardOverview()
   );
-  const recommendations = dashboard.recommendations.slice().sort((a, b) => (b.overallScore ?? -1) - (a.overallScore ?? -1));
-  const labelCounts = recommendations.reduce<Record<string, number>>((counts, item) => {
-    counts[item.recommendationLabel] = (counts[item.recommendationLabel] ?? 0) + 1;
-    return counts;
-  }, {});
+  const labelCounts = overview.labelCounts;
 
   return (
     <PageContainer>
@@ -92,10 +124,10 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
         description="Deterministic portfolio intelligence, characteristics scoring and guardrails. No trades, target allocations or investment recommendations are generated."
         meta={
           <>
-            <StatusBadge tone={dashboard.latestRun?.status === "success" ? "positive" : dashboard.latestRun ? "warning" : "neutral"}>
-              {dashboard.latestRun?.status ?? "No run yet"}
+            <StatusBadge tone={overview.latestRun?.status === "success" ? "positive" : overview.latestRun ? "warning" : "neutral"}>
+              {overview.latestRun?.status ?? "No run yet"}
             </StatusBadge>
-            <StatusBadge tone="info">{recommendations.length} latest insights</StatusBadge>
+            <StatusBadge tone="info">{overview.recommendationsCount} latest insights</StatusBadge>
           </>
         }
         actions={
@@ -110,8 +142,8 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
       {params?.recommendationError ? <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{params.recommendationError}</p> : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard title="Latest run" value={dashboard.latestRun?.runDate ?? "-"} footer={dashboard.latestRun?.status ?? "No run yet"} />
-        <MetricCard title="Evaluated" value={formatNumber(dashboard.latestRun?.instrumentsEvaluated ?? 0, 0)} footer="Approved active instruments" />
+        <MetricCard title="Latest run" value={overview.latestRun?.runDate ?? "-"} footer={overview.latestRun?.status ?? "No run yet"} />
+        <MetricCard title="Evaluated" value={formatNumber(overview.latestRun?.instrumentsEvaluated ?? 0, 0)} footer="Approved active instruments" />
         <MetricCard title="Favorable" value={formatNumber((labelCounts.Buy ?? 0) + (labelCounts["Strong Buy"] ?? 0), 0)} footer="Favorable characteristics after guardrails" />
         <MetricCard title="Insufficient data" value={formatNumber(labelCounts["Insufficient Data"] ?? 0, 0)} footer="Needs more inputs" />
       </div>
@@ -122,10 +154,9 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
         </CardContent>
       </Card>
 
-      <InsightTable title="Universe Characteristics" description="Highest-scoring approved instruments after deterministic guardrails." rows={dashboard.universeOpportunities} />
-      <InsightTable title="Portfolio Instrument Insights" description="Latest analytical assessments for instruments currently held in the default portfolio." rows={dashboard.portfolioRecommendations.slice(0, 50)} />
-      <InsightTable title="Watchlist Instrument Insights" description="Latest analytical assessments for active watchlist instruments." rows={dashboard.watchlistRecommendations.slice(0, 50)} />
-      <InsightTable title="All Instrument Insights" description="Full latest instrument insight set for QA and traceability." rows={recommendations.slice(0, 100)} />
+      <Suspense fallback={<InsightTablesFallback />}>
+        <RecommendationInsightTables portfolioId={portfolio?.id ?? null} />
+      </Suspense>
     </PageContainer>
   );
 }

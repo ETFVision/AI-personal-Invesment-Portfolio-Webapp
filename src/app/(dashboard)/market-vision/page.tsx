@@ -1,6 +1,7 @@
 import { Archive, FilePenLine, Send } from "lucide-react";
 import { createContainer } from "@/server/container";
 import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
+import { Suspense } from "react";
 import {
   archiveMarketVisionReportAction,
   publishMarketVisionReportAction,
@@ -527,21 +528,91 @@ function ReportActions({ report }: { report: MarketVisionReport }) {
   );
 }
 
+function MarketVisionSupportFallback({ title, description }: { title: string; description: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="h-28 rounded-xl border border-dashed bg-slate-50" />
+      </CardContent>
+    </Card>
+  );
+}
+
+async function MacroContextSection() {
+  const container = createContainer();
+  const macroDashboard = await measureRenderStep("market-vision:macro-context-data", () =>
+    container.macroDashboardService.getDashboard()
+  );
+  const macroContext = container.macroContextService.buildContext(macroDashboard);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>FRED macro context</CardTitle>
+        <CardDescription>Stored macro trends prepared for Market Vision drafting. No investment recommendations are generated.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <MacroRegimeCards cards={macroContext.regimeCards} />
+        <MacroContextList items={macroContext.marketVisionContext} />
+        <MacroIndicatorCards indicators={macroContext.keyIndicators} />
+      </CardContent>
+    </Card>
+  );
+}
+
+async function MacroWorldNewsInputSection() {
+  const container = createContainer();
+  const latestGlobalNews = await measureRenderStep("market-vision:macro-world-news-data", () =>
+    Promise.all([
+      container.newsRepository.listNewsWithClassifications({ sourceProvider: "newsdata", includeDuplicates: false, limit: 40 }),
+      container.newsRepository.listNewsWithClassifications({ sourceProvider: "gdelt", includeDuplicates: false, limit: 40 })
+    ]).then(([newsDataRows, gdeltRows]) => eligibleGdeltInput([...newsDataRows, ...gdeltRows]).slice(0, 8))
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Macro / world-news input</CardTitle>
+        <CardDescription>NewsData primary plus GDELT fallback macro, geopolitical, currency, energy, trade, and credit stories prepared for manual Market Vision drafting.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {latestGlobalNews.length === 0 ? (
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No NewsData or GDELT macro/world-news articles have been ingested yet.</p>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {latestGlobalNews.slice(0, 6).map((item) => (
+              <div key={item.id} className="rounded-md border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-medium">
+                    {item.url ? (
+                      <a href={item.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">{item.title}</a>
+                    ) : item.title}
+                  </p>
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs">{item.classification?.primaryTheme ?? "Unmapped"}</span>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {item.sourceName ?? (item.sourceProvider === "newsdata" ? "NewsData" : "GDELT")} - {item.country ?? "Global"} - {item.publishedAt?.slice(0, 10) ?? "No date"}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default async function MarketVisionPage({ searchParams }: MarketVisionPageProps) {
   const params = await searchParams;
   const container = createContainer();
   await container.authProvider.requireUser();
-  const [dashboard, latestGlobalNews, macroDashboard] = await measureRenderStep("market-vision:dashboard-data", () =>
-    Promise.all([
-      container.marketVisionService.getDashboard(params?.reportId),
-      Promise.all([
-        container.newsRepository.listNewsWithClassifications({ sourceProvider: "newsdata", includeDuplicates: false, limit: 40 }),
-        container.newsRepository.listNewsWithClassifications({ sourceProvider: "gdelt", includeDuplicates: false, limit: 40 })
-      ]).then(([newsDataRows, gdeltRows]) => eligibleGdeltInput([...newsDataRows, ...gdeltRows]).slice(0, 8)),
-      container.macroDashboardService.getDashboard()
-    ])
+  const dashboard = await measureRenderStep("market-vision:report-dashboard-data", () =>
+    container.marketVisionService.getDashboard(params?.reportId)
   );
-  const macroContext = container.macroContextService.buildContext(macroDashboard);
   const report = dashboard.selectedReport;
 
   return (
@@ -634,17 +705,9 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             <PortfolioImpactMatrix report={report} />
           </section>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>FRED macro context</CardTitle>
-              <CardDescription>Stored macro trends prepared for Market Vision drafting. No investment recommendations are generated.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <MacroRegimeCards cards={macroContext.regimeCards} />
-              <MacroContextList items={macroContext.marketVisionContext} />
-              <MacroIndicatorCards indicators={macroContext.keyIndicators} />
-            </CardContent>
-          </Card>
+          <Suspense fallback={<MarketVisionSupportFallback title="FRED macro context" description="Loading stored macro trends..." />}>
+            <MacroContextSection />
+          </Suspense>
 
           <section className="grid gap-4 lg:grid-cols-2">
             {reportSections.map((section) => (
@@ -703,35 +766,9 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Macro / world-news input</CardTitle>
-              <CardDescription>NewsData primary plus GDELT fallback macro, geopolitical, currency, energy, trade, and credit stories prepared for manual Market Vision drafting.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {latestGlobalNews.length === 0 ? (
-                <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No NewsData or GDELT macro/world-news articles have been ingested yet.</p>
-              ) : (
-                <div className="grid gap-3 md:grid-cols-2">
-                  {latestGlobalNews.slice(0, 6).map((item) => (
-                    <div key={item.id} className="rounded-md border p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm font-medium">
-                          {item.url ? (
-                            <a href={item.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">{item.title}</a>
-                          ) : item.title}
-                        </p>
-                        <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs">{item.classification?.primaryTheme ?? "Unmapped"}</span>
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {item.sourceName ?? (item.sourceProvider === "newsdata" ? "NewsData" : "GDELT")} - {item.country ?? "Global"} - {item.publishedAt?.slice(0, 10) ?? "No date"}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <Suspense fallback={<MarketVisionSupportFallback title="Macro / world-news input" description="Loading NewsData and GDELT macro stories..." />}>
+            <MacroWorldNewsInputSection />
+          </Suspense>
 
           {report.status === "draft" ? <ReportEditor report={report} /> : null}
         </>
