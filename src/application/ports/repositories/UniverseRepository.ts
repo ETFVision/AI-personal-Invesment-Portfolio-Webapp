@@ -49,11 +49,6 @@ export type ListInstrumentsFilters = {
   limit?: number;
 };
 
-export type ListInstrumentDirectorySummaryFilters = {
-  query?: string;
-  isActive?: boolean;
-};
-
 export type UpsertInstrumentInput = Omit<Instrument, "id"> & { id?: string };
 
 export type UpsertWatchlistInput = Omit<Watchlist, "id"> & { id?: string };
@@ -147,6 +142,6 @@ export interface UniverseRepository {
   refreshInstrumentRiskMetricsOnly(instrumentIds?: string[]): Promise<void>;
   upsertInstrumentRiskMetrics(input: UpsertInstrumentRiskMetricInput[]): Promise<void>;
   upsertInstrumentPrices(input: UpsertInstrumentPriceInput[]): Promise<void>;
-  listInstrumentDirectorySummaries(filters?: ListInstrumentDirectorySummaryFilters): Promise<InstrumentDirectorySummaryRow[]>;
+  listInstrumentDirectorySummaries(): Promise<InstrumentDirectorySummaryRow[]>;
   upsertInstrumentDirectorySummaries(input: InstrumentDirectorySummaryRow[]): Promise<void>;
 }

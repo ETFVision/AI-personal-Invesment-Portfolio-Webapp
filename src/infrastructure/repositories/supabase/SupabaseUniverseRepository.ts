@@ -14,7 +14,6 @@ import type { InstrumentDirectorySummaryRow } from "@/domain/instruments/directo
 import {
   CanonicalTaxonomyItem,
   InstrumentTaxonomyMapping,
-  ListInstrumentDirectorySummaryFilters,
   ListInstrumentsFilters,
   ProviderTaxonomyMapping,
   UniverseRepository,
@@ -412,21 +411,15 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     return ((data ?? []) as any[]).map((row) => mapInstrument({ ...row, provider_metadata: {} }));
   }
 
-  async listInstrumentDirectorySummaries(filters?: ListInstrumentDirectorySummaryFilters) {
+  async listInstrumentDirectorySummaries() {
     const rows: any[] = [];
 
     for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
-      let query = this.db
+      const { data, error } = await this.db
         .from("instrument_directory_summary")
-        .select("instrument_id,symbol,name,asset_class,asset_category,instrument_type,stock_sector,etf_category,is_active,latest_price_date,daily_return,market_view_json,fundamentals_summary_json,watchlist_items_json,calculation_version,status,source_updated_at,updated_at")
+        .select("*")
         .order("symbol", { ascending: true })
         .range(from, from + SUPABASE_PAGE_SIZE - 1);
-      if (filters?.isActive != null) query = query.eq("is_active", filters.isActive);
-      if (filters?.query?.trim()) {
-        const safeQuery = filters.query.trim();
-        query = query.or(`symbol.ilike.%${safeQuery}%,name.ilike.%${safeQuery}%`);
-      }
-      const { data, error } = await query;
       if (isMissingDirectorySummary(error)) return [];
       if (error) throw new Error(error.message);
       rows.push(...(data ?? []));
