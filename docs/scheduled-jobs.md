@@ -43,25 +43,37 @@ All cron expressions are UTC. Singapore time is UTC+8.
 
 | Supabase Cron job | UTC Cron | Singapore time | Endpoint | Purpose |
 |---|---:|---:|---|---|
-| `app-daily-instrument-price-refresh` | `30 22 * * *` | 6:30 AM daily | `/api/jobs/instrument-price-refresh` | Refresh master instrument prices. |
-| `app-daily-benchmark-refresh` | `35 22 * * *` | 6:35 AM daily | `/api/jobs/benchmark-refresh?lookbackDays=30` | Keep benchmark comparison series current. |
-| `app-daily-portfolio-valuation-refresh` | `40 22 * * *` | 6:40 AM daily | `/api/jobs/portfolio-valuation-refresh` | Create current portfolio valuation snapshots. |
-| `app-daily-fred-macro-ingestion` | `50 22 * * *` | 6:50 AM daily | `/api/jobs/fred-macro-ingestion` | Refresh FRED macro indicators and macro signals. |
-| `app-daily-fmp-news-ingestion` | `0 23 * * *` | 7:00 AM daily | `/api/jobs/daily-news-ingestion` | Refresh FMP instrument and general market news. |
-| `app-daily-newsdata-ingestion` | `10 23 * * *` | 7:10 AM daily | `/api/jobs/newsdata-news-ingestion` | Refresh NewsData macro and world-news query groups. |
+| `app-daily-instrument-price-refresh-1` | `20 21 * * *` | 5:20 AM daily | `/api/jobs/instrument-price-refresh?batchSize=75&maxBatches=1&lookbackDays=30&skipRiskMetrics=true&skipDerivedMetrics=true&lockTtlSeconds=300` | Refresh latest instrument prices, pass 1. |
+| `app-daily-instrument-price-refresh-2` | `25 21 * * *` | 5:25 AM daily | same as above | Refresh latest instrument prices, pass 2. |
+| `app-daily-instrument-price-refresh-3` | `30 21 * * *` | 5:30 AM daily | same as above | Refresh latest instrument prices, pass 3. |
+| `app-daily-instrument-price-refresh-4` | `35 21 * * *` | 5:35 AM daily | same as above | Refresh latest instrument prices, pass 4. |
+| `app-daily-instrument-price-refresh-5` | `40 21 * * *` | 5:40 AM daily | same as above | Refresh latest instrument prices, pass 5. |
+| `app-daily-instrument-daily-returns-refresh` | `45 21 * * *` | 5:45 AM daily | `/api/jobs/instrument-daily-returns-refresh?batchSize=25&maxBatches=14&lockTtlSeconds=300` | Refresh precomputed instrument daily returns. |
+| `app-daily-instrument-return-anchors-refresh` | `50 21 * * *` | 5:50 AM daily | `/api/jobs/instrument-return-anchors-refresh?batchSize=25&maxBatches=14&lockTtlSeconds=300` | Refresh return anchors used by market metrics. |
+| `app-daily-instrument-market-metrics-refresh` | `55 21 * * *` | 5:55 AM daily | `/api/jobs/instrument-market-metrics-refresh?batchSize=25&maxBatches=14&lockTtlSeconds=300` | Refresh stored market metrics. |
+| `app-daily-instrument-risk-refresh-1` | `0 22 * * *` | 6:00 AM daily | `/api/jobs/instrument-risk-refresh?batchSize=200&minObservations=30` | Refresh stored instrument risk metrics, pass 1. |
+| `app-daily-instrument-risk-refresh-2` | `5 22 * * *` | 6:05 AM daily | `/api/jobs/instrument-risk-refresh?batchSize=150&minObservations=30` | Refresh stored instrument risk metrics, pass 2. |
+| `app-daily-instrument-metadata-refresh` | `10 22 * * *` | 6:10 AM daily | `/api/jobs/instrument-metadata-refresh?batchSize=25&maxBatches=14&lockTtlSeconds=300` | Refresh instrument profile metadata and taxonomy inputs. |
+| `app-daily-benchmark-refresh` | `15 22 * * *` | 6:15 AM daily | `/api/jobs/benchmark-refresh?lookbackDays=30` | Keep benchmark comparison series current. |
+| `app-daily-portfolio-valuation-refresh` | `25 22 * * *` | 6:25 AM daily | `/api/jobs/portfolio-valuation-refresh` | Create current portfolio valuation snapshots. |
+| `app-daily-fred-macro-ingestion` | `35 22 * * *` | 6:35 AM daily | `/api/jobs/fred-macro-ingestion` | Refresh FRED macro indicators and macro signals. |
+| `app-daily-fmp-news-ingestion` | `45 22 * * *` | 6:45 AM daily | `/api/jobs/daily-news-ingestion` | Refresh FMP instrument and general market news. |
+| `app-daily-newsdata-ingestion` | `55 22 * * *` | 6:55 AM daily | `/api/jobs/newsdata-news-ingestion` | Refresh NewsData macro and world-news query groups. |
 
 ### Weekly
 
-Runs every Monday.
+Runs every Sunday morning after the Sunday daily refresh chain. This uses Friday-close market data that should already be available before the new trading week starts.
 
 | Supabase Cron job | UTC Cron | Singapore time | Endpoint | Purpose |
 |---|---:|---:|---|---|
-| `app-weekly-fundamentals-refresh` | `20 23 * * 0` | 7:20 AM Monday | `/api/jobs/fundamentals-refresh` | Refresh due fundamentals before weekly intelligence and recommendation jobs. |
-| `app-weekly-news-reconciliation` | `45 23 * * 0` | 7:45 AM Monday | `/api/jobs/weekly-news-reconciliation` | Build weekly asset and theme news summaries. |
-| `app-weekly-market-vision` | `55 23 * * 0` | 7:55 AM Monday | `/api/jobs/weekly-market-vision` | Generate the weekly CIO-style Market Vision draft and capture Market Vision telemetry snapshots. |
-| `app-weekly-recommendation-run` | `10 0 * * 1` | 8:10 AM Monday | `/api/jobs/recommendation-run` | Refresh recommendation outputs and capture recommendation telemetry snapshots. |
-| `app-weekly-portfolio-review-run` | `25 0 * * 1` | 8:25 AM Monday | `/api/jobs/portfolio-review-run` | Refresh Portfolio Review and capture Portfolio Review telemetry snapshots. |
-| `app-weekly-telemetry-evaluation` | `35 0 * * 1` | 8:35 AM Monday | `/api/jobs/telemetry-evaluation` | Check whether any 1m, 3m, 6m or 12m telemetry horizons have matured and evaluate only those ready observations. |
+| `app-weekly-fundamentals-refresh-1` | `10 23 * * 6` | 7:10 AM Sunday | `/api/jobs/fundamentals-refresh` | Refresh due fundamentals, pass 1. |
+| `app-weekly-fundamentals-refresh-2` | `20 23 * * 6` | 7:20 AM Sunday | `/api/jobs/fundamentals-refresh` | Refresh due fundamentals, pass 2. |
+| `app-weekly-fundamentals-refresh-3` | `30 23 * * 6` | 7:30 AM Sunday | `/api/jobs/fundamentals-refresh` | Refresh due fundamentals, pass 3. |
+| `app-weekly-news-reconciliation` | `40 23 * * 6` | 7:40 AM Sunday | `/api/jobs/weekly-news-reconciliation` | Build weekly asset and theme news summaries. |
+| `app-weekly-market-vision` | `50 23 * * 6` | 7:50 AM Sunday | `/api/jobs/weekly-market-vision` | Generate the weekly CIO-style Market Vision draft and capture Market Vision telemetry snapshots. |
+| `app-weekly-recommendation-run` | `0 0 * * 0` | 8:00 AM Sunday | `/api/jobs/recommendation-run` | Refresh recommendation outputs and capture recommendation telemetry snapshots. |
+| `app-weekly-portfolio-review-run` | `10 0 * * 0` | 8:10 AM Sunday | `/api/jobs/portfolio-review-run` | Refresh Portfolio Review and capture Portfolio Review telemetry snapshots. |
+| `app-weekly-telemetry-evaluation` | `20 0 * * 0` | 8:20 AM Sunday | `/api/jobs/telemetry-evaluation` | Check whether any 1m, 3m, 6m or 12m telemetry horizons have matured and evaluate only those ready observations. |
 
 Telemetry evaluation is scheduled weekly, but the evaluation horizons are not weekly. The job checks all stored snapshots and evaluates only observations whose configured 1m, 3m, 6m or 12m maturity date has arrived.
 
@@ -71,8 +83,12 @@ Runs on the first day of each month.
 
 | Supabase Cron job | UTC Cron | Singapore time | Endpoint | Purpose |
 |---|---:|---:|---|---|
-| `app-monthly-etf-lookthrough-refresh` | `40 0 1 * *` | 8:40 AM first day monthly | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data. |
-| `app-monthly-universe-validation` | `5 1 1 * *` | 9:05 AM first day monthly | `/api/jobs/universe-validation` | Revalidate universe metadata and data availability. |
+| `app-monthly-etf-lookthrough-refresh-1` | `40 0 1 * *` | 8:40 AM first day monthly | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data, pass 1. |
+| `app-monthly-etf-lookthrough-refresh-2` | `50 0 1 * *` | 8:50 AM first day monthly | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data, pass 2. |
+| `app-monthly-etf-lookthrough-refresh-3` | `0 1 1 * *` | 9:00 AM first day monthly | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data, pass 3. |
+| `app-monthly-etf-lookthrough-refresh-4` | `10 1 1 * *` | 9:10 AM first day monthly | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data, pass 4. |
+| `app-monthly-etf-lookthrough-refresh-5` | `20 1 1 * *` | 9:20 AM first day monthly | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data, pass 5. |
+| `app-monthly-universe-validation` | `30 1 1 * *` | 9:30 AM first day monthly | `/api/jobs/universe-validation` | Revalidate universe metadata and data availability. |
 
 Benchmarks and fundamentals are no longer monthly. Recent benchmark data is refreshed daily, fundamentals are refreshed weekly, and long benchmark history is handled by the manual market-history backfill.
 
