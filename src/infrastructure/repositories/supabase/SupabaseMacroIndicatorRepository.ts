@@ -372,7 +372,7 @@ export class SupabaseMacroIndicatorRepository implements MacroIndicatorRepositor
       this.listIngestionLogs(8)
     ]);
     const trendByIndicator = new Map(trends.map((trend) => [trend.indicatorId, trend]));
-    const observationsByIndicator = await this.listObservationsForIndicators(indicators.map((item) => item.id), 120);
+    const observationsByIndicator = await this.listObservationsForIndicators(indicators.map((item) => item.id), 24);
     return {
       indicators: indicators.map((indicator) => {
         const observations = observationsByIndicator.get(indicator.id) ?? [];
