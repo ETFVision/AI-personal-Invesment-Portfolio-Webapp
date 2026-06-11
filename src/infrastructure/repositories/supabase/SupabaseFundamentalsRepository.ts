@@ -576,11 +576,11 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
     const instrument = mapInstrument(data);
     const [profiles, ratios, scores, statements, trends, trendSummaries] = await Promise.all([
       this.getProfiles([instrument.id]),
-      this.listRatios([instrument.id]),
-      this.listScores([instrument.id]),
-      this.listStatements([instrument.id]),
-      this.listTrends([instrument.id]),
-      this.getLatestTrendSummaries([instrument.id])
+      this.getLatestDetailRatios(instrument.id),
+      this.getLatestDetailScores(instrument.id),
+      this.listLatestStatementSnapshot(instrument.id),
+      this.listDetailTrends(instrument.id),
+      this.getLatestDetailTrendSummaries(instrument.id)
     ]);
     const profile = profiles[0] ?? null;
     const latestRatio = ratios[0] ?? null;
@@ -903,6 +903,24 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
     return (data ?? []).map(mapFinancialStatement);
   }
 
+  private async listLatestStatementSnapshot(instrumentId: string) {
+    const { data, error } = await this.db
+      .from("financial_statements")
+      .select(
+        "id,instrument_id,symbol,statement_type,period,fiscal_year,fiscal_quarter,report_date,filing_date,revenue,gross_profit,operating_income,ebitda,net_income,eps,diluted_eps,total_assets,total_liabilities,shareholders_equity,cash_and_equivalents,total_debt,operating_cash_flow,capital_expenditure,free_cash_flow,shares_outstanding,provider"
+      )
+      .eq("instrument_id", instrumentId)
+      .order("report_date", { ascending: false })
+      .limit(24);
+    if (error) return [];
+    const byType = new Map<string, FinancialStatement>();
+    for (const row of data ?? []) {
+      const statement = mapFinancialStatement({ ...row, provider_metadata: {} });
+      if (!byType.has(statement.statementType)) byType.set(statement.statementType, statement);
+    }
+    return Array.from(byType.values());
+  }
+
   private async listStatementCounts(instrumentIds: string[]) {
     if (instrumentIds.length === 0) return new Map<string, number>();
     const { data, error } = await this.db.from("financial_statements").select("instrument_id").in("instrument_id", instrumentIds);
@@ -923,11 +941,35 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
     return (data ?? []).map(mapFinancialRatio);
   }
 
+  private async getLatestDetailRatios(instrumentId: string) {
+    const { data, error } = await this.db
+      .from("financial_ratios")
+      .select(
+        "id,instrument_id,symbol,period,fiscal_year,fiscal_quarter,report_date,pe_ratio,forward_pe,price_to_sales,price_to_book,ev_to_ebitda,ev_to_sales,gross_margin,operating_margin,net_margin,roe,roic,roa,debt_to_equity,net_debt_to_ebitda,current_ratio,quick_ratio,free_cash_flow_yield,revenue_growth,eps_growth,net_income_growth,free_cash_flow_growth,provider"
+      )
+      .eq("instrument_id", instrumentId)
+      .order("report_date", { ascending: false })
+      .limit(1);
+    if (error) return [];
+    return (data ?? []).map((row) => mapFinancialRatio({ ...row, provider_metadata: {} }));
+  }
+
   private async listScores(instrumentIds: string[]) {
     if (instrumentIds.length === 0) return [];
     const { data, error } = await this.db.from("fundamental_scores").select("*").in("instrument_id", instrumentIds).order("as_of_date", { ascending: false });
     if (error) return [];
     return (data ?? []).map(mapFundamentalScore);
+  }
+
+  private async getLatestDetailScores(instrumentId: string) {
+    const { data, error } = await this.db
+      .from("fundamental_scores")
+      .select("id,instrument_id,symbol,as_of_date,growth_score,profitability_score,valuation_score,balance_sheet_score,cash_flow_score,quality_score,overall_fundamental_score,score_confidence")
+      .eq("instrument_id", instrumentId)
+      .order("as_of_date", { ascending: false })
+      .limit(1);
+    if (error) return [];
+    return (data ?? []).map((row) => mapFundamentalScore({ ...row, explanation: "", inputs_snapshot: {} }));
   }
 
   private async listTrends(instrumentIds: string[]) {
@@ -937,10 +979,36 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
     return (data ?? []).map(mapFundamentalTrend);
   }
 
+  private async listDetailTrends(instrumentId: string) {
+    const { data, error } = await this.db
+      .from("fundamental_trends")
+      .select(
+        "id,instrument_id,symbol,metric_name,metric_category,current_value,previous_value,three_period_avg,five_period_avg,short_term_trend_direction,short_term_trend_strength,short_term_trend_score,short_term_confidence_score,long_term_trend_direction,long_term_trend_strength,long_term_trend_score,long_term_confidence_score,overall_trend_direction,overall_trend_score,overall_confidence_score,periods_analyzed,short_term_periods_analyzed,long_term_periods_analyzed,display_period,display_window,as_of_date,explanation"
+      )
+      .eq("instrument_id", instrumentId)
+      .order("metric_category")
+      .order("metric_name");
+    if (error) return [];
+    return (data ?? []).map((row) => mapFundamentalTrend({ ...row, inputs_snapshot: {} }));
+  }
+
   private async listTrendSummaries(instrumentIds: string[]) {
     if (instrumentIds.length === 0) return [];
     const { data, error } = await this.db.from("fundamental_trend_summaries").select("*").in("instrument_id", instrumentIds).order("as_of_date", { ascending: false });
     if (error) return [];
     return (data ?? []).map(mapFundamentalTrendSummary);
+  }
+
+  private async getLatestDetailTrendSummaries(instrumentId: string) {
+    const { data, error } = await this.db
+      .from("fundamental_trend_summaries")
+      .select(
+        "id,instrument_id,symbol,as_of_date,overall_trend_score,overall_confidence_score,overall_trend_direction,improving_metrics_count,deteriorating_metrics_count,stable_metrics_count,volatile_metrics_count,insufficient_data_metrics_count,growth_trend_score,margin_trend_score,profitability_trend_score,balance_sheet_trend_score,quality_trend_score,warnings,explanation"
+      )
+      .eq("instrument_id", instrumentId)
+      .order("as_of_date", { ascending: false })
+      .limit(1);
+    if (error) return [];
+    return (data ?? []).map((row) => mapFundamentalTrendSummary({ ...row, inputs_snapshot: {} }));
   }
 }
