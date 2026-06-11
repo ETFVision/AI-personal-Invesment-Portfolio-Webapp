@@ -179,11 +179,12 @@ export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMe
   );
 }
 
-export function RecommendationSummaryCard({ recommendation, history = [] }: { recommendation: InstrumentRecommendation | null; history?: RecommendationHistoryItem[] }) {
+export function RecommendationSummaryCard({ recommendation, history }: { recommendation: InstrumentRecommendation | null; history?: RecommendationHistoryItem[] }) {
   if (!recommendation) {
     return <PlaceholderPanel title="Insights" description="No instrument insight has been generated for this instrument yet. Run the deterministic insights engine from Research." />;
   }
   const components = scoreComponents(recommendation);
+  const historyRows = history ?? [];
 
   return (
     <Card>
@@ -278,22 +279,24 @@ export function RecommendationSummaryCard({ recommendation, history = [] }: { re
             </div>
           )}
         </div>
-        <div className="rounded-md border p-3">
-          <p className="text-xs uppercase text-muted-foreground">Insight history</p>
-          {history.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">No historical insight runs stored yet.</p>
-          ) : (
-            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {history.map((item) => (
-                <div key={item.id} className="rounded-md border bg-background p-2 text-sm">
-                  <p className="text-xs text-muted-foreground">{item.runDate}</p>
-                  <p className="font-medium">{assessmentLabel(item.recommendationLabel)}</p>
-                  <p className="text-xs text-muted-foreground">{item.overallScore == null ? "No score" : `${Math.round(item.overallScore)}/100`} - {formatPercent(item.confidenceScore / 100)} confidence</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {history ? (
+          <div className="rounded-md border p-3">
+            <p className="text-xs uppercase text-muted-foreground">Insight history</p>
+            {historyRows.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">No historical insight runs stored yet.</p>
+            ) : (
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {historyRows.map((item) => (
+                  <div key={item.id} className="rounded-md border bg-background p-2 text-sm">
+                    <p className="text-xs text-muted-foreground">{item.runDate}</p>
+                    <p className="font-medium">{assessmentLabel(item.recommendationLabel)}</p>
+                    <p className="text-xs text-muted-foreground">{item.overallScore == null ? "No score" : `${Math.round(item.overallScore)}/100`} - {formatPercent(item.confidenceScore / 100)} confidence</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

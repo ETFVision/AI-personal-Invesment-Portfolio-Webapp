@@ -59,7 +59,7 @@ export function InstrumentDirectoryTable({ rows, fundamentalsByInstrumentId, emp
             return (
               <tr key={row.instrument.id} className="border-b border-slate-100 align-top last:border-0">
                 <td className="p-3 font-medium">
-                  {symbol ? <Link className="text-slate-950 hover:text-teal-700 hover:underline" href={`/instruments/${encodeURIComponent(symbol)}`}>{symbol}</Link> : "-"}
+                  {symbol ? <Link prefetch={false} className="text-slate-950 hover:text-teal-700 hover:underline" href={`/instruments/${encodeURIComponent(symbol)}`}>{symbol}</Link> : "-"}
                   <p className="mt-1 text-xs text-muted-foreground">{(row.watchlistTierLabel ?? row.instrument.benchmarkTags.join(", ")) || "-"}</p>
                 </td>
                 <td className="p-3">
@@ -104,14 +104,14 @@ export function InstrumentDirectoryTable({ rows, fundamentalsByInstrumentId, emp
                   {fundamentals ? (
                     <div className="space-y-1 text-xs">
                       <p className="font-medium">Overall {score(fundamentals.latestScore?.overallFundamentalScore)}/100</p>
-                      <p className="text-muted-foreground">Val {score(fundamentals.latestScore?.valuationScore)} · Quality {score(fundamentals.latestScore?.qualityScore)}</p>
+                      <p className="text-muted-foreground">Val {score(fundamentals.latestScore?.valuationScore)} - Quality {score(fundamentals.latestScore?.qualityScore)}</p>
                       <p className="text-muted-foreground">{fundamentalsFreshness(fundamentals)}</p>
                     </div>
                   ) : "-"}
                 </td>
                 <td className="p-3">
                   {symbol ? (
-                    <Link className="inline-flex h-9 items-center justify-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted" href={`/instruments/${encodeURIComponent(symbol)}`}>
+                    <Link prefetch={false} className="inline-flex h-9 items-center justify-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted" href={`/instruments/${encodeURIComponent(symbol)}`}>
                       Open
                     </Link>
                   ) : "-"}

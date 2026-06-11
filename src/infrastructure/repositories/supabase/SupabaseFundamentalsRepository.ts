@@ -25,6 +25,12 @@ function numberOrNull(value: unknown) {
   return Number.isFinite(number) ? number : null;
 }
 
+function isMissingFundamentalsOverview(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  const message = error.message?.toLowerCase() ?? "";
+  return error.code === "42P01" || message.includes("fundamentals_overview_metrics");
+}
+
 function mapInstrument(row: any): Instrument {
   return {
     id: row.id,
@@ -64,6 +70,47 @@ function mapInstrument(row: any): Instrument {
   };
 }
 
+function mapOverviewInstrument(row: any): Instrument {
+  return mapInstrument({
+    id: row.instrument_id,
+    symbol: row.symbol,
+    name: row.name,
+    asset_class: row.asset_class,
+    asset_category: row.asset_category,
+    etf_category: row.etf_category,
+    instrument_type: row.instrument_type,
+    sector: row.instrument_sector,
+    industry: row.instrument_industry,
+    canonical_sector: row.canonical_sector,
+    canonical_themes: row.canonical_themes,
+    taxonomy_is_manual_override: row.taxonomy_is_manual_override,
+    taxonomy_review_status: row.taxonomy_review_status,
+    geography: row.geography,
+    currency: row.instrument_currency,
+    exchange: row.instrument_exchange,
+    watchlist_tier: row.watchlist_tier,
+    benchmark_tags: row.benchmark_tags,
+    thematic_tags: row.thematic_tags,
+    risk_category: row.risk_category,
+    volatility_bucket: row.volatility_bucket,
+    duration_category: row.duration_category,
+    treasury_classification: row.treasury_classification,
+    inflation_linked: row.inflation_linked,
+    credit_quality: row.credit_quality,
+    geo_exposure: row.geo_exposure,
+    rate_sensitivity: row.rate_sensitivity,
+    inflation_sensitivity: row.inflation_sensitivity,
+    recession_sensitivity: row.recession_sensitivity,
+    liquidity_role: row.liquidity_role,
+    crypto_classification: row.crypto_classification,
+    metadata_last_refreshed_at: row.metadata_last_refreshed_at,
+    provider_primary: row.provider_primary,
+    provider_metadata: {},
+    source_type: row.source_type,
+    is_active: row.is_active
+  });
+}
+
 function mapCompanyProfile(row: any): CompanyProfile {
   return {
     id: row.id,
@@ -86,6 +133,31 @@ function mapCompanyProfile(row: any): CompanyProfile {
     provider: row.provider,
     providerMetadata: row.provider_metadata ?? {}
   };
+}
+
+function mapOverviewProfile(row: any): CompanyProfile | null {
+  if (!row.company_name && !row.profile_provider && !row.last_refreshed_at) return null;
+  return mapCompanyProfile({
+    id: undefined,
+    instrument_id: row.instrument_id,
+    symbol: row.symbol,
+    company_name: row.company_name,
+    sector: row.profile_sector,
+    industry: row.profile_industry,
+    country: row.profile_country,
+    exchange: row.profile_exchange,
+    currency: row.profile_currency,
+    market_cap: row.market_cap,
+    beta: row.beta,
+    description: null,
+    website: null,
+    ceo: null,
+    ipo_date: row.ipo_date,
+    employees: row.employees,
+    last_refreshed_at: row.last_refreshed_at,
+    provider: row.profile_provider ?? "unknown",
+    provider_metadata: {}
+  });
 }
 
 function mapFinancialStatement(row: any): FinancialStatement {
@@ -174,6 +246,26 @@ function mapFundamentalScore(row: any): FundamentalScore {
   };
 }
 
+function mapOverviewScore(row: any): FundamentalScore | null {
+  if (row.overall_fundamental_score == null && row.score_as_of_date == null) return null;
+  return mapFundamentalScore({
+    id: undefined,
+    instrument_id: row.instrument_id,
+    symbol: row.symbol,
+    as_of_date: row.score_as_of_date,
+    growth_score: row.growth_score,
+    profitability_score: row.profitability_score,
+    valuation_score: row.valuation_score,
+    balance_sheet_score: row.balance_sheet_score,
+    cash_flow_score: row.cash_flow_score,
+    quality_score: row.quality_score,
+    overall_fundamental_score: row.overall_fundamental_score,
+    score_confidence: row.score_confidence ?? 0,
+    explanation: "",
+    inputs_snapshot: {}
+  });
+}
+
 function mapFundamentalTrend(row: any): FundamentalTrend {
   return {
     id: row.id,
@@ -230,6 +322,32 @@ function mapFundamentalTrendSummary(row: any): FundamentalTrendSummary {
     explanation: row.explanation ?? "",
     inputsSnapshot: row.inputs_snapshot ?? {}
   };
+}
+
+function mapOverviewTrendSummary(row: any): FundamentalTrendSummary | null {
+  if (row.overall_trend_score == null && row.trend_as_of_date == null) return null;
+  return mapFundamentalTrendSummary({
+    id: undefined,
+    instrument_id: row.instrument_id,
+    symbol: row.symbol,
+    as_of_date: row.trend_as_of_date,
+    overall_trend_score: row.overall_trend_score,
+    overall_confidence_score: row.overall_confidence_score,
+    overall_trend_direction: row.overall_trend_direction,
+    improving_metrics_count: row.improving_metrics_count,
+    deteriorating_metrics_count: row.deteriorating_metrics_count,
+    stable_metrics_count: row.stable_metrics_count,
+    volatile_metrics_count: row.volatile_metrics_count,
+    insufficient_data_metrics_count: row.insufficient_data_metrics_count,
+    growth_trend_score: row.growth_trend_score,
+    margin_trend_score: row.margin_trend_score,
+    profitability_trend_score: row.profitability_trend_score,
+    balance_sheet_trend_score: row.balance_sheet_trend_score,
+    quality_trend_score: row.quality_trend_score,
+    warnings: row.trend_warnings,
+    explanation: "",
+    inputs_snapshot: {}
+  });
 }
 
 function mapRefreshLog(row: any): FundamentalsRefreshLog {
@@ -345,6 +463,30 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
   }
 
   async listOverviewRows() {
+    const { data, error } = await this.db
+      .from("fundamentals_overview_metrics")
+      .select("*")
+      .order("symbol")
+      .limit(500);
+    if (isMissingFundamentalsOverview(error)) return this.listOverviewRowsFromSourceTables();
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row): FundamentalsSummaryRow => {
+      const instrument = mapOverviewInstrument(row);
+      const profile = mapOverviewProfile(row);
+      const latestScore = mapOverviewScore(row);
+      return {
+        instrument,
+        profile,
+        latestRatio: null,
+        latestScore,
+        latestTrendSummary: mapOverviewTrendSummary(row),
+        statementCount: 0,
+        missingDataWarnings: overviewWarnings(profile, latestScore)
+      };
+    });
+  }
+
+  private async listOverviewRowsFromSourceTables() {
     const { data, error } = await this.db
       .from("instruments")
       .select("*")

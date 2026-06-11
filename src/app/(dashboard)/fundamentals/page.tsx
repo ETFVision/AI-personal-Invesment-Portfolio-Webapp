@@ -86,7 +86,7 @@ export default async function FundamentalsPage({ searchParams }: { searchParams:
                   {rows.map((row) => (
                     <tr key={row.instrument.id} className="border-b align-top last:border-0">
                       <td className="py-3 pr-3 font-medium">
-                        <Link href={`/instruments/${row.instrument.symbol}#fundamentals`} className="hover:underline">
+                        <Link prefetch={false} href={`/instruments/${row.instrument.symbol}#fundamentals`} className="hover:underline">
                           {row.instrument.symbol}
                         </Link>
                       </td>

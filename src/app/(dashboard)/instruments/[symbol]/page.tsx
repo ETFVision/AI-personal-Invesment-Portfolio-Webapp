@@ -16,7 +16,7 @@ import {
 } from "@/components/instruments/instrument-cards";
 import { instrumentTypeLabel, resolveInstrumentType, type CanonicalInstrumentType } from "@/application/services/instruments/InstrumentTypeResolver";
 import type { FundamentalsDetail } from "@/domain/fundamentals/types";
-import type { InstrumentRecommendation, RecommendationHistoryItem } from "@/domain/recommendations/types";
+import type { InstrumentRecommendation } from "@/domain/recommendations/types";
 import type { BondProfile, Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
@@ -312,8 +312,7 @@ function tabsForType(
   bondProfile: BondProfile | null,
   fundamentalsDetail: FundamentalsDetail | null,
   riskMetric: InstrumentRiskMetric | null,
-  recommendation: InstrumentRecommendation | null,
-  recommendationHistory: RecommendationHistoryItem[]
+  recommendation: InstrumentRecommendation | null
 ) {
   const common = {
     overview: <InstrumentSummaryCard marketView={marketView} />,
@@ -321,7 +320,7 @@ function tabsForType(
     themes: <ThemesPanel instrument={instrument} />,
     risk: <RiskSummaryCard instrument={instrument} riskMetric={riskMetric} />,
     marketVision: <MarketVisionContextCard />,
-    recommendations: <RecommendationSummaryCard recommendation={recommendation} history={recommendationHistory} />
+    recommendations: <RecommendationSummaryCard recommendation={recommendation} />
   };
 
   if (type === "stock") {
@@ -413,19 +412,18 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
 
   const type = resolveInstrumentType(instrument);
   const typeLabel = instrumentTypeLabel(type);
-  const [marketViews, bondProfile, fundamentalsDetail, riskMetric, recommendation, recommendationHistory] = await measureRenderStep(
+  const [marketViews, bondProfile, fundamentalsDetail, riskMetric, recommendation] = await measureRenderStep(
     `instrument-detail:${decodedSymbol}:detail-data`,
     () => Promise.all([
       container.instrumentMarketService.buildInstrumentMarketViews([instrument], { lookbackYears: 1 }),
       container.instrumentService.getBondProfile(instrument.id),
       type === "stock" && instrument.symbol ? container.fundamentalsRepository.getDetailBySymbol(instrument.symbol) : Promise.resolve(null),
       container.instrumentRiskService.getInstrumentRiskMetric(instrument),
-      container.recommendationService.getLatestForInstrument(instrument.id),
-      container.recommendationService.getHistoryForInstrument(instrument.id)
+      container.recommendationService.getLatestForInstrument(instrument.id)
     ])
   );
   const marketView = marketViews[0];
-  const tabs = tabsForType(type, instrument, marketView, bondProfile, fundamentalsDetail, riskMetric, recommendation, recommendationHistory);
+  const tabs = tabsForType(type, instrument, marketView, bondProfile, fundamentalsDetail, riskMetric, recommendation);
 
   return (
     <div className="space-y-6">
