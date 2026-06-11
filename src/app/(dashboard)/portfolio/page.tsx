@@ -75,7 +75,7 @@ async function PortfolioAnalyticsSections({
   latestPortfolioReview: PortfolioReviewSummary | null;
 }) {
   const container = createContainer();
-  const dashboard = await measureRenderStep(`portfolio:${portfolioId}:analytics-panels-data`, () =>
+  const dashboard = await measureRenderStep(`portfolio:${portfolioId}:deferred-analytics-panels-data`, () =>
     container.portfolioService.getDashboard(portfolioId)
   );
   const lookthroughReport = lookthroughReportFromSnapshot(latestPortfolioReview?.inputsSnapshot?.lookthroughExposure);
@@ -187,7 +187,7 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
     );
   }
 
-  const [dashboard, latestPortfolioReview] = await measureRenderStep(`portfolio:${portfolio.id}:dashboard-summary-data`, () =>
+  const [dashboard, latestPortfolioReview] = await measureRenderStep(`portfolio:${portfolio.id}:summary-top-cards-data`, () =>
     Promise.all([
       container.portfolioService.getDashboardSummary(portfolio.id),
       container.portfolioReviewRepository.getLatestReportSummary(portfolio.id)

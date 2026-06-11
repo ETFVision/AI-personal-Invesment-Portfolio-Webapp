@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { createContainer } from "@/server/container";
 import {
@@ -247,6 +248,28 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
   );
 }
 
+function FundamentalsPanelFallback() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Fundamentals</CardTitle>
+        <CardDescription>Loading stored fundamentals and trend detail...</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="h-24 rounded-xl border border-dashed bg-slate-50" />
+      </CardContent>
+    </Card>
+  );
+}
+
+async function AsyncFundamentalsPanel({ symbol }: { symbol: string }) {
+  const container = createContainer();
+  const detail = await measureRenderStep(`instrument-detail:${symbol}:fundamentals-detail-data`, () =>
+    container.fundamentalsRepository.getDetailBySymbol(symbol)
+  );
+  return <FundamentalsPanel detail={detail} />;
+}
+
 function BondProfilePanel({ profile }: { profile: BondProfile | null }) {
   if (!profile) {
     return <PlaceholderPanel title="Bond Profile" description="No bond profile is linked to this instrument yet." />;
@@ -310,7 +333,6 @@ function tabsForType(
   instrument: Instrument,
   marketView: InstrumentMarketView,
   bondProfile: BondProfile | null,
-  fundamentalsDetail: FundamentalsDetail | null,
   riskMetric: InstrumentRiskMetric | null,
   recommendation: InstrumentRecommendation | null
 ) {
@@ -332,7 +354,16 @@ function tabsForType(
       { label: "Themes", content: common.themes },
       { label: "Risk", content: common.risk },
       { label: "Market Vision Context", content: common.marketVision },
-      { label: "Fundamentals", content: <FundamentalsPanel detail={fundamentalsDetail} /> },
+      {
+        label: "Fundamentals",
+        content: instrument.symbol ? (
+          <Suspense fallback={<FundamentalsPanelFallback />}>
+            <AsyncFundamentalsPanel symbol={instrument.symbol} />
+          </Suspense>
+        ) : (
+          <FundamentalsPanel detail={null} />
+        )
+      },
       { label: "Telemetry", content: <PlaceholderPanel title="Telemetry" description="Reserved for future telemetry learning." /> }
     ];
   }
@@ -412,18 +443,17 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
 
   const type = resolveInstrumentType(instrument);
   const typeLabel = instrumentTypeLabel(type);
-  const [marketViews, bondProfile, fundamentalsDetail, riskMetric, recommendation] = await measureRenderStep(
+  const [marketViews, bondProfile, riskMetric, recommendation] = await measureRenderStep(
     `instrument-detail:${decodedSymbol}:detail-data`,
     () => Promise.all([
       container.instrumentMarketService.buildInstrumentMarketViews([instrument], { lookbackYears: 1 }),
       container.instrumentService.getBondProfile(instrument.id),
-      type === "stock" && instrument.symbol ? container.fundamentalsRepository.getDetailBySymbol(instrument.symbol) : Promise.resolve(null),
       container.instrumentRiskService.getInstrumentRiskMetric(instrument),
       container.recommendationService.getLatestForInstrument(instrument.id)
     ])
   );
   const marketView = marketViews[0];
-  const tabs = tabsForType(type, instrument, marketView, bondProfile, fundamentalsDetail, riskMetric, recommendation);
+  const tabs = tabsForType(type, instrument, marketView, bondProfile, riskMetric, recommendation);
 
   return (
     <div className="space-y-6">
