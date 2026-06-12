@@ -2,6 +2,29 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 01:45 SGT - Security Master Phase 2B Internal ETF Underlyings
+
+Scope:
+- Added an additive migration to backfill internal-only securities from unmapped `etf_top_holdings` rows.
+- Kept these underlying securities out of the user-selectable `instruments` universe.
+- Reran the ETF holding security mapper after creating internal securities.
+
+Files updated:
+- `supabase/migrations/095_backfill_internal_etf_underlying_securities.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Design notes:
+- Existing active instrument-linked securities are marked `is_user_selectable = true`, `is_internal_only = false`.
+- ETF-only underlying securities are marked `is_user_selectable = false`, `is_internal_only = true`.
+- This safely supports GOOG, NOVO.B, Samsung, Nestle, Roche, Tencent, Reliance, and similar look-through holdings without adding them to Universe/Watchlist.
+- No portfolio, concentration, recommendation, or assistant calculation has been switched to canonical security IDs yet.
+
+Post-migration QA:
+- ETF top-holding `mapping_status = 'unmapped'` should materially decline.
+- Portfolio look-through holding `mapping_status = 'unmapped'` should decline, likely to zero for the current portfolio unless provider symbols remain unresolvable.
+- Confirm internal-only securities are not inserted into `instruments`.
+
 ## 2026-06-13 01:25 SGT - Security Master Phase 2 ETF Holding Mapping
 
 Scope:
