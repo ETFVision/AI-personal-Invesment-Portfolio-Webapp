@@ -171,14 +171,17 @@ Output:
 - Alias mapping report.
 - Unmapped holding report.
 
-Current status: Phase 1 foundation implemented in repo; Supabase migration application and post-migration QA pending.
+Current status: completed through Security Master Phase 4C/4D for the current commercialization checkpoint. Phase 5 recommendation/telemetry/history hardening is next.
 
 Notes:
-- `docs/SECURITY_MASTER_AUDIT.md` now documents the current state, target concepts, proposed schema, identifier strategy, calculation impact risks, and implementation phases.
-- Migration 091 adds `securities_master`, `security_identifiers`, `security_aliases` and nullable identifier/linkage columns on `instruments`.
-- A deterministic resolver service now exists for FIGI, ISIN, CUSIP, exchange-symbol, provider-symbol, alias, and low-confidence name fallback matching.
-- Current app calculations still rely on `instruments.id` and symbols. ETF top holdings and portfolio look-through holdings are still keyed by raw `holding_symbol`, not canonical `security_id`.
-- Next implementation step is Phase 2 ETF holding mapping and Phase 3 dual-run QA before any portfolio calculations switch to canonical `security_id`.
+- `docs/SECURITY_MASTER_AUDIT.md` documents the current state, implementation phases, QA queries, issuer logic, and next hardening steps.
+- Migrations 091 through 100 add canonical securities, identifiers, aliases, internal ETF underlyings, dual-run QA, issuer master, issuer aliases, clean issuer display names, and issuer-level look-through rollups.
+- Active user-selectable instruments now link to canonical securities; ETF top holdings can map to canonical/internal securities.
+- Security-master dual-run QA has returned `pass` for the current portfolio look-through snapshot.
+- Portfolio Review concentration, top underlying company exposure, top indirect company exposure, Portfolio Assistant hidden-overlap context, and recommendation portfolio-fit logic can use issuer-level look-through exposure.
+- Direct ETF/fund wrappers remain direct product positions and are not mixed into underlying company exposure.
+- Direct stock holdings that also appear inside ETFs now display as direct `Stock` positions, while ETF-only rows remain indirect underlying exposure.
+- Next implementation step is Phase 5: add optional `security_id` / `issuer_id` to recommendation snapshots/history, telemetry snapshots, and portfolio review history where relevant.
 
 ## 5. ETF Holdings Data Audit
 
@@ -969,10 +972,10 @@ Recommended:
 | 1 | Instrument Taxonomy Audit | Completed | Taxonomy is implemented, documented and live-count verified. Repeat the live count check after future ETF additions. |
 | 2 | Data Provider Audit | Partly completed | Provider coverage has been tested ad hoc. A formal full-universe provider matrix is still needed. |
 | 3 | Data Normalization Audit | Completed | Raw provider metadata is preserved, normalized fields are populated and look-through exposure is separated from ETF product taxonomy. Review queue alias cleanup is implemented; stored statuses need recalculation after deployment. |
-| 4 | Security Master Audit | Phase 1 implemented | Additive schema, instrument linkage columns, identifier backfill, resolver service, and resolver tests are in repo. Supabase migration 091 and post-migration QA are pending; calculations remain symbol/instrument based. |
-| 5 | ETF Holdings Data Audit | Partly completed | Sector/country look-through works. Top holdings are provider-plan limited. |
+| 4 | Security Master Audit | Completed through Phase 4C/4D | Canonical securities, identifiers, aliases, internal ETF underlyings, issuer master, dual-run QA and issuer-level look-through rollups are implemented. Current QA passed for Alphabet share-class grouping, direct/indirect exposure display, and direct stock label precedence. Phase 5 history/telemetry hardening remains. |
+| 5 | ETF Holdings Data Audit | Mostly completed for current portfolio | Sector/country look-through works. ETF top holdings are mapped through security master/internal underlyings for current coverage. Full provider-plan expansion and mapping monitoring remain. |
 | 6 | Calculation And Logic Audit | Mostly completed | Methodology and core optimizations exist. Golden regression/manual validation pack remains. |
-| 7 | Portfolio Review Audit | Mostly completed | Engine works and is documented. Regression fixtures and unsafe wording review remain. |
+| 7 | Portfolio Review Audit | Mostly completed | Engine works and is documented. Issuer-level look-through and direct/indirect exposure QA passed. Broader regression fixtures and unsafe wording review remain. |
 | 8 | AI Output Audit | Partly completed | Prompts hardened. Formal regression suite still needed. |
 | 9 | Market Vision Audit | Partly completed | Engine exists. Draft/publish lifecycle and evidence traceability need final audit. |
 | 10 | Recommendation / Insights Audit | Partly completed | Language refined. Needs post-refresh calibration QA. |

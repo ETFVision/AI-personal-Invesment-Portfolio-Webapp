@@ -2,6 +2,32 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-12 22:36 SGT - Security Master Phase 4C/4D Final Display QA And Documentation Refresh
+
+Scope:
+- Verified the post-refresh Portfolio Review output after issuer-level look-through rollups.
+- Confirmed `Alphabet Inc (GOOG + GOOGL)` appears as one issuer-level exposure while preserving security/source ETF drill-down.
+- Fixed direct-position display precedence where ETF indirect exposure could create an issuer row first as `Underlying Security` before the direct stock holding was added.
+- Direct holdings now win `inputsSnapshot.instrumentAssetClass` and security-breakdown display symbols when the same issuer/security also appears through ETF look-through.
+- Updated Security Master and Commercialization Audit documents to reflect Phase 4C/4D completion before moving to Phase 5.
+
+Files updated:
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/qa-log.md`
+
+Validation:
+- Manual QA confirmed MSFT and NVDA direct positions now show as `Stock`.
+- Manual QA confirmed indirect exposure remains indirect-only, with total-with-direct shown separately.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed with 234 tests.
+
+Residual risks:
+- Recommendation history and telemetry snapshots still need Phase 5 stable `security_id` / `issuer_id` hardening.
+- Future provider/issuer variants should continue to be reviewed through issuer alias and duplicate-candidate workflows.
+
 ## 2026-06-12 22:05 SGT - Security Master Phase 4C/4D Issuer Rollups And Drill-Down
 
 Scope:

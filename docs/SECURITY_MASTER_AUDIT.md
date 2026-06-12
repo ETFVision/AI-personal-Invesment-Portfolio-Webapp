@@ -1,8 +1,8 @@
 # ETFVision Security Master Audit
 
-Last updated: 2026-06-13 00:22:00 +08:00
+Last updated: 2026-06-12 22:36:00 +08:00
 
-Status: Phase A audit and architecture design completed. Phase 1 additive foundation has been implemented in the repo and is pending Supabase migration application. Migration 092 repairs partially applied migration 091 states where canonical securities were inserted before instruments and identifiers were linked. No portfolio, look-through, recommendation, telemetry, or Market Vision calculations have been switched to security-master logic yet.
+Status: Phases A, 1, 2, 3, 4A, 4B, 4C, and 4D are implemented through the current commercialization checkpoint. Security Master now has canonical securities, identifiers, aliases, internal ETF underlyings, issuer master links, issuer alias normalization, dual-run QA, and issuer-level look-through rollups with security-level drill-down. Portfolio Review concentration, hidden overlap, Portfolio Assistant context, and recommendation portfolio-fit can use issuer-level look-through exposure after Portfolio Review is refreshed. Phase 5 remains next: add stable `security_id` / `issuer_id` references to recommendation, telemetry, and historical snapshot layers.
 
 ## Revised Phase A Prompt
 
@@ -38,18 +38,17 @@ Phase A output:
 
 ## Executive Summary
 
-ETFVision currently has a strong `instruments` universe and normalized product taxonomy, but it does not yet have a repo-owned canonical security master. Most instrument-facing app logic uses `instruments.id` and `symbol`. ETF look-through currently stores and aggregates top holdings by raw `holding_symbol`, not by a canonical `security_id`.
+ETFVision now has a repo-owned additive security master layered above the existing `instruments` universe. The app still keeps `instruments` as the user-selectable product universe, but canonical securities, identifiers, aliases, issuer links, and internal ETF underlyings now support look-through identity, overlap, and concentration review.
 
-This is acceptable for the current alpha universe, but it is the main gap before deeper ETF overlap, direct-plus-indirect concentration, corporate action handling, and multi-provider reconciliation become commercial-grade.
+The current checkpoint has moved the highest-risk ETF look-through identity path away from raw symbols for portfolio concentration and duplicate-exposure logic. The remaining commercial-grade gaps are historical snapshot hardening, corporate-action lifecycle support, multi-provider reconciliation, and admin monitoring/export of mapping exceptions.
 
-The recommended direction is additive:
+The implementation direction remains additive:
 
-1. Create canonical `securities_master`, `security_identifiers`, and `security_aliases` migrations in the repo.
-2. Add nullable `security_id`, `isin`, `cusip`, `figi`, and `provider_symbol` columns to `instruments`.
-3. Backfill approved ETF/stocks from FMP profile metadata.
-4. Add a deterministic security resolver.
-5. Map ETF top holdings to canonical securities.
-6. Only then switch overlap/concentration calculations from raw symbol to `security_id`.
+1. Preserve existing instrument/product logic.
+2. Map tradable/user-selectable instruments and internal ETF underlyings to canonical securities.
+3. Link securities to issuers for company-level exposure.
+4. Use canonical identities for look-through concentration while preserving raw provider symbols for audit.
+5. Extend stable IDs into recommendation, telemetry, and history layers before adding corporate-action lifecycle support.
 
 ## Phase 1 Implementation Status
 
@@ -67,10 +66,13 @@ Implemented on 2026-06-13:
 | Resolver service | Implemented | `src/application/services/securityMaster/SecurityMasterService.ts` resolves by FIGI, ISIN, CUSIP, SEDOL, exchange + symbol, provider symbol, alias, then low-confidence name fallback. |
 | Resolver tests | Implemented | Covers ISIN priority, exchange-symbol matching, BRK.B provider variants, FB to META alias, GOOG/GOOGL non-merge, unmapped symbols, and ambiguous names. |
 | Calculation dual-run QA | Implemented in repo | `supabase/migrations/096_security_master_dual_run_qa.sql` adds a persistent QA report table and runner for raw-symbol versus canonical security-ID portfolio look-through grouping. |
-| Calculation switch | Started | Portfolio look-through top-holding aggregation now prefers canonical security IDs when available, with raw-symbol fallback preserved. Broader engines still need follow-up QA before switching additional calculations. |
+| Calculation switch | Implemented through Phase 4C/4D | Portfolio look-through aggregation prefers issuer IDs, then security IDs, then raw-symbol fallback. Portfolio Review concentration, assistant context, and recommendation portfolio-fit now use issuer-level exposure where available. |
 | Issuer master | Implemented in repo | `supabase/migrations/097_issuer_master_foundation.sql` adds issuer entities and links securities to issuers for share-class/company-level exposure rollups. |
+| Issuer alias/display hardening | Implemented in repo | Migrations `098` and `099` add approved issuer aliases, duplicate-candidate review queue, alias-aware sync, and clean issuer display names. |
+| Issuer-level rollups and drill-down | Implemented in repo | Migration `100` and app services add issuer IDs/names to look-through holdings/exposures, preserve `securityBreakdown`, and keep fund wrappers as direct security-level positions. |
+| Direct holding display QA | Completed | Direct portfolio holdings now use the portfolio holding asset type when an internal ETF-underlying row is encountered first, so direct MSFT/NVDA display as `Stock` while indirect rows remain `Underlying Security`. |
 
-Post-deployment checks after running migrations 091, 092, 093, 094, 095, and 096:
+Post-deployment checks after running migrations 091 through 100:
 
 ```sql
 select count(*) as active_instruments_without_security_id
@@ -109,7 +111,7 @@ order by is_internal_only, is_user_selectable;
 
 ## Live Evidence Snapshot
 
-Live Supabase/FMP checks performed on 2026-06-12:
+Live Supabase/FMP/security-master checks performed during the 2026-06-12 checkpoint:
 
 | Check | Result |
 |---|---:|
@@ -127,13 +129,20 @@ Live Supabase/FMP checks performed on 2026-06-12:
 | ETF country exposure rows | 396 |
 | ETF top holding rows | 240 |
 | Portfolio look-through holding rows | 52 |
+| Active securities after issuer sync | 357 |
+| Active securities with issuer links | 357 |
+| Active securities without issuer links | 0 |
+| Security-master dual-run QA status | `pass` |
+| Dual-run latest source/security group delta | 0 |
+| ETF holdings mapped after internal underlying backfill | 240 / 240 |
+| Portfolio look-through holdings mapped after internal underlying backfill | 52 / 52 |
 
 Important interpretation:
 
-- FMP appears able to supply ISIN/CUSIP for the active universe.
-- ISIN/CUSIP are currently preserved inside nested raw provider metadata when FMP metadata has been refreshed.
-- ISIN/CUSIP are not currently promoted into first-class normalized columns.
-- The repo does not currently define `securities_master`, `security_identifiers`, `security_aliases`, or `etf_holdings` migrations. Live API checks returned schema-cache misses for these table names, so they should be treated as not implemented in the repo/runtime contract.
+- FMP appears able to supply ISIN/CUSIP for the active user-selectable universe except crypto ETF proxies where FMP identifiers are not expected.
+- ISIN/CUSIP are now promoted into normalized instrument columns and synced into `security_identifiers`.
+- ETF top holdings can be represented as internal non-user-selectable securities when they are not part of the visible universe.
+- Phase 4C/4D look-through output should be refreshed after deployment so saved Portfolio Review reports carry issuer IDs and security drill-down snapshots.
 
 ## Core Concepts
 
@@ -776,7 +785,16 @@ Expected healthy result:
 - Issuer-level rows show clean issuer names such as `Alphabet Inc`.
 - `rawSymbols` and `securityBreakdown` preserve share-class/security details such as `GOOG` and `GOOGL`.
 - Direct ETF wrappers remain visible under direct positions and are not mixed into top underlying company exposure.
+- Direct stock holdings that also appear as ETF underlyings display as direct `Stock` positions, not `Underlying Security`.
 - Portfolio-fit duplicate exposure can flag existing issuer exposure even when direct ticker exposure is zero.
+
+Manual QA completed:
+
+- Portfolio Review refreshed successfully after the Phase 4C/4D patches.
+- `Alphabet Inc (GOOG + GOOGL)` appears as a single issuer-level exposure while preserving share-class/source-ETF detail.
+- Top indirect exposure bars remain indirect-only, with total-with-direct displayed separately.
+- MSFT and NVDA direct positions display as `Stock` after accumulator display-class precedence was corrected.
+- Regression tests cover ETF-first/direct-stock-later ordering so direct holdings win display class and direct symbols win security breakdown display.
 
 Next step after Phase 4C/4D QA:
 
@@ -784,6 +802,8 @@ Next step after Phase 4C/4D QA:
 - Preserve historical symbol-at-time-of-snapshot while using stable IDs to avoid future ticker/share-class fragmentation.
 - Add lifecycle tables for ticker changes, mergers, spin-offs, share-class changes, ETF name changes, ETF closures, and predecessor/successor securities.
 
-## Phase A Conclusion
+## Current Checkpoint Conclusion
 
-The current app is safe enough for current instrument-level analytics and alpha-style ETFVision use, but it is not yet a true security-master architecture. The biggest commercial-grade gap is symbol-based ETF holdings and look-through aggregation. The next implementation task should be Phase 1: add the additive security-master schema and backfill active instruments from FMP ISIN/CUSIP metadata, without switching calculations yet.
+The current app now has the core additive security-master foundation and the first production calculation switch for portfolio look-through concentration. The highest-risk raw-symbol ETF holding fragmentation issue has been materially reduced for Portfolio Review, assistant context, and recommendation portfolio-fit.
+
+The next implementation task is Phase 5: persist optional `security_id` and `issuer_id` references into recommendation snapshots/history, telemetry recommendation snapshots, and portfolio review snapshots where relevant. Historical symbols should remain stored for audit, while stable IDs prevent future ticker/share-class fragmentation.
