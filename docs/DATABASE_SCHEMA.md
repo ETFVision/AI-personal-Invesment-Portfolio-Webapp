@@ -1,6 +1,6 @@
 # ETFVision Database Schema
 
-Last updated: 2026-06-11 20:34:49 +08:00
+Last updated: 2026-06-12 22:36:00 +08:00
 
 Authoritative status: current schema handover summary based on `supabase/migrations`. For exact columns and constraints, inspect the migration files directly.
 
@@ -27,6 +27,49 @@ Authoritative status: current schema handover summary based on `supabase/migrati
 | `metadata_refresh_logs` | Older metadata refresh logging. Current job summaries also appear in `job_runs`. |
 
 Product taxonomy is stored on `instruments` via `asset_category` and `etf_category`. Portfolio sector allocation must not use `etf_category` except as a last-resort fallback.
+
+### Security Master Tables
+
+Primary migrations:
+
+- `supabase/migrations/091_security_master_foundation.sql`
+- `supabase/migrations/092_repair_security_master_links.sql`
+- `supabase/migrations/093_sync_security_master_identifiers.sql`
+- `supabase/migrations/094_security_master_etf_holding_mapping.sql`
+- `supabase/migrations/095_backfill_internal_etf_underlying_securities.sql`
+- `supabase/migrations/096_security_master_dual_run_qa.sql`
+- `supabase/migrations/097_issuer_master_foundation.sql`
+- `supabase/migrations/098_issuer_alias_normalization.sql`
+- `supabase/migrations/099_clean_issuer_display_names.sql`
+- `supabase/migrations/100_issuer_level_lookthrough_rollups.sql`
+
+| Table | Purpose |
+|---|---|
+| `securities_master` | Canonical security records for user-selectable instruments and internal ETF underlying securities. |
+| `security_identifiers` | ISIN, CUSIP, FIGI, provider-symbol, exchange-symbol, and alias identifiers linked to canonical securities. |
+| `security_aliases` | Explicit symbol/name/provider aliases used by the deterministic resolver. |
+| `security_master_dual_run_reports` | Raw-symbol versus canonical security-ID QA report for portfolio look-through grouping. |
+| `issuers` | Canonical company/fund issuer records used for issuer-level rollups. |
+| `security_issuer_links` | Links securities to issuers with share-class/link-source metadata. |
+| `issuer_aliases` | Approved issuer-name variants, such as `Alphabet` -> `Alphabet Inc`. |
+| `issuer_duplicate_candidates` | Review queue for possible issuer duplicates; not an automatic merge table. |
+
+Important instrument columns added by Security Master:
+
+| Column | Purpose |
+|---|---|
+| `security_id` | Optional FK-style link from user-selectable instrument to canonical security. |
+| `isin`, `cusip`, `figi`, `provider_symbol` | Normalized identifier fields promoted from provider metadata where available. |
+| `identifier_quality_score`, `identifier_last_refreshed_at`, `coverage_status` | Identifier freshness/quality diagnostics. |
+| `is_user_selectable`, `is_internal_only`, `is_alpha_enabled` | Distinguish visible product universe from internal ETF-underlying securities. |
+
+Security Master semantics:
+
+- Do not make ticker globally unique across all securities.
+- `instruments` remains the source of truth for selectable products and app routes.
+- `securities_master` is the identity layer for mapping and overlap.
+- `issuers` is the company/fund issuer rollup layer above securities.
+- `issuer_duplicate_candidates` should be reviewed manually and converted into `issuer_aliases` only when confirmed.
 
 ### Fixed Income Profile Tables
 
@@ -128,6 +171,12 @@ Exposure weights should be interpreted as provider weights and normalized by the
 | `portfolio_lookthrough_holdings` | `portfolio_id`, `as_of_date`, `holding_symbol`, `holding_name`, `direct_weight`, `indirect_weight`, `total_weight`, `source_etfs`, `inputs_snapshot` | Direct plus indirect stock-level exposure from ETF holdings. | `portfolio_id`, `holding_symbol`, `as_of_date` |
 | `etf_exposure_refresh_logs` | `job_name`, `started_at`, `completed_at`, `status`, `etfs_requested`, `etfs_refreshed`, `sector_rows`, `country_rows`, `top_holding_rows`, `error_message`, `metadata` | ETF exposure refresh diagnostics. | Log table; no business unique key. |
 
+Security Master additions:
+
+- `etf_top_holdings` carries `holding_security_id`, mapping status/confidence/source, and mapping timestamp.
+- `portfolio_lookthrough_holdings` carries `holding_security_id`, `holding_issuer_id`, `holding_issuer_name`, mapping status/confidence, and `inputs_snapshot.securityBreakdown`.
+- `portfolio_lookthrough_exposures` carries `exposure_security_id`, `exposure_issuer_id`, and `exposure_issuer_name` for top-holding rows.
+
 ### Look-Through Allocation Rules
 
 The application must distinguish ETF taxonomy from portfolio exposure:
@@ -148,6 +197,8 @@ Example: `VOO` can be categorized as `US_BROAD_MARKET` for ETF taxonomy, but its
 - `direct_weight` is exposure from directly held instruments.
 - `etf_lookthrough_weight` or `indirect_weight` is exposure inherited through ETF holdings.
 - `total_weight` in `portfolio_lookthrough_holdings` combines direct and indirect stock-level exposure.
+- Issuer-level grouped rows preserve security-level drill-down in `inputs_snapshot.securityBreakdown`.
+- Direct portfolio holdings should retain their direct asset class for display even if the same issuer/security was first encountered through ETF look-through.
 
 ## News and Themes
 
@@ -184,6 +235,8 @@ Source quality fields are added to `news_items` by `028_news_source_quality.sql`
 | `portfolio_review_runs`, `portfolio_review_reports` | Portfolio Review run metadata and report JSON. |
 | `telemetry_recommendation_*`, `telemetry_market_vision_*`, `telemetry_portfolio_review_*` | Snapshots and mature outcome evaluations. |
 | assistant tables | Conversations, messages, usage/cost tracking. Exact names should be verified in assistant migrations/repositories. |
+
+Security Master Phase 5 gap: recommendation history, telemetry snapshots, and some historical report snapshots do not yet persist first-class `security_id` / `issuer_id` fields everywhere. Phase 5 should add these fields where relevant while preserving historical symbol/name snapshots for audit.
 
 ## Operations
 
