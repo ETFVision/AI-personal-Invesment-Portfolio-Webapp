@@ -22,6 +22,7 @@ export type WatchlistTier = "core_quality" | "tactical_thematic" | "opportunisti
 
 export type Instrument = {
   id: string;
+  securityId?: string | null;
   symbol: string | null;
   name: string;
   assetClass: InstrumentAssetClass;
@@ -53,9 +54,16 @@ export type Instrument = {
   liquidityRole: string | null;
   cryptoClassification: string | null;
   metadataLastRefreshedAt: string | null;
+  identifierLastRefreshedAt?: string | null;
+  isin?: string | null;
+  cusip?: string | null;
+  figi?: string | null;
+  providerSymbol?: string | null;
   providerPrimary: string | null;
   providerMetadata: Record<string, unknown>;
   sourceType: string;
+  isUserSelectable?: boolean;
+  isInternalOnly?: boolean;
   isActive: boolean;
 };
 

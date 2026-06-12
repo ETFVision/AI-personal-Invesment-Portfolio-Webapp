@@ -1,6 +1,8 @@
 # Instrument Taxonomy and Coverage
 
-Last updated: 2026-06-11 20:11:07 +08:00
+Last updated: 2026-06-12 22:55:00 +08:00
+
+Audit status: completed for the current commercialization checkpoint. See `docs/INSTRUMENT_TAXONOMY_AUDIT.md`.
 
 ## Taxonomy Layers
 
@@ -32,9 +34,21 @@ The most recent taxonomy work targets:
 
 - 201 ETFs.
 - 105 stocks.
-- Raw crypto references can remain inactive for now.
+- Raw crypto references remain inactive for now.
 
 Documentation note: verify live production counts using Supabase because inactive/deprecated instruments can remain in the table for history, while active universe counts are what product pages should show.
+
+Latest live Supabase verification on 2026-06-12:
+
+- 324 total instrument rows.
+- 306 active instruments.
+- 18 inactive instruments.
+- 201 active ETF-style products: 196 `etf` plus 5 `crypto_etf`.
+- 105 active stocks.
+- 0 active duplicate symbols.
+- 0 active ETFs missing `etf_category`.
+- 0 active stocks missing `canonical_sector`.
+- 0 active instruments missing `asset_category`.
 
 ## Instrument Coverage Layers
 

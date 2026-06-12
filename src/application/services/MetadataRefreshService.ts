@@ -38,6 +38,17 @@ function needsMetadataRefresh(metadataLastRefreshedAt: string | null, cutoffIso:
   return !metadataLastRefreshedAt || metadataLastRefreshedAt < cutoffIso;
 }
 
+function needsIdentifierRefresh(
+  instrument: { instrumentType: string; isin?: string | null; cusip?: string | null; identifierLastRefreshedAt?: string | null },
+  cutoffIso: string,
+  forceIdentifierRefresh = false
+) {
+  if (instrument.instrumentType === "crypto_etf") return false;
+  const missingCoreIdentifier = !instrument.isin || !instrument.cusip;
+  if (forceIdentifierRefresh) return missingCoreIdentifier;
+  return missingCoreIdentifier && needsMetadataRefresh(instrument.identifierLastRefreshedAt ?? null, cutoffIso);
+}
+
 function classifyFundMetadata(item: { symbol: string; sector: string | null; industry: string | null }, assetClass: string) {
   if (assetClass === "bond_etf") {
     return {
@@ -85,16 +96,16 @@ export class MetadataRefreshService {
     private readonly provider: AssetMetadataProvider
   ) {}
 
-  async refreshUniverseMetadata(input: { requestedByUserId?: string | null; limit?: number } = {}): Promise<RefreshUniverseMetadataResult> {
+  async refreshUniverseMetadata(input: { requestedByUserId?: string | null; limit?: number; forceIdentifierRefresh?: boolean } = {}): Promise<RefreshUniverseMetadataResult> {
     try {
       const instruments = await this.repository.listInstruments({ isActive: true });
       const metadataCutoff = daysAgoIso(30);
       const symbols = uniqueSymbols(
         instruments
-          .filter((instrument) => needsMetadataRefresh(instrument.metadataLastRefreshedAt, metadataCutoff))
+          .filter((instrument) => needsMetadataRefresh(instrument.metadataLastRefreshedAt, metadataCutoff) || needsIdentifierRefresh(instrument, metadataCutoff, input.forceIdentifierRefresh))
           .sort((a, b) => {
-            const aDate = a.metadataLastRefreshedAt ?? "";
-            const bDate = b.metadataLastRefreshedAt ?? "";
+            const aDate = a.metadataLastRefreshedAt ?? a.identifierLastRefreshedAt ?? "";
+            const bDate = b.metadataLastRefreshedAt ?? b.identifierLastRefreshedAt ?? "";
             if (aDate !== bDate) return aDate.localeCompare(bDate);
             return (a.symbol ?? "").localeCompare(b.symbol ?? "");
           })
@@ -147,6 +158,10 @@ export class MetadataRefreshService {
             region: item.region,
             sector: classification.sector,
             industry: classification.industry,
+            isin: item.isin,
+            cusip: item.cusip,
+            figi: item.figi,
+            providerSymbol: providerSymbol || instrument?.providerSymbol,
             rawPayload: item.raw,
             canonicalSector,
             canonicalThemes,
@@ -154,6 +169,7 @@ export class MetadataRefreshService {
           };
         })
       );
+      await this.repository.syncSecurityMasterIdentifiersFromInstruments();
 
       await this.repository.insertMetadataRefreshLog({
         refreshScope: "instrument_universe",
@@ -207,6 +223,7 @@ export class MetadataRefreshService {
     requestedByUserId?: string | null;
     batchSize?: number;
     maxBatches?: number;
+    forceIdentifierRefresh?: boolean;
   } = {}): Promise<RefreshUniverseMetadataResult> {
     const batchSize = Math.max(1, input.batchSize ?? 24);
     const maxBatches = Math.max(1, input.maxBatches ?? 4);
@@ -218,7 +235,8 @@ export class MetadataRefreshService {
     for (let index = 0; index < maxBatches; index += 1) {
       const result = await this.refreshUniverseMetadata({
         requestedByUserId: input.requestedByUserId,
-        limit: batchSize
+        limit: batchSize,
+        forceIdentifierRefresh: input.forceIdentifierRefresh
       });
 
       result.requestedSymbols.forEach((symbol) => requestedSymbols.add(symbol));
@@ -227,6 +245,10 @@ export class MetadataRefreshService {
       updatedCount += result.updatedCount;
 
       if (result.requestedSymbols.length === 0) break;
+    }
+
+    if (updatedCount > 0) {
+      await this.repository.syncSecurityMasterIdentifiersFromInstruments();
     }
 
     return {

@@ -2,6 +2,419 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-12 22:36 SGT - Security Master Phase 4C/4D Final Display QA And Documentation Refresh
+
+Scope:
+- Verified the post-refresh Portfolio Review output after issuer-level look-through rollups.
+- Confirmed `Alphabet Inc (GOOG + GOOGL)` appears as one issuer-level exposure while preserving security/source ETF drill-down.
+- Fixed direct-position display precedence where ETF indirect exposure could create an issuer row first as `Underlying Security` before the direct stock holding was added.
+- Direct holdings now win `inputsSnapshot.instrumentAssetClass` and security-breakdown display symbols when the same issuer/security also appears through ETF look-through.
+- Updated Security Master and Commercialization Audit documents to reflect Phase 4C/4D completion before moving to Phase 5.
+
+Files updated:
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/qa-log.md`
+
+Validation:
+- Manual QA confirmed MSFT and NVDA direct positions now show as `Stock`.
+- Manual QA confirmed indirect exposure remains indirect-only, with total-with-direct shown separately.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed with 234 tests.
+
+Residual risks:
+- Recommendation history and telemetry snapshots still need Phase 5 stable `security_id` / `issuer_id` hardening.
+- Future provider/issuer variants should continue to be reviewed through issuer alias and duplicate-candidate workflows.
+
+## 2026-06-12 22:05 SGT - Security Master Phase 4C/4D Issuer Rollups And Drill-Down
+
+Scope:
+- Added issuer IDs/names to portfolio look-through holdings and top-holding exposures.
+- Changed Portfolio Look-through calculation to group direct stock plus ETF underlying exposure by issuer when issuer links exist.
+- Kept fund wrappers as direct security-level positions, not issuer-level company exposure.
+- Added security-level drill-down in `inputsSnapshot.securityBreakdown`.
+- Updated Portfolio Review concentration logic to use issuer IDs first and legacy name normalization only as fallback.
+- Updated Portfolio Review UI details to show issuer-level rows with security/source ETF audit detail.
+- Updated Portfolio Assistant context with issuer-level hidden overlap and security breakdown.
+- Updated recommendation portfolio-fit logic to use issuer-level look-through exposure for duplicate/concentration detection.
+
+Files updated:
+- `supabase/migrations/100_issuer_level_lookthrough_rollups.sql`
+- `src/domain/etfLookthrough/types.ts`
+- `src/application/ports/repositories/EtfExposureRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts`
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `src/application/services/portfolioReview/ConcentrationReviewService.ts`
+- `src/application/services/portfolio/PortfolioExposureContextService.ts`
+- `src/application/services/recommendations/portfolioFitService.ts`
+- `src/application/services/assistant/AssistantContextBuilder.ts`
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `tests/portfolio-review.test.ts`
+- `tests/recommendations.test.ts`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Validation:
+- Portfolio look-through test now verifies issuer-level rollup while preserving raw symbols/security breakdown.
+- Recommendation test now verifies issuer-level look-through exposure affects portfolio-fit duplicate exposure.
+
+Post-migration QA:
+- Apply migration `100`.
+- Refresh Portfolio Review.
+- Confirm top underlying and top indirect exposure show issuer-level names such as `Alphabet Inc`.
+- Confirm security drill-down still shows underlying securities/source ETFs such as `GOOG`, `GOOGL`, `VOO`, `QQQ`, and `VT` where present.
+- Re-run recommendation refresh only after Portfolio Review has refreshed so portfolio-fit can consume issuer-level look-through context.
+
+Residual risks:
+- Existing saved Portfolio Review reports need a refresh before issuer IDs and security breakdown appear.
+- Recommendation history and telemetry snapshots still need Phase 5 stable `security_id` / `issuer_id` hardening.
+
+## 2026-06-12 21:35 SGT - Security Master Issuer Display Name Cleanup
+
+Scope:
+- Added `clean_issuer_display_name(input_name text)` to remove share-class/security suffixes from issuer display names.
+- Added an `issuers` trigger so future issuer inserts and issuer-name updates are cleaned automatically.
+- Cleaned existing issuer rows such as `Alphabet Inc Class C` to display as `Alphabet Inc`.
+
+Files updated:
+- `supabase/migrations/099_clean_issuer_display_names.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Design notes:
+- Issuer display names should represent the company/fund issuer.
+- Share-class detail remains on `security_issuer_links.share_class` and the underlying security record.
+- This is display/master-data cleanup only. It does not merge securities or change portfolio calculations.
+
+Post-migration QA:
+- Run the `GOOG` / `GOOGL` issuer QA query from `docs/SECURITY_MASTER_AUDIT.md`.
+- Expected: both symbols appear under one clean issuer name, for example `Alphabet Inc`.
+
+## 2026-06-12 21:15 SGT - Security Master Phase 4B Issuer Alias Hardening
+
+Scope:
+- Added approved issuer aliases so provider name variants can map to the same issuer without manual SQL.
+- Added `issuer_duplicate_candidates` as a review queue for possible issuer duplicates.
+- Replaced `sync_security_issuer_links()` with an alias-aware version.
+- Seeded aliases for known high-value variants such as `Alphabet` -> `Alphabet Inc`, Berkshire share-class names, `TSMC`, `Meta Platforms`, `JPMorgan Chase`, `Novo Nordisk`, and `Samsung Electronics`.
+
+Files updated:
+- `supabase/migrations/098_issuer_alias_normalization.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Design notes:
+- `issuer_aliases` is the approved mapping layer. Only aliases with `review_status = 'approved'` and no `valid_to` are used by the sync.
+- `issuer_duplicate_candidates` is review-only. It surfaces likely duplicates from suffix-stripped base names but does not merge or relink anything automatically.
+- `issuer_base_name()` is intentionally used only for duplicate-candidate detection, not production linking.
+- Existing security IDs and ETF holding mappings remain unchanged.
+
+Post-migration QA:
+- Run `select * from public.sync_security_issuer_links();`.
+- Run `select * from public.refresh_issuer_duplicate_candidates();`.
+- Confirm `GOOG` and `GOOGL` return under the same issuer row in the issuer QA query documented in `docs/SECURITY_MASTER_AUDIT.md`.
+- Review `issuer_duplicate_candidates where review_status = 'needs_review'` and convert confirmed variants into `issuer_aliases` only after checking.
+
+Residual risks:
+- Alias seed coverage is intentionally conservative. Some international issuer variants may still need review.
+- This improves issuer grouping, but it is not a full corporate-action or multi-provider identifier reconciliation engine yet.
+
+## 2026-06-13 03:45 SGT - Security Master Phase 4B Issuer Master Foundation
+
+Scope:
+- Added the database foundation for issuer-level exposure grouping.
+- Created `issuers` and `security_issuer_links`.
+- Added `normalize_issuer_name(input_name text)` for deterministic share-class/name cleanup.
+- Added `sync_security_issuer_links()` to backfill active securities into issuer links.
+- Kept application calculations unchanged until issuer-link QA is reviewed.
+
+Files updated:
+- `supabase/migrations/097_issuer_master_foundation.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Design notes:
+- `securities_master` remains the canonical security/tradable identity.
+- Issuers sit above securities and answer company/issuer exposure questions.
+- `GOOG` and `GOOGL` can remain separate securities while linking to a common Alphabet issuer.
+- The current Portfolio Review display rollup remains a temporary presentation layer until issuer IDs are carried into look-through rows.
+
+Post-migration QA:
+- Run `select * from public.sync_security_issuer_links();`.
+- Confirm active securities without issuer links equals zero.
+- Review issuers with multiple securities and confirm they are legitimate share-class/listing cases.
+- Do not switch issuer-level calculations until the mapping results are reviewed.
+
+Residual risks:
+- Normalized-name linking is deterministic but still simpler than a full corporate-action/security-reference provider.
+- Parent/subsidiary and ADR/local-listing edge cases should be reviewed before commercialization.
+
+## 2026-06-13 03:20 SGT - Portfolio Review Underlying Exposure UI Refinement
+
+Scope:
+- Split Portfolio Review look-through display into direct portfolio positions, top underlying company exposure, and top indirect company exposure.
+- Kept ETF wrappers in Direct Portfolio Positions instead of mixing them into the underlying company concentration chart.
+- Added issuer-level display grouping for concentration views so share-class variants such as `GOOGL` and `GOOG` are shown together as Alphabet issuer exposure.
+- Preserved security-level detail through raw symbols in `inputsSnapshot.rawSymbols`.
+- Updated Concentration Review to use issuer-grouped underlying exposures instead of ETF wrapper rows for combined top exposure metrics.
+
+Files updated:
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `src/application/services/portfolioReview/ConcentrationReviewService.ts`
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `docs/qa-log.md`
+
+Validation:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed with 232 tests.
+
+Post-deployment QA:
+- Rerun Portfolio Review so new `inputsSnapshot.instrumentAssetClass` and `inputsSnapshot.exposureRole` flags are stored.
+- Confirm ETFs such as `VOO`, `QQQ`, and `VT` appear under Direct Portfolio Positions, not Top Underlying Company Exposure.
+- Confirm Alphabet issuer exposure rolls up `GOOGL` and `GOOG` in the top underlying and indirect company views.
+- Confirm security-master dual-run QA still passes after the refresh.
+
+Residual risks:
+- Issuer-level rollup is a display/concentration grouping layer, not a security-master merge. `GOOG` and `GOOGL` remain distinct securities by design.
+- Existing saved reports need a Portfolio Review refresh before the new direct/underlying flags are present.
+
+## 2026-06-13 02:55 SGT - Security Master Phase 4A Initial Calculation Switch
+
+Scope:
+- Switched portfolio look-through top-holding aggregation to prefer canonical `security_id` where available.
+- Preserved raw symbols as fallback and stored raw provider symbols in `inputsSnapshot.rawSymbols`.
+- Added security mapping fields to TypeScript ETF look-through types and Supabase repository mapping.
+- Kept UI display shape stable via existing `holdingSymbol` / `exposureName` fields.
+
+Files updated:
+- `src/domain/universe/types.ts`
+- `src/domain/etfLookthrough/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts`
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Validation:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed with 232 tests.
+- Portfolio review test now verifies direct `MSFT` and ETF-provider `MSFT US` aggregate when they share `security-msft`.
+
+Post-deployment QA:
+- Refresh Portfolio Review.
+- Run `select * from public.run_security_master_dual_run_qa();`.
+- Confirm the latest dual-run report remains `pass`.
+- Spot-check top holdings and indirect holdings for expected direct-plus-ETF aggregation.
+
+Residual risks:
+- Existing portfolio look-through rows will not carry the new security-id aggregation until Portfolio Review is refreshed.
+- Sector/country/theme allocations are not security entities and remain label based.
+- Recommendation, assistant, and telemetry layers consume the existing exposure shape and should be manually spot-checked after refresh.
+
+## 2026-06-13 02:25 SGT - Security Master Phase 3 Dual-Run QA
+
+Scope:
+- Added a database-side dual-run report for portfolio look-through holdings.
+- Compared current raw-symbol grouping against canonical `holding_security_id` grouping for the latest portfolio look-through snapshot.
+- Kept production portfolio, concentration, recommendation, assistant, telemetry, and Market Vision calculations unchanged.
+
+Files updated:
+- `supabase/migrations/096_security_master_dual_run_qa.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Design notes:
+- `security_master_dual_run_reports` stores historical QA results so changes in ETF provider symbols or security mappings can be audited over time.
+- `run_security_master_dual_run_qa()` first calls `sync_etf_holding_security_ids()` and then stores a comparison report for each latest portfolio look-through snapshot.
+- `pass` means row mappings are clean and raw-symbol total weight equals security-ID total weight.
+- `warning` means canonical grouping changes the number of groups, usually because aliases or duplicate raw symbols merge. Review before switching calculations.
+- `failed` means unmapped/ambiguous rows or total weight deltas still exist.
+
+Post-migration QA:
+- Run `select * from public.run_security_master_dual_run_qa();`.
+- Confirm the latest report has `unmapped_row_count = 0`, `ambiguous_row_count = 0`, and `total_weight_delta = 0`.
+- Review any `merged_group_count > 0` against expected alias/security consolidation.
+- Do not switch production concentration or top-indirect-holding calculations until the report is reviewed.
+
+## 2026-06-13 01:45 SGT - Security Master Phase 2B Internal ETF Underlyings
+
+Scope:
+- Added an additive migration to backfill internal-only securities from unmapped `etf_top_holdings` rows.
+- Kept these underlying securities out of the user-selectable `instruments` universe.
+- Reran the ETF holding security mapper after creating internal securities.
+
+Files updated:
+- `supabase/migrations/095_backfill_internal_etf_underlying_securities.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Design notes:
+- Existing active instrument-linked securities are marked `is_user_selectable = true`, `is_internal_only = false`.
+- ETF-only underlying securities are marked `is_user_selectable = false`, `is_internal_only = true`.
+- This safely supports GOOG, NOVO.B, Samsung, Nestle, Roche, Tencent, Reliance, and similar look-through holdings without adding them to Universe/Watchlist.
+- No portfolio, concentration, recommendation, or assistant calculation has been switched to canonical security IDs yet.
+
+Post-migration QA:
+- ETF top-holding `mapping_status = 'unmapped'` should materially decline.
+- Portfolio look-through holding `mapping_status = 'unmapped'` should decline, likely to zero for the current portfolio unless provider symbols remain unresolvable.
+- Confirm internal-only securities are not inserted into `instruments`.
+
+## 2026-06-13 01:25 SGT - Security Master Phase 2 ETF Holding Mapping
+
+Scope:
+- Confirmed ETF holding infrastructure already exists in the repo via `etf_top_holdings` and `portfolio_lookthrough_holdings`.
+- Added canonical security mapping columns and a sync helper for ETF top holdings, portfolio look-through holdings, and top-holding exposure rows.
+- Kept all calculations symbol/instrument based for now; this phase enables dual-run QA rather than switching production calculations.
+
+Files updated:
+- `supabase/migrations/094_security_master_etf_holding_mapping.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Current ETF holding state:
+- `etf_top_holdings` exists and stores raw provider/seeded ETF holdings by `holding_symbol`.
+- `portfolio_lookthrough_holdings` exists and stores direct plus indirect holding exposure by `holding_symbol`.
+- Phase 2 adds `holding_security_id`, mapping status/confidence/source timestamps, and `portfolio_lookthrough_exposures.exposure_security_id`.
+
+Post-migration QA:
+- Run migration 094.
+- Check mapped/unmapped/ambiguous counts for `etf_top_holdings`.
+- Check mapped/unmapped/ambiguous counts for `portfolio_lookthrough_holdings`.
+- Review unmapped top holdings before any future calculation switch.
+
+## 2026-06-13 01:05 SGT - Security Master Metadata Identifier Sync
+
+Scope:
+- Updated instrument metadata refresh so FMP `isin`, `cusip`, and `figi` values are extracted and promoted into normalized instrument/security-master fields.
+- Added a database helper to sync normalized instrument identifiers into `securities_master` and `security_identifiers`.
+- Updated metadata refresh selection so missing ISIN/CUSIP coverage is refreshed even when normal metadata is still within the 30-day freshness window.
+- Updated the manual Admin/Data Sources Instrument Metadata button to force an identifier catch-up for non-crypto instruments missing ISIN/CUSIP, while leaving scheduled metadata refresh conservative unless `forceIdentifierRefresh=true` is explicitly passed.
+
+Files updated:
+- `src/application/ports/providers/AssetMetadataProvider.ts`
+- `src/infrastructure/providers/metadata/FmpAssetMetadataProvider.ts`
+- `src/application/ports/repositories/UniverseRepository.ts`
+- `src/application/services/MetadataRefreshService.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `supabase/migrations/093_sync_security_master_identifiers.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Expected result after migration 093 and Instrument Metadata Refresh:
+- Stock ISIN/CUSIP coverage should remain complete.
+- ETF ISIN/CUSIP coverage should improve where FMP returns identifiers.
+- Crypto ETF ISIN/CUSIP may remain unavailable depending on FMP profile coverage.
+- `security_identifiers` should gain additional `ISIN`, `CUSIP`, and possible `FIGI` rows as metadata refresh completes.
+
+## 2026-06-13 00:40 SGT - Security Master Link Repair Migration
+
+Scope:
+- Added an idempotent repair migration after live Supabase checks showed `securities_master` had 306 rows, while all active instruments still had null `security_id`, null `coverage_status`, and `security_identifiers` had no rows.
+
+Root cause:
+- Migration 091 inserted canonical securities and then attempted to match instruments to those inserted rows in the same CTE chain.
+- The safer pattern is to insert canonical rows first, then run a separate statement that reads `securities_master` and updates instruments/identifiers.
+
+Files updated:
+- `supabase/migrations/092_repair_security_master_links.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Expected post-migration result:
+- `active_instruments_without_security_id` should fall from 306 to near 0.
+- `coverage_status` should mostly be `mapped`.
+- `security_identifiers` should contain `SYMBOL`, `EXCHANGE_SYMBOL`, `PROVIDER_SYMBOL`, `ISIN`, and `CUSIP` rows where available.
+
+## 2026-06-13 00:22 SGT - Security Master Phase 1 Foundation
+
+Scope:
+- Implemented the additive Security Master Phase 1 foundation after completing Phase A audit/design.
+- Added canonical security identity tables, instrument linkage fields, initial backfill logic, deterministic resolver service, and resolver tests.
+- Did not switch portfolio, ETF look-through, recommendation, telemetry, Market Vision, dashboard, or assistant calculations to security-master logic.
+
+Files updated:
+- `supabase/migrations/091_security_master_foundation.sql`
+- `src/application/services/securityMaster/SecurityMasterService.ts`
+- `tests/security-master.test.ts`
+- `package.json`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/qa-log.md`
+
+Implementation details:
+- Migration 091 creates `securities_master`, `security_identifiers`, and `security_aliases`.
+- Migration 091 adds nullable `security_id`, `isin`, `cusip`, `figi`, `provider_symbol`, `identifier_quality_score`, `identifier_last_refreshed_at`, `coverage_status`, `is_user_selectable`, `is_internal_only`, and `is_alpha_enabled` columns to `instruments`.
+- Initial backfill reads stored FMP metadata where available and falls back to exchange + symbol matching.
+- Resolver matching order is FIGI, ISIN, CUSIP, SEDOL, exchange + symbol, provider symbol, alias, then low-confidence name fallback.
+- Configured symbol aliases include `BRK-B` and `BRK/B` to `BRK.B`, plus historical `FB` to `META`.
+- GOOG and GOOGL are intentionally not merged without an explicit identifier/alias rule.
+
+Validation:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test -- --test-name-pattern security` passed. The current npm test script enumerates all compiled test files before forwarding the pattern, so this effectively ran the full test suite: 232 passed, 0 failed.
+
+Post-deployment QA still required:
+- Apply migration 091 in Supabase.
+- Check active instruments without `security_id`.
+- Check identifier counts by type.
+- Review `coverage_status = 'needs_identifier_review'` instruments.
+- Confirm no portfolio output changes, because no calculations are switched yet.
+
+## 2026-06-12 23:58 SGT - Security Master Phase A Audit And Design
+
+Scope:
+- Reviewed the user-provided Security Master Audit prompt.
+- Re-scoped it into a Phase A audit/design task only.
+- Created a current-state security master audit and target architecture document.
+- Did not add migrations, write application code, change calculations, or alter Supabase data.
+
+Files updated:
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/README.md`
+- `docs/qa-log.md`
+
+Primary code/schema references checked:
+- `supabase/migrations/001_core_mvp_schema.sql`
+- `supabase/migrations/008_instrument_universe.sql`
+- `supabase/migrations/051_etf_lookthrough_exposure.sql`
+- `supabase/migrations/052_portfolio_lookthrough_holdings.sql`
+- `supabase/migrations/046_recommendation_engine_v1.sql`
+- `supabase/migrations/054_telemetry_learning_layer.sql`
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `src/application/services/portfolioReview/ConcentrationReviewService.ts`
+- `src/application/services/portfolioReview/PortfolioReviewService.ts`
+- `src/infrastructure/providers/metadata/FmpAssetMetadataProvider.ts`
+
+Live evidence:
+- Active instruments checked: 306.
+- Active split: 105 `stock`, 196 `etf`, 5 `crypto_etf`.
+- FMP `/stable/profile` supports `isin` and `cusip`.
+- Full active-universe FMP probe returned profile + ISIN for 301/306 symbols; the remaining 5 were FMP 429 limit responses, not missing-ISIN responses.
+- Single retry for `XLV` returned ISIN/CUSIP successfully.
+- 201 active instruments currently have nested stored `provider_metadata.financial_modeling_prep.isin` and `cusip`.
+- ETF exposure row counts observed: 220 sector rows, 396 country rows, 240 top-holding rows.
+- Portfolio look-through holding rows observed: 52.
+
+Findings:
+- PASS: ETFVision has a strong user-selectable `instruments` universe and normalized product taxonomy.
+- PASS: Raw FMP metadata can preserve ISIN/CUSIP today.
+- GAP: ISIN/CUSIP are nested raw metadata, not normalized first-class columns.
+- GAP: No repo-owned security-master migration/service currently defines canonical `security_id` governance.
+- GAP: ETF top holdings and portfolio look-through holdings are currently keyed by raw `holding_symbol`, so direct-plus-indirect overlap can be fragmented by symbol variants.
+- GAP: Recommendation and telemetry history use `instrument_id` plus symbol, which is acceptable now but not corporate-action ready.
+
+Recommended next implementation:
+- Phase 1 additive foundation only: add `securities_master`, `security_identifiers`, `security_aliases`; add nullable `security_id`, normalized identifiers and provider symbol columns to `instruments`; backfill active instruments from FMP profile metadata; add resolver tests.
+- Do not switch concentration, overlap, or portfolio review calculations until a dual-run QA compares raw-symbol output with `security_id` output.
+
+Validation:
+- Documentation/source/schema audit only.
+- No runtime tests were required because no executable code changed.
+
 Backfilled entries are reconstructed from commit history and prior implementation/QA work before this log existed.
 
 ## 2026-06-01 - Phase 2 Core MVP QA Backfill
@@ -2879,6 +3292,115 @@ Findings:
 Validation:
 - Documentation-only update.
 - No runtime tests were run because no executable code changed.
+
+## 2026-06-12 22:55 SGT - Instrument Taxonomy Commercialization Audit Completion
+
+Scope:
+- Completed the Instrument Taxonomy Audit from the commercialization audit plan.
+- Verified source-of-truth universe counts from `src/domain/universe/alphaUniverse.ts`.
+- Verified live Supabase aggregate active counts and taxonomy null checks.
+- Corrected stale documentation that described BTC, ETH and SOL raw crypto references as active.
+
+Files updated:
+- `docs/INSTRUMENT_TAXONOMY_AUDIT.md`
+- `docs/INSTRUMENT_TAXONOMY_AND_COVERAGE.md`
+- `docs/instrument-taxonomy-alpha-universe.md`
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/README.md`
+- `docs/qa-log.md`
+
+Static audit evidence:
+- PASS: 201 ETF symbols in the source map.
+- PASS: 201 unique ETF symbols.
+- PASS: 105 stock symbols in the source map.
+- PASS: 105 unique stock symbols.
+- PASS: 0 duplicate ETF symbols.
+- PASS: 0 duplicate stock symbols.
+- PASS: 0 ETF/stock overlaps.
+- PASS: 0 empty ETF categories.
+- PASS: 0 empty stock sectors.
+
+Live Supabase evidence:
+- PASS: 324 total instrument rows.
+- PASS: 306 active instruments.
+- PASS: 18 inactive instruments.
+- PASS: 196 active `etf` rows.
+- PASS: 5 active `crypto_etf` rows.
+- PASS: 105 active `stock` rows.
+- PASS: 0 active duplicate symbols.
+- PASS: 0 active ETFs missing `etf_category`.
+- PASS: 0 active stocks missing `sector`.
+- PASS: 0 active stocks missing `canonical_sector`.
+- PASS: 0 active instruments missing `asset_category`.
+- PASS: BTC, ETH and SOL raw crypto references are inactive.
+
+Finding:
+- `coverage_status` and `is_user_selectable` are not physical `instruments` columns. This is accepted for the current taxonomy audit because active/product eligibility is currently represented by `is_active`, feature visibility and freshness diagnostics. Whether to add explicit fields is deferred to the Data Provider Audit, Data Freshness UX Audit and Feature Flags/Product Modes Audit.
+
+Validation:
+- Static source audit via Node script.
+- Live aggregate Supabase audit via service-role query, returning counts only.
+- No runtime app tests were run because this was a documentation/audit completion pass.
+
+## 2026-06-12 23:15 SGT - Data Normalization Commercialization Audit Completion
+
+Scope:
+- Completed the Data Normalization Audit from the commercialization audit plan.
+- Verified raw provider metadata preservation.
+- Verified normalized taxonomy field coverage across active instruments.
+- Reviewed normalization services and provider metadata refresh flow.
+- Reviewed ETF product taxonomy versus portfolio look-through exposure separation.
+
+Files updated:
+- `docs/DATA_NORMALIZATION_AUDIT.md`
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/README.md`
+- `docs/qa-log.md`
+
+Primary code references checked:
+- `src/application/services/taxonomy/TaxonomyService.ts`
+- `src/application/services/MetadataRefreshService.ts`
+- `src/application/services/AssetMetadataService.ts`
+- `src/application/services/UniverseManagementService.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `src/application/services/portfolio/PortfolioExposureContextService.ts`
+- `src/application/services/recommendations/recommendationScoring.ts`
+- `src/application/services/recommendations/portfolioFitService.ts`
+- `supabase/migrations/015_canonical_taxonomy.sql`
+- `supabase/migrations/062_instrument_product_taxonomy.sql`
+
+Live Supabase evidence:
+- PASS: 306 active instruments checked.
+- PASS: 306 active instruments have non-empty `provider_metadata`.
+- PASS: 306 active instruments use `provider_primary = financial_modeling_prep`.
+- PASS: 0 active instruments missing `asset_category`.
+- PASS: 0 active ETF-style products missing `etf_category`.
+- PASS: 0 active instruments missing `canonical_sector`.
+- PASS: 0 active instruments missing `canonical_themes`.
+- PASS: 0 active instruments missing `taxonomy_review_status`.
+- PASS: 0 active manual override rows currently, with override-preservation code path confirmed.
+
+Taxonomy review queue evidence:
+- `mapped`: 211 active instruments.
+- `needs_review`: 95 active instruments.
+- `needs_review` split: 71 `etf`, 5 `crypto_etf`, 19 `stock`.
+- Finding: the queue is noisy, not a normalized-field coverage failure. Generic provider values like `ETF`, `Multi-sector ETF`, `Bond ETF`, `Sector ETF`, `Digital Assets`, `Consumer Cyclical`, `Financial Services`, and `Basic Materials` are being flagged despite safe canonical normalization.
+
+Finding:
+- PASS: Raw provider metadata is preserved and separated from ETFVision normalized taxonomy.
+- PASS: ETFVision-owned `asset_category` and `etf_category` are populated for active instruments.
+- PASS: `canonical_sector` and `canonical_themes` are populated for active instruments.
+- PASS: Portfolio exposure services prefer ETF look-through sector exposure over ETF product taxonomy.
+- PASS WITH RECALC NEEDED: Code-level alias cleanup was added so generic provider labels and current ETF category slugs no longer create noisy taxonomy review items when normalized outputs are safe.
+- WATCH ITEM: After deployment, run Seed Universe or Instrument Metadata Refresh to recalculate stored `taxonomy_review_status` values in Supabase.
+
+Validation:
+- Static source inspection.
+- Live aggregate Supabase audit via service-role query, returning counts only.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed: 225 tests, 225 passed.
+- Added taxonomy regression test for generic provider labels and alpha ETF category slugs.
 
 ## 2026-06-12 22:35 SGT - Commercialization Audit Plan Documentation
 

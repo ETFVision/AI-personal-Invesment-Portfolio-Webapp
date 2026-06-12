@@ -8,7 +8,7 @@ The Alpha instrument universe is now represented by ETFVision-owned taxonomy fie
 
 - ETF universe: 201 approved ETF-style products in `src/domain/universe/alphaUniverse.ts`
 - Stock universe: 105 approved stocks in `src/domain/universe/alphaUniverse.ts`
-- Crypto references: BTC, ETH and SOL are active raw crypto references for the Crypto universe. Crypto ETF proxies remain ETF-style products.
+- Crypto references: BTC, ETH and SOL remain inactive raw crypto references for now. Crypto ETF proxies remain active ETF-style products.
 - Provider categories from FMP remain raw metadata and are not the product taxonomy source of truth.
 
 ## Taxonomy Fields

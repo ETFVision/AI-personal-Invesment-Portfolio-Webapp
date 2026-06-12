@@ -7,7 +7,7 @@ import type {
   PortfolioLookthroughExposure,
   PortfolioLookthroughHolding
 } from "@/domain/etfLookthrough/types";
-import type { EtfExposureRepository, InsertEtfExposureRefreshLogInput } from "@/application/ports/repositories/EtfExposureRepository";
+import type { EtfExposureRepository, InsertEtfExposureRefreshLogInput, SecurityIssuerLink } from "@/application/ports/repositories/EtfExposureRepository";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -54,6 +54,9 @@ function holding(row: any): EtfTopHolding {
     etfSymbol: row.etf_symbol,
     holdingSymbol: row.holding_symbol,
     holdingName: row.holding_name,
+    holdingSecurityId: row.holding_security_id ?? null,
+    mappingStatus: row.mapping_status ?? null,
+    mappingConfidenceScore: row.mapping_confidence_score === null || row.mapping_confidence_score === undefined ? null : Number(row.mapping_confidence_score),
     holdingWeight: Number(row.holding_weight ?? 0),
     asOfDate: row.as_of_date,
     sourceProvider: row.source_provider,
@@ -78,6 +81,9 @@ function exposure(row: any): PortfolioLookthroughExposure {
     portfolioId: row.portfolio_id,
     exposureType: row.exposure_type,
     exposureName: row.exposure_name,
+    exposureSecurityId: row.exposure_security_id ?? null,
+    exposureIssuerId: row.exposure_issuer_id ?? null,
+    exposureIssuerName: row.exposure_issuer_name ?? null,
     exposureWeight: Number(row.exposure_weight ?? 0),
     directWeight: Number(row.direct_weight ?? 0),
     etfLookthroughWeight: Number(row.etf_lookthrough_weight ?? 0),
@@ -103,6 +109,11 @@ function holdingExposure(row: any): PortfolioLookthroughHolding {
     asOfDate: row.as_of_date,
     holdingSymbol: row.holding_symbol,
     holdingName: row.holding_name,
+    holdingSecurityId: row.holding_security_id ?? null,
+    holdingIssuerId: row.holding_issuer_id ?? null,
+    holdingIssuerName: row.holding_issuer_name ?? null,
+    mappingStatus: row.mapping_status ?? null,
+    mappingConfidenceScore: row.mapping_confidence_score === null || row.mapping_confidence_score === undefined ? null : Number(row.mapping_confidence_score),
     directWeight: Number(row.direct_weight ?? 0),
     indirectWeight: Number(row.indirect_weight ?? 0),
     totalWeight: Number(row.total_weight ?? 0),
@@ -203,6 +214,11 @@ export class SupabaseEtfExposureRepository implements EtfExposureRepository {
       etf_symbol: item.etfSymbol,
       holding_symbol: item.holdingSymbol,
       holding_name: item.holdingName,
+      holding_security_id: item.holdingSecurityId ?? null,
+      mapping_status: item.mappingStatus ?? (item.holdingSecurityId ? "mapped" : "unmapped"),
+      mapping_confidence_score: item.mappingConfidenceScore ?? (item.holdingSecurityId ? 90 : 0),
+      mapping_source: item.holdingSecurityId ? "etf_top_holding_security_id" : null,
+      mapping_updated_at: new Date().toISOString(),
       holding_weight: item.holdingWeight,
       as_of_date: item.asOfDate,
       source_provider: item.sourceProvider,
@@ -231,6 +247,9 @@ export class SupabaseEtfExposureRepository implements EtfExposureRepository {
       portfolio_id: item.portfolioId,
       exposure_type: item.exposureType,
       exposure_name: item.exposureName,
+      exposure_security_id: item.exposureSecurityId ?? null,
+      exposure_issuer_id: item.exposureIssuerId ?? null,
+      exposure_issuer_name: item.exposureIssuerName ?? null,
       exposure_weight: item.exposureWeight,
       direct_weight: item.directWeight,
       etf_lookthrough_weight: item.etfLookthroughWeight,
@@ -246,6 +265,13 @@ export class SupabaseEtfExposureRepository implements EtfExposureRepository {
       as_of_date: item.asOfDate,
       holding_symbol: item.holdingSymbol,
       holding_name: item.holdingName,
+      holding_security_id: item.holdingSecurityId ?? null,
+      holding_issuer_id: item.holdingIssuerId ?? null,
+      holding_issuer_name: item.holdingIssuerName ?? null,
+      mapping_status: item.mappingStatus ?? (item.holdingSecurityId ? "mapped" : "unmapped"),
+      mapping_confidence_score: item.mappingConfidenceScore ?? (item.holdingSecurityId ? 90 : 0),
+      mapping_source: item.holdingSecurityId ? "portfolio_lookthrough_security_id" : null,
+      mapping_updated_at: new Date().toISOString(),
       direct_weight: item.directWeight,
       indirect_weight: item.indirectWeight,
       total_weight: item.totalWeight,
@@ -278,6 +304,42 @@ export class SupabaseEtfExposureRepository implements EtfExposureRepository {
     if (asOfDate || rows.length === 0) return rows;
     const latestDate = rows[0]?.asOfDate;
     return rows.filter((row) => row.asOfDate === latestDate);
+  }
+
+  async listIssuerLinksForSecurityIds(securityIds: string[]): Promise<SecurityIssuerLink[]> {
+    const ids = Array.from(new Set(securityIds.filter(Boolean)));
+    if (!ids.length) return [];
+    const { data: links, error } = await this.db
+      .from("security_issuer_links")
+      .select("security_id, issuer_id, normalized_issuer_name, share_class, link_source, confidence_score")
+      .in("security_id", ids)
+      .is("valid_to", null);
+    if (error?.code === "42P01") return [];
+    if (error) throw new Error(error.message);
+
+    const issuerIds = Array.from(new Set((links ?? []).map((row: any) => row.issuer_id).filter(Boolean)));
+    if (!issuerIds.length) return [];
+    const { data: issuers, error: issuerError } = await this.db
+      .from("issuers")
+      .select("id, issuer_name")
+      .in("id", issuerIds);
+    if (issuerError?.code === "42P01") return [];
+    if (issuerError) throw new Error(issuerError.message);
+
+    const issuerNameById = new Map((issuers ?? []).map((row: any) => [row.id, row.issuer_name]));
+    return (links ?? []).flatMap((row: any) => {
+      const issuerName = issuerNameById.get(row.issuer_id);
+      if (!issuerName) return [];
+      return [{
+        securityId: row.security_id,
+        issuerId: row.issuer_id,
+        issuerName,
+        normalizedIssuerName: row.normalized_issuer_name ?? null,
+        shareClass: row.share_class ?? null,
+        linkSource: row.link_source ?? null,
+        confidenceScore: row.confidence_score === null || row.confidence_score === undefined ? null : Number(row.confidence_score)
+      }];
+    });
   }
 
   async getLatestExposureDateForEtf(instrumentId: string) {

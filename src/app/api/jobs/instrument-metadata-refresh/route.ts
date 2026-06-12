@@ -6,11 +6,13 @@ export async function POST(request: NextRequest) {
   const batchSize = Number(request.nextUrl.searchParams.get("batchSize") ?? 25);
   const maxBatches = Number(request.nextUrl.searchParams.get("maxBatches") ?? 14);
   const lockTtlSeconds = Number(request.nextUrl.searchParams.get("lockTtlSeconds") ?? 10 * 60);
+  const forceIdentifierRefresh = request.nextUrl.searchParams.get("forceIdentifierRefresh") === "true";
 
   return runCronJob(request, { jobName: "instrument-metadata-refresh", lockTtlSeconds }, () =>
     createContainer().metadataRefreshService.refreshUniverseMetadataInBatches({
       batchSize,
-      maxBatches
+      maxBatches,
+      forceIdentifierRefresh
     })
   );
 }

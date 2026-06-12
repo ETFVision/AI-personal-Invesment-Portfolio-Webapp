@@ -114,6 +114,44 @@ test("stock sector taxonomy maps approved alpha stocks by symbol", () => {
   assert.equal(alphaStockSectorForSymbol("NEE"), "Utilities");
 });
 
+test("generic provider labels and alpha ETF category slugs do not create noisy taxonomy review items", () => {
+  for (const rawValue of [
+    "ETF",
+    "Multi-sector ETF",
+    "Bond ETF",
+    "Sector ETF",
+    "Digital Assets",
+    "Consumer Cyclical",
+    "Financial Services",
+    "Basic Materials",
+    "Cash Equivalent",
+    "Crypto ETF",
+    "Gold ETF"
+  ]) {
+    const result = taxonomy.normalize({
+      symbol: "TEST",
+      assetClass: "etf",
+      instrumentType: "etf",
+      rawSector: rawValue,
+      rawIndustry: rawValue
+    });
+    assert.deepEqual(result.unmappedRawValues, []);
+  }
+
+  for (const category of Object.keys(ALPHA_ETF_CATEGORIES)) {
+    const seededTheme = category.toLowerCase().replaceAll("_", "-");
+    const result = taxonomy.normalize({
+      symbol: ALPHA_ETF_CATEGORIES[category as keyof typeof ALPHA_ETF_CATEGORIES][0],
+      assetClass: "etf",
+      instrumentType: category === "CRYPTO_ETF" ? "crypto_etf" : "etf",
+      rawSector: "ETF",
+      rawIndustry: "ETF",
+      seededThemes: [seededTheme]
+    });
+    assert.deepEqual(result.unmappedRawValues, [], `${category} should be an accepted seeded taxonomy theme`);
+  }
+});
+
 test("portfolio exposure context prefers ETF look-through sectors over direct ETF taxonomy", () => {
   const dashboard = {
     allocationByType: [{ label: "ETF", value: 100, percent: 1 }],

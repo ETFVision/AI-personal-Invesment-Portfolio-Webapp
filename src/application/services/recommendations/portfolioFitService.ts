@@ -31,16 +31,18 @@ export class PortfolioFitService {
     const symbol = normalize(instrument.symbol);
     const matchingValuations = dashboard.holdingValuations.filter((valuation) => normalize(valuation.holding.ticker) === symbol);
     const directValue = matchingValuations.reduce((sum, valuation) => sum + valuation.value, 0);
-    const concentrationPercent = directValue / dashboard.totalValueEstimate;
+    const directConcentrationPercent = directValue / dashboard.totalValueEstimate;
+    const issuerExposure = exposureContext?.issuerExposures.find((item) => item.symbols.some((candidate) => normalize(candidate) === symbol)) ?? null;
+    const concentrationPercent = Math.max(directConcentrationPercent, issuerExposure?.totalWeight ?? 0);
     const sector = instrument.canonicalSector ?? instrument.sector;
     const sectorAllocations = exposureContext?.sectorAllocation ?? dashboard.allocationBySector;
     const sectorAllocation = sector ? sectorAllocations.find((item) => item.label.toLowerCase() === sector.toLowerCase())?.percent ?? 0 : 0;
-    const duplicateExposure = matchingValuations.length > 0 || sectorAllocation > 0.35;
+    const duplicateExposure = matchingValuations.length > 0 || (issuerExposure?.totalWeight ?? 0) > 0.05 || sectorAllocation > 0.35;
 
     let score = 65;
     const positiveDrivers: string[] = [];
     const negativeDrivers: string[] = [];
-    if (directValue === 0) {
+    if (directValue === 0 && !issuerExposure) {
       score += 10;
       positiveDrivers.push("Adds a new portfolio sleeve");
     }
@@ -52,9 +54,12 @@ export class PortfolioFitService {
       score -= 25;
       negativeDrivers.push(`${sector} exposure is already elevated`);
     }
+    if ((issuerExposure?.totalWeight ?? 0) > 0 && directValue === 0) {
+      negativeDrivers.push(`Existing ETF look-through exposure to ${issuerExposure?.issuerName ?? instrument.symbol} is already present`);
+    }
     if (concentrationPercent > 0.15) {
       score -= 20;
-      negativeDrivers.push("Existing position is already meaningful in the portfolio");
+      negativeDrivers.push(issuerExposure ? "Existing issuer-level exposure is already meaningful in the portfolio" : "Existing position is already meaningful in the portfolio");
     }
 
     return {

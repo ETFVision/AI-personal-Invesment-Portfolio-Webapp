@@ -23,6 +23,9 @@ export type EtfTopHolding = {
   etfSymbol: string;
   holdingSymbol: string;
   holdingName: string | null;
+  holdingSecurityId?: string | null;
+  mappingStatus?: string | null;
+  mappingConfidenceScore?: number | null;
   holdingWeight: number;
   asOfDate: string;
   sourceProvider: string;
@@ -43,6 +46,9 @@ export type PortfolioLookthroughExposure = {
   portfolioId: string;
   exposureType: "sector" | "country" | "currency" | "theme" | "top_holding";
   exposureName: string;
+  exposureSecurityId?: string | null;
+  exposureIssuerId?: string | null;
+  exposureIssuerName?: string | null;
   exposureWeight: number;
   directWeight: number;
   etfLookthroughWeight: number;
@@ -59,6 +65,11 @@ export type PortfolioLookthroughHolding = {
   asOfDate: string;
   holdingSymbol: string;
   holdingName: string | null;
+  holdingSecurityId?: string | null;
+  holdingIssuerId?: string | null;
+  holdingIssuerName?: string | null;
+  mappingStatus?: string | null;
+  mappingConfidenceScore?: number | null;
   directWeight: number;
   indirectWeight: number;
   totalWeight: number;

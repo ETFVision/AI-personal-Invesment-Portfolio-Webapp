@@ -64,11 +64,13 @@ Output:
 - Unknown category report.
 - Alpha versus development universe recommendation.
 
-Current status: mostly completed.
+Current status: completed.
 
 Notes:
 - Current source-of-truth universe lives in `src/domain/universe/alphaUniverse.ts`.
-- Current target is 201 ETFs and 105 stocks, with raw crypto references inactive or limited.
+- Live Supabase verification on 2026-06-12 confirmed 306 active instruments: 201 ETF-style products and 105 stocks.
+- Raw crypto references are inactive; crypto ETF proxies remain active ETF-style products.
+- No active duplicate symbols, missing active ETF categories, missing active stock canonical sectors, or missing active asset categories were found.
 - A future ETF universe completion item has been logged for Factor Investing and Option Income ETFs.
 
 ## 2. Data Provider Audit
@@ -135,11 +137,13 @@ Output:
 - Mapping gap report.
 - Normalization test results.
 
-Current status: mostly completed.
+Current status: completed.
 
 Notes:
 - ETF product taxonomy and portfolio sector allocation are intentionally separated.
 - Portfolio sector allocation should use ETF look-through exposure where available, not `etf_category`.
+- Live verification on 2026-06-12 confirmed all active instruments have normalized `asset_category`, `canonical_sector`, `canonical_themes` and `taxonomy_review_status`; all active ETF-style products have `etf_category`.
+- Code-level cleanup now accepts generic provider labels and ETF category slugs that are already safely normalized. After deployment, run Seed Universe or Instrument Metadata Refresh to recalculate stored `taxonomy_review_status` values.
 
 ## 4. Security Master Audit
 
@@ -167,10 +171,17 @@ Output:
 - Alias mapping report.
 - Unmapped holding report.
 
-Current status: partly completed.
+Current status: completed through Security Master Phase 4C/4D for the current commercialization checkpoint. Phase 5 recommendation/telemetry/history hardening is next.
 
 Notes:
-- Some ticker normalization exists, but a full security master with ISIN/FIGI/alias governance is not complete.
+- `docs/SECURITY_MASTER_AUDIT.md` documents the current state, implementation phases, QA queries, issuer logic, and next hardening steps.
+- Migrations 091 through 100 add canonical securities, identifiers, aliases, internal ETF underlyings, dual-run QA, issuer master, issuer aliases, clean issuer display names, and issuer-level look-through rollups.
+- Active user-selectable instruments now link to canonical securities; ETF top holdings can map to canonical/internal securities.
+- Security-master dual-run QA has returned `pass` for the current portfolio look-through snapshot.
+- Portfolio Review concentration, top underlying company exposure, top indirect company exposure, Portfolio Assistant hidden-overlap context, and recommendation portfolio-fit logic can use issuer-level look-through exposure.
+- Direct ETF/fund wrappers remain direct product positions and are not mixed into underlying company exposure.
+- Direct stock holdings that also appear inside ETFs now display as direct `Stock` positions, while ETF-only rows remain indirect underlying exposure.
+- Next implementation step is Phase 5: add optional `security_id` / `issuer_id` to recommendation snapshots/history, telemetry snapshots, and portfolio review history where relevant.
 
 ## 5. ETF Holdings Data Audit
 
@@ -958,13 +969,13 @@ Recommended:
 
 | # | Audit | Status | Current assessment |
 |---:|---|---|---|
-| 1 | Instrument Taxonomy Audit | Mostly completed | Taxonomy is implemented and documented. Final live Supabase count check should be repeated after future ETF additions. |
+| 1 | Instrument Taxonomy Audit | Completed | Taxonomy is implemented, documented and live-count verified. Repeat the live count check after future ETF additions. |
 | 2 | Data Provider Audit | Partly completed | Provider coverage has been tested ad hoc. A formal full-universe provider matrix is still needed. |
-| 3 | Data Normalization Audit | Mostly completed | ETFVision taxonomy fields are in place. Need final proof that calculations do not misuse provider categories. |
-| 4 | Security Master Audit | Partly completed | Basic symbol normalization exists. Full canonical security identity and alias governance are incomplete. |
-| 5 | ETF Holdings Data Audit | Partly completed | Sector/country look-through works. Top holdings are provider-plan limited. |
+| 3 | Data Normalization Audit | Completed | Raw provider metadata is preserved, normalized fields are populated and look-through exposure is separated from ETF product taxonomy. Review queue alias cleanup is implemented; stored statuses need recalculation after deployment. |
+| 4 | Security Master Audit | Completed through Phase 4C/4D | Canonical securities, identifiers, aliases, internal ETF underlyings, issuer master, dual-run QA and issuer-level look-through rollups are implemented. Current QA passed for Alphabet share-class grouping, direct/indirect exposure display, and direct stock label precedence. Phase 5 history/telemetry hardening remains. |
+| 5 | ETF Holdings Data Audit | Mostly completed for current portfolio | Sector/country look-through works. ETF top holdings are mapped through security master/internal underlyings for current coverage. Full provider-plan expansion and mapping monitoring remain. |
 | 6 | Calculation And Logic Audit | Mostly completed | Methodology and core optimizations exist. Golden regression/manual validation pack remains. |
-| 7 | Portfolio Review Audit | Mostly completed | Engine works and is documented. Regression fixtures and unsafe wording review remain. |
+| 7 | Portfolio Review Audit | Mostly completed | Engine works and is documented. Issuer-level look-through and direct/indirect exposure QA passed. Broader regression fixtures and unsafe wording review remain. |
 | 8 | AI Output Audit | Partly completed | Prompts hardened. Formal regression suite still needed. |
 | 9 | Market Vision Audit | Partly completed | Engine exists. Draft/publish lifecycle and evidence traceability need final audit. |
 | 10 | Recommendation / Insights Audit | Partly completed | Language refined. Needs post-refresh calibration QA. |
@@ -996,7 +1007,7 @@ Recommended:
 ETFVision is progressing toward public alpha, but it is not ready for paid users yet.
 
 Strong areas:
-- Instrument taxonomy.
+- Instrument taxonomy, now completed for the current commercialization checkpoint.
 - Portfolio calculations.
 - Stored metrics architecture.
 - ETF look-through sector/country exposure.

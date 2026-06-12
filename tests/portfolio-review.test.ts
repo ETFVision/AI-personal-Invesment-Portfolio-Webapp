@@ -352,7 +352,10 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
       { etfInstrumentId: "etf-1", etfSymbol: "VOO", country: "United States", exposureWeight: 1, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} }
     ],
     listLatestTopHoldings: async () => [
-      { etfInstrumentId: "etf-1", etfSymbol: "VOO", holdingSymbol: "MSFT", holdingName: "Microsoft", holdingWeight: 0.07, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} }
+      { etfInstrumentId: "etf-1", etfSymbol: "VOO", holdingSymbol: "MSFT US", holdingName: "Microsoft", holdingSecurityId: "security-msft", mappingStatus: "mapped", mappingConfidenceScore: 95, holdingWeight: 0.07, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} }
+    ],
+    listIssuerLinksForSecurityIds: async () => [
+      { securityId: "security-msft", issuerId: "issuer-msft", issuerName: "Microsoft", normalizedIssuerName: "Microsoft", shareClass: null, linkSource: "normalized_security_name", confidenceScore: 95 }
     ],
     listLatestThemeExposures: async () => [
       { etfInstrumentId: "etf-1", etfSymbol: "VOO", theme: "Quality", exposureWeight: 0.4, confidenceScore: 72, derivationMethod: "test", asOfDate: "2026-06-01" }
@@ -377,20 +380,21 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
         { id: "h2", portfolioId: "portfolio-1", assetId: "a2", assetType: "etf", ticker: "VOO", assetName: "Vanguard S&P 500 ETF", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Multi-Asset / Broad Market" }
       ],
       holdingValuations: [
-        { holding: { id: "h1", portfolioId: "portfolio-1", assetId: "a1", assetType: "stock", ticker: "MSFT", assetName: "Microsoft", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Technology" }, unitPrice: 50, value: 50, valueCurrency: "USD", priceDate: "2026-06-01", priceProvider: "test", valuationSource: "market_price" },
-        { holding: { id: "h2", portfolioId: "portfolio-1", assetId: "a2", assetType: "etf", ticker: "VOO", assetName: "Vanguard S&P 500 ETF", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Multi-Asset / Broad Market" }, unitPrice: 50, value: 50, valueCurrency: "USD", priceDate: "2026-06-01", priceProvider: "test", valuationSource: "market_price" }
+        { holding: { id: "h2", portfolioId: "portfolio-1", assetId: "a2", assetType: "etf", ticker: "VOO", assetName: "Vanguard S&P 500 ETF", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Multi-Asset / Broad Market" }, unitPrice: 50, value: 50, valueCurrency: "USD", priceDate: "2026-06-01", priceProvider: "test", valuationSource: "market_price" },
+        { holding: { id: "h1", portfolioId: "portfolio-1", assetId: "a1", assetType: "stock", ticker: "MSFT", assetName: "Microsoft", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Technology" }, unitPrice: 50, value: 50, valueCurrency: "USD", priceDate: "2026-06-01", priceProvider: "test", valuationSource: "market_price" }
       ],
       totalValueEstimate: 100
     },
     instruments: [
       ...context().instruments,
-      { id: "stock-1", symbol: "MSFT", name: "Microsoft", assetClass: "stock", instrumentType: "stock", sector: "Technology", industry: null, canonicalSector: "Technology", canonicalThemes: ["Technology"], taxonomyIsManualOverride: false, taxonomyReviewStatus: "mapped", geography: "US", currency: "USD", exchange: "NASDAQ", watchlistTier: null, benchmarkTags: [], thematicTags: [], riskCategory: null, volatilityBucket: null, durationCategory: null, treasuryClassification: null, inflationLinked: null, creditQuality: null, geoExposure: "United States", rateSensitivity: null, inflationSensitivity: null, recessionSensitivity: null, liquidityRole: null, cryptoClassification: null, metadataLastRefreshedAt: null, providerPrimary: null, providerMetadata: {}, sourceType: "seeded", isActive: true },
+      { id: "stock-1", securityId: "security-msft", symbol: "MSFT", name: "Microsoft", assetClass: "stock", instrumentType: "stock", sector: "Technology", industry: null, canonicalSector: "Technology", canonicalThemes: ["Technology"], taxonomyIsManualOverride: false, taxonomyReviewStatus: "mapped", geography: "US", currency: "USD", exchange: "NASDAQ", watchlistTier: null, benchmarkTags: [], thematicTags: [], riskCategory: null, volatilityBucket: null, durationCategory: null, treasuryClassification: null, inflationLinked: null, creditQuality: null, geoExposure: "United States", rateSensitivity: null, inflationSensitivity: null, recessionSensitivity: null, liquidityRole: null, cryptoClassification: null, metadataLastRefreshedAt: null, providerPrimary: null, providerMetadata: {}, sourceType: "seeded", isActive: true },
       { id: "etf-1", symbol: "VOO", name: "Vanguard S&P 500 ETF", assetClass: "etf", instrumentType: "etf", sector: null, industry: null, canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification"], taxonomyIsManualOverride: false, taxonomyReviewStatus: "mapped", geography: "US", currency: "USD", exchange: "NYSE", watchlistTier: null, benchmarkTags: [], thematicTags: [], riskCategory: null, volatilityBucket: null, durationCategory: null, treasuryClassification: null, inflationLinked: null, creditQuality: null, geoExposure: "United States", rateSensitivity: null, inflationSensitivity: null, recessionSensitivity: null, liquidityRole: null, cryptoClassification: null, metadataLastRefreshedAt: null, providerPrimary: null, providerMetadata: {}, sourceType: "seeded", isActive: true }
     ]
   }).dashboard;
   const service = new PortfolioLookthroughExposureService(repository);
   const report = await service.calculateAndStore("portfolio-1", dashboard, context().instruments.concat([
-    { id: "stock-1", symbol: "MSFT", name: "Microsoft", assetClass: "stock", instrumentType: "stock", sector: "Technology", industry: null, canonicalSector: "Technology", canonicalThemes: ["Technology"], taxonomyIsManualOverride: false, taxonomyReviewStatus: "mapped", geography: "US", currency: "USD", exchange: "NASDAQ", watchlistTier: null, benchmarkTags: [], thematicTags: [], riskCategory: null, volatilityBucket: null, durationCategory: null, treasuryClassification: null, inflationLinked: null, creditQuality: null, geoExposure: "United States", rateSensitivity: null, inflationSensitivity: null, recessionSensitivity: null, liquidityRole: null, cryptoClassification: null, metadataLastRefreshedAt: null, providerPrimary: null, providerMetadata: {}, sourceType: "seeded", isActive: true },
+    { id: "stock-1", securityId: "security-msft", symbol: "MSFT", name: "Microsoft", assetClass: "stock", instrumentType: "stock", sector: "Technology", industry: null, canonicalSector: "Technology", canonicalThemes: ["Technology"], taxonomyIsManualOverride: false, taxonomyReviewStatus: "mapped", geography: "US", currency: "USD", exchange: "NASDAQ", watchlistTier: null, benchmarkTags: [], thematicTags: [], riskCategory: null, volatilityBucket: null, durationCategory: null, treasuryClassification: null, inflationLinked: null, creditQuality: null, geoExposure: "United States", rateSensitivity: null, inflationSensitivity: null, recessionSensitivity: null, liquidityRole: null, cryptoClassification: null, metadataLastRefreshedAt: null, providerPrimary: null, providerMetadata: {}, sourceType: "seeded", isActive: true },
+    { id: "internal-msft", securityId: "security-msft", symbol: "MSFT", name: "Microsoft ETF underlying", assetClass: "other", instrumentType: "underlying_security", sector: "Technology", industry: null, canonicalSector: "Technology", canonicalThemes: ["Technology"], taxonomyIsManualOverride: false, taxonomyReviewStatus: "mapped", geography: "US", currency: "USD", exchange: null, watchlistTier: null, benchmarkTags: [], thematicTags: [], riskCategory: null, volatilityBucket: null, durationCategory: null, treasuryClassification: null, inflationLinked: null, creditQuality: null, geoExposure: "United States", rateSensitivity: null, inflationSensitivity: null, recessionSensitivity: null, liquidityRole: null, cryptoClassification: null, metadataLastRefreshedAt: null, providerPrimary: null, providerMetadata: {}, sourceType: "security_master", isUserSelectable: false, isInternalOnly: true, isActive: true },
     { id: "etf-1", symbol: "VOO", name: "Vanguard S&P 500 ETF", assetClass: "etf", instrumentType: "etf", sector: null, industry: null, canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification"], taxonomyIsManualOverride: false, taxonomyReviewStatus: "mapped", geography: "US", currency: "USD", exchange: "NYSE", watchlistTier: null, benchmarkTags: [], thematicTags: [], riskCategory: null, volatilityBucket: null, durationCategory: null, treasuryClassification: null, inflationLinked: null, creditQuality: null, geoExposure: "United States", rateSensitivity: null, inflationSensitivity: null, recessionSensitivity: null, liquidityRole: null, cryptoClassification: null, metadataLastRefreshedAt: null, providerPrimary: null, providerMetadata: {}, sourceType: "seeded", isActive: true }
   ]));
 
@@ -401,8 +405,11 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
   const aiSector = report.sectorExposures.find((item) => item.exposureName === "AI");
   const unitedStates = report.countryExposures.find((item) => item.exposureName === "United States");
   const duplicateUs = report.countryExposures.find((item) => item.exposureName === "US");
-  const msft = report.topHoldingExposures.find((item) => item.exposureName === "MSFT");
-  const msftHolding = report.holdingExposures.find((item) => item.holdingSymbol === "MSFT");
+  const msft = report.topHoldingExposures.find((item) => item.exposureName === "Microsoft");
+  const msftHolding = report.holdingExposures.find((item) =>
+    item.holdingIssuerId === "issuer-msft" ||
+    ((item.inputsSnapshot.rawSymbols as string[] | undefined) ?? []).includes("MSFT")
+  );
   const vooHolding = report.holdingExposures.find((item) => item.holdingSymbol === "VOO");
   assert.ok(technology);
   assert.ok(Math.abs(technology.exposureWeight - 0.85) < 0.000001);
@@ -416,9 +423,16 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
   assert.ok(Math.abs(unitedStates.exposureWeight - 1) < 0.000001);
   assert.ok(msft);
   assert.ok(Math.abs(msft.exposureWeight - 0.535) < 0.000001);
+  assert.equal(msft.exposureSecurityId, null);
+  assert.equal(msft.exposureIssuerId, "issuer-msft");
   assert.ok(msftHolding);
   assert.ok(Math.abs(msftHolding.directWeight - 0.5) < 0.000001);
   assert.ok(Math.abs(msftHolding.indirectWeight - 0.035) < 0.000001);
+  assert.equal(msftHolding.holdingSecurityId, null);
+  assert.equal(msftHolding.holdingIssuerId, "issuer-msft");
+  assert.equal(msftHolding.inputsSnapshot.instrumentAssetClass, "stock");
+  assert.deepEqual((msftHolding.inputsSnapshot.rawSymbols as string[]), ["MSFT", "MSFT US"]);
+  assert.deepEqual((msftHolding.inputsSnapshot.securityBreakdown as Array<{ symbol: string }>).map((item) => item.symbol), ["MSFT"]);
   assert.deepEqual(msftHolding.sourceEtfs.map((item) => item.symbol), ["VOO"]);
   assert.ok(vooHolding);
   assert.equal(vooHolding.indirectWeight, 0);
@@ -433,6 +447,47 @@ test("potential actions do not include exact trade amounts or position sizes", (
   assert.doesNotMatch(text, /\$\d/);
   assert.doesNotMatch(text, /\b\d+\s+shares\b/i);
   assert.doesNotMatch(text, /\b(buy|sell)\s+\d/i);
+});
+
+test("portfolio look-through labels direct stock holdings from holding asset type when matched instrument is internal", async () => {
+  const repository = {
+    listLatestSectorExposures: async () => [],
+    listLatestCountryExposures: async () => [],
+    listLatestTopHoldings: async () => [],
+    listLatestThemeExposures: async () => [],
+    listIssuerLinksForSecurityIds: async () => [],
+    upsertPortfolioLookthroughExposures: async () => undefined,
+    upsertPortfolioLookthroughHoldings: async () => undefined,
+    getLatestExposureDateForEtf: async () => null,
+    upsertSectorExposures: async () => undefined,
+    upsertCountryExposures: async () => undefined,
+    upsertTopHoldings: async () => undefined,
+    upsertThemeExposures: async () => undefined,
+    listPortfolioLookthroughExposures: async () => [],
+    listPortfolioLookthroughHoldings: async () => [],
+    insertRefreshLog: async () => undefined,
+    listRefreshLogs: async () => []
+  } as Partial<EtfExposureRepository> as EtfExposureRepository;
+  const dashboard = context({
+    dashboard: {
+      ...context().dashboard,
+      holdings: [
+        { id: "h1", portfolioId: "portfolio-1", assetId: "a1", assetType: "stock", ticker: "NVDA", assetName: "NVIDIA", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Technology" }
+      ],
+      holdingValuations: [
+        { holding: { id: "h1", portfolioId: "portfolio-1", assetId: "a1", assetType: "stock", ticker: "NVDA", assetName: "NVIDIA", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Technology" }, unitPrice: 100, value: 100, valueCurrency: "USD", priceDate: "2026-06-01", priceProvider: "test", valuationSource: "market_price" }
+      ],
+      totalValueEstimate: 100
+    }
+  }).dashboard;
+  const service = new PortfolioLookthroughExposureService(repository);
+  const report = await service.calculateAndStore("portfolio-1", dashboard, [
+    { id: "internal-nvda", securityId: "security-nvda", symbol: "NVDA", name: "NVIDIA ETF underlying", assetClass: "other", instrumentType: "underlying_security", sector: "Technology", industry: null, canonicalSector: "Technology", canonicalThemes: ["Technology"], taxonomyIsManualOverride: false, taxonomyReviewStatus: "mapped", geography: "US", currency: "USD", exchange: null, watchlistTier: null, benchmarkTags: [], thematicTags: [], riskCategory: null, volatilityBucket: null, durationCategory: null, treasuryClassification: null, inflationLinked: null, creditQuality: null, geoExposure: "United States", rateSensitivity: null, inflationSensitivity: null, recessionSensitivity: null, liquidityRole: null, cryptoClassification: null, metadataLastRefreshedAt: null, providerPrimary: null, providerMetadata: {}, sourceType: "security_master", isUserSelectable: false, isInternalOnly: true, isActive: true }
+  ]);
+  const nvdaHolding = report.holdingExposures.find((item) => item.holdingSymbol === "NVDA");
+
+  assert.ok(nvdaHolding);
+  assert.equal(nvdaHolding.inputsSnapshot.instrumentAssetClass, "stock");
 });
 
 test("risk review normalizes percent-style drawdowns before scoring", () => {

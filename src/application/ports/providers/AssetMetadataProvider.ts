@@ -7,6 +7,9 @@ export type AssetMetadata = {
   region: string | null;
   sector: string | null;
   industry: string | null;
+  isin?: string | null;
+  cusip?: string | null;
+  figi?: string | null;
   raw: unknown;
 };
 

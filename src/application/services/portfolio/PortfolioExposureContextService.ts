@@ -9,6 +9,14 @@ export type PortfolioExposureContext = {
   assetAllocation: AllocationItem[];
   sectorAllocation: AllocationItem[];
   geographyAllocation: AllocationItem[];
+  issuerExposures: Array<{
+    issuerId: string | null;
+    issuerName: string;
+    symbols: string[];
+    totalWeight: number;
+    directWeight: number;
+    indirectWeight: number;
+  }>;
   sectorSource: PortfolioExposureSource;
   geographySource: PortfolioExposureSource;
   coverage: PortfolioLookthroughReport["coverage"] | null;
@@ -17,6 +25,38 @@ export type PortfolioExposureContext = {
 
 function toObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function issuerExposuresFromSnapshot(value: unknown): PortfolioExposureContext["issuerExposures"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const row = toObject(item);
+    const snapshot = toObject(row.inputsSnapshot);
+    const issuerId = typeof row.holdingIssuerId === "string" ? row.holdingIssuerId : typeof snapshot.issuerId === "string" ? snapshot.issuerId : null;
+    const issuerName = typeof row.holdingIssuerName === "string"
+      ? row.holdingIssuerName
+      : typeof snapshot.issuerName === "string"
+        ? snapshot.issuerName
+        : typeof row.holdingName === "string"
+          ? row.holdingName
+          : typeof row.holdingSymbol === "string"
+            ? row.holdingSymbol
+            : null;
+    if (!issuerName) return [];
+    const totalWeight = Number(row.totalWeight);
+    return [{
+      issuerId,
+      issuerName,
+      symbols: stringArray(snapshot.rawSymbols),
+      totalWeight: Number.isFinite(totalWeight) ? totalWeight : 0,
+      directWeight: Number.isFinite(Number(row.directWeight)) ? Number(row.directWeight) : 0,
+      indirectWeight: Number.isFinite(Number(row.indirectWeight)) ? Number(row.indirectWeight) : 0
+    }];
+  }).sort((a, b) => b.totalWeight - a.totalWeight);
 }
 
 function toLookthroughExposure(value: unknown): PortfolioLookthroughExposure | null {
@@ -75,12 +115,14 @@ export function buildPortfolioExposureContext(
   const lookthrough = toObject(snapshot.lookthroughExposure);
   const sectorRows = consolidatePortfolioLookthroughExposures(exposureRows(lookthrough.sectorExposures));
   const countryRows = consolidatePortfolioLookthroughExposures(exposureRows(lookthrough.countryExposures));
+  const issuerExposures = issuerExposuresFromSnapshot(lookthrough.holdingExposures);
   const lookthroughCoverage = coverage(lookthrough.coverage);
 
   return {
     assetAllocation: dashboard.allocationByType,
     sectorAllocation: sectorRows.length > 0 ? allocationFromExposure(sectorRows) : dashboard.allocationBySector,
     geographyAllocation: countryRows.length > 0 ? allocationFromExposure(countryRows) : dashboard.allocationByGeography,
+    issuerExposures,
     sectorSource: sectorRows.length > 0 ? "lookthrough" : "direct_metadata",
     geographySource: countryRows.length > 0 ? "lookthrough" : "direct_metadata",
     coverage: lookthroughCoverage,

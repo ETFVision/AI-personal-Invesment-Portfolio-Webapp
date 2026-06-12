@@ -375,7 +375,8 @@ export async function refreshInstrumentMetadataAction(formData?: FormData) {
     const result = await container.metadataRefreshService.refreshUniverseMetadataInBatches({
       requestedByUserId: appUser.id,
       batchSize: 25,
-      maxBatches: 14
+      maxBatches: 14,
+      forceIdentifierRefresh: true
     });
     refreshMessage = result.message;
     errors.push(...result.errors);
