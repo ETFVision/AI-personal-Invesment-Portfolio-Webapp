@@ -2,6 +2,29 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 01:25 SGT - Security Master Phase 2 ETF Holding Mapping
+
+Scope:
+- Confirmed ETF holding infrastructure already exists in the repo via `etf_top_holdings` and `portfolio_lookthrough_holdings`.
+- Added canonical security mapping columns and a sync helper for ETF top holdings, portfolio look-through holdings, and top-holding exposure rows.
+- Kept all calculations symbol/instrument based for now; this phase enables dual-run QA rather than switching production calculations.
+
+Files updated:
+- `supabase/migrations/094_security_master_etf_holding_mapping.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Current ETF holding state:
+- `etf_top_holdings` exists and stores raw provider/seeded ETF holdings by `holding_symbol`.
+- `portfolio_lookthrough_holdings` exists and stores direct plus indirect holding exposure by `holding_symbol`.
+- Phase 2 adds `holding_security_id`, mapping status/confidence/source timestamps, and `portfolio_lookthrough_exposures.exposure_security_id`.
+
+Post-migration QA:
+- Run migration 094.
+- Check mapped/unmapped/ambiguous counts for `etf_top_holdings`.
+- Check mapped/unmapped/ambiguous counts for `portfolio_lookthrough_holdings`.
+- Review unmapped top holdings before any future calculation switch.
+
 ## 2026-06-13 01:05 SGT - Security Master Metadata Identifier Sync
 
 Scope:

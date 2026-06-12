@@ -62,11 +62,12 @@ Implemented on 2026-06-13:
 | Initial backfill | Implemented in migration | Uses stored FMP metadata where available and falls back to exchange + symbol matching. |
 | Link repair | Implemented in repo | `supabase/migrations/092_repair_security_master_links.sql` safely links active instruments to already-created securities and populates missing identifiers/aliases. |
 | Metadata identifier sync | Implemented in repo | `supabase/migrations/093_sync_security_master_identifiers.sql` lets future metadata refreshes promote ISIN/CUSIP/FIGI into security-master tables. |
+| ETF holding mapping | Implemented in repo | `supabase/migrations/094_security_master_etf_holding_mapping.sql` adds canonical security mapping columns to ETF top holdings, portfolio look-through holdings, and top-holding exposures. |
 | Resolver service | Implemented | `src/application/services/securityMaster/SecurityMasterService.ts` resolves by FIGI, ISIN, CUSIP, SEDOL, exchange + symbol, provider symbol, alias, then low-confidence name fallback. |
 | Resolver tests | Implemented | Covers ISIN priority, exchange-symbol matching, BRK.B provider variants, FB to META alias, GOOG/GOOGL non-merge, unmapped symbols, and ambiguous names. |
 | Calculation switch | Not started | Current app calculations remain instrument/symbol based until Phase 2/3 dual-run QA. |
 
-Post-deployment checks after running migrations 091, 092, and 093:
+Post-deployment checks after running migrations 091, 092, 093, and 094:
 
 ```sql
 select count(*) as active_instruments_without_security_id
@@ -86,6 +87,16 @@ order by identifier_type;
 
 select count(*) as securities_master_count
 from securities_master;
+
+select mapping_status, count(*)
+from etf_top_holdings
+group by mapping_status
+order by count(*) desc;
+
+select mapping_status, count(*)
+from portfolio_lookthrough_holdings
+group by mapping_status
+order by count(*) desc;
 ```
 
 ## Live Evidence Snapshot
