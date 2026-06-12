@@ -64,11 +64,13 @@ Output:
 - Unknown category report.
 - Alpha versus development universe recommendation.
 
-Current status: mostly completed.
+Current status: completed.
 
 Notes:
 - Current source-of-truth universe lives in `src/domain/universe/alphaUniverse.ts`.
-- Current target is 201 ETFs and 105 stocks, with raw crypto references inactive or limited.
+- Live Supabase verification on 2026-06-12 confirmed 306 active instruments: 201 ETF-style products and 105 stocks.
+- Raw crypto references are inactive; crypto ETF proxies remain active ETF-style products.
+- No active duplicate symbols, missing active ETF categories, missing active stock canonical sectors, or missing active asset categories were found.
 - A future ETF universe completion item has been logged for Factor Investing and Option Income ETFs.
 
 ## 2. Data Provider Audit
@@ -958,7 +960,7 @@ Recommended:
 
 | # | Audit | Status | Current assessment |
 |---:|---|---|---|
-| 1 | Instrument Taxonomy Audit | Mostly completed | Taxonomy is implemented and documented. Final live Supabase count check should be repeated after future ETF additions. |
+| 1 | Instrument Taxonomy Audit | Completed | Taxonomy is implemented, documented and live-count verified. Repeat the live count check after future ETF additions. |
 | 2 | Data Provider Audit | Partly completed | Provider coverage has been tested ad hoc. A formal full-universe provider matrix is still needed. |
 | 3 | Data Normalization Audit | Mostly completed | ETFVision taxonomy fields are in place. Need final proof that calculations do not misuse provider categories. |
 | 4 | Security Master Audit | Partly completed | Basic symbol normalization exists. Full canonical security identity and alias governance are incomplete. |
@@ -996,7 +998,7 @@ Recommended:
 ETFVision is progressing toward public alpha, but it is not ready for paid users yet.
 
 Strong areas:
-- Instrument taxonomy.
+- Instrument taxonomy, now completed for the current commercialization checkpoint.
 - Portfolio calculations.
 - Stored metrics architecture.
 - ETF look-through sector/country exposure.

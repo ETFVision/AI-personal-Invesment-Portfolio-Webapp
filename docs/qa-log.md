@@ -2880,6 +2880,55 @@ Validation:
 - Documentation-only update.
 - No runtime tests were run because no executable code changed.
 
+## 2026-06-12 22:55 SGT - Instrument Taxonomy Commercialization Audit Completion
+
+Scope:
+- Completed the Instrument Taxonomy Audit from the commercialization audit plan.
+- Verified source-of-truth universe counts from `src/domain/universe/alphaUniverse.ts`.
+- Verified live Supabase aggregate active counts and taxonomy null checks.
+- Corrected stale documentation that described BTC, ETH and SOL raw crypto references as active.
+
+Files updated:
+- `docs/INSTRUMENT_TAXONOMY_AUDIT.md`
+- `docs/INSTRUMENT_TAXONOMY_AND_COVERAGE.md`
+- `docs/instrument-taxonomy-alpha-universe.md`
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/README.md`
+- `docs/qa-log.md`
+
+Static audit evidence:
+- PASS: 201 ETF symbols in the source map.
+- PASS: 201 unique ETF symbols.
+- PASS: 105 stock symbols in the source map.
+- PASS: 105 unique stock symbols.
+- PASS: 0 duplicate ETF symbols.
+- PASS: 0 duplicate stock symbols.
+- PASS: 0 ETF/stock overlaps.
+- PASS: 0 empty ETF categories.
+- PASS: 0 empty stock sectors.
+
+Live Supabase evidence:
+- PASS: 324 total instrument rows.
+- PASS: 306 active instruments.
+- PASS: 18 inactive instruments.
+- PASS: 196 active `etf` rows.
+- PASS: 5 active `crypto_etf` rows.
+- PASS: 105 active `stock` rows.
+- PASS: 0 active duplicate symbols.
+- PASS: 0 active ETFs missing `etf_category`.
+- PASS: 0 active stocks missing `sector`.
+- PASS: 0 active stocks missing `canonical_sector`.
+- PASS: 0 active instruments missing `asset_category`.
+- PASS: BTC, ETH and SOL raw crypto references are inactive.
+
+Finding:
+- `coverage_status` and `is_user_selectable` are not physical `instruments` columns. This is accepted for the current taxonomy audit because active/product eligibility is currently represented by `is_active`, feature visibility and freshness diagnostics. Whether to add explicit fields is deferred to the Data Provider Audit, Data Freshness UX Audit and Feature Flags/Product Modes Audit.
+
+Validation:
+- Static source audit via Node script.
+- Live aggregate Supabase audit via service-role query, returning counts only.
+- No runtime app tests were run because this was a documentation/audit completion pass.
+
 ## 2026-06-12 22:35 SGT - Commercialization Audit Plan Documentation
 
 Scope:
