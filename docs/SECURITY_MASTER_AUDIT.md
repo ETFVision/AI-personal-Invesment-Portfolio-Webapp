@@ -68,6 +68,7 @@ Implemented on 2026-06-13:
 | Resolver tests | Implemented | Covers ISIN priority, exchange-symbol matching, BRK.B provider variants, FB to META alias, GOOG/GOOGL non-merge, unmapped symbols, and ambiguous names. |
 | Calculation dual-run QA | Implemented in repo | `supabase/migrations/096_security_master_dual_run_qa.sql` adds a persistent QA report table and runner for raw-symbol versus canonical security-ID portfolio look-through grouping. |
 | Calculation switch | Started | Portfolio look-through top-holding aggregation now prefers canonical security IDs when available, with raw-symbol fallback preserved. Broader engines still need follow-up QA before switching additional calculations. |
+| Issuer master | Implemented in repo | `supabase/migrations/097_issuer_master_foundation.sql` adds issuer entities and links securities to issuers for share-class/company-level exposure rollups. |
 
 Post-deployment checks after running migrations 091, 092, 093, 094, 095, and 096:
 
@@ -577,12 +578,14 @@ Production switch criteria:
 - Any `merged_group_count > 0` is explained by expected alias/security consolidation.
 - Portfolio Review concentration, top indirect holdings, assistant context, and recommendation portfolio-fit output are manually checked against the dual-run summary.
 
-### Phase 4 - Corporate Actions And Multi-Provider
+### Phase 4 - Switch Core Exposure Calculations
 
-- Add corporate action lineage fields.
-- Add FIGI or other provider enrichment if needed.
-- Add multi-provider reconciliation and source priority logic.
-- Add formal duplicate/ambiguous security review workflow.
+The original security-master audit separated calculation switch from later corporate-action and multi-provider hardening. The practical order is:
+
+- Phase 4A: switch top-holding and indirect-holding calculations from raw symbols to canonical `security_id`.
+- Phase 4B: add an issuer master so share classes and economically equivalent issuer exposure can be grouped above the security level.
+- Phase 4C: use issuer-level grouping for concentration, hidden overlap, assistant context, and portfolio-fit explanations where appropriate.
+- Later phases: add recommendation/telemetry/history hardening, corporate actions, multi-provider reconciliation, and admin monitoring.
 
 ### Phase 4A - Initial Security-ID Calculation Switch
 
@@ -608,6 +611,76 @@ Post-deployment QA:
 3. Confirm the latest report remains `pass`.
 4. Check Portfolio Review top holdings and indirect holdings for expected direct-plus-ETF aggregation.
 5. Spot-check assistant/recommendation portfolio-fit wording for concentration questions.
+
+### Phase 4B - Issuer Master Foundation
+
+Implemented:
+
+- `issuers` stores canonical issuer/company/fund entities.
+- `security_issuer_links` maps each active security to an issuer.
+- `normalize_issuer_name(input_name text)` strips share-class and ADR/common-stock suffix noise for deterministic grouping.
+- `sync_security_issuer_links()` backfills issuers and active security-to-issuer links from `securities_master`.
+- Manual high-confidence share-class seed logic marks `GOOG`, `GOOGL`, `BRK.A`, and `BRK.B` as explicit share-class cases where those securities exist.
+- The issuer layer does not merge securities. It links separate securities to a common issuer for concentration and exposure rollups.
+
+Recommended Supabase QA:
+
+```sql
+select * from public.sync_security_issuer_links();
+
+select
+  count(*) as active_securities,
+  count(link.security_id) as linked_securities,
+  count(*) filter (where link.security_id is null) as unlinked_securities
+from securities_master sm
+left join security_issuer_links link
+  on link.security_id = sm.id
+  and link.valid_to is null
+where sm.is_active = true;
+
+select
+  issuer.issuer_name,
+  issuer.issuer_type,
+  count(*) as securities,
+  array_agg(master.canonical_symbol order by master.canonical_symbol) as symbols
+from issuers issuer
+join security_issuer_links link on link.issuer_id = issuer.id and link.valid_to is null
+join securities_master master on master.id = link.security_id
+where issuer.is_active = true
+group by issuer.id, issuer.issuer_name, issuer.issuer_type
+having count(*) > 1
+order by securities desc, issuer.issuer_name
+limit 25;
+
+select
+  master.canonical_symbol,
+  master.canonical_name
+from securities_master master
+left join security_issuer_links link
+  on link.security_id = master.id
+  and link.valid_to is null
+where master.is_active = true
+  and link.security_id is null
+order by master.canonical_symbol;
+```
+
+Expected healthy result:
+
+- `unlinked_securities = 0`.
+- Multi-security issuers are explainable share-class or listing cases, such as Alphabet if both `GOOG` and `GOOGL` are present.
+- Issuer links preserve security-level detail and do not replace `securities_master`.
+
+Not switched yet:
+
+- Portfolio Review still uses its temporary display rollup until issuer IDs are added to look-through rows.
+- Assistant, recommendation portfolio fit, telemetry, and Market Vision still consume the current exposure shape.
+- Corporate actions and multi-provider conflict handling are still later phases.
+
+Next step after QA:
+
+- Add optional `issuer_id` to portfolio look-through holding/exposure rows.
+- Run a new dual-run QA comparing security-level concentration versus issuer-level concentration.
+- Switch concentration display from temporary normalized-name grouping to database-backed issuer grouping.
 
 ## Phase A Conclusion
 

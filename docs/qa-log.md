@@ -2,6 +2,36 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 03:45 SGT - Security Master Phase 4B Issuer Master Foundation
+
+Scope:
+- Added the database foundation for issuer-level exposure grouping.
+- Created `issuers` and `security_issuer_links`.
+- Added `normalize_issuer_name(input_name text)` for deterministic share-class/name cleanup.
+- Added `sync_security_issuer_links()` to backfill active securities into issuer links.
+- Kept application calculations unchanged until issuer-link QA is reviewed.
+
+Files updated:
+- `supabase/migrations/097_issuer_master_foundation.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Design notes:
+- `securities_master` remains the canonical security/tradable identity.
+- Issuers sit above securities and answer company/issuer exposure questions.
+- `GOOG` and `GOOGL` can remain separate securities while linking to a common Alphabet issuer.
+- The current Portfolio Review display rollup remains a temporary presentation layer until issuer IDs are carried into look-through rows.
+
+Post-migration QA:
+- Run `select * from public.sync_security_issuer_links();`.
+- Confirm active securities without issuer links equals zero.
+- Review issuers with multiple securities and confirm they are legitimate share-class/listing cases.
+- Do not switch issuer-level calculations until the mapping results are reviewed.
+
+Residual risks:
+- Normalized-name linking is deterministic but still simpler than a full corporate-action/security-reference provider.
+- Parent/subsidiary and ADR/local-listing edge cases should be reviewed before commercialization.
+
 ## 2026-06-13 03:20 SGT - Portfolio Review Underlying Exposure UI Refinement
 
 Scope:
