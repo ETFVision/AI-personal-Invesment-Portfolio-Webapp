@@ -93,6 +93,8 @@ function mapInstrument(row: any): Instrument {
     providerPrimary: row.provider_primary,
     providerMetadata: row.provider_metadata ?? {},
     sourceType: row.source_type,
+    isUserSelectable: row.is_user_selectable ?? true,
+    isInternalOnly: row.is_internal_only ?? false,
     isActive: row.is_active
   };
 }

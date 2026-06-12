@@ -245,12 +245,33 @@ function hasEquityLookthrough(instrument: Instrument) {
   return instrument.assetClass === "etf" && !["Bonds / Fixed Income", "Commodities / Gold", "Crypto", "Cash / Money Market"].includes(instrument.canonicalSector ?? "");
 }
 
+function instrumentLookupPriority(instrument: Instrument) {
+  if (instrument.isInternalOnly) return 0;
+  if (instrument.isUserSelectable === false) return 1;
+  if (instrument.assetClass === "stock") return 4;
+  if (["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"].includes(instrument.assetClass)) return 3;
+  return 2;
+}
+
+function buildInstrumentBySymbol(instruments: Instrument[]) {
+  const map = new Map<string, Instrument>();
+  for (const instrument of instruments) {
+    const symbol = instrument.symbol?.trim().toUpperCase();
+    if (!symbol) continue;
+    const current = map.get(symbol);
+    if (!current || instrumentLookupPriority(instrument) > instrumentLookupPriority(current)) {
+      map.set(symbol, instrument);
+    }
+  }
+  return map;
+}
+
 export class PortfolioLookthroughExposureService {
   constructor(private readonly repository: EtfExposureRepository) {}
 
   async calculateAndStore(portfolioId: string, dashboard: PortfolioDashboard, instruments: Instrument[]): Promise<PortfolioLookthroughReport> {
     const asOfDate = dashboard.latestPriceDate ?? today();
-    const instrumentBySymbol = new Map(instruments.flatMap((instrument) => instrument.symbol ? [[instrument.symbol.toUpperCase(), instrument]] : []));
+    const instrumentBySymbol = buildInstrumentBySymbol(instruments);
     const etfIds = instruments.filter(hasEquityLookthrough).map((instrument) => instrument.id);
     const [sectorRows, countryRows, topHoldingRows, themeRows] = await Promise.all([
       this.repository.listLatestSectorExposures(etfIds),

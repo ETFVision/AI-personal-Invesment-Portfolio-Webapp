@@ -606,7 +606,7 @@ function IndirectHoldingExposureTable({ rows }: { rows: PortfolioLookthroughHold
               value: row.indirectWeight,
               valueLabel: formatPercent(row.indirectWeight),
               detail: [
-                row.directWeight > 0 ? `Total with direct holding ${formatPercent(row.totalWeight)}` : null,
+                row.directWeight > 0 ? `Total with direct holding ${formatPercent(row.directWeight + row.indirectWeight)}` : null,
                 row.sourceEtfs.length > 0 ? `Source ETFs: ${row.sourceEtfs.map((item) => `${item.symbol} ${formatPercent(item.weight)}`).join(", ")}` : null,
                 securityBreakdownDetail(row)
               ].filter(Boolean).join(" - ")

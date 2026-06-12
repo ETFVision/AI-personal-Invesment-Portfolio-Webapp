@@ -62,6 +62,8 @@ export type Instrument = {
   providerPrimary: string | null;
   providerMetadata: Record<string, unknown>;
   sourceType: string;
+  isUserSelectable?: boolean;
+  isInternalOnly?: boolean;
   isActive: boolean;
 };
 
