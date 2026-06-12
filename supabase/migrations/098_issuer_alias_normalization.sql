@@ -121,6 +121,18 @@ canonical as (
   join issuers issuer
     on issuer.is_active = true
     and issuer.normalized_issuer_name = public.normalize_issuer_name(seed.canonical_issuer_name)
+),
+deduped_aliases as (
+  select distinct on (issuer_id, normalized_alias_name, alias_type)
+    issuer_id,
+    alias_name,
+    normalized_alias_name,
+    alias_type,
+    confidence_score,
+    notes
+  from canonical
+  where normalized_alias_name is not null
+  order by issuer_id, normalized_alias_name, alias_type, confidence_score desc, length(alias_name) asc
 )
 insert into issuer_aliases (
   issuer_id,
@@ -133,16 +145,15 @@ insert into issuer_aliases (
   notes
 )
 select
-  canonical.issuer_id,
-  canonical.alias_name,
-  canonical.normalized_alias_name,
-  canonical.alias_type,
+  deduped_aliases.issuer_id,
+  deduped_aliases.alias_name,
+  deduped_aliases.normalized_alias_name,
+  deduped_aliases.alias_type,
   'etfvision_seed',
-  canonical.confidence_score,
+  deduped_aliases.confidence_score,
   'approved',
-  canonical.notes
-from canonical
-where canonical.normalized_alias_name is not null
+  deduped_aliases.notes
+from deduped_aliases
 on conflict (issuer_id, normalized_alias_name, alias_type, source) where valid_to is null do update
 set
   alias_name = excluded.alias_name,
