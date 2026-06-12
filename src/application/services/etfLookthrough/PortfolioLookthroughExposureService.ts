@@ -1,4 +1,5 @@
 import type { EtfExposureRepository } from "@/application/ports/repositories/EtfExposureRepository";
+import type { SecurityIssuerLink } from "@/application/ports/repositories/EtfExposureRepository";
 import type { PortfolioDashboard } from "@/domain/portfolio/types";
 import type { PortfolioLookthroughExposure, PortfolioLookthroughHolding, PortfolioLookthroughReport, PortfolioLookthroughHoldingSourceEtf } from "@/domain/etfLookthrough/types";
 import type { Instrument } from "@/domain/universe/types";
@@ -14,10 +15,26 @@ type HoldingAccumulator = {
   holdingSymbol: string;
   holdingName: string | null;
   holdingSecurityId: string | null;
+  holdingIssuerId: string | null;
+  holdingIssuerName: string | null;
   mappingStatus: string;
   mappingConfidenceScore: number;
   rawSymbols: string[];
   instrumentAssetClass: string | null;
+  directWeight: number;
+  indirectWeight: number;
+  sourceEtfs: PortfolioLookthroughHoldingSourceEtf[];
+  securityBreakdown: SecurityBreakdownEntry[];
+};
+
+type SecurityBreakdownEntry = {
+  symbol: string;
+  name: string | null;
+  securityId: string | null;
+  issuerId: string | null;
+  issuerName: string | null;
+  shareClass: string | null;
+  linkSource: string | null;
   directWeight: number;
   indirectWeight: number;
   sourceEtfs: PortfolioLookthroughHoldingSourceEtf[];
@@ -79,28 +96,37 @@ function addHolding(
   source: "direct" | "indirect",
   sourceEtf?: string | null,
   securityId?: string | null,
+  issuerLink?: SecurityIssuerLink | null,
   mappingStatus?: string | null,
   mappingConfidenceScore?: number | null,
   instrumentAssetClass?: string | null
 ) {
   const normalizedSymbol = symbol?.trim().toUpperCase();
   const normalizedSecurityId = securityId?.trim() || null;
-  const key = normalizedSecurityId ? `security:${normalizedSecurityId}` : normalizedSymbol ? `symbol:${normalizedSymbol}` : null;
+  const isDirectFundWrapper = source === "direct" && ["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"].includes(instrumentAssetClass ?? "");
+  const issuerId = !isDirectFundWrapper ? issuerLink?.issuerId ?? null : null;
+  const issuerName = !isDirectFundWrapper ? issuerLink?.issuerName ?? null : null;
+  const key = issuerId ? `issuer:${issuerId}` : normalizedSecurityId ? `security:${normalizedSecurityId}` : normalizedSymbol ? `symbol:${normalizedSymbol}` : null;
   if (!key || !normalizedSymbol || !Number.isFinite(weight) || weight <= 0) return;
   const current = map.get(key) ?? {
     holdingSymbol: normalizedSymbol,
-    holdingName: name?.trim() || null,
-    holdingSecurityId: normalizedSecurityId,
+    holdingName: issuerName ?? name?.trim() ?? null,
+    holdingSecurityId: issuerId ? null : normalizedSecurityId,
+    holdingIssuerId: issuerId,
+    holdingIssuerName: issuerName,
     mappingStatus: normalizedSecurityId ? (mappingStatus ?? "mapped") : "unmapped",
     mappingConfidenceScore: normalizedSecurityId ? (mappingConfidenceScore ?? 90) : 0,
     rawSymbols: [],
     instrumentAssetClass: instrumentAssetClass ?? null,
     directWeight: 0,
     indirectWeight: 0,
-    sourceEtfs: []
+    sourceEtfs: [],
+    securityBreakdown: []
   };
-  if (!current.holdingName && name?.trim()) current.holdingName = name.trim();
-  if (!current.holdingSecurityId && normalizedSecurityId) current.holdingSecurityId = normalizedSecurityId;
+  if (!current.holdingName && (issuerName || name?.trim())) current.holdingName = issuerName ?? name?.trim() ?? null;
+  if (!current.holdingSecurityId && normalizedSecurityId && !issuerId) current.holdingSecurityId = normalizedSecurityId;
+  if (!current.holdingIssuerId && issuerId) current.holdingIssuerId = issuerId;
+  if (!current.holdingIssuerName && issuerName) current.holdingIssuerName = issuerName;
   if (normalizedSecurityId) {
     current.mappingStatus = mappingStatus ?? "mapped";
     current.mappingConfidenceScore = Math.max(current.mappingConfidenceScore, mappingConfidenceScore ?? 90);
@@ -117,6 +143,33 @@ function addHolding(
       else current.sourceEtfs.push({ symbol: sourceEtf, weight });
     }
   }
+
+  const breakdownKey = normalizedSecurityId ? `security:${normalizedSecurityId}` : `symbol:${normalizedSymbol}`;
+  let breakdown = current.securityBreakdown.find((item) => item.securityId ? `security:${item.securityId}` === breakdownKey : `symbol:${item.symbol}` === breakdownKey);
+  if (!breakdown) {
+    breakdown = {
+      symbol: normalizedSymbol,
+      name: name?.trim() || null,
+      securityId: normalizedSecurityId,
+      issuerId,
+      issuerName,
+      shareClass: issuerLink?.shareClass ?? null,
+      linkSource: issuerLink?.linkSource ?? null,
+      directWeight: 0,
+      indirectWeight: 0,
+      sourceEtfs: []
+    };
+    current.securityBreakdown.push(breakdown);
+  }
+  if (source === "direct") breakdown.directWeight += weight;
+  else {
+    breakdown.indirectWeight += weight;
+    if (sourceEtf) {
+      const existing = breakdown.sourceEtfs.find((item) => item.symbol === sourceEtf);
+      if (existing) existing.weight += weight;
+      else breakdown.sourceEtfs.push({ symbol: sourceEtf, weight });
+    }
+  }
   map.set(key, current);
 }
 
@@ -128,6 +181,8 @@ function holdingRows(portfolioId: string, asOfDate: string, map: Map<string, Hol
       holdingSymbol: value.holdingSymbol,
       holdingName: value.holdingName,
       holdingSecurityId: value.holdingSecurityId,
+      holdingIssuerId: value.holdingIssuerId,
+      holdingIssuerName: value.holdingIssuerName,
       mappingStatus: value.mappingStatus,
       mappingConfidenceScore: value.mappingConfidenceScore,
       directWeight: value.directWeight,
@@ -136,10 +191,18 @@ function holdingRows(portfolioId: string, asOfDate: string, map: Map<string, Hol
       sourceEtfs: value.sourceEtfs.sort((a, b) => b.weight - a.weight),
       inputsSnapshot: {
         source: "portfolio_lookthrough_exposure_service",
-        aggregation: value.holdingSecurityId ? "security_id" : "raw_symbol",
+        aggregation: value.holdingIssuerId ? "issuer_id" : value.holdingSecurityId ? "security_id" : "raw_symbol",
+        issuerId: value.holdingIssuerId,
+        issuerName: value.holdingIssuerName,
         instrumentAssetClass: value.instrumentAssetClass,
         exposureRole: value.indirectWeight > 0 ? "underlying_security" : "direct_position",
-        rawSymbols: value.rawSymbols.sort()
+        rawSymbols: value.rawSymbols.sort(),
+        securityBreakdown: value.securityBreakdown
+          .map((item) => ({
+            ...item,
+            sourceEtfs: item.sourceEtfs.sort((a, b) => b.weight - a.weight)
+          }))
+          .sort((a, b) => (b.directWeight + b.indirectWeight) - (a.directWeight + a.indirectWeight))
       }
     }))
     .sort((a, b) => b.totalWeight - a.totalWeight);
@@ -149,8 +212,10 @@ function topHoldingExposureRows(portfolioId: string, asOfDate: string, holdings:
   return holdings.map((holding) => ({
     portfolioId,
     exposureType: "top_holding",
-    exposureName: holding.holdingSymbol,
+    exposureName: holding.holdingIssuerName ?? holding.holdingName ?? holding.holdingSymbol,
     exposureSecurityId: holding.holdingSecurityId ?? null,
+    exposureIssuerId: holding.holdingIssuerId ?? null,
+    exposureIssuerName: holding.holdingIssuerName ?? null,
     exposureWeight: holding.totalWeight,
     directWeight: holding.directWeight,
     etfLookthroughWeight: holding.indirectWeight,
@@ -193,6 +258,13 @@ export class PortfolioLookthroughExposureService {
       this.repository.listLatestTopHoldings(etfIds),
       this.repository.listLatestThemeExposures(etfIds)
     ]);
+    const issuerLinks = await this.repository.listIssuerLinksForSecurityIds(
+      Array.from(new Set([
+        ...instruments.flatMap((instrument) => instrument.securityId ? [instrument.securityId] : []),
+        ...topHoldingRows.flatMap((holding) => holding.holdingSecurityId ? [holding.holdingSecurityId] : [])
+      ]))
+    );
+    const issuerLinkBySecurityId = new Map(issuerLinks.map((link) => [link.securityId, link]));
     const sectorsByEtf = groupByInstrument(sectorRows);
     const countriesByEtf = groupByInstrument(countryRows);
     const holdingsByEtf = groupByInstrument(topHoldingRows);
@@ -232,6 +304,7 @@ export class PortfolioLookthroughExposureService {
         "direct",
         null,
         instrument.securityId ?? null,
+        instrument.securityId ? issuerLinkBySecurityId.get(instrument.securityId) ?? null : null,
         instrument.securityId ? "mapped" : "unmapped",
         instrument.securityId ? 95 : 0,
         instrument.assetClass
@@ -278,6 +351,7 @@ export class PortfolioLookthroughExposureService {
               "indirect",
               instrument.symbol,
               holding.holdingSecurityId ?? null,
+              holding.holdingSecurityId ? issuerLinkBySecurityId.get(holding.holdingSecurityId) ?? null : null,
               holding.mappingStatus ?? null,
               holding.mappingConfidenceScore ?? null,
               "underlying_security"

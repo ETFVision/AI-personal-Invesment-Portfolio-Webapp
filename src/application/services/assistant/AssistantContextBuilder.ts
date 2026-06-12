@@ -89,10 +89,37 @@ function topIndirectHoldings(report: PortfolioReviewReport | null) {
   const nestedHoldings = holdingRows
     .map((item) => {
       const row = unknownRecord(item);
+      const rowSnapshot = unknownRecord(row.inputsSnapshot);
+      const breakdown = unknownArray(rowSnapshot.securityBreakdown)
+        .map((entry) => {
+          const security = unknownRecord(entry);
+          return {
+            symbol: String(security.symbol ?? "Unknown"),
+            name: typeof security.name === "string" ? security.name : null,
+            shareClass: typeof security.shareClass === "string" ? security.shareClass : null,
+            directWeight: typeof security.directWeight === "number" ? rounded(security.directWeight) : null,
+            indirectWeight: typeof security.indirectWeight === "number" ? rounded(security.indirectWeight) : null,
+            linkSource: typeof security.linkSource === "string" ? security.linkSource : null
+          };
+        })
+        .filter((entry) => entry.symbol !== "Unknown")
+        .slice(0, 5);
       return {
         symbol: String(row.holdingSymbol ?? row.symbol ?? row.ticker ?? row.label ?? "Unknown"),
-        name: typeof row.holdingName === "string" ? row.holdingName : typeof row.name === "string" ? row.name : null,
+        name: typeof row.holdingIssuerName === "string"
+          ? row.holdingIssuerName
+          : typeof row.holdingName === "string"
+            ? row.holdingName
+            : typeof row.name === "string"
+              ? row.name
+              : null,
+        issuerId: typeof row.holdingIssuerId === "string" ? row.holdingIssuerId : typeof rowSnapshot.issuerId === "string" ? rowSnapshot.issuerId : null,
+        issuerName: typeof row.holdingIssuerName === "string" ? row.holdingIssuerName : typeof rowSnapshot.issuerName === "string" ? rowSnapshot.issuerName : null,
+        symbols: Array.isArray(rowSnapshot.rawSymbols) ? rowSnapshot.rawSymbols.filter((symbol): symbol is string => typeof symbol === "string") : [],
+        securityBreakdown: breakdown,
         percent: typeof row.totalWeight === "number" ? rounded(row.totalWeight) : typeof row.percent === "number" ? rounded(row.percent) : null,
+        directPercent: typeof row.directWeight === "number" ? rounded(row.directWeight) : null,
+        indirectPercent: typeof row.indirectWeight === "number" ? rounded(row.indirectWeight) : null,
         value: typeof row.value === "number" ? rounded(row.value) : null
       };
     })

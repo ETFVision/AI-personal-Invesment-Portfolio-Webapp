@@ -6,6 +6,7 @@ import { EtfRecommendationService } from "../src/application/services/recommenda
 import { BondEtfRecommendationService } from "../src/application/services/recommendations/BondEtfRecommendationService";
 import { GoldRecommendationService } from "../src/application/services/recommendations/GoldRecommendationService";
 import { CryptoRecommendationService } from "../src/application/services/recommendations/CryptoRecommendationService";
+import { PortfolioFitService } from "../src/application/services/recommendations/portfolioFitService";
 import { emptyMarketVisionMetadata } from "../src/application/services/marketVision/MarketVisionGenerationService";
 import type { RecommendationInput } from "../src/application/services/recommendations/recommendationScoring";
 import type { Instrument, InstrumentMarketMetric, InstrumentRiskMetric } from "../src/domain/universe/types";
@@ -319,6 +320,37 @@ test("guardrails are only recorded when they change the label", () => {
 
   assert.equal(result.label, "Watch");
   assert.deepEqual(result.guardrails, []);
+});
+
+test("portfolio fit uses issuer-level look-through exposure for duplicate exposure", () => {
+  const result = new PortfolioFitService().assess(
+    instrument({ symbol: "GOOGL", name: "Alphabet" }),
+    {
+      totalValueEstimate: 100,
+      holdingValuations: []
+    } as any,
+    {
+      assetAllocation: [],
+      sectorAllocation: [],
+      geographyAllocation: [],
+      sectorSource: "lookthrough",
+      geographySource: "lookthrough",
+      coverage: null,
+      diagnostics: [],
+      issuerExposures: [{
+        issuerId: "issuer-alphabet",
+        issuerName: "Alphabet Inc",
+        symbols: ["GOOG", "GOOGL"],
+        totalWeight: 0.18,
+        directWeight: 0,
+        indirectWeight: 0.18
+      }]
+    }
+  );
+
+  assert.equal(result.duplicateExposure, true);
+  assert.equal(result.concentrationPercent, 0.18);
+  assert.ok(result.negativeDrivers.some((driver) => /issuer-level exposure/i.test(driver)));
 });
 
 test("stock recommendation uses fundamentals, trends, risk and portfolio fit", () => {

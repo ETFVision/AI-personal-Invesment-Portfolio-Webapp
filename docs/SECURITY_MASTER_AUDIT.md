@@ -719,8 +719,69 @@ Not switched yet:
 
 Next step after QA:
 
-- Add optional `issuer_id` to recommendation snapshots/history, telemetry recommendation snapshots, and portfolio review snapshots where relevant.
-- Preserve historical symbol-at-time-of-snapshot while using `issuer_id` to avoid future ticker/share-class fragmentation.
+### Phase 4C / 4D - Issuer-Level Rollups With Security Drill-Down
+
+Implemented:
+
+- `portfolio_lookthrough_holdings` now has optional `holding_issuer_id` and `holding_issuer_name`.
+- `portfolio_lookthrough_exposures` now has optional `exposure_issuer_id` and `exposure_issuer_name`.
+- Portfolio look-through calculation groups direct stock plus ETF underlying exposure by issuer when a valid issuer link exists.
+- Direct ETF/fund wrappers remain separate direct securities, not issuer-grouped company exposure.
+- Each issuer-grouped look-through row stores `inputsSnapshot.securityBreakdown` with security-level details:
+  - raw symbol
+  - security ID
+  - issuer ID/name
+  - share class
+  - issuer link source
+  - direct weight
+  - indirect weight
+  - source ETF contribution
+- Portfolio Review concentration uses issuer IDs first, then falls back to legacy issuer-name normalization for older reports.
+- Portfolio Assistant context now includes issuer-level indirect holdings and security breakdown details.
+- Recommendation portfolio-fit scoring uses issuer-level look-through exposure when available before falling back to direct ticker exposure.
+
+Supabase QA after applying migration `100` and refreshing Portfolio Review:
+
+```sql
+select
+  holding_issuer_name,
+  holding_issuer_id,
+  holding_symbol,
+  holding_name,
+  direct_weight,
+  indirect_weight,
+  total_weight,
+  inputs_snapshot->'rawSymbols' as raw_symbols,
+  inputs_snapshot->'securityBreakdown' as security_breakdown
+from portfolio_lookthrough_holdings
+where holding_issuer_name = 'Alphabet Inc'
+order by as_of_date desc
+limit 5;
+
+select
+  exposure_name,
+  exposure_issuer_name,
+  exposure_weight,
+  direct_weight,
+  etf_lookthrough_weight
+from portfolio_lookthrough_exposures
+where exposure_type = 'top_holding'
+  and exposure_issuer_name = 'Alphabet Inc'
+order by as_of_date desc
+limit 5;
+```
+
+Expected healthy result:
+
+- Issuer-level rows show clean issuer names such as `Alphabet Inc`.
+- `rawSymbols` and `securityBreakdown` preserve share-class/security details such as `GOOG` and `GOOGL`.
+- Direct ETF wrappers remain visible under direct positions and are not mixed into top underlying company exposure.
+- Portfolio-fit duplicate exposure can flag existing issuer exposure even when direct ticker exposure is zero.
+
+Next step after Phase 4C/4D QA:
+
+- Add optional `issuer_id` and `security_id` to recommendation snapshots/history, telemetry recommendation snapshots, and portfolio review snapshots where relevant.
+- Preserve historical symbol-at-time-of-snapshot while using stable IDs to avoid future ticker/share-class fragmentation.
 - Add lifecycle tables for ticker changes, mergers, spin-offs, share-class changes, ETF name changes, ETF closures, and predecessor/successor securities.
 
 ## Phase A Conclusion

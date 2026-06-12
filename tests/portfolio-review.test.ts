@@ -354,6 +354,9 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
     listLatestTopHoldings: async () => [
       { etfInstrumentId: "etf-1", etfSymbol: "VOO", holdingSymbol: "MSFT US", holdingName: "Microsoft", holdingSecurityId: "security-msft", mappingStatus: "mapped", mappingConfidenceScore: 95, holdingWeight: 0.07, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} }
     ],
+    listIssuerLinksForSecurityIds: async () => [
+      { securityId: "security-msft", issuerId: "issuer-msft", issuerName: "Microsoft", normalizedIssuerName: "Microsoft", shareClass: null, linkSource: "normalized_security_name", confidenceScore: 95 }
+    ],
     listLatestThemeExposures: async () => [
       { etfInstrumentId: "etf-1", etfSymbol: "VOO", theme: "Quality", exposureWeight: 0.4, confidenceScore: 72, derivationMethod: "test", asOfDate: "2026-06-01" }
     ],
@@ -401,7 +404,7 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
   const aiSector = report.sectorExposures.find((item) => item.exposureName === "AI");
   const unitedStates = report.countryExposures.find((item) => item.exposureName === "United States");
   const duplicateUs = report.countryExposures.find((item) => item.exposureName === "US");
-  const msft = report.topHoldingExposures.find((item) => item.exposureName === "MSFT");
+  const msft = report.topHoldingExposures.find((item) => item.exposureName === "Microsoft");
   const msftHolding = report.holdingExposures.find((item) => item.holdingSymbol === "MSFT");
   const vooHolding = report.holdingExposures.find((item) => item.holdingSymbol === "VOO");
   assert.ok(technology);
@@ -416,12 +419,15 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
   assert.ok(Math.abs(unitedStates.exposureWeight - 1) < 0.000001);
   assert.ok(msft);
   assert.ok(Math.abs(msft.exposureWeight - 0.535) < 0.000001);
-  assert.equal(msft.exposureSecurityId, "security-msft");
+  assert.equal(msft.exposureSecurityId, null);
+  assert.equal(msft.exposureIssuerId, "issuer-msft");
   assert.ok(msftHolding);
   assert.ok(Math.abs(msftHolding.directWeight - 0.5) < 0.000001);
   assert.ok(Math.abs(msftHolding.indirectWeight - 0.035) < 0.000001);
-  assert.equal(msftHolding.holdingSecurityId, "security-msft");
+  assert.equal(msftHolding.holdingSecurityId, null);
+  assert.equal(msftHolding.holdingIssuerId, "issuer-msft");
   assert.deepEqual((msftHolding.inputsSnapshot.rawSymbols as string[]), ["MSFT", "MSFT US"]);
+  assert.deepEqual((msftHolding.inputsSnapshot.securityBreakdown as Array<{ symbol: string }>).map((item) => item.symbol), ["MSFT"]);
   assert.deepEqual(msftHolding.sourceEtfs.map((item) => item.symbol), ["VOO"]);
   assert.ok(vooHolding);
   assert.equal(vooHolding.indirectWeight, 0);

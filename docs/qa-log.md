@@ -2,6 +2,49 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-12 22:05 SGT - Security Master Phase 4C/4D Issuer Rollups And Drill-Down
+
+Scope:
+- Added issuer IDs/names to portfolio look-through holdings and top-holding exposures.
+- Changed Portfolio Look-through calculation to group direct stock plus ETF underlying exposure by issuer when issuer links exist.
+- Kept fund wrappers as direct security-level positions, not issuer-level company exposure.
+- Added security-level drill-down in `inputsSnapshot.securityBreakdown`.
+- Updated Portfolio Review concentration logic to use issuer IDs first and legacy name normalization only as fallback.
+- Updated Portfolio Review UI details to show issuer-level rows with security/source ETF audit detail.
+- Updated Portfolio Assistant context with issuer-level hidden overlap and security breakdown.
+- Updated recommendation portfolio-fit logic to use issuer-level look-through exposure for duplicate/concentration detection.
+
+Files updated:
+- `supabase/migrations/100_issuer_level_lookthrough_rollups.sql`
+- `src/domain/etfLookthrough/types.ts`
+- `src/application/ports/repositories/EtfExposureRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts`
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `src/application/services/portfolioReview/ConcentrationReviewService.ts`
+- `src/application/services/portfolio/PortfolioExposureContextService.ts`
+- `src/application/services/recommendations/portfolioFitService.ts`
+- `src/application/services/assistant/AssistantContextBuilder.ts`
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `tests/portfolio-review.test.ts`
+- `tests/recommendations.test.ts`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Validation:
+- Portfolio look-through test now verifies issuer-level rollup while preserving raw symbols/security breakdown.
+- Recommendation test now verifies issuer-level look-through exposure affects portfolio-fit duplicate exposure.
+
+Post-migration QA:
+- Apply migration `100`.
+- Refresh Portfolio Review.
+- Confirm top underlying and top indirect exposure show issuer-level names such as `Alphabet Inc`.
+- Confirm security drill-down still shows underlying securities/source ETFs such as `GOOG`, `GOOGL`, `VOO`, `QQQ`, and `VT` where present.
+- Re-run recommendation refresh only after Portfolio Review has refreshed so portfolio-fit can consume issuer-level look-through context.
+
+Residual risks:
+- Existing saved Portfolio Review reports need a refresh before issuer IDs and security breakdown appear.
+- Recommendation history and telemetry snapshots still need Phase 5 stable `security_id` / `issuer_id` hardening.
+
 ## 2026-06-12 21:35 SGT - Security Master Issuer Display Name Cleanup
 
 Scope:

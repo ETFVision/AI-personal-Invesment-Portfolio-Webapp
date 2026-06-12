@@ -47,6 +47,8 @@ export type PortfolioLookthroughExposure = {
   exposureType: "sector" | "country" | "currency" | "theme" | "top_holding";
   exposureName: string;
   exposureSecurityId?: string | null;
+  exposureIssuerId?: string | null;
+  exposureIssuerName?: string | null;
   exposureWeight: number;
   directWeight: number;
   etfLookthroughWeight: number;
@@ -64,6 +66,8 @@ export type PortfolioLookthroughHolding = {
   holdingSymbol: string;
   holdingName: string | null;
   holdingSecurityId?: string | null;
+  holdingIssuerId?: string | null;
+  holdingIssuerName?: string | null;
   mappingStatus?: string | null;
   mappingConfidenceScore?: number | null;
   directWeight: number;

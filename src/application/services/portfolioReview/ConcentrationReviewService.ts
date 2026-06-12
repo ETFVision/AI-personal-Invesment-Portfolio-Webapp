@@ -37,14 +37,31 @@ function normalizeIssuerName(name: string | null | undefined, fallback: string) 
     .toUpperCase() || fallback.toUpperCase();
 }
 
+function issuerName(row: HoldingExposure) {
+  const snapshot = holdingSnapshot(row);
+  const snapshotIssuerName = typeof snapshot.issuerName === "string" ? snapshot.issuerName : null;
+  return row.holdingIssuerName ?? snapshotIssuerName ?? row.holdingName ?? row.holdingSymbol;
+}
+
+function issuerKey(row: HoldingExposure) {
+  const snapshot = holdingSnapshot(row);
+  const snapshotIssuerId = typeof snapshot.issuerId === "string" ? snapshot.issuerId : null;
+  return row.holdingIssuerId ?? snapshotIssuerId ?? normalizeIssuerName(row.holdingName, row.holdingSymbol);
+}
+
 function issuerGroupedUnderlying(rows: HoldingExposure[]) {
   const map = new Map<string, HoldingExposure>();
   for (const row of rows) {
     if (isFundWrapper(row) || !isUnderlyingExposure(row)) continue;
-    const key = normalizeIssuerName(row.holdingName, row.holdingSymbol);
+    const key = issuerKey(row);
     const current = map.get(key);
     if (!current) {
-      map.set(key, { ...row });
+      map.set(key, {
+        ...row,
+        holdingName: issuerName(row),
+        holdingIssuerId: row.holdingIssuerId ?? (typeof holdingSnapshot(row).issuerId === "string" ? holdingSnapshot(row).issuerId as string : null),
+        holdingIssuerName: issuerName(row)
+      });
       continue;
     }
     current.directWeight += row.directWeight;

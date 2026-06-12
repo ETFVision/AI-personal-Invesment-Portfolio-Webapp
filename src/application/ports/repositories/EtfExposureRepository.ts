@@ -10,6 +10,16 @@ import type {
 
 export type InsertEtfExposureRefreshLogInput = Omit<EtfExposureRefreshLog, "id" | "createdAt">;
 
+export type SecurityIssuerLink = {
+  securityId: string;
+  issuerId: string;
+  issuerName: string;
+  normalizedIssuerName: string | null;
+  shareClass: string | null;
+  linkSource: string | null;
+  confidenceScore: number | null;
+};
+
 export interface EtfExposureRepository {
   listLatestSectorExposures(instrumentIds?: string[]): Promise<EtfSectorExposure[]>;
   listLatestCountryExposures(instrumentIds?: string[]): Promise<EtfCountryExposure[]>;
@@ -23,6 +33,7 @@ export interface EtfExposureRepository {
   upsertPortfolioLookthroughHoldings(input: PortfolioLookthroughHolding[]): Promise<void>;
   listPortfolioLookthroughExposures(portfolioId: string, asOfDate?: string): Promise<PortfolioLookthroughExposure[]>;
   listPortfolioLookthroughHoldings(portfolioId: string, asOfDate?: string): Promise<PortfolioLookthroughHolding[]>;
+  listIssuerLinksForSecurityIds(securityIds: string[]): Promise<SecurityIssuerLink[]>;
   getLatestExposureDateForEtf(instrumentId: string): Promise<string | null>;
   insertRefreshLog(input: InsertEtfExposureRefreshLogInput): Promise<void>;
   listRefreshLogs(limit?: number): Promise<EtfExposureRefreshLog[]>;

@@ -440,7 +440,42 @@ function normalizeIssuerName(name: string | null | undefined, fallback: string) 
 }
 
 function issuerKey(row: PortfolioLookthroughHolding) {
-  return normalizeIssuerName(row.holdingName, row.holdingSymbol).toUpperCase();
+  const snapshot = holdingSnapshot(row);
+  const snapshotIssuerId = typeof snapshot.issuerId === "string" ? snapshot.issuerId : null;
+  return row.holdingIssuerId ?? snapshotIssuerId ?? normalizeIssuerName(row.holdingIssuerName ?? row.holdingName, row.holdingSymbol).toUpperCase();
+}
+
+function issuerDisplayName(row: PortfolioLookthroughHolding) {
+  const snapshot = holdingSnapshot(row);
+  const snapshotIssuerName = typeof snapshot.issuerName === "string" ? snapshot.issuerName : null;
+  return row.holdingIssuerName ?? snapshotIssuerName ?? normalizeIssuerName(row.holdingName, row.holdingSymbol);
+}
+
+function securityBreakdown(row: PortfolioLookthroughHolding) {
+  const snapshot = holdingSnapshot(row);
+  const values = Array.isArray(snapshot.securityBreakdown) ? snapshot.securityBreakdown : [];
+  return values.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const entry = item as Record<string, unknown>;
+    const symbol = typeof entry.symbol === "string" ? entry.symbol : null;
+    if (!symbol) return [];
+    return [{
+      symbol,
+      shareClass: typeof entry.shareClass === "string" ? entry.shareClass : null,
+      directWeight: typeof entry.directWeight === "number" ? entry.directWeight : 0,
+      indirectWeight: typeof entry.indirectWeight === "number" ? entry.indirectWeight : 0,
+      linkSource: typeof entry.linkSource === "string" ? entry.linkSource : null
+    }];
+  });
+}
+
+function securityBreakdownDetail(row: PortfolioLookthroughHolding) {
+  const breakdown = securityBreakdown(row);
+  if (breakdown.length === 0) return null;
+  return `Securities: ${breakdown
+    .slice(0, 4)
+    .map((item) => `${item.symbol}${item.shareClass ? ` ${item.shareClass}` : ""} ${formatPercent(item.directWeight + item.indirectWeight)}`)
+    .join(", ")}${breakdown.length > 4 ? ` +${breakdown.length - 4} more` : ""}`;
 }
 
 function aggregateByIssuer(rows: PortfolioLookthroughHolding[], mode: "underlying" | "indirect"): DisplayHoldingExposure[] {
@@ -454,7 +489,9 @@ function aggregateByIssuer(rows: PortfolioLookthroughHolding[], mode: "underlyin
     const current = map.get(key) ?? {
       ...row,
       holdingSymbol: symbols[0] ?? row.holdingSymbol,
-      holdingName: normalizeIssuerName(row.holdingName, row.holdingSymbol),
+      holdingName: issuerDisplayName(row),
+      holdingIssuerId: row.holdingIssuerId ?? (typeof holdingSnapshot(row).issuerId === "string" ? holdingSnapshot(row).issuerId as string : null),
+      holdingIssuerName: issuerDisplayName(row),
       directWeight: 0,
       indirectWeight: 0,
       totalWeight: 0,
@@ -537,7 +574,10 @@ function HoldingExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] })
                 totalLabel={formatPercent(row.totalWeight)}
                 direct={row.directWeight}
                 indirect={row.indirectWeight}
-                detail={row.sourceEtfs.length > 0 ? `Source ETFs: ${row.sourceEtfs.map((item) => `${item.symbol} ${formatPercent(item.weight)}`).join(", ")}` : undefined}
+                detail={[
+                  row.sourceEtfs.length > 0 ? `Source ETFs: ${row.sourceEtfs.map((item) => `${item.symbol} ${formatPercent(item.weight)}`).join(", ")}` : null,
+                  securityBreakdownDetail(row)
+                ].filter(Boolean).join(" - ") || undefined}
               />
             ))}
           </div>
@@ -567,7 +607,8 @@ function IndirectHoldingExposureTable({ rows }: { rows: PortfolioLookthroughHold
               valueLabel: formatPercent(row.indirectWeight),
               detail: [
                 row.directWeight > 0 ? `Total with direct holding ${formatPercent(row.totalWeight)}` : null,
-                row.sourceEtfs.length > 0 ? `Source ETFs: ${row.sourceEtfs.map((item) => `${item.symbol} ${formatPercent(item.weight)}`).join(", ")}` : null
+                row.sourceEtfs.length > 0 ? `Source ETFs: ${row.sourceEtfs.map((item) => `${item.symbol} ${formatPercent(item.weight)}`).join(", ")}` : null,
+                securityBreakdownDetail(row)
               ].filter(Boolean).join(" - ")
             }))}
           />
