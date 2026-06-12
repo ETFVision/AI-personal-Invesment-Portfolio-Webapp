@@ -816,6 +816,10 @@ export class SupabaseUniverseRepository implements UniverseRepository {
       region: string | null;
       sector: string | null;
       industry: string | null;
+      isin?: string | null;
+      cusip?: string | null;
+      figi?: string | null;
+      providerSymbol?: string | null;
       rawPayload: unknown;
       canonicalSector?: string | null;
       canonicalThemes?: string[];
@@ -850,6 +854,13 @@ export class SupabaseUniverseRepository implements UniverseRepository {
           industry: item.industry ?? undefined,
           canonical_sector: canonicalSector ?? undefined,
           canonical_themes: canonicalThemes ?? undefined,
+          isin: item.isin ?? undefined,
+          cusip: item.cusip ?? undefined,
+          figi: item.figi ?? undefined,
+          provider_symbol: item.providerSymbol ?? item.symbol,
+          identifier_quality_score: item.figi ? 98 : item.isin ? 95 : item.cusip ? 90 : undefined,
+          identifier_last_refreshed_at: item.isin || item.cusip || item.figi ? new Date().toISOString() : undefined,
+          coverage_status: item.isin || item.cusip || item.figi ? "mapped" : undefined,
           taxonomy_review_status: hasManualTaxonomy ? "mapped" : item.unmappedRawValues && item.unmappedRawValues.length > 0 ? "needs_review" : "mapped",
           provider_primary: item.provider,
           provider_metadata: providerMetadata,
@@ -875,6 +886,12 @@ export class SupabaseUniverseRepository implements UniverseRepository {
         ]);
       }
     }
+  }
+
+  async syncSecurityMasterIdentifiersFromInstruments() {
+    const { error } = await this.db.rpc("sync_security_master_identifiers_from_instruments");
+    if (isMissingUniverseTable(error)) return;
+    if (error) throw new Error(error.message);
   }
 
   async listWatchlists() {

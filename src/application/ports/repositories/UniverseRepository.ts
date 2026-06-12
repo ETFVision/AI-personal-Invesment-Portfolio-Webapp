@@ -94,11 +94,16 @@ export interface UniverseRepository {
     region: string | null;
     sector: string | null;
     industry: string | null;
+    isin?: string | null;
+    cusip?: string | null;
+    figi?: string | null;
+    providerSymbol?: string | null;
     rawPayload: unknown;
     canonicalSector?: string | null;
     canonicalThemes?: string[];
     unmappedRawValues?: string[];
   }>): Promise<void>;
+  syncSecurityMasterIdentifiersFromInstruments(): Promise<void>;
   listCanonicalSectors(): Promise<CanonicalTaxonomyItem[]>;
   listCanonicalThemes(): Promise<CanonicalTaxonomyItem[]>;
   listProviderTaxonomyMappings(): Promise<ProviderTaxonomyMapping[]>;

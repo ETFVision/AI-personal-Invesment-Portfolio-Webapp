@@ -147,6 +147,10 @@ export class MetadataRefreshService {
             region: item.region,
             sector: classification.sector,
             industry: classification.industry,
+            isin: item.isin,
+            cusip: item.cusip,
+            figi: item.figi,
+            providerSymbol,
             rawPayload: item.raw,
             canonicalSector,
             canonicalThemes,
@@ -154,6 +158,7 @@ export class MetadataRefreshService {
           };
         })
       );
+      await this.repository.syncSecurityMasterIdentifiersFromInstruments();
 
       await this.repository.insertMetadataRefreshLog({
         refreshScope: "instrument_universe",
@@ -227,6 +232,10 @@ export class MetadataRefreshService {
       updatedCount += result.updatedCount;
 
       if (result.requestedSymbols.length === 0) break;
+    }
+
+    if (updatedCount > 0) {
+      await this.repository.syncSecurityMasterIdentifiersFromInstruments();
     }
 
     return {

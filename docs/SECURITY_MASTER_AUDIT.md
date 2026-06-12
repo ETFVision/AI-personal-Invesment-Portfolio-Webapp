@@ -61,11 +61,12 @@ Implemented on 2026-06-13:
 | Instrument linkage columns | Implemented in repo | Adds nullable `security_id`, normalized `isin`, `cusip`, `figi`, `provider_symbol`, identifier quality, coverage, user-selectable, internal-only, and alpha-enabled columns to `instruments`. |
 | Initial backfill | Implemented in migration | Uses stored FMP metadata where available and falls back to exchange + symbol matching. |
 | Link repair | Implemented in repo | `supabase/migrations/092_repair_security_master_links.sql` safely links active instruments to already-created securities and populates missing identifiers/aliases. |
+| Metadata identifier sync | Implemented in repo | `supabase/migrations/093_sync_security_master_identifiers.sql` lets future metadata refreshes promote ISIN/CUSIP/FIGI into security-master tables. |
 | Resolver service | Implemented | `src/application/services/securityMaster/SecurityMasterService.ts` resolves by FIGI, ISIN, CUSIP, SEDOL, exchange + symbol, provider symbol, alias, then low-confidence name fallback. |
 | Resolver tests | Implemented | Covers ISIN priority, exchange-symbol matching, BRK.B provider variants, FB to META alias, GOOG/GOOGL non-merge, unmapped symbols, and ambiguous names. |
 | Calculation switch | Not started | Current app calculations remain instrument/symbol based until Phase 2/3 dual-run QA. |
 
-Post-deployment checks after running migrations 091 and 092:
+Post-deployment checks after running migrations 091, 092, and 093:
 
 ```sql
 select count(*) as active_instruments_without_security_id

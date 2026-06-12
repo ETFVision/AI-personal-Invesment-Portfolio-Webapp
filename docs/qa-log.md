@@ -2,6 +2,28 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 01:05 SGT - Security Master Metadata Identifier Sync
+
+Scope:
+- Updated instrument metadata refresh so FMP `isin`, `cusip`, and `figi` values are extracted and promoted into normalized instrument/security-master fields.
+- Added a database helper to sync normalized instrument identifiers into `securities_master` and `security_identifiers`.
+
+Files updated:
+- `src/application/ports/providers/AssetMetadataProvider.ts`
+- `src/infrastructure/providers/metadata/FmpAssetMetadataProvider.ts`
+- `src/application/ports/repositories/UniverseRepository.ts`
+- `src/application/services/MetadataRefreshService.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `supabase/migrations/093_sync_security_master_identifiers.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Expected result after migration 093 and Instrument Metadata Refresh:
+- Stock ISIN/CUSIP coverage should remain complete.
+- ETF ISIN/CUSIP coverage should improve where FMP returns identifiers.
+- Crypto ETF ISIN/CUSIP may remain unavailable depending on FMP profile coverage.
+- `security_identifiers` should gain additional `ISIN`, `CUSIP`, and possible `FIGI` rows as metadata refresh completes.
+
 ## 2026-06-13 00:40 SGT - Security Master Link Repair Migration
 
 Scope:

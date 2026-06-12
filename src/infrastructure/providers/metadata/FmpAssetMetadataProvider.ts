@@ -10,6 +10,9 @@ type FmpProfile = {
   country?: string;
   sector?: string;
   industry?: string;
+  isin?: string;
+  cusip?: string;
+  figi?: string;
 };
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
@@ -109,6 +112,9 @@ export class FmpAssetMetadataProvider implements AssetMetadataProvider {
       region: regionFromCountry(profile.country ?? null),
       sector: profile.sector ?? null,
       industry: profile.industry ?? null,
+      isin: profile.isin ?? null,
+      cusip: profile.cusip ?? null,
+      figi: profile.figi ?? null,
       raw: profile
     };
   }
