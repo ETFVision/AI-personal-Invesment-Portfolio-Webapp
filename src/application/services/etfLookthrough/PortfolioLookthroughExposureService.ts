@@ -131,7 +131,11 @@ function addHolding(
     current.mappingStatus = mappingStatus ?? "mapped";
     current.mappingConfidenceScore = Math.max(current.mappingConfidenceScore, mappingConfidenceScore ?? 90);
   }
-  if (!current.instrumentAssetClass && instrumentAssetClass) current.instrumentAssetClass = instrumentAssetClass;
+  if (source === "direct" && instrumentAssetClass) {
+    current.instrumentAssetClass = instrumentAssetClass;
+  } else if (!current.instrumentAssetClass && instrumentAssetClass) {
+    current.instrumentAssetClass = instrumentAssetClass;
+  }
   if (!current.rawSymbols.includes(normalizedSymbol)) current.rawSymbols.push(normalizedSymbol);
   if (source === "direct") {
     current.directWeight += weight;
@@ -160,6 +164,9 @@ function addHolding(
       sourceEtfs: []
     };
     current.securityBreakdown.push(breakdown);
+  } else if (source === "direct") {
+    breakdown.symbol = normalizedSymbol;
+    breakdown.name = name?.trim() || breakdown.name;
   }
   if (source === "direct") breakdown.directWeight += weight;
   else {

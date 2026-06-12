@@ -380,8 +380,8 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
         { id: "h2", portfolioId: "portfolio-1", assetId: "a2", assetType: "etf", ticker: "VOO", assetName: "Vanguard S&P 500 ETF", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Multi-Asset / Broad Market" }
       ],
       holdingValuations: [
-        { holding: { id: "h1", portfolioId: "portfolio-1", assetId: "a1", assetType: "stock", ticker: "MSFT", assetName: "Microsoft", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Technology" }, unitPrice: 50, value: 50, valueCurrency: "USD", priceDate: "2026-06-01", priceProvider: "test", valuationSource: "market_price" },
-        { holding: { id: "h2", portfolioId: "portfolio-1", assetId: "a2", assetType: "etf", ticker: "VOO", assetName: "Vanguard S&P 500 ETF", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Multi-Asset / Broad Market" }, unitPrice: 50, value: 50, valueCurrency: "USD", priceDate: "2026-06-01", priceProvider: "test", valuationSource: "market_price" }
+        { holding: { id: "h2", portfolioId: "portfolio-1", assetId: "a2", assetType: "etf", ticker: "VOO", assetName: "Vanguard S&P 500 ETF", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Multi-Asset / Broad Market" }, unitPrice: 50, value: 50, valueCurrency: "USD", priceDate: "2026-06-01", priceProvider: "test", valuationSource: "market_price" },
+        { holding: { id: "h1", portfolioId: "portfolio-1", assetId: "a1", assetType: "stock", ticker: "MSFT", assetName: "Microsoft", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Technology" }, unitPrice: 50, value: 50, valueCurrency: "USD", priceDate: "2026-06-01", priceProvider: "test", valuationSource: "market_price" }
       ],
       totalValueEstimate: 100
     },
@@ -406,7 +406,10 @@ test("portfolio look-through combines direct stock and ETF underlying exposures"
   const unitedStates = report.countryExposures.find((item) => item.exposureName === "United States");
   const duplicateUs = report.countryExposures.find((item) => item.exposureName === "US");
   const msft = report.topHoldingExposures.find((item) => item.exposureName === "Microsoft");
-  const msftHolding = report.holdingExposures.find((item) => item.holdingSymbol === "MSFT");
+  const msftHolding = report.holdingExposures.find((item) =>
+    item.holdingIssuerId === "issuer-msft" ||
+    ((item.inputsSnapshot.rawSymbols as string[] | undefined) ?? []).includes("MSFT")
+  );
   const vooHolding = report.holdingExposures.find((item) => item.holdingSymbol === "VOO");
   assert.ok(technology);
   assert.ok(Math.abs(technology.exposureWeight - 0.85) < 0.000001);
