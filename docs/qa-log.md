@@ -2880,6 +2880,55 @@ Validation:
 - Documentation-only update.
 - No runtime tests were run because no executable code changed.
 
+## 2026-06-12 22:35 SGT - Commercialization Audit Plan Documentation
+
+Scope:
+- Added a current commercialization audit plan for ETFVision.
+- Preserved the original 20 audit areas from the provided commercialization prompt.
+- Added recommended missing audit areas for branch/deployment governance, migration safety, alpha UX, data freshness UX, cost control, error/empty states, data portability, incident response, accessibility, browser/device compatibility, support operations, and model/prompt governance.
+- Added a current commercialization audit status matrix at the end of the document.
+
+Files updated:
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/README.md`
+- `docs/qa-log.md`
+
+Findings:
+- PASS: Instrument Taxonomy Audit is marked mostly completed, with final live count checks still recommended after future universe additions.
+- PASS: Security/RLS, legal/compliance, data licensing, privacy, alpha feature-gate, and provider coverage are explicitly called out as remaining commercialization blockers.
+- PASS: The document now separates readiness for public alpha from readiness for first paying users and later scale.
+
+Validation:
+- Documentation-only update.
+- No runtime tests were run because no executable code changed.
+
+## 2026-06-12 22:20 SGT - Future ETF Universe Completion Candidate
+
+Scope:
+- Logged a future ETF taxonomy completion item for factor and option-income ETFs that are not yet part of the active 201 ETF seed list.
+- No universe seeding change was made in this checkpoint.
+
+Future ETF categories to add:
+- Factor Investing: `QUAL`, `SPHQ`, `JQUA`, `MTUM`, `USMV`, `SPLV`
+- Option Income: `JEPI`, `JEPQ`, `SPYI`
+
+FMP coverage check:
+- PASS: All 9 symbols returned profile metadata.
+- PASS: All 9 symbols returned latest EOD price and recent historical price data through the historical EOD endpoints.
+- PASS: All 9 symbols returned ETF sector and country exposure.
+- LIMITATION: ETF top holdings returned `402` for all 9 symbols under the current FMP plan, so indirect top-holding overlap would remain unavailable unless another provider or plan is added.
+- NOTE: Batch quote returned `402`, but ETFVision's EOD fallback path is sufficient for current price/history refresh architecture.
+
+Recommended future implementation:
+- Add a new `FACTOR_INVESTING` ETF product category or map the factor ETFs into existing factor-style categories if the taxonomy is intentionally kept smaller.
+- Add a new `OPTION_INCOME` ETF product category for covered-call / premium-income ETFs.
+- Seed the 9 candidates only after confirming whether alpha branch should expose the expanded categories.
+- After seeding, run Seed Universe, instrument metadata refresh, market history backfill, ETF look-through refresh, daily returns, return anchors, market metrics, risk metrics, and summary refresh QA.
+
+Validation:
+- Documentation-only update.
+- No runtime tests were run because no executable code changed.
+
 ## 2026-06-11 20:34 SGT - Methodology Documentation Gap Closure
 
 Scope:

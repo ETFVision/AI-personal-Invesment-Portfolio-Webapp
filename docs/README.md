@@ -21,6 +21,7 @@ This folder contains both current handover documents and older historical audits
 - [Jobs and Operations](JOBS_AND_OPERATIONS.md)
 - [Performance Architecture](PERFORMANCE_ARCHITECTURE.md)
 - [Security and Access Architecture](SECURITY_AND_ACCESS_ARCHITECTURE.md)
+- [Commercialization Audit Plan](COMMERCIALIZATION_AUDIT_PLAN.md)
 - [Documentation Gaps](DOCUMENTATION_GAPS.md)
 
 ## Important Supporting Docs
