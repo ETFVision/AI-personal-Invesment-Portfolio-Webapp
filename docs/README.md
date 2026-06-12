@@ -11,6 +11,7 @@ This folder contains both current handover documents and older historical audits
 - [Data Ingestion and Providers](DATA_INGESTION_AND_PROVIDERS.md)
 - [Instrument Taxonomy and Coverage](INSTRUMENT_TAXONOMY_AND_COVERAGE.md)
 - [Instrument Taxonomy Audit](INSTRUMENT_TAXONOMY_AUDIT.md)
+- [Data Normalization Audit](DATA_NORMALIZATION_AUDIT.md)
 - [Calculation Methodology](CALCULATION_METHODOLOGY.md)
 - [Score Methodology](SCORE_METHODOLOGY.md)
 - [Portfolio Review Methodology](PORTFOLIO_REVIEW_METHODOLOGY.md)

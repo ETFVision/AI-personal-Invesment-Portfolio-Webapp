@@ -137,11 +137,13 @@ Output:
 - Mapping gap report.
 - Normalization test results.
 
-Current status: mostly completed.
+Current status: completed.
 
 Notes:
 - ETF product taxonomy and portfolio sector allocation are intentionally separated.
 - Portfolio sector allocation should use ETF look-through exposure where available, not `etf_category`.
+- Live verification on 2026-06-12 confirmed all active instruments have normalized `asset_category`, `canonical_sector`, `canonical_themes` and `taxonomy_review_status`; all active ETF-style products have `etf_category`.
+- Code-level cleanup now accepts generic provider labels and ETF category slugs that are already safely normalized. After deployment, run Seed Universe or Instrument Metadata Refresh to recalculate stored `taxonomy_review_status` values.
 
 ## 4. Security Master Audit
 
@@ -962,7 +964,7 @@ Recommended:
 |---:|---|---|---|
 | 1 | Instrument Taxonomy Audit | Completed | Taxonomy is implemented, documented and live-count verified. Repeat the live count check after future ETF additions. |
 | 2 | Data Provider Audit | Partly completed | Provider coverage has been tested ad hoc. A formal full-universe provider matrix is still needed. |
-| 3 | Data Normalization Audit | Mostly completed | ETFVision taxonomy fields are in place. Need final proof that calculations do not misuse provider categories. |
+| 3 | Data Normalization Audit | Completed | Raw provider metadata is preserved, normalized fields are populated and look-through exposure is separated from ETF product taxonomy. Review queue alias cleanup is implemented; stored statuses need recalculation after deployment. |
 | 4 | Security Master Audit | Partly completed | Basic symbol normalization exists. Full canonical security identity and alias governance are incomplete. |
 | 5 | ETF Holdings Data Audit | Partly completed | Sector/country look-through works. Top holdings are provider-plan limited. |
 | 6 | Calculation And Logic Audit | Mostly completed | Methodology and core optimizations exist. Golden regression/manual validation pack remains. |

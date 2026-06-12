@@ -2929,6 +2929,66 @@ Validation:
 - Live aggregate Supabase audit via service-role query, returning counts only.
 - No runtime app tests were run because this was a documentation/audit completion pass.
 
+## 2026-06-12 23:15 SGT - Data Normalization Commercialization Audit Completion
+
+Scope:
+- Completed the Data Normalization Audit from the commercialization audit plan.
+- Verified raw provider metadata preservation.
+- Verified normalized taxonomy field coverage across active instruments.
+- Reviewed normalization services and provider metadata refresh flow.
+- Reviewed ETF product taxonomy versus portfolio look-through exposure separation.
+
+Files updated:
+- `docs/DATA_NORMALIZATION_AUDIT.md`
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/README.md`
+- `docs/qa-log.md`
+
+Primary code references checked:
+- `src/application/services/taxonomy/TaxonomyService.ts`
+- `src/application/services/MetadataRefreshService.ts`
+- `src/application/services/AssetMetadataService.ts`
+- `src/application/services/UniverseManagementService.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `src/application/services/portfolio/PortfolioExposureContextService.ts`
+- `src/application/services/recommendations/recommendationScoring.ts`
+- `src/application/services/recommendations/portfolioFitService.ts`
+- `supabase/migrations/015_canonical_taxonomy.sql`
+- `supabase/migrations/062_instrument_product_taxonomy.sql`
+
+Live Supabase evidence:
+- PASS: 306 active instruments checked.
+- PASS: 306 active instruments have non-empty `provider_metadata`.
+- PASS: 306 active instruments use `provider_primary = financial_modeling_prep`.
+- PASS: 0 active instruments missing `asset_category`.
+- PASS: 0 active ETF-style products missing `etf_category`.
+- PASS: 0 active instruments missing `canonical_sector`.
+- PASS: 0 active instruments missing `canonical_themes`.
+- PASS: 0 active instruments missing `taxonomy_review_status`.
+- PASS: 0 active manual override rows currently, with override-preservation code path confirmed.
+
+Taxonomy review queue evidence:
+- `mapped`: 211 active instruments.
+- `needs_review`: 95 active instruments.
+- `needs_review` split: 71 `etf`, 5 `crypto_etf`, 19 `stock`.
+- Finding: the queue is noisy, not a normalized-field coverage failure. Generic provider values like `ETF`, `Multi-sector ETF`, `Bond ETF`, `Sector ETF`, `Digital Assets`, `Consumer Cyclical`, `Financial Services`, and `Basic Materials` are being flagged despite safe canonical normalization.
+
+Finding:
+- PASS: Raw provider metadata is preserved and separated from ETFVision normalized taxonomy.
+- PASS: ETFVision-owned `asset_category` and `etf_category` are populated for active instruments.
+- PASS: `canonical_sector` and `canonical_themes` are populated for active instruments.
+- PASS: Portfolio exposure services prefer ETF look-through sector exposure over ETF product taxonomy.
+- PASS WITH RECALC NEEDED: Code-level alias cleanup was added so generic provider labels and current ETF category slugs no longer create noisy taxonomy review items when normalized outputs are safe.
+- WATCH ITEM: After deployment, run Seed Universe or Instrument Metadata Refresh to recalculate stored `taxonomy_review_status` values in Supabase.
+
+Validation:
+- Static source inspection.
+- Live aggregate Supabase audit via service-role query, returning counts only.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed: 225 tests, 225 passed.
+- Added taxonomy regression test for generic provider labels and alpha ETF category slugs.
+
 ## 2026-06-12 22:35 SGT - Commercialization Audit Plan Documentation
 
 Scope:
