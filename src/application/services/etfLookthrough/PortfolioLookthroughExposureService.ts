@@ -248,6 +248,7 @@ function hasEquityLookthrough(instrument: Instrument) {
 function instrumentLookupPriority(instrument: Instrument) {
   if (instrument.isInternalOnly) return 0;
   if (instrument.isUserSelectable === false) return 1;
+  if (instrument.instrumentType === "underlying_security") return 1;
   if (instrument.assetClass === "stock") return 4;
   if (["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"].includes(instrument.assetClass)) return 3;
   return 2;
@@ -264,6 +265,19 @@ function buildInstrumentBySymbol(instruments: Instrument[]) {
     }
   }
   return map;
+}
+
+function directPositionAssetClass(
+  instrument: Instrument,
+  holdingAssetType: PortfolioDashboard["holdingValuations"][number]["holding"]["assetType"]
+) {
+  const holdingClass = holdingAssetType === "cash" ? "cash_proxy" : holdingAssetType;
+  const isInternalUnderlying =
+    instrument.isInternalOnly ||
+    instrument.isUserSelectable === false ||
+    instrument.instrumentType === "underlying_security" ||
+    instrument.assetClass === "other";
+  return isInternalUnderlying ? holdingClass : instrument.assetClass;
 }
 
 export class PortfolioLookthroughExposureService {
@@ -328,7 +342,7 @@ export class PortfolioLookthroughExposureService {
         instrument.securityId ? issuerLinkBySecurityId.get(instrument.securityId) ?? null : null,
         instrument.securityId ? "mapped" : "unmapped",
         instrument.securityId ? 95 : 0,
-        instrument.assetClass
+        directPositionAssetClass(instrument, valuation.holding.assetType)
       );
       const shouldLookthrough = hasEquityLookthrough(instrument);
       if (shouldLookthrough) {

@@ -446,6 +446,47 @@ test("potential actions do not include exact trade amounts or position sizes", (
   assert.doesNotMatch(text, /\b(buy|sell)\s+\d/i);
 });
 
+test("portfolio look-through labels direct stock holdings from holding asset type when matched instrument is internal", async () => {
+  const repository = {
+    listLatestSectorExposures: async () => [],
+    listLatestCountryExposures: async () => [],
+    listLatestTopHoldings: async () => [],
+    listLatestThemeExposures: async () => [],
+    listIssuerLinksForSecurityIds: async () => [],
+    upsertPortfolioLookthroughExposures: async () => undefined,
+    upsertPortfolioLookthroughHoldings: async () => undefined,
+    getLatestExposureDateForEtf: async () => null,
+    upsertSectorExposures: async () => undefined,
+    upsertCountryExposures: async () => undefined,
+    upsertTopHoldings: async () => undefined,
+    upsertThemeExposures: async () => undefined,
+    listPortfolioLookthroughExposures: async () => [],
+    listPortfolioLookthroughHoldings: async () => [],
+    insertRefreshLog: async () => undefined,
+    listRefreshLogs: async () => []
+  } as Partial<EtfExposureRepository> as EtfExposureRepository;
+  const dashboard = context({
+    dashboard: {
+      ...context().dashboard,
+      holdings: [
+        { id: "h1", portfolioId: "portfolio-1", assetId: "a1", assetType: "stock", ticker: "NVDA", assetName: "NVIDIA", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Technology" }
+      ],
+      holdingValuations: [
+        { holding: { id: "h1", portfolioId: "portfolio-1", assetId: "a1", assetType: "stock", ticker: "NVDA", assetName: "NVIDIA", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Technology" }, unitPrice: 100, value: 100, valueCurrency: "USD", priceDate: "2026-06-01", priceProvider: "test", valuationSource: "market_price" }
+      ],
+      totalValueEstimate: 100
+    }
+  }).dashboard;
+  const service = new PortfolioLookthroughExposureService(repository);
+  const report = await service.calculateAndStore("portfolio-1", dashboard, [
+    { id: "internal-nvda", securityId: "security-nvda", symbol: "NVDA", name: "NVIDIA ETF underlying", assetClass: "other", instrumentType: "underlying_security", sector: "Technology", industry: null, canonicalSector: "Technology", canonicalThemes: ["Technology"], taxonomyIsManualOverride: false, taxonomyReviewStatus: "mapped", geography: "US", currency: "USD", exchange: null, watchlistTier: null, benchmarkTags: [], thematicTags: [], riskCategory: null, volatilityBucket: null, durationCategory: null, treasuryClassification: null, inflationLinked: null, creditQuality: null, geoExposure: "United States", rateSensitivity: null, inflationSensitivity: null, recessionSensitivity: null, liquidityRole: null, cryptoClassification: null, metadataLastRefreshedAt: null, providerPrimary: null, providerMetadata: {}, sourceType: "security_master", isUserSelectable: false, isInternalOnly: true, isActive: true }
+  ]);
+  const nvdaHolding = report.holdingExposures.find((item) => item.holdingSymbol === "NVDA");
+
+  assert.ok(nvdaHolding);
+  assert.equal(nvdaHolding.inputsSnapshot.instrumentAssetClass, "stock");
+});
+
 test("risk review normalizes percent-style drawdowns before scoring", () => {
   const review = new PortfolioRiskReviewService().review(context({
     riskReport: {
