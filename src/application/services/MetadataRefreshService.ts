@@ -38,6 +38,12 @@ function needsMetadataRefresh(metadataLastRefreshedAt: string | null, cutoffIso:
   return !metadataLastRefreshedAt || metadataLastRefreshedAt < cutoffIso;
 }
 
+function needsIdentifierRefresh(instrument: { instrumentType: string; isin?: string | null; cusip?: string | null; identifierLastRefreshedAt?: string | null }, cutoffIso: string) {
+  if (instrument.instrumentType === "crypto_etf") return false;
+  const missingCoreIdentifier = !instrument.isin || !instrument.cusip;
+  return missingCoreIdentifier && needsMetadataRefresh(instrument.identifierLastRefreshedAt ?? null, cutoffIso);
+}
+
 function classifyFundMetadata(item: { symbol: string; sector: string | null; industry: string | null }, assetClass: string) {
   if (assetClass === "bond_etf") {
     return {
@@ -91,10 +97,10 @@ export class MetadataRefreshService {
       const metadataCutoff = daysAgoIso(30);
       const symbols = uniqueSymbols(
         instruments
-          .filter((instrument) => needsMetadataRefresh(instrument.metadataLastRefreshedAt, metadataCutoff))
+          .filter((instrument) => needsMetadataRefresh(instrument.metadataLastRefreshedAt, metadataCutoff) || needsIdentifierRefresh(instrument, metadataCutoff))
           .sort((a, b) => {
-            const aDate = a.metadataLastRefreshedAt ?? "";
-            const bDate = b.metadataLastRefreshedAt ?? "";
+            const aDate = a.metadataLastRefreshedAt ?? a.identifierLastRefreshedAt ?? "";
+            const bDate = b.metadataLastRefreshedAt ?? b.identifierLastRefreshedAt ?? "";
             if (aDate !== bDate) return aDate.localeCompare(bDate);
             return (a.symbol ?? "").localeCompare(b.symbol ?? "");
           })
@@ -150,7 +156,7 @@ export class MetadataRefreshService {
             isin: item.isin,
             cusip: item.cusip,
             figi: item.figi,
-            providerSymbol,
+            providerSymbol: providerSymbol || instrument?.providerSymbol,
             rawPayload: item.raw,
             canonicalSector,
             canonicalThemes,

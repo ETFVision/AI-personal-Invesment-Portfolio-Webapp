@@ -53,6 +53,11 @@ export type Instrument = {
   liquidityRole: string | null;
   cryptoClassification: string | null;
   metadataLastRefreshedAt: string | null;
+  identifierLastRefreshedAt?: string | null;
+  isin?: string | null;
+  cusip?: string | null;
+  figi?: string | null;
+  providerSymbol?: string | null;
   providerPrimary: string | null;
   providerMetadata: Record<string, unknown>;
   sourceType: string;

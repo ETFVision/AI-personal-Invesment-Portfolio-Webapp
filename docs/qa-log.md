@@ -7,6 +7,7 @@ This file records completed QA reviews, fixes, test coverage, residual risks, an
 Scope:
 - Updated instrument metadata refresh so FMP `isin`, `cusip`, and `figi` values are extracted and promoted into normalized instrument/security-master fields.
 - Added a database helper to sync normalized instrument identifiers into `securities_master` and `security_identifiers`.
+- Updated metadata refresh selection so missing ISIN/CUSIP coverage is refreshed even when normal metadata is still within the 30-day freshness window.
 
 Files updated:
 - `src/application/ports/providers/AssetMetadataProvider.ts`
