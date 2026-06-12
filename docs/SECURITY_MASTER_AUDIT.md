@@ -66,9 +66,10 @@ Implemented on 2026-06-13:
 | Internal ETF underlying backfill | Implemented in repo | `supabase/migrations/095_backfill_internal_etf_underlying_securities.sql` creates non-user-selectable securities for unmapped ETF top holdings and reruns the mapper. |
 | Resolver service | Implemented | `src/application/services/securityMaster/SecurityMasterService.ts` resolves by FIGI, ISIN, CUSIP, SEDOL, exchange + symbol, provider symbol, alias, then low-confidence name fallback. |
 | Resolver tests | Implemented | Covers ISIN priority, exchange-symbol matching, BRK.B provider variants, FB to META alias, GOOG/GOOGL non-merge, unmapped symbols, and ambiguous names. |
-| Calculation switch | Not started | Current app calculations remain instrument/symbol based until Phase 2/3 dual-run QA. |
+| Calculation dual-run QA | Implemented in repo | `supabase/migrations/096_security_master_dual_run_qa.sql` adds a persistent QA report table and runner for raw-symbol versus canonical security-ID portfolio look-through grouping. |
+| Calculation switch | Not started | Current app calculations remain instrument/symbol based until dual-run QA is reviewed and accepted. |
 
-Post-deployment checks after running migrations 091, 092, 093, 094, and 095:
+Post-deployment checks after running migrations 091, 092, 093, 094, 095, and 096:
 
 ```sql
 select count(*) as active_instruments_without_security_id
@@ -534,6 +535,47 @@ Overlap/concentration:
 - Compare output deltas.
 - Add QA report for overlap/concentration differences.
 - Switch concentration and top indirect holdings only after differences are understood.
+
+Implementation status:
+
+- `security_master_dual_run_reports` stores portfolio-level comparison reports.
+- `run_security_master_dual_run_qa(p_portfolio_id uuid default null)` refreshes ETF holding mappings, compares the latest `portfolio_lookthrough_holdings` snapshot by raw symbol and by `holding_security_id`, stores the report, and returns the latest QA rows.
+- The report tracks source rows, raw symbol group count, canonical security group count, mapped/unmapped/ambiguous rows, total weight delta, merged group count, QA status, and a JSON top-holding summary.
+- `pass` means the current symbol grouping and security-ID grouping have matching total weights and no unmapped/ambiguous rows.
+- `warning` means security-ID grouping changes grouping shape, usually because aliases or duplicate raw symbols merge into one canonical security. This is not automatically a bug, but it must be reviewed before switching production calculations.
+- `failed` means at least one latest look-through row is unmapped/ambiguous or total weights do not reconcile.
+
+Recommended Supabase QA:
+
+```sql
+select * from public.run_security_master_dual_run_qa();
+
+select
+  portfolio_id,
+  as_of_date,
+  qa_status,
+  source_row_count,
+  symbol_group_count,
+  security_group_count,
+  mapped_row_count,
+  unmapped_row_count,
+  ambiguous_row_count,
+  total_weight_delta,
+  merged_group_count,
+  created_at
+from security_master_dual_run_reports
+order by created_at desc
+limit 10;
+```
+
+Production switch criteria:
+
+- Latest reports for active portfolios are `pass` or reviewed `warning`.
+- `unmapped_row_count = 0`.
+- `ambiguous_row_count = 0`.
+- `total_weight_delta` is effectively zero.
+- Any `merged_group_count > 0` is explained by expected alias/security consolidation.
+- Portfolio Review concentration, top indirect holdings, assistant context, and recommendation portfolio-fit output are manually checked against the dual-run summary.
 
 ### Phase 4 - Corporate Actions And Multi-Provider
 

@@ -2,6 +2,31 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 02:25 SGT - Security Master Phase 3 Dual-Run QA
+
+Scope:
+- Added a database-side dual-run report for portfolio look-through holdings.
+- Compared current raw-symbol grouping against canonical `holding_security_id` grouping for the latest portfolio look-through snapshot.
+- Kept production portfolio, concentration, recommendation, assistant, telemetry, and Market Vision calculations unchanged.
+
+Files updated:
+- `supabase/migrations/096_security_master_dual_run_qa.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Design notes:
+- `security_master_dual_run_reports` stores historical QA results so changes in ETF provider symbols or security mappings can be audited over time.
+- `run_security_master_dual_run_qa()` first calls `sync_etf_holding_security_ids()` and then stores a comparison report for each latest portfolio look-through snapshot.
+- `pass` means row mappings are clean and raw-symbol total weight equals security-ID total weight.
+- `warning` means canonical grouping changes the number of groups, usually because aliases or duplicate raw symbols merge. Review before switching calculations.
+- `failed` means unmapped/ambiguous rows or total weight deltas still exist.
+
+Post-migration QA:
+- Run `select * from public.run_security_master_dual_run_qa();`.
+- Confirm the latest report has `unmapped_row_count = 0`, `ambiguous_row_count = 0`, and `total_weight_delta = 0`.
+- Review any `merged_group_count > 0` against expected alias/security consolidation.
+- Do not switch production concentration or top-indirect-holding calculations until the report is reviewed.
+
 ## 2026-06-13 01:45 SGT - Security Master Phase 2B Internal ETF Underlyings
 
 Scope:
