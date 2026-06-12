@@ -8,6 +8,7 @@ Scope:
 - Updated instrument metadata refresh so FMP `isin`, `cusip`, and `figi` values are extracted and promoted into normalized instrument/security-master fields.
 - Added a database helper to sync normalized instrument identifiers into `securities_master` and `security_identifiers`.
 - Updated metadata refresh selection so missing ISIN/CUSIP coverage is refreshed even when normal metadata is still within the 30-day freshness window.
+- Updated the manual Admin/Data Sources Instrument Metadata button to force an identifier catch-up for non-crypto instruments missing ISIN/CUSIP, while leaving scheduled metadata refresh conservative unless `forceIdentifierRefresh=true` is explicitly passed.
 
 Files updated:
 - `src/application/ports/providers/AssetMetadataProvider.ts`
