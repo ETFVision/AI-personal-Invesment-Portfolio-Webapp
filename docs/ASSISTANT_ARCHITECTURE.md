@@ -1,6 +1,6 @@
 # Portfolio Assistant Architecture
 
-Last updated: 2026-06-11 20:11:07 +08:00
+Last updated: 2026-06-12 22:36:00 +08:00
 
 ## Purpose
 
@@ -28,6 +28,20 @@ Assistant answers can use:
 - Portfolio review.
 - News/theme intelligence.
 - Instrument details.
+
+## Security Master / Look-Through Context
+
+The assistant context builder can consume issuer-level portfolio look-through exposure after Portfolio Review has been refreshed. This lets it explain hidden overlap and concentration using company/issuer exposure rather than only direct ticker weights.
+
+Current behavior:
+
+- Direct ETF/fund wrappers remain direct product positions.
+- Underlying company exposure can combine direct holdings and ETF-derived holdings.
+- Share-class variants such as `GOOG` and `GOOGL` should be presented as one issuer-level exposure when issuer links exist.
+- `securityBreakdown` preserves underlying securities and source ETF contributions for audit-style explanations.
+- Direct stock holdings should be described as direct stocks even if the same company also appears as an ETF underlying.
+
+Assistant responses should use this context when answering about concentration, technology exposure, diversification, risk, and hidden overlap.
 
 ## Response Guardrails
 

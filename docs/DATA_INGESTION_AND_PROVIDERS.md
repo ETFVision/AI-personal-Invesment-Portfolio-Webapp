@@ -1,6 +1,6 @@
 # Data Ingestion and Providers
 
-Last updated: 2026-06-11 20:34:49 +08:00
+Last updated: 2026-06-12 22:36:00 +08:00
 
 ## Provider Map
 
@@ -39,6 +39,23 @@ Last updated: 2026-06-11 20:34:49 +08:00
 | Telemetry evaluation | `/api/jobs/telemetry-evaluation` | Mature 1m/3m/6m/12m outcome evaluations. |
 | Portfolio summary | `/api/jobs/portfolio-summary-refresh` | Dashboard/performance summary tables. |
 
+## Security Master Data Flow
+
+FMP metadata and ETF look-through refreshes now feed the Security Master layer:
+
+1. Instrument metadata refresh fetches profile metadata and normalized identifiers where available.
+2. Identifier fields such as ISIN/CUSIP/provider symbol are promoted onto `instruments`.
+3. `sync_security_master_identifiers_from_instruments()` promotes normalized identifiers into `security_identifiers`.
+4. ETF top holdings are mapped through canonical securities using stored identifiers, provider symbols, aliases, and internal-underlying fallback.
+5. Issuer sync links securities to issuers for company-level exposure rollups.
+6. Portfolio Review refresh stores issuer/security-aware look-through snapshots.
+
+Operational implication:
+
+- After significant metadata/ETF exposure/security-master changes, refresh metadata, ETF look-through, then Portfolio Review before QA-ing issuer-level exposure or Recommendation portfolio fit.
+- Existing saved reports may remain symbol-based until regenerated.
+- Crypto ETF proxies may not have ISIN/CUSIP from FMP; this is expected and should not block Security Master coverage for equities/ETFs.
+
 ## Daily Dependency Order
 
 Daily automation should preserve this dependency chain:
@@ -61,6 +78,7 @@ Exact schedule is in `docs/scheduled-jobs.md`.
 ## Provider Quality Notes
 
 - FMP is the core market/fundamentals provider. Some tickers can have limited endpoint coverage or delayed end-of-day updates.
+- FMP profile metadata is also used as the primary source for normalized identifiers feeding Security Master.
 - NewsData.io is preferred for scheduled macro/world news because it is less rate-limit fragile than GDELT.
 - GDELT should remain manual-only unless future rate-limit behavior is stabilized.
 - ETF top-holding availability depends on provider coverage. When top holdings are unavailable, portfolio exposure should fall back to sector/country exposure and mark coverage as limited.

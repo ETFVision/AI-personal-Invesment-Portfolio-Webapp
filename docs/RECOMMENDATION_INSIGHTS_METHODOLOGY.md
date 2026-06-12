@@ -1,6 +1,6 @@
 # Recommendation Insights Methodology
 
-Last updated: 2026-06-11 20:11:07 +08:00
+Last updated: 2026-06-12 22:36:00 +08:00
 
 ## Purpose
 
@@ -79,9 +79,27 @@ Market Vision alignment is a deterministic text/theme overlap score using the la
 
 Portfolio fit checks concentration and duplicate/overlapping exposure. It should use ETF look-through exposure where possible so broad-market ETFs are not treated only by product category.
 
+After Security Master Phase 4C/4D, portfolio fit should prefer issuer-level look-through exposure where available:
+
+1. Use issuer-level `portfolio_lookthrough_holdings` / `portfolio_lookthrough_exposures` to detect duplicate company exposure across direct holdings and ETFs.
+2. Fall back to security-level exposure when issuer links are unavailable.
+3. Fall back to direct ticker/product exposure only when look-through identity data is unavailable.
+
+This matters for cases like:
+
+- Direct `MSFT` plus Microsoft exposure through `VOO`, `QQQ`, and `VT`.
+- `GOOG` and `GOOGL` rolling up under `Alphabet Inc`.
+- Broad ETF candidates being evaluated against existing underlying exposure rather than only ETF product category.
+
 ## Recommendation History
 
 Recommendation outputs and telemetry snapshots are stored for history/evaluation. Exact table names should be checked in recommendation repository/migrations if schema-level detail is needed.
+
+Security Master Phase 5 gap:
+
+- Recommendation snapshots/history should add optional `security_id` and `issuer_id` where relevant.
+- Historical symbol/name should remain stored for audit.
+- This prevents future ticker/share-class changes from fragmenting long-term recommendation and telemetry history.
 
 ## Current Limitations
 
