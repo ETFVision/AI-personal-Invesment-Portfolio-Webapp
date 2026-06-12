@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-13 00:22:00 +08:00
 
-Status: Phase A audit and architecture design completed. Phase 1 additive foundation has been implemented in the repo and is pending Supabase migration application. No portfolio, look-through, recommendation, telemetry, or Market Vision calculations have been switched to security-master logic yet.
+Status: Phase A audit and architecture design completed. Phase 1 additive foundation has been implemented in the repo and is pending Supabase migration application. Migration 092 repairs partially applied migration 091 states where canonical securities were inserted before instruments and identifiers were linked. No portfolio, look-through, recommendation, telemetry, or Market Vision calculations have been switched to security-master logic yet.
 
 ## Revised Phase A Prompt
 
@@ -60,11 +60,12 @@ Implemented on 2026-06-13:
 | Additive schema | Implemented in repo | `supabase/migrations/091_security_master_foundation.sql` creates `securities_master`, `security_identifiers`, and `security_aliases`. |
 | Instrument linkage columns | Implemented in repo | Adds nullable `security_id`, normalized `isin`, `cusip`, `figi`, `provider_symbol`, identifier quality, coverage, user-selectable, internal-only, and alpha-enabled columns to `instruments`. |
 | Initial backfill | Implemented in migration | Uses stored FMP metadata where available and falls back to exchange + symbol matching. |
+| Link repair | Implemented in repo | `supabase/migrations/092_repair_security_master_links.sql` safely links active instruments to already-created securities and populates missing identifiers/aliases. |
 | Resolver service | Implemented | `src/application/services/securityMaster/SecurityMasterService.ts` resolves by FIGI, ISIN, CUSIP, SEDOL, exchange + symbol, provider symbol, alias, then low-confidence name fallback. |
 | Resolver tests | Implemented | Covers ISIN priority, exchange-symbol matching, BRK.B provider variants, FB to META alias, GOOG/GOOGL non-merge, unmapped symbols, and ambiguous names. |
 | Calculation switch | Not started | Current app calculations remain instrument/symbol based until Phase 2/3 dual-run QA. |
 
-Post-deployment checks after running migration 091:
+Post-deployment checks after running migrations 091 and 092:
 
 ```sql
 select count(*) as active_instruments_without_security_id

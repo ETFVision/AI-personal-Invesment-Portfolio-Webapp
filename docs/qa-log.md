@@ -2,6 +2,25 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 00:40 SGT - Security Master Link Repair Migration
+
+Scope:
+- Added an idempotent repair migration after live Supabase checks showed `securities_master` had 306 rows, while all active instruments still had null `security_id`, null `coverage_status`, and `security_identifiers` had no rows.
+
+Root cause:
+- Migration 091 inserted canonical securities and then attempted to match instruments to those inserted rows in the same CTE chain.
+- The safer pattern is to insert canonical rows first, then run a separate statement that reads `securities_master` and updates instruments/identifiers.
+
+Files updated:
+- `supabase/migrations/092_repair_security_master_links.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Expected post-migration result:
+- `active_instruments_without_security_id` should fall from 306 to near 0.
+- `coverage_status` should mostly be `mapped`.
+- `security_identifiers` should contain `SYMBOL`, `EXCHANGE_SYMBOL`, `PROVIDER_SYMBOL`, `ISIN`, and `CUSIP` rows where available.
+
 ## 2026-06-13 00:22 SGT - Security Master Phase 1 Foundation
 
 Scope:
