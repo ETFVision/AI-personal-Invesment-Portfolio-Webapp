@@ -623,10 +623,19 @@ Implemented:
 - Manual high-confidence share-class seed logic marks `GOOG`, `GOOGL`, `BRK.A`, and `BRK.B` as explicit share-class cases where those securities exist.
 - The issuer layer does not merge securities. It links separate securities to a common issuer for concentration and exposure rollups.
 
+Phase 4B hardening:
+
+- `issuer_aliases` stores approved issuer-name variants, common names, and share-class name variants.
+- `sync_security_issuer_links()` is alias-aware. It checks approved aliases before creating or linking to a normalized issuer name.
+- Seeded aliases cover known high-value variants including `Alphabet` -> `Alphabet Inc`, Berkshire share classes, `TSMC`, `Meta Platforms`, `JPMorgan Chase`, `Novo Nordisk`, and `Samsung Electronics`.
+- `issuer_duplicate_candidates` stores potential issuer duplicates for manual review. It is a QA queue, not an automatic merge mechanism.
+- `issuer_base_name(input_name text)` strips legal suffixes only for duplicate-candidate detection. It is intentionally not used as the primary automatic linker.
+
 Recommended Supabase QA:
 
 ```sql
 select * from public.sync_security_issuer_links();
+select * from public.refresh_issuer_duplicate_candidates();
 
 select
   count(*) as active_securities,
@@ -662,25 +671,54 @@ left join security_issuer_links link
 where master.is_active = true
   and link.security_id is null
 order by master.canonical_symbol;
+
+select
+  issuer.issuer_name,
+  array_agg(master.canonical_symbol order by master.canonical_symbol) as symbols,
+  array_agg(link.link_source order by master.canonical_symbol) as link_sources
+from issuers issuer
+join security_issuer_links link on link.issuer_id = issuer.id and link.valid_to is null
+join securities_master master on master.id = link.security_id
+where master.canonical_symbol in ('GOOG', 'GOOGL')
+group by issuer.id, issuer.issuer_name;
+
+select
+  candidate.review_status,
+  count(*) as candidates
+from issuer_duplicate_candidates candidate
+group by candidate.review_status
+order by candidate.review_status;
+
+select
+  issuer_name_a,
+  issuer_name_b,
+  detection_method,
+  confidence_score,
+  review_status
+from issuer_duplicate_candidates
+where review_status = 'needs_review'
+order by confidence_score desc, updated_at desc
+limit 25;
 ```
 
 Expected healthy result:
 
 - `unlinked_securities = 0`.
 - Multi-security issuers are explainable share-class or listing cases, such as Alphabet if both `GOOG` and `GOOGL` are present.
+- `GOOG` and `GOOGL` should return under one issuer row after the alias-aware sync runs.
+- Duplicate candidates are allowed if they are genuinely uncertain, but they should be reviewed and converted into approved `issuer_aliases` only after confirmation.
 - Issuer links preserve security-level detail and do not replace `securities_master`.
 
 Not switched yet:
 
-- Portfolio Review still uses its temporary display rollup until issuer IDs are added to look-through rows.
-- Assistant, recommendation portfolio fit, telemetry, and Market Vision still consume the current exposure shape.
+- Recommendation snapshots/history, telemetry recommendation snapshots, and Market Vision historical inputs do not yet persist `issuer_id`.
 - Corporate actions and multi-provider conflict handling are still later phases.
 
 Next step after QA:
 
-- Add optional `issuer_id` to portfolio look-through holding/exposure rows.
-- Run a new dual-run QA comparing security-level concentration versus issuer-level concentration.
-- Switch concentration display from temporary normalized-name grouping to database-backed issuer grouping.
+- Add optional `issuer_id` to recommendation snapshots/history, telemetry recommendation snapshots, and portfolio review snapshots where relevant.
+- Preserve historical symbol-at-time-of-snapshot while using `issuer_id` to avoid future ticker/share-class fragmentation.
+- Add lifecycle tables for ticker changes, mergers, spin-offs, share-class changes, ETF name changes, ETF closures, and predecessor/successor securities.
 
 ## Phase A Conclusion
 

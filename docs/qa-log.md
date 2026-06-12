@@ -2,6 +2,35 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-12 21:15 SGT - Security Master Phase 4B Issuer Alias Hardening
+
+Scope:
+- Added approved issuer aliases so provider name variants can map to the same issuer without manual SQL.
+- Added `issuer_duplicate_candidates` as a review queue for possible issuer duplicates.
+- Replaced `sync_security_issuer_links()` with an alias-aware version.
+- Seeded aliases for known high-value variants such as `Alphabet` -> `Alphabet Inc`, Berkshire share-class names, `TSMC`, `Meta Platforms`, `JPMorgan Chase`, `Novo Nordisk`, and `Samsung Electronics`.
+
+Files updated:
+- `supabase/migrations/098_issuer_alias_normalization.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Design notes:
+- `issuer_aliases` is the approved mapping layer. Only aliases with `review_status = 'approved'` and no `valid_to` are used by the sync.
+- `issuer_duplicate_candidates` is review-only. It surfaces likely duplicates from suffix-stripped base names but does not merge or relink anything automatically.
+- `issuer_base_name()` is intentionally used only for duplicate-candidate detection, not production linking.
+- Existing security IDs and ETF holding mappings remain unchanged.
+
+Post-migration QA:
+- Run `select * from public.sync_security_issuer_links();`.
+- Run `select * from public.refresh_issuer_duplicate_candidates();`.
+- Confirm `GOOG` and `GOOGL` return under the same issuer row in the issuer QA query documented in `docs/SECURITY_MASTER_AUDIT.md`.
+- Review `issuer_duplicate_candidates where review_status = 'needs_review'` and convert confirmed variants into `issuer_aliases` only after checking.
+
+Residual risks:
+- Alias seed coverage is intentionally conservative. Some international issuer variants may still need review.
+- This improves issuer grouping, but it is not a full corporate-action or multi-provider identifier reconciliation engine yet.
+
 ## 2026-06-13 03:45 SGT - Security Master Phase 4B Issuer Master Foundation
 
 Scope:
