@@ -2,6 +2,35 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 03:20 SGT - Portfolio Review Underlying Exposure UI Refinement
+
+Scope:
+- Split Portfolio Review look-through display into direct portfolio positions, top underlying company exposure, and top indirect company exposure.
+- Kept ETF wrappers in Direct Portfolio Positions instead of mixing them into the underlying company concentration chart.
+- Added issuer-level display grouping for concentration views so share-class variants such as `GOOGL` and `GOOG` are shown together as Alphabet issuer exposure.
+- Preserved security-level detail through raw symbols in `inputsSnapshot.rawSymbols`.
+- Updated Concentration Review to use issuer-grouped underlying exposures instead of ETF wrapper rows for combined top exposure metrics.
+
+Files updated:
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `src/application/services/portfolioReview/ConcentrationReviewService.ts`
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `docs/qa-log.md`
+
+Validation:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed with 232 tests.
+
+Post-deployment QA:
+- Rerun Portfolio Review so new `inputsSnapshot.instrumentAssetClass` and `inputsSnapshot.exposureRole` flags are stored.
+- Confirm ETFs such as `VOO`, `QQQ`, and `VT` appear under Direct Portfolio Positions, not Top Underlying Company Exposure.
+- Confirm Alphabet issuer exposure rolls up `GOOGL` and `GOOG` in the top underlying and indirect company views.
+- Confirm security-master dual-run QA still passes after the refresh.
+
+Residual risks:
+- Issuer-level rollup is a display/concentration grouping layer, not a security-master merge. `GOOG` and `GOOGL` remain distinct securities by design.
+- Existing saved reports need a Portfolio Review refresh before the new direct/underlying flags are present.
+
 ## 2026-06-13 02:55 SGT - Security Master Phase 4A Initial Calculation Switch
 
 Scope:

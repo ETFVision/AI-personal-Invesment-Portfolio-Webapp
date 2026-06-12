@@ -17,6 +17,7 @@ type HoldingAccumulator = {
   mappingStatus: string;
   mappingConfidenceScore: number;
   rawSymbols: string[];
+  instrumentAssetClass: string | null;
   directWeight: number;
   indirectWeight: number;
   sourceEtfs: PortfolioLookthroughHoldingSourceEtf[];
@@ -79,7 +80,8 @@ function addHolding(
   sourceEtf?: string | null,
   securityId?: string | null,
   mappingStatus?: string | null,
-  mappingConfidenceScore?: number | null
+  mappingConfidenceScore?: number | null,
+  instrumentAssetClass?: string | null
 ) {
   const normalizedSymbol = symbol?.trim().toUpperCase();
   const normalizedSecurityId = securityId?.trim() || null;
@@ -92,6 +94,7 @@ function addHolding(
     mappingStatus: normalizedSecurityId ? (mappingStatus ?? "mapped") : "unmapped",
     mappingConfidenceScore: normalizedSecurityId ? (mappingConfidenceScore ?? 90) : 0,
     rawSymbols: [],
+    instrumentAssetClass: instrumentAssetClass ?? null,
     directWeight: 0,
     indirectWeight: 0,
     sourceEtfs: []
@@ -102,6 +105,7 @@ function addHolding(
     current.mappingStatus = mappingStatus ?? "mapped";
     current.mappingConfidenceScore = Math.max(current.mappingConfidenceScore, mappingConfidenceScore ?? 90);
   }
+  if (!current.instrumentAssetClass && instrumentAssetClass) current.instrumentAssetClass = instrumentAssetClass;
   if (!current.rawSymbols.includes(normalizedSymbol)) current.rawSymbols.push(normalizedSymbol);
   if (source === "direct") {
     current.directWeight += weight;
@@ -133,6 +137,8 @@ function holdingRows(portfolioId: string, asOfDate: string, map: Map<string, Hol
       inputsSnapshot: {
         source: "portfolio_lookthrough_exposure_service",
         aggregation: value.holdingSecurityId ? "security_id" : "raw_symbol",
+        instrumentAssetClass: value.instrumentAssetClass,
+        exposureRole: value.indirectWeight > 0 ? "underlying_security" : "direct_position",
         rawSymbols: value.rawSymbols.sort()
       }
     }))
@@ -227,7 +233,8 @@ export class PortfolioLookthroughExposureService {
         null,
         instrument.securityId ?? null,
         instrument.securityId ? "mapped" : "unmapped",
-        instrument.securityId ? 95 : 0
+        instrument.securityId ? 95 : 0,
+        instrument.assetClass
       );
       const shouldLookthrough = hasEquityLookthrough(instrument);
       if (shouldLookthrough) {
@@ -272,7 +279,8 @@ export class PortfolioLookthroughExposureService {
               instrument.symbol,
               holding.holdingSecurityId ?? null,
               holding.mappingStatus ?? null,
-              holding.mappingConfidenceScore ?? null
+              holding.mappingConfidenceScore ?? null,
+              "underlying_security"
             );
           }
         } else {

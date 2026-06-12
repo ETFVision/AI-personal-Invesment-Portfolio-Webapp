@@ -394,23 +394,146 @@ function ExposureTable({
   );
 }
 
-function HoldingExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] }) {
-  const shownRows = rows.slice(0, 10);
+type DisplayHoldingExposure = PortfolioLookthroughHolding & {
+  displayLabel?: string;
+};
+
+function holdingSnapshot(row: PortfolioLookthroughHolding) {
+  return row.inputsSnapshot && typeof row.inputsSnapshot === "object" ? row.inputsSnapshot as Record<string, unknown> : {};
+}
+
+function rawSymbols(row: PortfolioLookthroughHolding) {
+  const snapshot = holdingSnapshot(row);
+  const values = Array.isArray(snapshot.rawSymbols) ? snapshot.rawSymbols : [row.holdingSymbol];
+  return Array.from(new Set(values.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim().toUpperCase())));
+}
+
+function instrumentAssetClass(row: PortfolioLookthroughHolding) {
+  const value = holdingSnapshot(row).instrumentAssetClass;
+  return typeof value === "string" ? value : null;
+}
+
+function exposureRole(row: PortfolioLookthroughHolding) {
+  const value = holdingSnapshot(row).exposureRole;
+  return typeof value === "string" ? value : null;
+}
+
+function isFundWrapper(row: PortfolioLookthroughHolding) {
+  const assetClass = instrumentAssetClass(row);
+  return row.directWeight > 0 && row.indirectWeight === 0 && ["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"].includes(assetClass ?? "");
+}
+
+function isUnderlyingExposure(row: PortfolioLookthroughHolding) {
+  return row.indirectWeight > 0 || exposureRole(row) === "underlying_security";
+}
+
+function normalizeIssuerName(name: string | null | undefined, fallback: string) {
+  const base = (name ?? fallback)
+    .replace(/\s+Class\s+[A-Z0-9]+$/i, "")
+    .replace(/\s+Ordinary\s+Shares?$/i, "")
+    .replace(/\s+Common\s+Stock$/i, "")
+    .replace(/\s+Sponsored\s+ADR$/i, "")
+    .replace(/\s+ADR$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return base || fallback;
+}
+
+function issuerKey(row: PortfolioLookthroughHolding) {
+  return normalizeIssuerName(row.holdingName, row.holdingSymbol).toUpperCase();
+}
+
+function aggregateByIssuer(rows: PortfolioLookthroughHolding[], mode: "underlying" | "indirect"): DisplayHoldingExposure[] {
+  const map = new Map<string, DisplayHoldingExposure>();
+  for (const row of rows) {
+    if (isFundWrapper(row)) continue;
+    if (mode === "underlying" && !isUnderlyingExposure(row)) continue;
+    if (mode === "indirect" && row.indirectWeight <= 0) continue;
+    const key = issuerKey(row);
+    const symbols = rawSymbols(row);
+    const current = map.get(key) ?? {
+      ...row,
+      holdingSymbol: symbols[0] ?? row.holdingSymbol,
+      holdingName: normalizeIssuerName(row.holdingName, row.holdingSymbol),
+      directWeight: 0,
+      indirectWeight: 0,
+      totalWeight: 0,
+      sourceEtfs: [],
+      inputsSnapshot: {
+        source: "portfolio_review_display",
+        aggregation: "issuer",
+        rawSymbols: []
+      }
+    };
+    current.directWeight += row.directWeight;
+    current.indirectWeight += row.indirectWeight;
+    current.totalWeight += mode === "indirect" ? row.indirectWeight : row.totalWeight;
+    const currentRawSymbols = rawSymbols(current);
+    const combinedSymbols = Array.from(new Set([...currentRawSymbols, ...symbols])).sort();
+    current.holdingSymbol = combinedSymbols.length > 1 ? combinedSymbols.join(" + ") : combinedSymbols[0] ?? row.holdingSymbol;
+    current.displayLabel = `${current.holdingName ?? current.holdingSymbol}${combinedSymbols.length > 1 ? ` (${combinedSymbols.join(" + ")})` : ""}`;
+    current.inputsSnapshot = {
+      ...current.inputsSnapshot,
+      rawSymbols: combinedSymbols
+    };
+    for (const source of row.sourceEtfs) {
+      const existing = current.sourceEtfs.find((item) => item.symbol === source.symbol);
+      if (existing) existing.weight += source.weight;
+      else current.sourceEtfs.push({ ...source });
+    }
+    current.sourceEtfs.sort((a, b) => b.weight - a.weight);
+    map.set(key, current);
+  }
+  return Array.from(map.values()).sort((a, b) => b.totalWeight - a.totalWeight);
+}
+
+function DirectPositionExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] }) {
+  const shownRows = rows
+    .filter((row) => row.directWeight > 0)
+    .sort((a, b) => b.directWeight - a.directWeight)
+    .slice(0, 12);
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Combined Holding Exposure</CardTitle>
-        <CardDescription>Direct holdings plus ETF underlying look-through exposure, sorted by total concentration. Top rows are concentration checks and are not expected to add to 100%.</CardDescription>
+        <CardTitle>Direct Portfolio Positions</CardTitle>
+        <CardDescription>What the portfolio directly owns before ETF look-through. This includes ETF wrappers, direct stocks, bond funds, gold funds and cash-like products.</CardDescription>
       </CardHeader>
       <CardContent>
-        {rows.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Indirect holding exposure unavailable.</p>
+        {shownRows.length === 0 ? (
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No direct position exposure available.</p>
+        ) : (
+          <HorizontalExposureBars
+            max={Math.max(...shownRows.map((row) => row.directWeight), 0.01)}
+            items={shownRows.map((row) => ({
+              label: `${row.holdingSymbol}${row.holdingName ? ` - ${row.holdingName}` : ""}`,
+              value: row.directWeight,
+              valueLabel: formatPercent(row.directWeight),
+              detail: instrumentAssetClass(row) ? `Type: ${metricLabel(instrumentAssetClass(row) ?? "")}` : undefined
+            }))}
+          />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function HoldingExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] }) {
+  const shownRows = aggregateByIssuer(rows, "underlying").slice(0, 10);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Top Underlying Company Exposure</CardTitle>
+        <CardDescription>Issuer-level company exposure after ETF look-through. ETF wrappers are excluded here and share-class variants such as GOOGL and GOOG are rolled up for concentration review.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {shownRows.length === 0 ? (
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Underlying company exposure unavailable.</p>
         ) : (
           <div className="space-y-3">
             {shownRows.map((row) => (
               <StackedExposureBar
-                key={row.holdingSymbol}
-                label={`${row.holdingSymbol}${row.holdingName ? ` - ${row.holdingName}` : ""}`}
+                key={`${row.holdingSymbol}-${row.holdingName}`}
+                label={row.displayLabel ?? `${row.holdingSymbol}${row.holdingName ? ` - ${row.holdingName}` : ""}`}
                 totalLabel={formatPercent(row.totalWeight)}
                 direct={row.directWeight}
                 indirect={row.indirectWeight}
@@ -425,15 +548,12 @@ function HoldingExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] })
 }
 
 function IndirectHoldingExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] }) {
-  const shownRows = rows
-    .filter((row) => row.indirectWeight > 0)
-    .sort((a, b) => b.indirectWeight - a.indirectWeight)
-    .slice(0, 10);
+  const shownRows = aggregateByIssuer(rows, "indirect").slice(0, 10);
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Top 10 Indirect Holdings</CardTitle>
-        <CardDescription>Largest underlying stock exposures coming only from ETFs, sorted by ETF look-through weight. Top rows are hidden-overlap checks and are not expected to add to 100%.</CardDescription>
+        <CardTitle>Top Indirect Company Exposure</CardTitle>
+        <CardDescription>ETF-derived underlying company exposure only. Direct stock weights are excluded, while share-class variants are rolled up at issuer level.</CardDescription>
       </CardHeader>
       <CardContent>
         {shownRows.length === 0 ? (
@@ -442,7 +562,7 @@ function IndirectHoldingExposureTable({ rows }: { rows: PortfolioLookthroughHold
           <HorizontalExposureBars
             max={Math.max(...shownRows.map((row) => row.indirectWeight), 0.01)}
             items={shownRows.map((row) => ({
-              label: `${row.holdingSymbol}${row.holdingName ? ` - ${row.holdingName}` : ""}`,
+              label: row.displayLabel ?? `${row.holdingSymbol}${row.holdingName ? ` - ${row.holdingName}` : ""}`,
               value: row.indirectWeight,
               valueLabel: formatPercent(row.indirectWeight),
               detail: [
@@ -591,6 +711,7 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
               <div className="grid gap-4 lg:grid-cols-2">
                 <ExposureTable title="Look-Through Sector Exposure" description="Actual sector exposure after decomposing equity ETFs." rows={lookthroughReport(report)?.sectorExposures ?? []} />
                 <ExposureTable title="Look-Through Country Exposure" description="Country exposure from ETF allocations and direct holdings." rows={lookthroughReport(report)?.countryExposures ?? []} />
+                <DirectPositionExposureTable rows={lookthroughReport(report)?.holdingExposures ?? []} />
                 <HoldingExposureTable rows={lookthroughReport(report)?.holdingExposures ?? []} />
                 <IndirectHoldingExposureTable rows={lookthroughReport(report)?.holdingExposures ?? []} />
                 <ExposureTable
