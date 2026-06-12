@@ -2,6 +2,27 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-12 21:35 SGT - Security Master Issuer Display Name Cleanup
+
+Scope:
+- Added `clean_issuer_display_name(input_name text)` to remove share-class/security suffixes from issuer display names.
+- Added an `issuers` trigger so future issuer inserts and issuer-name updates are cleaned automatically.
+- Cleaned existing issuer rows such as `Alphabet Inc Class C` to display as `Alphabet Inc`.
+
+Files updated:
+- `supabase/migrations/099_clean_issuer_display_names.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Design notes:
+- Issuer display names should represent the company/fund issuer.
+- Share-class detail remains on `security_issuer_links.share_class` and the underlying security record.
+- This is display/master-data cleanup only. It does not merge securities or change portfolio calculations.
+
+Post-migration QA:
+- Run the `GOOG` / `GOOGL` issuer QA query from `docs/SECURITY_MASTER_AUDIT.md`.
+- Expected: both symbols appear under one clean issuer name, for example `Alphabet Inc`.
+
 ## 2026-06-12 21:15 SGT - Security Master Phase 4B Issuer Alias Hardening
 
 Scope:

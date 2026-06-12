@@ -630,6 +630,8 @@ Phase 4B hardening:
 - Seeded aliases cover known high-value variants including `Alphabet` -> `Alphabet Inc`, Berkshire share classes, `TSMC`, `Meta Platforms`, `JPMorgan Chase`, `Novo Nordisk`, and `Samsung Electronics`.
 - `issuer_duplicate_candidates` stores potential issuer duplicates for manual review. It is a QA queue, not an automatic merge mechanism.
 - `issuer_base_name(input_name text)` strips legal suffixes only for duplicate-candidate detection. It is intentionally not used as the primary automatic linker.
+- `clean_issuer_display_name(input_name text)` removes share-class/security suffixes from `issuers.issuer_name` only. Share-class detail remains on `security_issuer_links.share_class` and the underlying security record.
+- A trigger cleans issuer display names on future issuer inserts/updates, so rows such as `Alphabet Inc Class C` display as `Alphabet Inc`.
 
 Recommended Supabase QA:
 
@@ -706,6 +708,7 @@ Expected healthy result:
 - `unlinked_securities = 0`.
 - Multi-security issuers are explainable share-class or listing cases, such as Alphabet if both `GOOG` and `GOOGL` are present.
 - `GOOG` and `GOOGL` should return under one issuer row after the alias-aware sync runs.
+- The issuer display name for Alphabet should be clean, for example `Alphabet Inc`, while individual securities still preserve Class A/Class C detail.
 - Duplicate candidates are allowed if they are genuinely uncertain, but they should be reviewed and converted into approved `issuer_aliases` only after confirmation.
 - Issuer links preserve security-level detail and do not replace `securities_master`.
 
