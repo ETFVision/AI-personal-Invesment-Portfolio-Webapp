@@ -2,6 +2,93 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 00:22 SGT - Security Master Phase 1 Foundation
+
+Scope:
+- Implemented the additive Security Master Phase 1 foundation after completing Phase A audit/design.
+- Added canonical security identity tables, instrument linkage fields, initial backfill logic, deterministic resolver service, and resolver tests.
+- Did not switch portfolio, ETF look-through, recommendation, telemetry, Market Vision, dashboard, or assistant calculations to security-master logic.
+
+Files updated:
+- `supabase/migrations/091_security_master_foundation.sql`
+- `src/application/services/securityMaster/SecurityMasterService.ts`
+- `tests/security-master.test.ts`
+- `package.json`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/qa-log.md`
+
+Implementation details:
+- Migration 091 creates `securities_master`, `security_identifiers`, and `security_aliases`.
+- Migration 091 adds nullable `security_id`, `isin`, `cusip`, `figi`, `provider_symbol`, `identifier_quality_score`, `identifier_last_refreshed_at`, `coverage_status`, `is_user_selectable`, `is_internal_only`, and `is_alpha_enabled` columns to `instruments`.
+- Initial backfill reads stored FMP metadata where available and falls back to exchange + symbol matching.
+- Resolver matching order is FIGI, ISIN, CUSIP, SEDOL, exchange + symbol, provider symbol, alias, then low-confidence name fallback.
+- Configured symbol aliases include `BRK-B` and `BRK/B` to `BRK.B`, plus historical `FB` to `META`.
+- GOOG and GOOGL are intentionally not merged without an explicit identifier/alias rule.
+
+Validation:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test -- --test-name-pattern security` passed. The current npm test script enumerates all compiled test files before forwarding the pattern, so this effectively ran the full test suite: 232 passed, 0 failed.
+
+Post-deployment QA still required:
+- Apply migration 091 in Supabase.
+- Check active instruments without `security_id`.
+- Check identifier counts by type.
+- Review `coverage_status = 'needs_identifier_review'` instruments.
+- Confirm no portfolio output changes, because no calculations are switched yet.
+
+## 2026-06-12 23:58 SGT - Security Master Phase A Audit And Design
+
+Scope:
+- Reviewed the user-provided Security Master Audit prompt.
+- Re-scoped it into a Phase A audit/design task only.
+- Created a current-state security master audit and target architecture document.
+- Did not add migrations, write application code, change calculations, or alter Supabase data.
+
+Files updated:
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/README.md`
+- `docs/qa-log.md`
+
+Primary code/schema references checked:
+- `supabase/migrations/001_core_mvp_schema.sql`
+- `supabase/migrations/008_instrument_universe.sql`
+- `supabase/migrations/051_etf_lookthrough_exposure.sql`
+- `supabase/migrations/052_portfolio_lookthrough_holdings.sql`
+- `supabase/migrations/046_recommendation_engine_v1.sql`
+- `supabase/migrations/054_telemetry_learning_layer.sql`
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `src/application/services/portfolioReview/ConcentrationReviewService.ts`
+- `src/application/services/portfolioReview/PortfolioReviewService.ts`
+- `src/infrastructure/providers/metadata/FmpAssetMetadataProvider.ts`
+
+Live evidence:
+- Active instruments checked: 306.
+- Active split: 105 `stock`, 196 `etf`, 5 `crypto_etf`.
+- FMP `/stable/profile` supports `isin` and `cusip`.
+- Full active-universe FMP probe returned profile + ISIN for 301/306 symbols; the remaining 5 were FMP 429 limit responses, not missing-ISIN responses.
+- Single retry for `XLV` returned ISIN/CUSIP successfully.
+- 201 active instruments currently have nested stored `provider_metadata.financial_modeling_prep.isin` and `cusip`.
+- ETF exposure row counts observed: 220 sector rows, 396 country rows, 240 top-holding rows.
+- Portfolio look-through holding rows observed: 52.
+
+Findings:
+- PASS: ETFVision has a strong user-selectable `instruments` universe and normalized product taxonomy.
+- PASS: Raw FMP metadata can preserve ISIN/CUSIP today.
+- GAP: ISIN/CUSIP are nested raw metadata, not normalized first-class columns.
+- GAP: No repo-owned security-master migration/service currently defines canonical `security_id` governance.
+- GAP: ETF top holdings and portfolio look-through holdings are currently keyed by raw `holding_symbol`, so direct-plus-indirect overlap can be fragmented by symbol variants.
+- GAP: Recommendation and telemetry history use `instrument_id` plus symbol, which is acceptable now but not corporate-action ready.
+
+Recommended next implementation:
+- Phase 1 additive foundation only: add `securities_master`, `security_identifiers`, `security_aliases`; add nullable `security_id`, normalized identifiers and provider symbol columns to `instruments`; backfill active instruments from FMP profile metadata; add resolver tests.
+- Do not switch concentration, overlap, or portfolio review calculations until a dual-run QA compares raw-symbol output with `security_id` output.
+
+Validation:
+- Documentation/source/schema audit only.
+- No runtime tests were required because no executable code changed.
+
 Backfilled entries are reconstructed from commit history and prior implementation/QA work before this log existed.
 
 ## 2026-06-01 - Phase 2 Core MVP QA Backfill

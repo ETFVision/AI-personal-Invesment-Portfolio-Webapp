@@ -171,10 +171,14 @@ Output:
 - Alias mapping report.
 - Unmapped holding report.
 
-Current status: partly completed.
+Current status: Phase 1 foundation implemented in repo; Supabase migration application and post-migration QA pending.
 
 Notes:
-- Some ticker normalization exists, but a full security master with ISIN/FIGI/alias governance is not complete.
+- `docs/SECURITY_MASTER_AUDIT.md` now documents the current state, target concepts, proposed schema, identifier strategy, calculation impact risks, and implementation phases.
+- Migration 091 adds `securities_master`, `security_identifiers`, `security_aliases` and nullable identifier/linkage columns on `instruments`.
+- A deterministic resolver service now exists for FIGI, ISIN, CUSIP, exchange-symbol, provider-symbol, alias, and low-confidence name fallback matching.
+- Current app calculations still rely on `instruments.id` and symbols. ETF top holdings and portfolio look-through holdings are still keyed by raw `holding_symbol`, not canonical `security_id`.
+- Next implementation step is Phase 2 ETF holding mapping and Phase 3 dual-run QA before any portfolio calculations switch to canonical `security_id`.
 
 ## 5. ETF Holdings Data Audit
 
@@ -965,7 +969,7 @@ Recommended:
 | 1 | Instrument Taxonomy Audit | Completed | Taxonomy is implemented, documented and live-count verified. Repeat the live count check after future ETF additions. |
 | 2 | Data Provider Audit | Partly completed | Provider coverage has been tested ad hoc. A formal full-universe provider matrix is still needed. |
 | 3 | Data Normalization Audit | Completed | Raw provider metadata is preserved, normalized fields are populated and look-through exposure is separated from ETF product taxonomy. Review queue alias cleanup is implemented; stored statuses need recalculation after deployment. |
-| 4 | Security Master Audit | Partly completed | Basic symbol normalization exists. Full canonical security identity and alias governance are incomplete. |
+| 4 | Security Master Audit | Phase 1 implemented | Additive schema, instrument linkage columns, identifier backfill, resolver service, and resolver tests are in repo. Supabase migration 091 and post-migration QA are pending; calculations remain symbol/instrument based. |
 | 5 | ETF Holdings Data Audit | Partly completed | Sector/country look-through works. Top holdings are provider-plan limited. |
 | 6 | Calculation And Logic Audit | Mostly completed | Methodology and core optimizations exist. Golden regression/manual validation pack remains. |
 | 7 | Portfolio Review Audit | Mostly completed | Engine works and is documented. Regression fixtures and unsafe wording review remain. |
