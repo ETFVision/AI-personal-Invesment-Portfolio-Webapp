@@ -53,6 +53,7 @@ function toStringArray(value: unknown) {
 function mapInstrument(row: any): Instrument {
   return {
     id: row.id,
+    securityId: row.security_id ?? null,
     symbol: row.symbol,
     name: row.name,
     assetClass: row.asset_class,

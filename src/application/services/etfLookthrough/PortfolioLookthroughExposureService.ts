@@ -11,7 +11,12 @@ type ExposureAccumulator = {
 };
 
 type HoldingAccumulator = {
+  holdingSymbol: string;
   holdingName: string | null;
+  holdingSecurityId: string | null;
+  mappingStatus: string;
+  mappingConfidenceScore: number;
+  rawSymbols: string[];
   directWeight: number;
   indirectWeight: number;
   sourceEtfs: PortfolioLookthroughHoldingSourceEtf[];
@@ -71,12 +76,33 @@ function addHolding(
   name: string | null | undefined,
   weight: number,
   source: "direct" | "indirect",
-  sourceEtf?: string | null
+  sourceEtf?: string | null,
+  securityId?: string | null,
+  mappingStatus?: string | null,
+  mappingConfidenceScore?: number | null
 ) {
-  const key = symbol?.trim().toUpperCase();
-  if (!key || !Number.isFinite(weight) || weight <= 0) return;
-  const current = map.get(key) ?? { holdingName: name?.trim() || null, directWeight: 0, indirectWeight: 0, sourceEtfs: [] };
+  const normalizedSymbol = symbol?.trim().toUpperCase();
+  const normalizedSecurityId = securityId?.trim() || null;
+  const key = normalizedSecurityId ? `security:${normalizedSecurityId}` : normalizedSymbol ? `symbol:${normalizedSymbol}` : null;
+  if (!key || !normalizedSymbol || !Number.isFinite(weight) || weight <= 0) return;
+  const current = map.get(key) ?? {
+    holdingSymbol: normalizedSymbol,
+    holdingName: name?.trim() || null,
+    holdingSecurityId: normalizedSecurityId,
+    mappingStatus: normalizedSecurityId ? (mappingStatus ?? "mapped") : "unmapped",
+    mappingConfidenceScore: normalizedSecurityId ? (mappingConfidenceScore ?? 90) : 0,
+    rawSymbols: [],
+    directWeight: 0,
+    indirectWeight: 0,
+    sourceEtfs: []
+  };
   if (!current.holdingName && name?.trim()) current.holdingName = name.trim();
+  if (!current.holdingSecurityId && normalizedSecurityId) current.holdingSecurityId = normalizedSecurityId;
+  if (normalizedSecurityId) {
+    current.mappingStatus = mappingStatus ?? "mapped";
+    current.mappingConfidenceScore = Math.max(current.mappingConfidenceScore, mappingConfidenceScore ?? 90);
+  }
+  if (!current.rawSymbols.includes(normalizedSymbol)) current.rawSymbols.push(normalizedSymbol);
   if (source === "direct") {
     current.directWeight += weight;
   } else {
@@ -91,18 +117,23 @@ function addHolding(
 }
 
 function holdingRows(portfolioId: string, asOfDate: string, map: Map<string, HoldingAccumulator>): PortfolioLookthroughHolding[] {
-  return Array.from(map.entries())
-    .map(([holdingSymbol, value]) => ({
+  return Array.from(map.values())
+    .map((value) => ({
       portfolioId,
       asOfDate,
-      holdingSymbol,
+      holdingSymbol: value.holdingSymbol,
       holdingName: value.holdingName,
+      holdingSecurityId: value.holdingSecurityId,
+      mappingStatus: value.mappingStatus,
+      mappingConfidenceScore: value.mappingConfidenceScore,
       directWeight: value.directWeight,
       indirectWeight: value.indirectWeight,
       totalWeight: value.directWeight + value.indirectWeight,
       sourceEtfs: value.sourceEtfs.sort((a, b) => b.weight - a.weight),
       inputsSnapshot: {
-        source: "portfolio_lookthrough_exposure_service"
+        source: "portfolio_lookthrough_exposure_service",
+        aggregation: value.holdingSecurityId ? "security_id" : "raw_symbol",
+        rawSymbols: value.rawSymbols.sort()
       }
     }))
     .sort((a, b) => b.totalWeight - a.totalWeight);
@@ -113,6 +144,7 @@ function topHoldingExposureRows(portfolioId: string, asOfDate: string, holdings:
     portfolioId,
     exposureType: "top_holding",
     exposureName: holding.holdingSymbol,
+    exposureSecurityId: holding.holdingSecurityId ?? null,
     exposureWeight: holding.totalWeight,
     directWeight: holding.directWeight,
     etfLookthroughWeight: holding.indirectWeight,
@@ -186,7 +218,17 @@ export class PortfolioLookthroughExposureService {
       }
 
       add(currencies, instrument.currency ?? valuation.valueCurrency, portfolioWeight, "direct", "currency");
-      addHolding(holdings, instrument.symbol ?? symbol ?? valuation.holding.assetName, valuation.holding.assetName ?? instrument.name, portfolioWeight, "direct");
+      addHolding(
+        holdings,
+        instrument.symbol ?? symbol ?? valuation.holding.assetName,
+        valuation.holding.assetName ?? instrument.name,
+        portfolioWeight,
+        "direct",
+        null,
+        instrument.securityId ?? null,
+        instrument.securityId ? "mapped" : "unmapped",
+        instrument.securityId ? 95 : 0
+      );
       const shouldLookthrough = hasEquityLookthrough(instrument);
       if (shouldLookthrough) {
         etfCount += 1;
@@ -221,7 +263,17 @@ export class PortfolioLookthroughExposureService {
         if (etfHoldings.length) {
           etfsWithTopHoldings += 1;
           for (const holding of etfHoldings) {
-            addHolding(holdings, holding.holdingSymbol, holding.holdingName, portfolioWeight * normalizeWeight(holding.holdingWeight), "indirect", instrument.symbol);
+            addHolding(
+              holdings,
+              holding.holdingSymbol,
+              holding.holdingName,
+              portfolioWeight * normalizeWeight(holding.holdingWeight),
+              "indirect",
+              instrument.symbol,
+              holding.holdingSecurityId ?? null,
+              holding.mappingStatus ?? null,
+              holding.mappingConfidenceScore ?? null
+            );
           }
         } else {
           diagnostics.push(`${instrument.symbol ?? instrument.name} has no cached top-holding look-through exposure.`);

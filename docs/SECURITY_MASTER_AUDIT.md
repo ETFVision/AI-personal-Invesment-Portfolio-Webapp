@@ -67,7 +67,7 @@ Implemented on 2026-06-13:
 | Resolver service | Implemented | `src/application/services/securityMaster/SecurityMasterService.ts` resolves by FIGI, ISIN, CUSIP, SEDOL, exchange + symbol, provider symbol, alias, then low-confidence name fallback. |
 | Resolver tests | Implemented | Covers ISIN priority, exchange-symbol matching, BRK.B provider variants, FB to META alias, GOOG/GOOGL non-merge, unmapped symbols, and ambiguous names. |
 | Calculation dual-run QA | Implemented in repo | `supabase/migrations/096_security_master_dual_run_qa.sql` adds a persistent QA report table and runner for raw-symbol versus canonical security-ID portfolio look-through grouping. |
-| Calculation switch | Not started | Current app calculations remain instrument/symbol based until dual-run QA is reviewed and accepted. |
+| Calculation switch | Started | Portfolio look-through top-holding aggregation now prefers canonical security IDs when available, with raw-symbol fallback preserved. Broader engines still need follow-up QA before switching additional calculations. |
 
 Post-deployment checks after running migrations 091, 092, 093, 094, 095, and 096:
 
@@ -583,6 +583,31 @@ Production switch criteria:
 - Add FIGI or other provider enrichment if needed.
 - Add multi-provider reconciliation and source priority logic.
 - Add formal duplicate/ambiguous security review workflow.
+
+### Phase 4A - Initial Security-ID Calculation Switch
+
+Implemented:
+
+- `PortfolioLookthroughExposureService` now aggregates direct and ETF-indirect top-holding exposure by `security_id` when available.
+- Raw provider holding symbols are preserved in `inputsSnapshot.rawSymbols`.
+- Stored `portfolio_lookthrough_holdings` now carries `holding_security_id`, mapping status, and mapping confidence where available.
+- Stored `portfolio_lookthrough_exposures` top-holding rows now carry `exposure_security_id`.
+- The user-facing output remains compatible with the existing UI: display still uses `holding_symbol` / `exposure_name`.
+- The test suite now verifies that direct `MSFT` and ETF-provider `MSFT US` aggregate into the same top-holding exposure when they share the same security ID.
+
+Still not switched:
+
+- Sector, country, currency, and theme exposure remain allocation/group labels rather than security-master entities.
+- Recommendation scoring, assistant response generation, telemetry snapshots, and Market Vision continue to consume the same portfolio exposure shape, but now benefit from the canonical top-holding rows once Portfolio Review refreshes.
+- Corporate actions and multi-provider conflict resolution remain future Phase 4B/4C work.
+
+Post-deployment QA:
+
+1. Refresh Portfolio Review after deploying this change.
+2. Run `select * from public.run_security_master_dual_run_qa();`.
+3. Confirm the latest report remains `pass`.
+4. Check Portfolio Review top holdings and indirect holdings for expected direct-plus-ETF aggregation.
+5. Spot-check assistant/recommendation portfolio-fit wording for concentration questions.
 
 ## Phase A Conclusion
 

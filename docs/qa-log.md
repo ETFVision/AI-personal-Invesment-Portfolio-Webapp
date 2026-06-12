@@ -2,6 +2,40 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 02:55 SGT - Security Master Phase 4A Initial Calculation Switch
+
+Scope:
+- Switched portfolio look-through top-holding aggregation to prefer canonical `security_id` where available.
+- Preserved raw symbols as fallback and stored raw provider symbols in `inputsSnapshot.rawSymbols`.
+- Added security mapping fields to TypeScript ETF look-through types and Supabase repository mapping.
+- Kept UI display shape stable via existing `holdingSymbol` / `exposureName` fields.
+
+Files updated:
+- `src/domain/universe/types.ts`
+- `src/domain/etfLookthrough/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts`
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Validation:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed with 232 tests.
+- Portfolio review test now verifies direct `MSFT` and ETF-provider `MSFT US` aggregate when they share `security-msft`.
+
+Post-deployment QA:
+- Refresh Portfolio Review.
+- Run `select * from public.run_security_master_dual_run_qa();`.
+- Confirm the latest dual-run report remains `pass`.
+- Spot-check top holdings and indirect holdings for expected direct-plus-ETF aggregation.
+
+Residual risks:
+- Existing portfolio look-through rows will not carry the new security-id aggregation until Portfolio Review is refreshed.
+- Sector/country/theme allocations are not security entities and remain label based.
+- Recommendation, assistant, and telemetry layers consume the existing exposure shape and should be manually spot-checked after refresh.
+
 ## 2026-06-13 02:25 SGT - Security Master Phase 3 Dual-Run QA
 
 Scope:

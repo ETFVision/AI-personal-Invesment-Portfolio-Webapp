@@ -22,6 +22,7 @@ export type WatchlistTier = "core_quality" | "tactical_thematic" | "opportunisti
 
 export type Instrument = {
   id: string;
+  securityId?: string | null;
   symbol: string | null;
   name: string;
   assetClass: InstrumentAssetClass;
