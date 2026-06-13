@@ -1,6 +1,6 @@
 # ETFVision Architecture Overview
 
-Last updated: 2026-06-12 22:36:00 +08:00
+Last updated: 2026-06-13
 
 Authoritative status: current handover snapshot for future developers. This document supersedes older overlapping architecture notes where the contents conflict, while older audit logs remain useful as historical context.
 
@@ -66,13 +66,15 @@ ETFVision now separates product/instrument identity from underlying security and
 | ETF provider look-through rows | `etf_sector_exposures`, `etf_country_exposures`, `etf_top_holdings`, `etf_theme_exposures` | Cached provider ETF allocation/holdings inputs. Top holdings are mapped to canonical/internal securities where possible. | VOO holding Microsoft/NVIDIA/Apple |
 | Portfolio look-through outputs | `portfolio_lookthrough_exposures`, `portfolio_lookthrough_holdings` | Derived direct + indirect portfolio exposure used by Portfolio Review, Risk, Assistant context, and Recommendation portfolio fit. | Microsoft total exposure = direct MSFT + VOO/QQQ/VT indirect exposure |
 
-Current production behavior after Security Master Phase 4C/4D:
+Current production behavior after Security Master Phase 5:
 
 - `instruments` remains the product universe. Do not replace it with `securities_master` for Universe/Watchlist routing.
 - ETF top holdings can create internal non-user-selectable securities. These support look-through analysis but should not appear as normal Universe/Watchlist instruments.
 - Portfolio Review top underlying company exposure is issuer-level where issuer links exist, then security-level, then raw-symbol fallback.
 - Direct ETF/fund wrappers remain direct product positions and are excluded from underlying company concentration charts.
 - Direct stock holdings win display classification. If an ETF indirect row creates an issuer row first, a later direct MSFT/NVDA holding must still display as `Stock`, not `Underlying Security`.
+- Recommendation rows, recommendation history rows, and telemetry recommendation snapshots now persist optional `security_id` and `issuer_id` while preserving historical symbols.
+- Portfolio Review report snapshots and portfolio review telemetry snapshots carry `security_identity_snapshot` metadata that records the identity basis used by look-through calculations.
 - Raw provider symbols remain stored in snapshots for audit and drill-down.
 
 The focused audit and QA details live in [Security Master Audit](SECURITY_MASTER_AUDIT.md) and [QA Log](qa-log.md).

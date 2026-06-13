@@ -1,6 +1,6 @@
 # ETFVision Database Schema
 
-Last updated: 2026-06-12 22:36:00 +08:00
+Last updated: 2026-06-13
 
 Authoritative status: current schema handover summary based on `supabase/migrations`. For exact columns and constraints, inspect the migration files directly.
 
@@ -42,6 +42,7 @@ Primary migrations:
 - `supabase/migrations/098_issuer_alias_normalization.sql`
 - `supabase/migrations/099_clean_issuer_display_names.sql`
 - `supabase/migrations/100_issuer_level_lookthrough_rollups.sql`
+- `supabase/migrations/102_security_master_phase5_snapshot_identity.sql`
 
 | Table | Purpose |
 |---|---|
@@ -231,12 +232,20 @@ Source quality fields are added to `news_items` by `028_news_source_quality.sql`
 
 | Table family | Purpose |
 |---|---|
-| recommendation tables | Stored recommendation outputs and history. Exact names should be verified in recommendation migrations/repositories. |
-| `portfolio_review_runs`, `portfolio_review_reports` | Portfolio Review run metadata and report JSON. |
-| `telemetry_recommendation_*`, `telemetry_market_vision_*`, `telemetry_portfolio_review_*` | Snapshots and mature outcome evaluations. |
+| `recommendation_runs`, `instrument_recommendations`, `recommendation_history` | Stored deterministic insight outputs and history. Phase 5 adds optional `security_id` and `issuer_id` to current and historical recommendation rows while preserving historical symbols. |
+| `portfolio_review_runs`, `portfolio_review_reports` | Portfolio Review run metadata and report JSON. Phase 5 adds `security_identity_snapshot` metadata for the identity basis used by look-through reports. |
+| `telemetry_recommendation_*`, `telemetry_market_vision_*`, `telemetry_portfolio_review_*` | Snapshots and mature outcome evaluations. Phase 5 adds optional `security_id` and `issuer_id` to `telemetry_recommendation_snapshots` and `security_identity_snapshot` to portfolio review telemetry snapshots. |
 | assistant tables | Conversations, messages, usage/cost tracking. Exact names should be verified in assistant migrations/repositories. |
 
-Security Master Phase 5 gap: recommendation history, telemetry snapshots, and some historical report snapshots do not yet persist first-class `security_id` / `issuer_id` fields everywhere. Phase 5 should add these fields where relevant while preserving historical symbol/name snapshots for audit.
+Security Master Phase 5 identity propagation is additive:
+
+- `instrument_recommendations.security_id`, `instrument_recommendations.issuer_id`
+- `recommendation_history.security_id`, `recommendation_history.issuer_id`
+- `telemetry_recommendation_snapshots.security_id`, `telemetry_recommendation_snapshots.issuer_id`
+- `portfolio_review_reports.security_identity_snapshot`
+- `telemetry_portfolio_review_snapshots.security_identity_snapshot`
+
+Database triggers fill recommendation and telemetry identity fields from `instrument_id` / `symbol` on future writes. These fields support ticker/share-class continuity but do not change scoring, labels, or telemetry outcome calculations.
 
 ## Operations
 

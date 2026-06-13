@@ -34,6 +34,8 @@ function mapRecommendation(row: any): InstrumentRecommendation {
     id: row.id,
     recommendationRunId: row.recommendation_run_id,
     instrumentId: row.instrument_id,
+    securityId: row.security_id ?? null,
+    issuerId: row.issuer_id ?? null,
     symbol: row.symbol,
     instrumentType: row.instrument_type,
     recommendationLabel: row.recommendation_label,
@@ -61,6 +63,8 @@ function mapHistory(row: any): RecommendationHistoryItem {
   return {
     id: row.id,
     instrumentId: row.instrument_id,
+    securityId: row.security_id ?? null,
+    issuerId: row.issuer_id ?? null,
     symbol: row.symbol,
     recommendationLabel: row.recommendation_label,
     overallScore: row.overall_score == null ? null : Number(row.overall_score),

@@ -1,8 +1,8 @@
 # ETFVision Security Master Audit
 
-Last updated: 2026-06-12 22:36:00 +08:00
+Last updated: 2026-06-13
 
-Status: Phases A, 1, 2, 3, 4A, 4B, 4C, and 4D are implemented through the current commercialization checkpoint. Security Master now has canonical securities, identifiers, aliases, internal ETF underlyings, issuer master links, issuer alias normalization, dual-run QA, and issuer-level look-through rollups with security-level drill-down. Portfolio Review concentration, hidden overlap, Portfolio Assistant context, and recommendation portfolio-fit can use issuer-level look-through exposure after Portfolio Review is refreshed. Phase 5 remains next: add stable `security_id` / `issuer_id` references to recommendation, telemetry, and historical snapshot layers.
+Status: Phases A, 1, 2, 3, 4A, 4B, 4C, 4D, and 5 are implemented through the current commercialization checkpoint. Security Master now has canonical securities, identifiers, aliases, internal ETF underlyings, issuer master links, issuer alias normalization, dual-run QA, issuer-level look-through rollups with security-level drill-down, and stable identity propagation into recommendation and telemetry history. Portfolio Review concentration, hidden overlap, Portfolio Assistant context, recommendation portfolio-fit, recommendation history, and telemetry snapshots can use stable security/issuer identity while preserving historical symbols for audit.
 
 ## Revised Phase A Prompt
 
@@ -207,9 +207,9 @@ The user-selectable instrument universe and the internal ETF holdings security u
 | `etf_top_holdings` | Provider top holdings inside ETFs. | `etf_instrument_id`, `etf_symbol`, `holding_symbol`, `holding_name`. | Internal ETF holdings. | Provider-cached. | High: no `holding_security_id`; raw symbol is the unique key. |
 | `portfolio_lookthrough_exposures` | Portfolio sector/country/currency/theme/top-holding output. | `exposure_name`. | Portfolio analytics output. | Derived. | Allocation views are acceptable; top-holding exposure should move to `security_id` after security master exists. |
 | `portfolio_lookthrough_holdings` | Direct plus indirect stock-level exposure. | `holding_symbol`, `holding_name`, `source_etfs`. | Portfolio analytics output. | Derived. | High: direct + indirect aggregation uses raw symbol, not canonical security. |
-| `instrument_recommendations` | Latest deterministic insight classifications. | `instrument_id`, `symbol`. | Instrument analytics. | Derived output. | Acceptable for instrument-level insights; future security identity can improve history across ticker changes. |
-| `recommendation_history` | Historical recommendation labels/scores. | `instrument_id`, `symbol`. | Instrument analytics. | Derived history. | Ticker changes could fragment history without security identity. |
-| `telemetry_recommendation_snapshots` | Recommendation telemetry observations. | `instrument_id`, `symbol`, `benchmark_symbol`. | Telemetry. | Immutable observational snapshots. | Ticker changes or alias drift could fragment long-term telemetry. |
+| `instrument_recommendations` | Latest deterministic insight classifications. | `instrument_id`, `symbol`, `security_id`, `issuer_id`. | Instrument analytics. | Derived output. | Phase 5 keeps symbol-at-run and adds stable identity for ticker/share-class continuity. |
+| `recommendation_history` | Historical recommendation labels/scores. | `instrument_id`, `symbol`, `security_id`, `issuer_id`. | Instrument analytics. | Derived history. | Phase 5 reduces history fragmentation after ticker or share-class changes. |
+| `telemetry_recommendation_snapshots` | Recommendation telemetry observations. | `instrument_id`, `symbol`, `security_id`, `issuer_id`, `benchmark_symbol`. | Telemetry. | Immutable observational snapshots. | Phase 5 preserves symbol-at-snapshot and adds stable identity for long-horizon evaluation. |
 | `telemetry_portfolio_review_snapshots` | Portfolio review telemetry. | JSON snapshots including look-through data. | Telemetry. | Immutable observational snapshots. | Inherits current look-through symbol-based mapping risk. |
 | `bond_profiles`, `benchmark_profiles`, `crypto_profiles` | Type-specific profile rows. | `instrument_id`, `symbol`/`instrument_symbol`, provider metadata. | Instrument profiles. | Source/fallback profile data. | Should eventually link through `security_id` for robust identity. |
 
@@ -723,7 +723,7 @@ Expected healthy result:
 
 Not switched yet:
 
-- Recommendation snapshots/history, telemetry recommendation snapshots, and Market Vision historical inputs do not yet persist `issuer_id`.
+- Market Vision historical theme/proxy snapshots do not require per-instrument `security_id` today, but future proxy-security identity can be added if Market Vision starts evaluating individual instrument proxies more deeply.
 - Corporate actions and multi-provider conflict handling are still later phases.
 
 Next step after QA:
@@ -796,14 +796,59 @@ Manual QA completed:
 - MSFT and NVDA direct positions display as `Stock` after accumulator display-class precedence was corrected.
 - Regression tests cover ETF-first/direct-stock-later ordering so direct holdings win display class and direct symbols win security breakdown display.
 
-Next step after Phase 4C/4D QA:
+### Phase 5 - Recommendation, Telemetry, And History Hardening
 
-- Add optional `issuer_id` and `security_id` to recommendation snapshots/history, telemetry recommendation snapshots, and portfolio review snapshots where relevant.
-- Preserve historical symbol-at-time-of-snapshot while using stable IDs to avoid future ticker/share-class fragmentation.
+Implemented:
+
+- `instrument_recommendations`, `recommendation_history`, and `telemetry_recommendation_snapshots` now carry optional `security_id` and `issuer_id`.
+- Database triggers populate `security_id` and `issuer_id` from `instrument_id` / `symbol` on future inserts and updates.
+- Existing recommendation and telemetry rows are backfilled where current instrument security and issuer links are available.
+- Historical `symbol` remains stored for audit, so old reports remain readable even if ticker, share-class, or issuer mappings evolve.
+- `portfolio_review_reports` and `telemetry_portfolio_review_snapshots` now carry `security_identity_snapshot` metadata describing the look-through identity basis used at snapshot time.
+- The application read models expose these identity fields where present, but scoring, labels, guardrails, and telemetry outcomes are unchanged.
+
+Supabase QA after applying migration `102`:
+
+```sql
+select
+  count(*) as total_recommendations,
+  count(security_id) as with_security_id,
+  count(issuer_id) as with_issuer_id
+from instrument_recommendations;
+
+select
+  count(*) as total_history,
+  count(security_id) as with_security_id,
+  count(issuer_id) as with_issuer_id
+from recommendation_history;
+
+select
+  count(*) as total_telemetry_recommendation_snapshots,
+  count(security_id) as with_security_id,
+  count(issuer_id) as with_issuer_id
+from telemetry_recommendation_snapshots;
+
+select
+  security_identity_snapshot->>'securityMasterPhase' as phase,
+  count(*) as portfolio_review_reports
+from portfolio_review_reports
+group by phase;
+```
+
+Expected healthy result:
+
+- Active/current recommendation rows should mostly have both `security_id` and `issuer_id`.
+- Older rows can remain null if they reference deleted or unmapped historical instruments.
+- Portfolio Review rows should show `securityMasterPhase = phase5` after the migration/backfill.
+- Recommendation labels, component scores, and telemetry outcome rows should not change because Phase 5 is identity propagation only.
+
+Next step after Phase 5 QA:
+
 - Add lifecycle tables for ticker changes, mergers, spin-offs, share-class changes, ETF name changes, ETF closures, and predecessor/successor securities.
+- Add multi-provider reconciliation rules and a review queue for conflicting identifiers.
 
 ## Current Checkpoint Conclusion
 
-The current app now has the core additive security-master foundation and the first production calculation switch for portfolio look-through concentration. The highest-risk raw-symbol ETF holding fragmentation issue has been materially reduced for Portfolio Review, assistant context, and recommendation portfolio-fit.
+The current app now has the core additive security-master foundation, the first production calculation switch for portfolio look-through concentration, and stable identity propagation into recommendation and telemetry history. The highest-risk raw-symbol ETF holding fragmentation issue has been materially reduced for Portfolio Review, assistant context, recommendation portfolio-fit, recommendation history, and telemetry snapshots.
 
-The next implementation task is Phase 5: persist optional `security_id` and `issuer_id` references into recommendation snapshots/history, telemetry recommendation snapshots, and portfolio review snapshots where relevant. Historical symbols should remain stored for audit, while stable IDs prevent future ticker/share-class fragmentation.
+The next implementation task is Phase 6: corporate-action readiness for ticker changes, mergers, spin-offs, share-class changes, ETF name changes, ETF closures, and predecessor/successor securities.

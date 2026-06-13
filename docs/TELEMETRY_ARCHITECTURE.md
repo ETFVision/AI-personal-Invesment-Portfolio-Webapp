@@ -1,6 +1,6 @@
 # Telemetry Architecture
 
-Last updated: 2026-06-11 20:11:07 +08:00
+Last updated: 2026-06-13
 
 ## Purpose
 
@@ -26,6 +26,14 @@ Telemetry stores snapshots for:
 - Portfolio Review.
 
 Tables are introduced in `054_telemetry_learning_layer.sql` and hardened in `055_telemetry_v1_5_hardening.sql`.
+
+Security Master Phase 5 adds stable identity traceability:
+
+- `telemetry_recommendation_snapshots.security_id`
+- `telemetry_recommendation_snapshots.issuer_id`
+- `telemetry_portfolio_review_snapshots.security_identity_snapshot`
+
+The historical `symbol` and recommendation label remain stored exactly as snapshot context. The stable IDs are for continuity and grouping over long horizons; they do not change outcome calculations.
 
 ## Evaluation Horizons
 

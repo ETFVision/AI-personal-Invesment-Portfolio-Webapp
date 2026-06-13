@@ -2,6 +2,45 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 - Security Master Phase 5 Snapshot Identity Propagation
+
+Scope:
+- Added stable `security_id` and `issuer_id` identity fields to recommendation and telemetry recommendation snapshot/history tables.
+- Added trigger-based identity population so future recommendation and telemetry writes inherit canonical security/issuer identity from `instrument_id` / `symbol`.
+- Backfilled existing recommendation and telemetry recommendation rows where current instrument security and issuer links are available.
+- Added portfolio-level `security_identity_snapshot` metadata to Portfolio Review report and telemetry snapshots.
+- Updated Security Master, database schema, recommendation methodology, telemetry architecture, documentation gap, and architecture overview docs.
+
+Files updated:
+- `supabase/migrations/102_security_master_phase5_snapshot_identity.sql`
+- `src/domain/recommendations/types.ts`
+- `src/domain/telemetry/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseRecommendationRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabaseTelemetryRepository.ts`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/DATABASE_SCHEMA.md`
+- `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`
+- `docs/TELEMETRY_ARCHITECTURE.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/ARCHITECTURE_OVERVIEW.md`
+- `docs/qa-log.md`
+
+Validation:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed.
+- The migration is additive and does not alter recommendation scoring, labels, guardrails, telemetry outcomes, or Portfolio Review scoring.
+
+Post-deployment QA:
+- Apply migration `102`.
+- Run the Phase 5 SQL checks documented in `docs/SECURITY_MASTER_AUDIT.md`.
+- Confirm most current recommendation and telemetry recommendation rows have both `security_id` and `issuer_id`.
+- Confirm older rows with null identity correspond to genuinely unmapped or deleted historical instruments.
+- Confirm Portfolio Review rows have `security_identity_snapshot.securityMasterPhase = phase5`.
+
+Residual risks:
+- Market Vision theme/proxy snapshots do not yet carry per-proxy security identity because Market Vision is still theme/report based.
+- Phase 6 corporate-action tables are still needed for ticker changes, mergers, spin-offs, share-class changes, ETF name changes, ETF closures, and predecessor/successor securities.
+
 ## 2026-06-13 14:58 SGT - Return Anchor Refresh Timeout Fix
 
 Scope:
