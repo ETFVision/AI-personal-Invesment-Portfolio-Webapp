@@ -1,6 +1,6 @@
 # ETFVision Commercialization Audit Plan
 
-Last updated: 2026-06-12 22:35:00 +08:00
+Last updated: 2026-06-13 16:20:00 +08:00
 
 ## Purpose
 
@@ -171,17 +171,20 @@ Output:
 - Alias mapping report.
 - Unmapped holding report.
 
-Current status: completed through Security Master Phase 4C/4D for the current commercialization checkpoint. Phase 5 recommendation/telemetry/history hardening is next.
+Current status: completed for the current commercialization checkpoint.
 
 Notes:
 - `docs/SECURITY_MASTER_AUDIT.md` documents the current state, implementation phases, QA queries, issuer logic, and next hardening steps.
-- Migrations 091 through 100 add canonical securities, identifiers, aliases, internal ETF underlyings, dual-run QA, issuer master, issuer aliases, clean issuer display names, and issuer-level look-through rollups.
+- Migrations 091 through 105 add canonical securities, identifiers, aliases, internal ETF underlyings, dual-run QA, issuer master, issuer aliases, clean issuer display names, issuer-level look-through rollups, recommendation/history/telemetry identity propagation, Admin QA monitoring, corporate-action readiness tables, and provider reconciliation review tables.
 - Active user-selectable instruments now link to canonical securities; ETF top holdings can map to canonical/internal securities.
 - Security-master dual-run QA has returned `pass` for the current portfolio look-through snapshot.
 - Portfolio Review concentration, top underlying company exposure, top indirect company exposure, Portfolio Assistant hidden-overlap context, and recommendation portfolio-fit logic can use issuer-level look-through exposure.
 - Direct ETF/fund wrappers remain direct product positions and are not mixed into underlying company exposure.
 - Direct stock holdings that also appear inside ETFs now display as direct `Stock` positions, while ETF-only rows remain indirect underlying exposure.
-- Next implementation step is Phase 5: add optional `security_id` / `issuer_id` to recommendation snapshots/history, telemetry snapshots, and portfolio review history where relevant.
+- Phase 5 has propagated optional `security_id` / `issuer_id` into recommendation snapshots/history and telemetry snapshots, while Portfolio Review reports carry a `security_identity_snapshot`.
+- Phase 8 Admin/Data Sources monitoring is live through `get_security_master_health_snapshot()` and `security_master_mapping_gap_report`.
+- Phase 6/7 tables are readiness layers. Corporate actions and provider observations are intentionally empty until a real corporate-action source or second identifier provider is connected.
+- Final QA snapshot on 2026-06-13 showed 306/306 selectable instruments mapped, 357/357 active securities issuer-linked, 240/240 ETF top holdings mapped, 0 unmapped or ambiguous ETF holdings, 0 stale identifiers, 1053/1053 recommendations and recommendation-history rows identity-linked, 389/389 telemetry recommendation snapshots identity-linked, and 24/24 Portfolio Review reports at Phase 5.
 
 ## 5. ETF Holdings Data Audit
 
@@ -972,7 +975,7 @@ Recommended:
 | 1 | Instrument Taxonomy Audit | Completed | Taxonomy is implemented, documented and live-count verified. Repeat the live count check after future ETF additions. |
 | 2 | Data Provider Audit | Partly completed | Provider coverage has been tested ad hoc. A formal full-universe provider matrix is still needed. |
 | 3 | Data Normalization Audit | Completed | Raw provider metadata is preserved, normalized fields are populated and look-through exposure is separated from ETF product taxonomy. Review queue alias cleanup is implemented; stored statuses need recalculation after deployment. |
-| 4 | Security Master Audit | Completed through Phase 4C/4D | Canonical securities, identifiers, aliases, internal ETF underlyings, issuer master, dual-run QA and issuer-level look-through rollups are implemented. Current QA passed for Alphabet share-class grouping, direct/indirect exposure display, and direct stock label precedence. Phase 5 history/telemetry hardening remains. |
+| 4 | Security Master Audit | Completed | Canonical securities, identifiers, aliases, internal ETF underlyings, issuer master, dual-run QA, issuer-level look-through rollups, Phase 5 stable identity propagation, Phase 8 monitoring, Phase 6 corporate-action readiness, and Phase 7 provider-reconciliation readiness are implemented. Final QA passed with 306/306 selectable instruments mapped, 240/240 ETF holdings mapped, and 0 unmapped/ambiguous holdings. |
 | 5 | ETF Holdings Data Audit | Mostly completed for current portfolio | Sector/country look-through works. ETF top holdings are mapped through security master/internal underlyings for current coverage. Full provider-plan expansion and mapping monitoring remain. |
 | 6 | Calculation And Logic Audit | Mostly completed | Methodology and core optimizations exist. Golden regression/manual validation pack remains. |
 | 7 | Portfolio Review Audit | Mostly completed | Engine works and is documented. Issuer-level look-through and direct/indirect exposure QA passed. Broader regression fixtures and unsafe wording review remain. |

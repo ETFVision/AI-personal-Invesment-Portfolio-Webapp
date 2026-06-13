@@ -2,6 +2,63 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 16:20 SGT - Security Master Full QA/QC Closeout
+
+Scope:
+- Completed a full Security Master audit closeout across Phase A, Phase 1, Phase 2, Phase 3, Phase 4A/4B/4C/4D, Phase 5, Phase 8, Phase 6 and Phase 7.
+- Reconciled implementation state against the Security Master audit plan.
+- Reviewed the live Admin/Data Sources Security Master QA snapshot provided from Supabase.
+- Updated the Security Master audit, commercialization audit plan, documentation index and documentation gap tracker so they no longer describe Phase 5 as pending.
+
+Files updated:
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/README.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+
+Implementation coverage reviewed:
+- PASS: canonical security tables, identifiers and aliases exist.
+- PASS: active/user-selectable instruments are linked to canonical securities.
+- PASS: ETF top holdings are mapped to canonical/internal securities.
+- PASS: dual-run QA exists for raw-symbol versus canonical grouping.
+- PASS: issuer master, issuer aliases and issuer duplicate review queue exist.
+- PASS: issuer-level look-through rollups are used for Portfolio Review concentration, hidden overlap, assistant context and recommendation portfolio-fit.
+- PASS: security-level drill-down is preserved under issuer-level rows.
+- PASS: recommendation, recommendation-history and telemetry recommendation snapshots carry stable `security_id` / `issuer_id` where available.
+- PASS: Portfolio Review reports carry Phase 5 identity metadata.
+- PASS: Admin/Data Sources Security Master QA card reads `get_security_master_health_snapshot()`.
+- PASS: corporate-action readiness tables exist.
+- PASS: provider observation/conflict readiness tables exist.
+
+Live QA snapshot reviewed:
+- PASS: 306 / 306 selectable instruments have `security_id`.
+- PASS: 357 active securities exist.
+- PASS: 357 / 357 active securities are linked to issuers.
+- PASS: 301 / 306 selectable instruments have ISIN.
+- PASS: 301 / 306 selectable instruments have CUSIP.
+- PASS: 240 / 240 ETF top holdings are mapped.
+- PASS: 0 ETF top holdings are unmapped.
+- PASS: 0 ETF top holdings are ambiguous.
+- PASS: 0 issuer duplicate candidates are open.
+- PASS: 0 stale identifier refreshes.
+- PASS: 1053 / 1053 current recommendation rows have stable identity.
+- PASS: 1053 / 1053 recommendation history rows have stable identity.
+- PASS: 389 / 389 telemetry recommendation snapshots have stable identity.
+- PASS: 24 / 24 Portfolio Review reports carry Phase 5 identity.
+- ACCEPTED: 5 mapping gap rows remain because 5 selectable instruments do not have ISIN/CUSIP coverage; this is not a security mapping failure because all selectable instruments have `security_id`.
+- ACCEPTED: 0 FIGI coverage because no FIGI provider has been connected.
+- ACCEPTED: 0 corporate-action, lifecycle-link, provider-observation and provider-conflict rows because those tables are readiness layers until real ingestion/provider reconciliation is added.
+
+Validation:
+- Documentation and SQL/code surface audit completed.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed: 234 tests, 234 passed.
+
+Conclusion:
+- Security Master Audit is completed for the current commercialization checkpoint.
+- Future work is operational expansion, not audit-blocking remediation: corporate-action ingestion, second-provider observation writes, provider-priority rules, and Admin review workflows for real conflicts.
+
 ## 2026-06-13 - Security Master Phase 8, 6, And 7 Readiness
 
 Scope:

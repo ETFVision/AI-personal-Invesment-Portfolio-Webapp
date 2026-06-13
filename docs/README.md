@@ -1,23 +1,23 @@
 # ETFVision Documentation Index
 
-Last updated: 2026-06-12 22:36:00 +08:00
+Last updated: 2026-06-13 16:20:00 +08:00
 
 This folder contains both current handover documents and older historical audits. The uppercase documents below are the current authoritative handover pack as of the timestamp above.
 
 ## Handover Status Snapshot
 
-The handover pack is current for the major architecture and audit work completed through 2026-06-12:
+The handover pack is current for the major architecture and audit work completed through 2026-06-13:
 
 | Area | Current status | Primary docs | Notes for next developer |
 |---|---|---|---|
 | Core app architecture | Current | `ARCHITECTURE_OVERVIEW.md`, `DATABASE_SCHEMA.md` | Includes current branch model, summary-table direction, Security Master identity layers, and refresh-job dependency model. |
 | Instrument taxonomy | Completed for current universe | `INSTRUMENT_TAXONOMY_AND_COVERAGE.md`, `INSTRUMENT_TAXONOMY_AUDIT.md`, `COMMERCIALIZATION_AUDIT_PLAN.md` | Current live target is 306 active user-selectable instruments: 201 ETF-style products and 105 stocks. Raw crypto references remain inactive. |
 | Data normalization | Completed for current checkpoint | `DATA_NORMALIZATION_AUDIT.md`, `DATABASE_SCHEMA.md`, `DATA_INGESTION_AND_PROVIDERS.md` | ETF product taxonomy is separate from portfolio exposure. Portfolio sector allocation must use look-through exposure where available. |
-| Security Master | Completed through Phase 4C/4D | `SECURITY_MASTER_AUDIT.md`, `ARCHITECTURE_OVERVIEW.md`, `DATABASE_SCHEMA.md`, `PORTFOLIO_REVIEW_METHODOLOGY.md` | Canonical security, identifier, issuer, issuer-alias, ETF-holding mapping, dual-run QA, and issuer-level look-through rollups are documented. Phase 5 history/telemetry identity propagation remains. |
+| Security Master | Completed for current commercialization checkpoint | `SECURITY_MASTER_AUDIT.md`, `ARCHITECTURE_OVERVIEW.md`, `DATABASE_SCHEMA.md`, `PORTFOLIO_REVIEW_METHODOLOGY.md` | Canonical security, identifier, issuer, issuer-alias, ETF-holding mapping, dual-run QA, issuer-level look-through rollups, Phase 5 identity propagation, Phase 8 monitoring, and Phase 6/7 readiness layers are documented. |
 | Price, return, market metric, and risk metric refresh | Current | `DATA_INGESTION_AND_PROVIDERS.md`, `JOBS_AND_OPERATIONS.md`, `PERFORMANCE_ARCHITECTURE.md`, `scheduled-jobs.md` | Daily refresh is split into price, daily returns, anchors, market metrics, risk metrics, and metadata jobs to avoid long request timeouts. |
 | Portfolio dashboard and page rendering performance | Partly completed | `PERFORMANCE_ARCHITECTURE.md`, `PAGE_RENDERING_AUDIT.md`, `ARCHITECTURE_OVERVIEW.md` | Portfolio performance/holdings/cash summaries are optimized. Universe/watchlist summary-table experiment was reverted; future phases remain documented. |
 | Portfolio Review | Current for current UI | `PORTFOLIO_REVIEW_METHODOLOGY.md`, `SECURITY_MASTER_AUDIT.md`, `qa-log.md` | Uses issuer-level company exposure where available, preserves direct ETF wrappers, and stores security-level drill-down for audit. |
-| Recommendation / Insights | Mostly current | `RECOMMENDATION_INSIGHTS_METHODOLOGY.md`, `SCORE_METHODOLOGY.md`, `recommendation-language-audit.md` | Deterministic engine. Portfolio fit can use issuer-level exposure. Phase 5 should persist `security_id` / `issuer_id` into recommendation history. |
+| Recommendation / Insights | Mostly current | `RECOMMENDATION_INSIGHTS_METHODOLOGY.md`, `SCORE_METHODOLOGY.md`, `recommendation-language-audit.md` | Deterministic engine. Portfolio fit can use issuer-level exposure. Recommendation, recommendation history, and telemetry recommendation snapshots now persist stable `security_id` / `issuer_id` where available. |
 | Assistant | Mostly current | `ASSISTANT_ARCHITECTURE.md`, `SECURITY_MASTER_AUDIT.md` | Assistant context can explain issuer-level hidden overlap after Portfolio Review refresh. Cost tracking and exact table inventory still need final schema audit. |
 | Market Vision, News, Macro, Fundamentals, Risk, Fixed Income, Telemetry | Methodology documented; some UI/data-map gaps remain | `MARKET_VISION_METHODOLOGY.md`, `NEWS_THEME_METHODOLOGY.md`, `SCORE_METHODOLOGY.md`, `TELEMETRY_ARCHITECTURE.md`, `DOCUMENTATION_GAPS.md` | Formula/methodology exists, but route-by-route field lineage is still a follow-up documentation task. |
 | Scheduled refresh automation | Current, but should be checked against live Supabase cron after edits | `scheduled-jobs.md`, `JOBS_AND_OPERATIONS.md`, `DATA_INGESTION_AND_PROVIDERS.md` | Supabase cron replaced GitHub Actions for production refreshes. Keep schedule docs aligned with migrations and live `cron.job`. |
@@ -42,12 +42,12 @@ This is the quick map of notable audits completed or started so far. `qa-log.md`
 | Market Vision | Methodology documented; publish/draft lifecycle and next-phase QA pending | `MARKET_VISION_METHODOLOGY.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` Market Vision Skeleton QA, Market Vision Follow-Up Backlog Checkpoint |
 | News and themes | Methodology documented; threshold/page map follow-up pending | `NEWS_THEME_METHODOLOGY.md`, `DATA_INGESTION_AND_PROVIDERS.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` News Intelligence Layer Comprehensive QA |
 | Fundamentals layer | Score/trend methodology documented; page-field map pending | `SCORE_METHODOLOGY.md`, `DATABASE_SCHEMA.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` Documentation Methodology Follow-Up entries |
-| Recommendation / Insights | Mostly completed; Phase 5 identity propagation pending | `RECOMMENDATION_INSIGHTS_METHODOLOGY.md`, `recommendation-language-audit.md`, `SCORE_METHODOLOGY.md` | `qa-log.md` Recommendation Language Refinement QA, Exposure Context Consistency QA |
+| Recommendation / Insights | Mostly completed | `RECOMMENDATION_INSIGHTS_METHODOLOGY.md`, `recommendation-language-audit.md`, `SCORE_METHODOLOGY.md` | `qa-log.md` Recommendation Language Refinement QA, Exposure Context Consistency QA, Security Master Phase 5 identity propagation |
 | Portfolio Assistant | Mostly completed; cost/table schema audit pending | `ASSISTANT_ARCHITECTURE.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` Recommendation Language Refinement QA and Security Master hidden-overlap entries |
-| Telemetry | Architecture documented; identity propagation pending | `TELEMETRY_ARCHITECTURE.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` Telemetry Layer and Telemetry UX Hardening QA entries |
+| Telemetry | Architecture documented; recommendation snapshot identity propagated | `TELEMETRY_ARCHITECTURE.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` Telemetry Layer, Telemetry UX Hardening QA, and Security Master Phase 5 identity entries |
 | Page rendering performance | Partly completed; phased roadmap remains | `PAGE_RENDERING_AUDIT.md`, `PERFORMANCE_ARCHITECTURE.md` | `qa-log.md` Page Rendering Performance Audit And Summary Read-Model QA |
 | Scheduled jobs / data refresh | Current, verify against live cron after changes | `scheduled-jobs.md`, `JOBS_AND_OPERATIONS.md`, `DATA_INGESTION_AND_PROVIDERS.md` | `qa-log.md` schedule and performance architecture entries |
-| Security Master / issuer rollups | Completed through Phase 4C/4D | `SECURITY_MASTER_AUDIT.md`, `DATABASE_SCHEMA.md`, `ARCHITECTURE_OVERVIEW.md`, `PORTFOLIO_REVIEW_METHODOLOGY.md` | `qa-log.md` Security Master Phase A through Phase 4C/4D entries |
+| Security Master / issuer rollups | Completed for current commercialization checkpoint | `SECURITY_MASTER_AUDIT.md`, `DATABASE_SCHEMA.md`, `ARCHITECTURE_OVERVIEW.md`, `PORTFOLIO_REVIEW_METHODOLOGY.md` | `qa-log.md` Security Master Phase A through Phase 8/6/7 closeout entries |
 | ETF holdings / look-through | Partly completed due provider top-holding limits; current portfolio rollups work where data exists | `SECURITY_MASTER_AUDIT.md`, `PORTFOLIO_REVIEW_METHODOLOGY.md`, `COMMERCIALIZATION_AUDIT_PLAN.md` | `qa-log.md` ETF holding mapping and Portfolio Review look-through entries |
 | Portfolio Review engine | Current, with future candidate-ranking hardening noted | `PORTFOLIO_REVIEW_METHODOLOGY.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` Portfolio Review and Security Master Phase 4C/4D entries |
 | Feature gates / alpha branch | Partly completed; alpha branch should remain flag-aligned with main | `feature-gated-production-architecture-audit.md`, `COMMERCIALIZATION_AUDIT_PLAN.md` | `qa-log.md` Page Rendering QA notes on alpha realignment |

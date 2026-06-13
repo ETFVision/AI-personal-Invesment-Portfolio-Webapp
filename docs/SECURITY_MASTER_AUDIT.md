@@ -1,8 +1,8 @@
 # ETFVision Security Master Audit
 
-Last updated: 2026-06-13
+Last updated: 2026-06-13 16:20 SGT
 
-Status: Phases A, 1, 2, 3, 4A, 4B, 4C, 4D, 5, 8, 6, and 7 are implemented through the current commercialization checkpoint. Security Master now has canonical securities, identifiers, aliases, internal ETF underlyings, issuer master links, issuer alias normalization, dual-run QA, issuer-level look-through rollups with security-level drill-down, stable identity propagation into recommendation and telemetry history, Admin QA monitoring, corporate-action readiness tables, and provider reconciliation review tables. Portfolio Review concentration, hidden overlap, Portfolio Assistant context, recommendation portfolio-fit, recommendation history, and telemetry snapshots can use stable security/issuer identity while preserving historical symbols for audit.
+Status: Completed for the current commercialization checkpoint. Phases A, 1, 2, 3, 4A, 4B, 4C, 4D, 5, 8, 6, and 7 are implemented and QA-reviewed. Security Master now has canonical securities, identifiers, aliases, internal ETF underlyings, issuer master links, issuer alias normalization, dual-run QA, issuer-level look-through rollups with security-level drill-down, stable identity propagation into recommendation and telemetry history, Admin QA monitoring, corporate-action readiness tables, and provider reconciliation review tables. Portfolio Review concentration, hidden overlap, Portfolio Assistant context, recommendation portfolio-fit, recommendation history, and telemetry snapshots can use stable security/issuer identity while preserving historical symbols for audit.
 
 ## Revised Phase A Prompt
 
@@ -40,7 +40,7 @@ Phase A output:
 
 ETFVision now has a repo-owned additive security master layered above the existing `instruments` universe. The app still keeps `instruments` as the user-selectable product universe, but canonical securities, identifiers, aliases, issuer links, and internal ETF underlyings now support look-through identity, overlap, and concentration review.
 
-The current checkpoint has moved the highest-risk ETF look-through identity path away from raw symbols for portfolio concentration and duplicate-exposure logic. The remaining commercial-grade gaps are historical snapshot hardening, corporate-action lifecycle support, multi-provider reconciliation, and admin monitoring/export of mapping exceptions.
+The current checkpoint has moved the highest-risk ETF look-through identity path away from raw symbols for portfolio concentration and duplicate-exposure logic. Stable identity has also been propagated into recommendation, recommendation-history and telemetry snapshots. Corporate-action lifecycle tables, provider-reconciliation tables, and Admin/Data Sources monitoring now exist as readiness layers. They are intentionally not yet automated because ETFVision does not yet ingest real corporate-action events or a second security-identifier provider.
 
 The implementation direction remains additive:
 
@@ -71,6 +71,10 @@ Implemented on 2026-06-13:
 | Issuer alias/display hardening | Implemented in repo | Migrations `098` and `099` add approved issuer aliases, duplicate-candidate review queue, alias-aware sync, and clean issuer display names. |
 | Issuer-level rollups and drill-down | Implemented in repo | Migration `100` and app services add issuer IDs/names to look-through holdings/exposures, preserve `securityBreakdown`, and keep fund wrappers as direct security-level positions. |
 | Direct holding display QA | Completed | Direct portfolio holdings now use the portfolio holding asset type when an internal ETF-underlying row is encountered first, so direct MSFT/NVDA display as `Stock` while indirect rows remain `Underlying Security`. |
+| Phase 5 history identity | Implemented and QA-reviewed | Recommendation, recommendation-history, telemetry recommendation snapshots, portfolio review reports, and portfolio review telemetry snapshots carry stable security/issuer identity where applicable. |
+| Phase 8 monitoring | Implemented and QA-reviewed | Admin/Data Sources exposes Security Master QA health from `get_security_master_health_snapshot()` and `security_master_mapping_gap_report`. |
+| Phase 6 corporate-action readiness | Implemented and QA-reviewed | Additive corporate-action and lifecycle-link tables exist for future ticker changes, mergers, spin-offs, share-class changes, ETF renames, ETF closures, and predecessor/successor links. |
+| Phase 7 provider reconciliation readiness | Implemented and QA-reviewed | Provider observation and identifier-conflict tables exist for future multi-provider reconciliation and open-conflict monitoring. |
 
 Post-deployment checks after running migrations 091 through 100:
 
@@ -136,6 +140,23 @@ Live Supabase/FMP/security-master checks performed during the 2026-06-12 checkpo
 | Dual-run latest source/security group delta | 0 |
 | ETF holdings mapped after internal underlying backfill | 240 / 240 |
 | Portfolio look-through holdings mapped after internal underlying backfill | 52 / 52 |
+| Selectable instruments mapped in final health snapshot | 306 / 306 |
+| Security master records in final health snapshot | 357 |
+| Issuer records in final health snapshot | 357 |
+| Linked securities in final health snapshot | 357 / 357 |
+| Selectable instruments with ISIN | 301 / 306 |
+| Selectable instruments with CUSIP | 301 / 306 |
+| ETF top holdings mapped in final health snapshot | 240 / 240 |
+| ETF top holdings unmapped / ambiguous | 0 / 0 |
+| Mapping gap rows in final health snapshot | 5 |
+| Stale identifier refreshes | 0 |
+| Latest recommendations with stable identity | 1053 / 1053 |
+| Recommendation history with stable identity | 1053 / 1053 |
+| Telemetry recommendation snapshots with stable identity | 389 / 389 |
+| Portfolio Review phase5 reports | 24 / 24 |
+| Corporate action rows | 0 |
+| Provider observation rows | 0 |
+| Provider open conflicts | 0 |
 
 Important interpretation:
 
@@ -143,6 +164,8 @@ Important interpretation:
 - ISIN/CUSIP are now promoted into normalized instrument columns and synced into `security_identifiers`.
 - ETF top holdings can be represented as internal non-user-selectable securities when they are not part of the visible universe.
 - Phase 4C/4D look-through output should be refreshed after deployment so saved Portfolio Review reports carry issuer IDs and security drill-down snapshots.
+- The 5 final mapping-gap rows are expected identifier gaps for instruments without ISIN/CUSIP coverage, not unmapped security failures. All 306 selectable instruments still have `security_id`.
+- `corporateActionRows = 0`, `lifecycleLinkRows = 0`, `providerObservationRows = 0`, and `providerConflictRows = 0` are expected until ETFVision starts ingesting real corporate actions or observations from a second identifier provider.
 
 ## Core Concepts
 
@@ -942,4 +965,66 @@ Next step after Phase 6/7 readiness:
 
 The current app now has the core additive security-master foundation, the first production calculation switch for portfolio look-through concentration, stable identity propagation into recommendation and telemetry history, Admin QA monitoring, and schema readiness for corporate actions plus provider reconciliation. The highest-risk raw-symbol ETF holding fragmentation issue has been materially reduced for Portfolio Review, assistant context, recommendation portfolio-fit, recommendation history, and telemetry snapshots.
 
-The next implementation task is not another calculation switch. It is operational hardening: use the Phase 8 health card and `security_master_mapping_gap_report` to validate live coverage, then decide whether metadata refresh should start writing Phase 7 provider observations/conflicts automatically.
+Security Master is complete for the current commercialization audit checkpoint.
+
+Future work should be treated as operational expansion rather than audit-blocking remediation:
+
+1. Add real corporate-action ingestion and review workflows when a reliable source is chosen.
+2. Add provider-observation writes during metadata refresh only after a second identifier provider is connected.
+3. Add Admin review workflows for provider conflicts if open conflicts start appearing.
+4. Keep `security_master_mapping_gap_report` and the Admin/Data Sources Security Master QA card as the ongoing monitoring surface after each universe, metadata, ETF-exposure, recommendation, telemetry, or portfolio-review change.
+
+## Final QA/QC Closeout - 2026-06-13
+
+Live health snapshot reviewed:
+
+```json
+{
+  "selectableInstruments": 306,
+  "selectableWithSecurityId": 306,
+  "securityMasterRecords": 357,
+  "issuerRecords": 357,
+  "linkedSecurities": 357,
+  "selectableWithIsin": 301,
+  "selectableWithCusip": 301,
+  "selectableWithFigi": 0,
+  "etfTopHoldingRows": 240,
+  "etfTopHoldingsMapped": 240,
+  "etfTopHoldingsUnmapped": 0,
+  "etfTopHoldingsAmbiguous": 0,
+  "issuerDuplicateCandidatesOpen": 0,
+  "mappingGapRows": 5,
+  "staleIdentifierRefreshes": 0,
+  "recommendationsTotal": 1053,
+  "recommendationsWithSecurityId": 1053,
+  "recommendationsWithIssuerId": 1053,
+  "recommendationHistoryTotal": 1053,
+  "recommendationHistoryWithSecurityId": 1053,
+  "recommendationHistoryWithIssuerId": 1053,
+  "telemetryRecommendationSnapshotsTotal": 389,
+  "telemetryRecommendationSnapshotsWithSecurityId": 389,
+  "telemetryRecommendationSnapshotsWithIssuerId": 389,
+  "portfolioReviewReports": 24,
+  "portfolioReviewPhase5Reports": 24,
+  "corporateActionRows": 0,
+  "lifecycleLinkRows": 0,
+  "providerObservationRows": 0,
+  "providerConflictRows": 0,
+  "providerOpenConflictRows": 0
+}
+```
+
+QA verdict:
+
+- PASS: all selectable instruments map to canonical securities.
+- PASS: all active securities link to issuer records.
+- PASS: all ETF top holdings are mapped, with no unmapped or ambiguous rows.
+- PASS: issuer duplicate queue is clear.
+- PASS: stale identifier refresh count is zero.
+- PASS: recommendations, recommendation history, telemetry recommendation snapshots and Portfolio Review reports have stable identity coverage.
+- PASS: Phase 6/7 readiness tables exist and are included in health monitoring.
+- ACCEPTED: 5 mapping-gap rows remain because 5 selectable instruments do not have ISIN/CUSIP coverage; this is not a security-mapping failure because all 306 selectable instruments have `security_id`.
+- ACCEPTED: FIGI coverage is zero because ETFVision has not connected a FIGI provider.
+- ACCEPTED: corporate-action/provider-observation row counts are zero because ingestion has not been automated and no second provider is connected.
+
+Security Master audit status: Completed for the current commercialization checkpoint.
