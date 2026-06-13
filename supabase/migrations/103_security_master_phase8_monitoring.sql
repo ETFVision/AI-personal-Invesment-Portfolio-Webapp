@@ -194,8 +194,11 @@ as $$
     'telemetryRecommendationSnapshotsWithIssuerId', (select with_issuer from telemetry_coverage),
     'portfolioReviewPhase5Reports', (select phase5_reports from portfolio_review_phase),
     'portfolioReviewReports', (select total_reports from portfolio_review_phase),
-    'corporateActionRows', (select coalesce(to_regclass('public.security_corporate_actions') is not null, false)),
-    'providerConflictRows', (select coalesce(to_regclass('public.security_identifier_conflicts') is not null, false))
+    'corporateActionRows', 0,
+    'lifecycleLinkRows', 0,
+    'providerObservationRows', 0,
+    'providerConflictRows', 0,
+    'providerOpenConflictRows', 0
   );
 $$;
 

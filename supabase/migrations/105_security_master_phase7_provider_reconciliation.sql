@@ -108,6 +108,27 @@ drop policy if exists "authenticated users can read security identifier conflict
 create policy "authenticated users can read security identifier conflicts" on security_identifier_conflicts
   for select using (auth.role() = 'authenticated');
 
+create or replace function public.security_master_optional_table_count(p_table_name text)
+returns integer
+language plpgsql
+stable
+as $$
+declare
+  v_relation regclass;
+  v_count integer := 0;
+begin
+  v_relation := to_regclass(p_table_name);
+  if v_relation is null then
+    return 0;
+  end if;
+
+  execute format('select count(*) from %s', v_relation)
+    into v_count;
+
+  return coalesce(v_count, 0);
+end;
+$$;
+
 create or replace function public.get_security_master_health_snapshot()
 returns jsonb
 language sql
@@ -184,10 +205,10 @@ as $$
     'telemetryRecommendationSnapshotsWithIssuerId', (select with_issuer from telemetry_coverage),
     'portfolioReviewPhase5Reports', (select phase5_reports from portfolio_review_phase),
     'portfolioReviewReports', (select total_reports from portfolio_review_phase),
-    'corporateActionRows', (select count(*) from security_corporate_actions),
-    'lifecycleLinkRows', (select count(*) from security_lifecycle_links),
-    'providerObservationRows', (select count(*) from security_provider_identifier_observations),
-    'providerConflictRows', (select count(*) from security_identifier_conflicts),
+    'corporateActionRows', public.security_master_optional_table_count('public.security_corporate_actions'),
+    'lifecycleLinkRows', public.security_master_optional_table_count('public.security_lifecycle_links'),
+    'providerObservationRows', public.security_master_optional_table_count('public.security_provider_identifier_observations'),
+    'providerConflictRows', public.security_master_optional_table_count('public.security_identifier_conflicts'),
     'providerOpenConflictRows', (
       select count(*)
       from security_identifier_conflicts
