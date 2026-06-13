@@ -11,6 +11,8 @@ export type TelemetryRecommendationSnapshot = {
   portfolioId: string | null;
   userId: string | null;
   instrumentId: string;
+  securityId?: string | null;
+  issuerId?: string | null;
   symbol: string;
   recommendation: RecommendationLabel | string;
   recommendationScore: number | null;
@@ -94,6 +96,7 @@ export type TelemetryPortfolioReviewSnapshot = {
   improvementSuggestions: unknown[];
   allocationSnapshot: Record<string, unknown>;
   lookthroughSnapshot: Record<string, unknown>;
+  securityIdentitySnapshot?: Record<string, unknown>;
   createdAt: string;
 };
 

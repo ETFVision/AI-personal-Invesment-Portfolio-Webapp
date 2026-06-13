@@ -27,6 +27,8 @@ export type InstrumentRecommendation = {
   id: string;
   recommendationRunId: string | null;
   instrumentId: string;
+  securityId?: string | null;
+  issuerId?: string | null;
   symbol: string;
   instrumentType: string;
   recommendationLabel: RecommendationLabel;
@@ -52,6 +54,8 @@ export type InstrumentRecommendation = {
 export type RecommendationHistoryItem = {
   id: string;
   instrumentId: string;
+  securityId?: string | null;
+  issuerId?: string | null;
   symbol: string;
   recommendationLabel: RecommendationLabel;
   overallScore: number | null;

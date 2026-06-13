@@ -1,6 +1,6 @@
 # Recommendation Insights Methodology
 
-Last updated: 2026-06-12 22:36:00 +08:00
+Last updated: 2026-06-13
 
 ## Purpose
 
@@ -93,13 +93,21 @@ This matters for cases like:
 
 ## Recommendation History
 
-Recommendation outputs and telemetry snapshots are stored for history/evaluation. Exact table names should be checked in recommendation repository/migrations if schema-level detail is needed.
+Recommendation outputs and telemetry snapshots are stored for history/evaluation.
 
-Security Master Phase 5 gap:
+Primary tables:
 
-- Recommendation snapshots/history should add optional `security_id` and `issuer_id` where relevant.
-- Historical symbol/name should remain stored for audit.
-- This prevents future ticker/share-class changes from fragmenting long-term recommendation and telemetry history.
+- `instrument_recommendations`
+- `recommendation_history`
+- `telemetry_recommendation_snapshots`
+
+Security Master Phase 5 adds optional `security_id` and `issuer_id` to the recommendation and telemetry recommendation snapshot layers. Historical `symbol` remains stored for audit. Stable IDs reduce future history fragmentation after ticker, share-class, or issuer mapping changes.
+
+Important boundary:
+
+- Phase 5 identity propagation does not change recommendation labels, component scores, guardrails, or calibration.
+- Database triggers populate identity fields on future writes from `instrument_id` / `symbol`.
+- Old rows can remain partially unmapped if the original historical instrument no longer has a canonical security or issuer link.
 
 ## Current Limitations
 

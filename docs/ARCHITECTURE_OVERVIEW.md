@@ -1,6 +1,6 @@
 # ETFVision Architecture Overview
 
-Last updated: 2026-06-12 22:36:00 +08:00
+Last updated: 2026-06-13
 
 Authoritative status: current handover snapshot for future developers. This document supersedes older overlapping architecture notes where the contents conflict, while older audit logs remain useful as historical context.
 
@@ -65,14 +65,21 @@ ETFVision now separates product/instrument identity from underlying security and
 | Issuer/company rollup | `issuers`, `security_issuer_links`, `issuer_aliases`, `issuer_duplicate_candidates` | Company/fund issuer grouping above security level for share-class and issuer-level concentration analysis. | `GOOG` + `GOOGL` grouped under `Alphabet Inc` |
 | ETF provider look-through rows | `etf_sector_exposures`, `etf_country_exposures`, `etf_top_holdings`, `etf_theme_exposures` | Cached provider ETF allocation/holdings inputs. Top holdings are mapped to canonical/internal securities where possible. | VOO holding Microsoft/NVIDIA/Apple |
 | Portfolio look-through outputs | `portfolio_lookthrough_exposures`, `portfolio_lookthrough_holdings` | Derived direct + indirect portfolio exposure used by Portfolio Review, Risk, Assistant context, and Recommendation portfolio fit. | Microsoft total exposure = direct MSFT + VOO/QQQ/VT indirect exposure |
+| Security Master QA | `security_master_mapping_gap_report`, `get_security_master_health_snapshot()` | Admin/Data Sources monitoring for mapping gaps, stale identifiers, recommendation/telemetry identity coverage, corporate-action readiness and provider-conflict readiness. | 306/306 selectable instruments mapped |
+| Corporate-action readiness | `security_corporate_actions`, `security_lifecycle_links` | Future lifecycle event and predecessor/successor tracking. | SPYM replacing SPLG, ticker changes, ETF closure records |
+| Provider reconciliation readiness | `security_provider_identifier_observations`, `security_identifier_conflicts` | Future multi-provider identifier comparison and review queue. | FMP versus future provider ISIN/CUSIP mismatch |
 
-Current production behavior after Security Master Phase 4C/4D:
+Current production behavior after Security Master Phase 5:
 
 - `instruments` remains the product universe. Do not replace it with `securities_master` for Universe/Watchlist routing.
 - ETF top holdings can create internal non-user-selectable securities. These support look-through analysis but should not appear as normal Universe/Watchlist instruments.
 - Portfolio Review top underlying company exposure is issuer-level where issuer links exist, then security-level, then raw-symbol fallback.
 - Direct ETF/fund wrappers remain direct product positions and are excluded from underlying company concentration charts.
 - Direct stock holdings win display classification. If an ETF indirect row creates an issuer row first, a later direct MSFT/NVDA holding must still display as `Stock`, not `Underlying Security`.
+- Recommendation rows, recommendation history rows, and telemetry recommendation snapshots now persist optional `security_id` and `issuer_id` while preserving historical symbols.
+- Portfolio Review report snapshots and portfolio review telemetry snapshots carry `security_identity_snapshot` metadata that records the identity basis used by look-through calculations.
+- Admin/Data Sources includes a Security Master QA card. The card is diagnostic and does not trigger calculation changes.
+- Corporate-action and provider-reconciliation tables are currently additive readiness layers. No automatic lifecycle rewrites or provider conflict resolution occurs yet.
 - Raw provider symbols remain stored in snapshots for audit and drill-down.
 
 The focused audit and QA details live in [Security Master Audit](SECURITY_MASTER_AUDIT.md) and [QA Log](qa-log.md).

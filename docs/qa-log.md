@@ -2,6 +2,161 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 16:20 SGT - Security Master Full QA/QC Closeout
+
+Scope:
+- Completed a full Security Master audit closeout across Phase A, Phase 1, Phase 2, Phase 3, Phase 4A/4B/4C/4D, Phase 5, Phase 8, Phase 6 and Phase 7.
+- Reconciled implementation state against the Security Master audit plan.
+- Reviewed the live Admin/Data Sources Security Master QA snapshot provided from Supabase.
+- Updated the Security Master audit, commercialization audit plan, documentation index and documentation gap tracker so they no longer describe Phase 5 as pending.
+
+Files updated:
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/README.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+
+Implementation coverage reviewed:
+- PASS: canonical security tables, identifiers and aliases exist.
+- PASS: active/user-selectable instruments are linked to canonical securities.
+- PASS: ETF top holdings are mapped to canonical/internal securities.
+- PASS: dual-run QA exists for raw-symbol versus canonical grouping.
+- PASS: issuer master, issuer aliases and issuer duplicate review queue exist.
+- PASS: issuer-level look-through rollups are used for Portfolio Review concentration, hidden overlap, assistant context and recommendation portfolio-fit.
+- PASS: security-level drill-down is preserved under issuer-level rows.
+- PASS: recommendation, recommendation-history and telemetry recommendation snapshots carry stable `security_id` / `issuer_id` where available.
+- PASS: Portfolio Review reports carry Phase 5 identity metadata.
+- PASS: Admin/Data Sources Security Master QA card reads `get_security_master_health_snapshot()`.
+- PASS: corporate-action readiness tables exist.
+- PASS: provider observation/conflict readiness tables exist.
+
+Live QA snapshot reviewed:
+- PASS: 306 / 306 selectable instruments have `security_id`.
+- PASS: 357 active securities exist.
+- PASS: 357 / 357 active securities are linked to issuers.
+- PASS: 301 / 306 selectable instruments have ISIN.
+- PASS: 301 / 306 selectable instruments have CUSIP.
+- PASS: 240 / 240 ETF top holdings are mapped.
+- PASS: 0 ETF top holdings are unmapped.
+- PASS: 0 ETF top holdings are ambiguous.
+- PASS: 0 issuer duplicate candidates are open.
+- PASS: 0 stale identifier refreshes.
+- PASS: 1053 / 1053 current recommendation rows have stable identity.
+- PASS: 1053 / 1053 recommendation history rows have stable identity.
+- PASS: 389 / 389 telemetry recommendation snapshots have stable identity.
+- PASS: 24 / 24 Portfolio Review reports carry Phase 5 identity.
+- ACCEPTED: 5 mapping gap rows remain because 5 selectable instruments do not have ISIN/CUSIP coverage; this is not a security mapping failure because all selectable instruments have `security_id`.
+- ACCEPTED: 0 FIGI coverage because no FIGI provider has been connected.
+- ACCEPTED: 0 corporate-action, lifecycle-link, provider-observation and provider-conflict rows because those tables are readiness layers until real ingestion/provider reconciliation is added.
+
+Validation:
+- Documentation and SQL/code surface audit completed.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed: 234 tests, 234 passed.
+
+Conclusion:
+- Security Master Audit is completed for the current commercialization checkpoint.
+- Future work is operational expansion, not audit-blocking remediation: corporate-action ingestion, second-provider observation writes, provider-priority rules, and Admin review workflows for real conflicts.
+
+## 2026-06-13 - Security Master Phase 8, 6, And 7 Readiness
+
+Scope:
+- Implemented Phase 8 first so Security Master coverage can be monitored before lifecycle/reconciliation automation is introduced.
+- Added `security_master_mapping_gap_report` for exportable mapping gaps.
+- Added `get_security_master_health_snapshot()` for Admin/Data Sources Security Master QA coverage.
+- Added Admin/Data Sources Security Master QA card with selectable mapping, identifier coverage, ETF holding mapping, issuer duplicate, recommendation identity, telemetry identity, corporate-action and provider-conflict status.
+- Added Phase 6 corporate-action readiness tables:
+  - `security_corporate_actions`
+  - `security_lifecycle_links`
+- Added Phase 7 provider reconciliation readiness tables:
+  - `security_provider_identifier_observations`
+  - `security_identifier_conflicts`
+- Updated architecture, schema, Security Master audit, documentation gaps and QA log.
+
+Files updated:
+- `supabase/migrations/103_security_master_phase8_monitoring.sql`
+- `supabase/migrations/104_security_master_phase6_corporate_actions.sql`
+- `supabase/migrations/105_security_master_phase7_provider_reconciliation.sql`
+- `src/app/(dashboard)/admin/data-sources/page.tsx`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/DATABASE_SCHEMA.md`
+- `docs/ARCHITECTURE_OVERVIEW.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+
+Validation:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed.
+- These phases are additive and do not change portfolio look-through calculations, recommendation scoring, telemetry outcome evaluation, or Market Vision generation.
+
+Post-deployment QA:
+- Apply migrations `103`, `104`, and `105`.
+- Confirm the Admin/Data Sources Security Master QA card renders.
+- Run:
+  ```sql
+  select public.get_security_master_health_snapshot();
+
+  select gap_type, severity, count(*) as rows
+  from security_master_mapping_gap_report
+  group by gap_type, severity
+  order by severity desc, gap_type;
+
+  select status, action_type, count(*)
+  from security_corporate_actions
+  group by status, action_type
+  order by status, action_type;
+
+  select review_status, severity, conflict_type, count(*)
+  from security_identifier_conflicts
+  group by review_status, severity, conflict_type
+  order by review_status, severity, conflict_type;
+  ```
+
+Residual risks:
+- Phase 6/7 tables are readiness layers only. Metadata refresh does not yet write provider observations or conflicts.
+- Provider priority rules should be approved before any automated conflict resolution.
+- Corporate-action records should remain manual/reviewed until lifecycle ingestion and application rules are explicitly designed.
+
+## 2026-06-13 - Security Master Phase 5 Snapshot Identity Propagation
+
+Scope:
+- Added stable `security_id` and `issuer_id` identity fields to recommendation and telemetry recommendation snapshot/history tables.
+- Added trigger-based identity population so future recommendation and telemetry writes inherit canonical security/issuer identity from `instrument_id` / `symbol`.
+- Backfilled existing recommendation and telemetry recommendation rows where current instrument security and issuer links are available.
+- Added portfolio-level `security_identity_snapshot` metadata to Portfolio Review report and telemetry snapshots.
+- Updated Security Master, database schema, recommendation methodology, telemetry architecture, documentation gap, and architecture overview docs.
+
+Files updated:
+- `supabase/migrations/102_security_master_phase5_snapshot_identity.sql`
+- `src/domain/recommendations/types.ts`
+- `src/domain/telemetry/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseRecommendationRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabaseTelemetryRepository.ts`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/DATABASE_SCHEMA.md`
+- `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`
+- `docs/TELEMETRY_ARCHITECTURE.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/ARCHITECTURE_OVERVIEW.md`
+- `docs/qa-log.md`
+
+Validation:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed.
+- The migration is additive and does not alter recommendation scoring, labels, guardrails, telemetry outcomes, or Portfolio Review scoring.
+
+Post-deployment QA:
+- Apply migration `102`.
+- Run the Phase 5 SQL checks documented in `docs/SECURITY_MASTER_AUDIT.md`.
+- Confirm most current recommendation and telemetry recommendation rows have both `security_id` and `issuer_id`.
+- Confirm older rows with null identity correspond to genuinely unmapped or deleted historical instruments.
+- Confirm Portfolio Review rows have `security_identity_snapshot.securityMasterPhase = phase5`.
+
+Residual risks:
+- Market Vision theme/proxy snapshots do not yet carry per-proxy security identity because Market Vision is still theme/report based.
+- Phase 6 corporate-action tables are still needed for ticker changes, mergers, spin-offs, share-class changes, ETF name changes, ETF closures, and predecessor/successor securities.
+
 ## 2026-06-13 14:58 SGT - Return Anchor Refresh Timeout Fix
 
 Scope:

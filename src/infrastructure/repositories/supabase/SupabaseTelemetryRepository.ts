@@ -58,6 +58,8 @@ function mapRecommendationSnapshot(row: any): TelemetryRecommendationSnapshot {
     portfolioId: row.portfolio_id,
     userId: row.user_id,
     instrumentId: row.instrument_id,
+    securityId: row.security_id ?? null,
+    issuerId: row.issuer_id ?? null,
     symbol: row.symbol,
     recommendation: row.recommendation,
     recommendationScore: numberOrNull(row.recommendation_score),
@@ -149,6 +151,7 @@ function mapPortfolioReviewSnapshot(row: any): TelemetryPortfolioReviewSnapshot 
     improvementSuggestions: toUnknownArray(row.improvement_suggestions),
     allocationSnapshot: toObject(row.allocation_snapshot),
     lookthroughSnapshot: toObject(row.lookthrough_snapshot),
+    securityIdentitySnapshot: toObject(row.security_identity_snapshot),
     createdAt: row.created_at
   };
 }

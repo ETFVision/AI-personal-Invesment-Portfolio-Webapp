@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-12 22:36:00 +08:00
+Last updated: 2026-06-13 16:20 SGT
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -18,25 +18,24 @@ This document records areas where the handover pack intentionally avoids guessin
 
 ## Medium Priority
 
-1. Security Master Phase 5 identity propagation
-   - Add optional `security_id` and `issuer_id` fields to recommendation snapshots/history, telemetry snapshots, and portfolio/recommendation history tables where relevant.
-   - Preserve historical symbol/name labels for audit even after ticker, share-class, or issuer changes.
-   - Ensure historical reports remain readable when old rows do not have canonical IDs.
-   - Update `docs/SECURITY_MASTER_AUDIT.md`, `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`, `docs/TELEMETRY_ARCHITECTURE.md`, and `docs/DATABASE_SCHEMA.md` after implementation.
-
-2. Market Vision publish/draft lifecycle
+1. Market Vision publish/draft lifecycle
    - Verify whether scheduled jobs should publish or create drafts.
    - Follow up in `MarketVisionGenerationService.ts`.
 
-3. Assistant table/cost schema
+2. Assistant table/cost schema
    - Confirm exact assistant tables and cost formulas.
    - Follow up in assistant migrations and `SupabaseAssistantRepository.ts`.
 
-4. News classification formula and thresholds
+3. News classification formula and thresholds
    - Summarize deterministic rules, confidence scoring, source quality weighting, and review queue conditions.
 
-5. Active universe verification
+4. Active universe verification
    - Confirm live Supabase active count equals intended 201 ETFs and 105 stocks, with raw crypto inactive.
+
+5. Security Master provider observation automation
+   - Phase 6/7 tables exist for corporate actions and provider reconciliation.
+   - Future metadata refresh should write provider observations and conflict rows once provider-priority rules are approved.
+   - Do not auto-resolve identifier conflicts until the review queue has been validated.
 
 6. Score methodology maintenance
    - Formula-level score documentation now exists in `docs/SCORE_METHODOLOGY.md`.
@@ -114,6 +113,26 @@ This document records areas where the handover pack intentionally avoids guessin
    - Do not delete until the user approves an archive/cleanup pass.
 
 ## Recently Closed Documentation Gaps
+
+Closed on 2026-06-13:
+
+- Security Master Phase 5 identity propagation is now documented in:
+  - `docs/SECURITY_MASTER_AUDIT.md`
+  - `docs/DATABASE_SCHEMA.md`
+  - `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`
+  - `docs/TELEMETRY_ARCHITECTURE.md`
+- Recommendation and telemetry history now preserve historical symbols while storing optional stable `security_id` / `issuer_id` for future ticker/share-class continuity.
+- Security Master Phase 8 monitoring, Phase 6 corporate-action readiness, and Phase 7 provider reconciliation readiness are now documented in:
+  - `docs/SECURITY_MASTER_AUDIT.md`
+  - `docs/DATABASE_SCHEMA.md`
+  - `docs/ARCHITECTURE_OVERVIEW.md`
+  - `docs/qa-log.md`
+- Security Master full QA/QC closeout is now documented in:
+  - `docs/SECURITY_MASTER_AUDIT.md`
+  - `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+  - `docs/README.md`
+  - `docs/qa-log.md`
+- Security Master is marked completed for the current commercialization checkpoint. Remaining corporate-action ingestion and multi-provider observation automation are future operational extensions, not current audit blockers.
 
 Closed on 2026-06-12 22:36:00 +08:00:
 
