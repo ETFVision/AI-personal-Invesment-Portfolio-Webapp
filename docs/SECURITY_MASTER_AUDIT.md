@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-13
 
-Status: Phases A, 1, 2, 3, 4A, 4B, 4C, 4D, and 5 are implemented through the current commercialization checkpoint. Security Master now has canonical securities, identifiers, aliases, internal ETF underlyings, issuer master links, issuer alias normalization, dual-run QA, issuer-level look-through rollups with security-level drill-down, and stable identity propagation into recommendation and telemetry history. Portfolio Review concentration, hidden overlap, Portfolio Assistant context, recommendation portfolio-fit, recommendation history, and telemetry snapshots can use stable security/issuer identity while preserving historical symbols for audit.
+Status: Phases A, 1, 2, 3, 4A, 4B, 4C, 4D, 5, 8, 6, and 7 are implemented through the current commercialization checkpoint. Security Master now has canonical securities, identifiers, aliases, internal ETF underlyings, issuer master links, issuer alias normalization, dual-run QA, issuer-level look-through rollups with security-level drill-down, stable identity propagation into recommendation and telemetry history, Admin QA monitoring, corporate-action readiness tables, and provider reconciliation review tables. Portfolio Review concentration, hidden overlap, Portfolio Assistant context, recommendation portfolio-fit, recommendation history, and telemetry snapshots can use stable security/issuer identity while preserving historical symbols for audit.
 
 ## Revised Phase A Prompt
 
@@ -842,13 +842,104 @@ Expected healthy result:
 - Portfolio Review rows should show `securityMasterPhase = phase5` after the migration/backfill.
 - Recommendation labels, component scores, and telemetry outcome rows should not change because Phase 5 is identity propagation only.
 
-Next step after Phase 5 QA:
+### Phase 8 - Admin QA / Monitoring
 
-- Add lifecycle tables for ticker changes, mergers, spin-offs, share-class changes, ETF name changes, ETF closures, and predecessor/successor securities.
-- Add multi-provider reconciliation rules and a review queue for conflicting identifiers.
+Implemented before Phase 6/7 so the health layer exists before additional identity governance tables are used:
+
+- `security_master_mapping_gap_report` view lists exportable mapping issues:
+  - active instruments missing `security_id`
+  - selectable instruments missing primary identifiers
+  - stale identifier refreshes
+  - unmapped or ambiguous ETF holdings
+  - open issuer duplicate candidates
+- `get_security_master_health_snapshot()` returns a compact JSON snapshot for Admin/Data Sources.
+- Admin/Data Sources now shows Security Master QA coverage:
+  - selectable instrument mapping
+  - ISIN/CUSIP coverage
+  - ETF holding mapping coverage
+  - issuer duplicate candidate count
+  - stale identifier count
+  - recommendation/history/telemetry identity coverage
+  - corporate-action and provider-conflict readiness counts
+
+Supabase QA:
+
+```sql
+select public.get_security_master_health_snapshot();
+
+select gap_type, severity, count(*) as rows
+from security_master_mapping_gap_report
+group by gap_type, severity
+order by severity desc, gap_type;
+```
+
+Expected healthy result:
+
+- `selectableWithSecurityId` should match `selectableInstruments`.
+- ETF top holdings should be mostly or fully mapped after ETF exposure refresh.
+- `mappingGapRows` should be reviewed before relying on new provider or corporate-action automation.
+
+### Phase 6 - Corporate-Action Readiness
+
+Implemented:
+
+- `security_corporate_actions` stores lifecycle events such as:
+  - ticker changes
+  - mergers
+  - spin-offs
+  - share-class changes
+  - ETF name changes
+  - ETF closures
+  - delistings
+  - predecessor/successor events
+- `security_lifecycle_links` stores predecessor/successor security links tied to approved corporate actions.
+- These tables are additive readiness layers. They do not yet mutate instrument rows or automatically rewrite history.
+
+Supabase QA:
+
+```sql
+select status, action_type, count(*)
+from security_corporate_actions
+group by status, action_type
+order by status, action_type;
+
+select relationship_type, count(*)
+from security_lifecycle_links
+group by relationship_type
+order by relationship_type;
+```
+
+### Phase 7 - Multi-Provider Reconciliation Readiness
+
+Implemented:
+
+- `security_provider_identifier_observations` records provider-level observed identifiers and metadata.
+- `security_identifier_conflicts` records provider conflicts and ambiguous mappings for review.
+- The Security Master health snapshot reports provider observation and open conflict counts.
+- This is a review/diagnostic foundation only. Resolver priority rules are not changed yet.
+
+Supabase QA:
+
+```sql
+select provider, identifier_type, count(*)
+from security_provider_identifier_observations
+group by provider, identifier_type
+order by provider, identifier_type;
+
+select review_status, severity, conflict_type, count(*)
+from security_identifier_conflicts
+group by review_status, severity, conflict_type
+order by review_status, severity, conflict_type;
+```
+
+Next step after Phase 6/7 readiness:
+
+- Decide provider priority rules before any automated conflict resolution.
+- Add ingestion hooks that write provider observations and conflict rows during metadata refresh.
+- Add Admin review workflows only after the diagnostic rows prove useful.
 
 ## Current Checkpoint Conclusion
 
-The current app now has the core additive security-master foundation, the first production calculation switch for portfolio look-through concentration, and stable identity propagation into recommendation and telemetry history. The highest-risk raw-symbol ETF holding fragmentation issue has been materially reduced for Portfolio Review, assistant context, recommendation portfolio-fit, recommendation history, and telemetry snapshots.
+The current app now has the core additive security-master foundation, the first production calculation switch for portfolio look-through concentration, stable identity propagation into recommendation and telemetry history, Admin QA monitoring, and schema readiness for corporate actions plus provider reconciliation. The highest-risk raw-symbol ETF holding fragmentation issue has been materially reduced for Portfolio Review, assistant context, recommendation portfolio-fit, recommendation history, and telemetry snapshots.
 
-The next implementation task is Phase 6: corporate-action readiness for ticker changes, mergers, spin-offs, share-class changes, ETF name changes, ETF closures, and predecessor/successor securities.
+The next implementation task is not another calculation switch. It is operational hardening: use the Phase 8 health card and `security_master_mapping_gap_report` to validate live coverage, then decide whether metadata refresh should start writing Phase 7 provider observations/conflicts automatically.

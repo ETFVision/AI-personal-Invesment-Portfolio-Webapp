@@ -32,61 +32,66 @@ This document records areas where the handover pack intentionally avoids guessin
 4. Active universe verification
    - Confirm live Supabase active count equals intended 201 ETFs and 105 stocks, with raw crypto inactive.
 
-5. Score methodology maintenance
+5. Security Master provider observation automation
+   - Phase 6/7 tables exist for corporate actions and provider reconciliation.
+   - Future metadata refresh should write provider observations and conflict rows once provider-priority rules are approved.
+   - Do not auto-resolve identifier conflicts until the review queue has been validated.
+
+6. Score methodology maintenance
    - Formula-level score documentation now exists in `docs/SCORE_METHODOLOGY.md`.
    - Future scoring changes must update that document in the same commit.
 
-6. Page data map documentation
+7. Page data map documentation
    - Create a canonical `docs/PAGE_DATA_MAP.md`.
    - For each product route, document UI section, server component/action, service, repository, table/view, refresh job dependency, formula reference, cache/summary table, and known performance notes.
    - Minimum routes to cover: `/portfolio`, `/holdings`, `/transactions`, `/cash`, `/instruments/universe`, `/instruments/watchlist`, `/instruments/[symbol]`, `/market-vision`, `/news`, `/macro`, `/fundamentals`, `/risk`, `/bonds`, `/recommendations`, `/portfolio-review`, `/telemetry`, `/assistant`, and Admin pages.
 
-7. Portfolio dashboard page map
+8. Portfolio dashboard page map
    - Map each `/portfolio`, `/holdings`, `/transactions`, and `/cash` section to source services and summary tables.
    - Document which cards use `portfolio_dashboard_summary`, `portfolio_performance_summary`, `portfolio_current_metrics`, `holding_market_metrics`, cash balances, transactions, and live portfolio dashboard services.
    - Clarify the dependency chain between holdings, cash, transactions, portfolio valuation, snapshots, and summary refresh jobs.
 
-8. Universe and watchlist page map
+9. Universe and watchlist page map
    - Document exact grouping/filter logic by asset category, instrument type, ETF product category, stock sector, and active status.
    - Document row-level freshness derivation for price, market metrics, risk metrics, metadata, fundamentals, and watchlist membership.
    - Map page fields to `instruments`, `instrument_market_metrics`, `instrument_risk_metrics`, fundamentals overview/detail views, and watchlist tables.
 
-9. Market Vision UI and lifecycle map
+10. Market Vision UI and lifecycle map
    - Document each Market Vision page section, including report body, structured metadata, macro inputs, world-news inputs, portfolio implications, and generation logs.
    - Confirm and document scheduled generation status behavior: draft versus published.
    - Document source/citation display rules and which stored report fields drive UI rendering.
 
-10. News and themes page map
+11. News and themes page map
    - Expand deterministic classification documentation with threshold details, source-quality effects, review queue conditions, and manual/fallback behavior.
    - Document NewsData query group display, FMP/general article display, GDELT manual role, article URL linking, weekly reconciliation placement, and theme summary data sources.
    - Clarify that NewsData is the preferred scheduled macro/world-news source and GDELT is manual/fallback due to rate-limit instability.
 
-11. Macro page map and integration lineage
+12. Macro page map and integration lineage
    - Document macro dashboard UI sections and their source tables.
    - Expand the indicator-to-theme mapping table for FRED macro signals.
    - Document how macro regimes/signals flow into Market Vision, Insights, Portfolio Review, Risk, Fixed Income, Theme Intelligence, and Assistant context.
 
-12. Fundamentals page map
+13. Fundamentals page map
    - Document which fields appear on the fundamentals overview versus each instrument detail fundamentals tab.
    - Map UI fields to `company_profiles`, `financial_statements`, `financial_ratios`, `fundamental_scores`, `fundamental_trends`, and `fundamental_trend_summaries`.
    - Mark sector-relative scoring and financial-sector-specific scoring as future hardening unless implemented later.
 
-13. Risk page map
+14. Risk page map
    - Map each `/risk` panel to risk analytics service outputs, stored risk metrics, portfolio snapshots, holding snapshots, benchmark snapshots, and look-through exposure tables.
    - Tie covariance/proxy risk contribution eligibility to the UI panels that show risk contributors.
    - Document benchmark comparison display logic separately from portfolio TWR risk logic.
 
-14. Fixed income page map
+15. Fixed income page map
    - Add a fixed-income coverage table showing seeded fallback bond profiles versus provider/manual profile rows.
    - Document bond profile refresh/source quality and manual override behavior.
    - Clearly mark older `bond-intelligence.md` future design items that are not yet built, such as future bond score tables or advanced bond macro snapshots.
 
-15. Insights page map
+16. Insights page map
    - Document public language mapping from internal recommendation records to consumer-facing Insights, Assessments, and Characteristics.
    - Map all Insights page and instrument detail recommendation/insight panels to recommendation service outputs, telemetry snapshots, and stored history.
    - Clarify how recommendation history and telemetry relate to current insight labels.
 
-16. Portfolio Review page map
+17. Portfolio Review page map
    - Expand candidate suggestion ranking and explanation rules, especially diversification, healthcare/defensive, fixed-income, and inflation/geopolitical hedge candidates.
    - Map each Portfolio Review section to the underlying service, score formula, portfolio exposure source, and refresh dependency.
    - Document the difference between diversification candidates, defensive/healthcare candidates, fixed-income candidates, and issue-specific portfolio actions.
@@ -117,6 +122,11 @@ Closed on 2026-06-13:
   - `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`
   - `docs/TELEMETRY_ARCHITECTURE.md`
 - Recommendation and telemetry history now preserve historical symbols while storing optional stable `security_id` / `issuer_id` for future ticker/share-class continuity.
+- Security Master Phase 8 monitoring, Phase 6 corporate-action readiness, and Phase 7 provider reconciliation readiness are now documented in:
+  - `docs/SECURITY_MASTER_AUDIT.md`
+  - `docs/DATABASE_SCHEMA.md`
+  - `docs/ARCHITECTURE_OVERVIEW.md`
+  - `docs/qa-log.md`
 
 Closed on 2026-06-12 22:36:00 +08:00:
 

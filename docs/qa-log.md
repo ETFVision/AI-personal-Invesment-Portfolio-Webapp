@@ -2,6 +2,65 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 - Security Master Phase 8, 6, And 7 Readiness
+
+Scope:
+- Implemented Phase 8 first so Security Master coverage can be monitored before lifecycle/reconciliation automation is introduced.
+- Added `security_master_mapping_gap_report` for exportable mapping gaps.
+- Added `get_security_master_health_snapshot()` for Admin/Data Sources Security Master QA coverage.
+- Added Admin/Data Sources Security Master QA card with selectable mapping, identifier coverage, ETF holding mapping, issuer duplicate, recommendation identity, telemetry identity, corporate-action and provider-conflict status.
+- Added Phase 6 corporate-action readiness tables:
+  - `security_corporate_actions`
+  - `security_lifecycle_links`
+- Added Phase 7 provider reconciliation readiness tables:
+  - `security_provider_identifier_observations`
+  - `security_identifier_conflicts`
+- Updated architecture, schema, Security Master audit, documentation gaps and QA log.
+
+Files updated:
+- `supabase/migrations/103_security_master_phase8_monitoring.sql`
+- `supabase/migrations/104_security_master_phase6_corporate_actions.sql`
+- `supabase/migrations/105_security_master_phase7_provider_reconciliation.sql`
+- `src/app/(dashboard)/admin/data-sources/page.tsx`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/DATABASE_SCHEMA.md`
+- `docs/ARCHITECTURE_OVERVIEW.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+
+Validation:
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed.
+- These phases are additive and do not change portfolio look-through calculations, recommendation scoring, telemetry outcome evaluation, or Market Vision generation.
+
+Post-deployment QA:
+- Apply migrations `103`, `104`, and `105`.
+- Confirm the Admin/Data Sources Security Master QA card renders.
+- Run:
+  ```sql
+  select public.get_security_master_health_snapshot();
+
+  select gap_type, severity, count(*) as rows
+  from security_master_mapping_gap_report
+  group by gap_type, severity
+  order by severity desc, gap_type;
+
+  select status, action_type, count(*)
+  from security_corporate_actions
+  group by status, action_type
+  order by status, action_type;
+
+  select review_status, severity, conflict_type, count(*)
+  from security_identifier_conflicts
+  group by review_status, severity, conflict_type
+  order by review_status, severity, conflict_type;
+  ```
+
+Residual risks:
+- Phase 6/7 tables are readiness layers only. Metadata refresh does not yet write provider observations or conflicts.
+- Provider priority rules should be approved before any automated conflict resolution.
+- Corporate-action records should remain manual/reviewed until lifecycle ingestion and application rules are explicitly designed.
+
 ## 2026-06-13 - Security Master Phase 5 Snapshot Identity Propagation
 
 Scope:

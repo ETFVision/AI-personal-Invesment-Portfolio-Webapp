@@ -30,6 +30,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { env } from "@/infrastructure/config/env";
+import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 import type { FundamentalsSummaryRow } from "@/domain/fundamentals/types";
 import type { EtfCountryExposure, EtfSectorExposure, EtfTopHolding } from "@/domain/etfLookthrough/types";
 import type { Instrument } from "@/domain/universe/types";
@@ -252,6 +253,29 @@ function fmpFetchSummary(log: {
       }
     ]
   };
+}
+
+type SecurityMasterHealth = Record<string, unknown>;
+
+function healthNumber(health: SecurityMasterHealth | null, key: string) {
+  const value = health?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function healthRatio(health: SecurityMasterHealth | null, numeratorKey: string, denominatorKey: string) {
+  const numerator = healthNumber(health, numeratorKey);
+  const denominator = healthNumber(health, denominatorKey);
+  return denominator > 0 ? `${numerator}/${denominator}` : "-";
+}
+
+async function getSecurityMasterHealthSnapshot(): Promise<SecurityMasterHealth | null> {
+  const db = createSupabaseAdminClient();
+  const { data, error } = await db.rpc("get_security_master_health_snapshot");
+  if (error?.code === "42883" || error?.code === "42P01" || error?.message?.toLowerCase().includes("security_master")) {
+    return null;
+  }
+  if (error) throw new Error(error.message);
+  return data && typeof data === "object" && !Array.isArray(data) ? data as SecurityMasterHealth : null;
 }
 
 function StatBox({ label, value, className }: { label: string; value: ReactNode; className?: string }) {
@@ -488,6 +512,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
       })
     ])
   );
+  const securityMasterHealth = await measureRenderStep("admin-data-sources:security-master-health", () => getSecurityMasterHealthSnapshot());
   const fundamentalsCoverage = fundamentalsCoverageSummary(fundamentalsRows, env.FUNDAMENTALS_MAX_STOCKS_PER_REFRESH, env.FUNDAMENTALS_REFRESH_FREQUENCY_DAYS);
   const etfCoverage = etfLookthroughCoverageSummary(
     eligibleLookthroughEtfs,
@@ -611,6 +636,46 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
           </div>
         </CardContent>
       </Card>
+
+      <OperationSection
+        title="Security Master QA"
+        description="Canonical security, issuer, ETF holding mapping, lifecycle and provider reconciliation coverage."
+        whereUsed="portfolio review, hidden overlap, assistant context, insights history, telemetry, future corporate-action handling"
+      >
+        {securityMasterHealth ? (
+          <>
+            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+              <StatBox label="Selectable mapped" value={healthRatio(securityMasterHealth, "selectableWithSecurityId", "selectableInstruments")} />
+              <StatBox label="Active securities" value={healthNumber(securityMasterHealth, "securityMasterRecords")} />
+              <StatBox label="Issuer records" value={healthNumber(securityMasterHealth, "issuerRecords")} />
+              <StatBox label="Linked securities" value={healthNumber(securityMasterHealth, "linkedSecurities")} />
+              <StatBox label="ISIN coverage" value={healthRatio(securityMasterHealth, "selectableWithIsin", "selectableInstruments")} />
+              <StatBox label="CUSIP coverage" value={healthRatio(securityMasterHealth, "selectableWithCusip", "selectableInstruments")} />
+              <StatBox label="ETF holdings mapped" value={healthRatio(securityMasterHealth, "etfTopHoldingsMapped", "etfTopHoldingRows")} />
+              <StatBox label="ETF holdings unmapped" value={healthNumber(securityMasterHealth, "etfTopHoldingsUnmapped")} className={healthNumber(securityMasterHealth, "etfTopHoldingsUnmapped") > 0 ? "text-amber-600" : undefined} />
+              <StatBox label="Ambiguous holdings" value={healthNumber(securityMasterHealth, "etfTopHoldingsAmbiguous")} className={healthNumber(securityMasterHealth, "etfTopHoldingsAmbiguous") > 0 ? "text-destructive" : undefined} />
+              <StatBox label="Issuer dupes open" value={healthNumber(securityMasterHealth, "issuerDuplicateCandidatesOpen")} className={healthNumber(securityMasterHealth, "issuerDuplicateCandidatesOpen") > 0 ? "text-amber-600" : undefined} />
+              <StatBox label="Mapping gap rows" value={healthNumber(securityMasterHealth, "mappingGapRows")} className={healthNumber(securityMasterHealth, "mappingGapRows") > 0 ? "text-amber-600" : undefined} />
+              <StatBox label="Stale identifiers" value={healthNumber(securityMasterHealth, "staleIdentifierRefreshes")} className={healthNumber(securityMasterHealth, "staleIdentifierRefreshes") > 0 ? "text-amber-600" : undefined} />
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+              <StatBox label="Latest insights identity" value={healthRatio(securityMasterHealth, "recommendationsWithSecurityId", "recommendationsTotal")} />
+              <StatBox label="History identity" value={healthRatio(securityMasterHealth, "recommendationHistoryWithSecurityId", "recommendationHistoryTotal")} />
+              <StatBox label="Telemetry identity" value={healthRatio(securityMasterHealth, "telemetryRecommendationSnapshotsWithSecurityId", "telemetryRecommendationSnapshotsTotal")} />
+              <StatBox label="Portfolio reports phase5" value={healthRatio(securityMasterHealth, "portfolioReviewPhase5Reports", "portfolioReviewReports")} />
+              <StatBox label="Corporate actions" value={healthNumber(securityMasterHealth, "corporateActionRows")} />
+              <StatBox label="Provider conflicts open" value={healthNumber(securityMasterHealth, "providerOpenConflictRows")} className={healthNumber(securityMasterHealth, "providerOpenConflictRows") > 0 ? "text-destructive" : undefined} />
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Export detailed Security Master issues from the `security_master_mapping_gap_report` view in Supabase. Phase 6 and 7 tables are readiness layers until provider reconciliation and corporate-action ingestion are automated.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Security Master health snapshot is not available yet. Apply migrations through `103_security_master_phase8_monitoring.sql` or later to enable this card.
+          </p>
+        )}
+      </OperationSection>
 
       <OperationSection
         title="Portfolio Summary Read Models"

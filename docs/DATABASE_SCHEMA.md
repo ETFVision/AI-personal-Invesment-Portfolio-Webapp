@@ -43,6 +43,9 @@ Primary migrations:
 - `supabase/migrations/099_clean_issuer_display_names.sql`
 - `supabase/migrations/100_issuer_level_lookthrough_rollups.sql`
 - `supabase/migrations/102_security_master_phase5_snapshot_identity.sql`
+- `supabase/migrations/103_security_master_phase8_monitoring.sql`
+- `supabase/migrations/104_security_master_phase6_corporate_actions.sql`
+- `supabase/migrations/105_security_master_phase7_provider_reconciliation.sql`
 
 | Table | Purpose |
 |---|---|
@@ -54,6 +57,11 @@ Primary migrations:
 | `security_issuer_links` | Links securities to issuers with share-class/link-source metadata. |
 | `issuer_aliases` | Approved issuer-name variants, such as `Alphabet` -> `Alphabet Inc`. |
 | `issuer_duplicate_candidates` | Review queue for possible issuer duplicates; not an automatic merge table. |
+| `security_master_mapping_gap_report` | Exportable QA view listing missing mappings, stale identifier refreshes, unmapped ETF holdings and open issuer duplicate candidates. |
+| `security_corporate_actions` | Corporate-action readiness event log for ticker changes, mergers, spin-offs, share-class changes, ETF name changes, ETF closures and delistings. |
+| `security_lifecycle_links` | Predecessor/successor security links created from approved corporate actions. |
+| `security_provider_identifier_observations` | Provider-level identifier observations for future multi-provider reconciliation. |
+| `security_identifier_conflicts` | Review queue for conflicting identifiers, provider symbols, names, exchanges and ambiguous provider mappings. |
 
 Important instrument columns added by Security Master:
 
@@ -71,6 +79,8 @@ Security Master semantics:
 - `securities_master` is the identity layer for mapping and overlap.
 - `issuers` is the company/fund issuer rollup layer above securities.
 - `issuer_duplicate_candidates` should be reviewed manually and converted into `issuer_aliases` only when confirmed.
+- Corporate-action and provider reconciliation tables are currently readiness/QA layers. They do not automatically rewrite instruments, history, recommendations or telemetry.
+- `get_security_master_health_snapshot()` powers Admin/Data Sources Security Master QA coverage.
 
 ### Fixed Income Profile Tables
 
