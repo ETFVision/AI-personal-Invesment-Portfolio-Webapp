@@ -1,6 +1,6 @@
 # Jobs and Operations
 
-Last updated: 2026-06-11 20:11:07 +08:00
+Last updated: 2026-06-13 14:58:29 +08:00
 
 ## Scheduler
 
@@ -39,7 +39,7 @@ Provider-specific tables store deeper diagnostics.
 
 ## Current Daily Schedule Summary
 
-Daily starts around 5:20 AM Singapore time:
+Daily starts around 5:20 AM Singapore time and runs dependent derived layers with wider spacing:
 
 1. Five instrument price passes.
 2. Daily returns.
@@ -49,10 +49,12 @@ Daily starts around 5:20 AM Singapore time:
 6. Metadata.
 7. Benchmarks.
 8. Portfolio valuation.
-9. FRED macro.
-10. FMP news.
-11. NewsData.
-12. Portfolio summary refresh.
+9. Portfolio summary refresh.
+10. FRED macro.
+11. FMP news.
+12. NewsData.
+
+Return anchors depend on `instrument_daily_returns`. Since migration `101`, `refresh_instrument_return_anchors()` no longer recomputes daily returns internally; it reads the precomputed daily-return table only. If the anchor job fails, first check that the daily-return job completed and that stale job locks are not blocking the next run.
 
 ## Weekly Schedule Summary
 

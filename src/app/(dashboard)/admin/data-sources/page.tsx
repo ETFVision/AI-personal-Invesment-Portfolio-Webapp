@@ -387,16 +387,16 @@ function DailyJobStatusCard({
 const dailyRefreshJobs = [
   { label: "Instrument prices", scheduledTime: "5:20-5:40 AM", jobName: "instrument-price-refresh" },
   { label: "Daily returns", scheduledTime: "5:45 AM", jobName: "instrument-daily-returns-refresh" },
-  { label: "Return anchors", scheduledTime: "5:50 AM", jobName: "instrument-return-anchors-refresh" },
-  { label: "Market metrics", scheduledTime: "5:55 AM", jobName: "instrument-market-metrics-refresh" },
-  { label: "Risk metrics", scheduledTime: "6:00-6:05 AM", jobName: "refresh_instrument_risk_metrics" },
-  { label: "Instrument metadata", scheduledTime: "6:10 AM", jobName: "instrument-metadata-refresh" },
-  { label: "Benchmarks", scheduledTime: "6:15 AM", jobName: "benchmark-refresh" },
-  { label: "Portfolio valuation", scheduledTime: "6:25 AM", jobName: "portfolio-valuation-refresh" },
-  { label: "Portfolio summaries", scheduledTime: "6:30 AM", jobName: "portfolio-summary-refresh" },
-  { label: "FRED macro", scheduledTime: "6:35 AM", jobName: "fred-refresh" },
-  { label: "FMP news", scheduledTime: "6:45 AM", jobName: "fmp-news-ingestion" },
-  { label: "NewsData", scheduledTime: "6:55 AM", jobName: "newsdata-news-ingestion" }
+  { label: "Return anchors", scheduledTime: "5:55 AM", jobName: "instrument-return-anchors-refresh" },
+  { label: "Market metrics", scheduledTime: "6:05 AM", jobName: "instrument-market-metrics-refresh" },
+  { label: "Risk metrics", scheduledTime: "6:15-6:25 AM", jobName: "refresh_instrument_risk_metrics" },
+  { label: "Instrument metadata", scheduledTime: "6:35 AM", jobName: "instrument-metadata-refresh" },
+  { label: "Benchmarks", scheduledTime: "6:45 AM", jobName: "benchmark-refresh" },
+  { label: "Portfolio valuation", scheduledTime: "6:55 AM", jobName: "portfolio-valuation-refresh" },
+  { label: "Portfolio summaries", scheduledTime: "7:05 AM", jobName: "portfolio-summary-refresh" },
+  { label: "FRED macro", scheduledTime: "7:15 AM", jobName: "fred-refresh" },
+  { label: "FMP news", scheduledTime: "7:25 AM", jobName: "fmp-news-ingestion" },
+  { label: "NewsData", scheduledTime: "7:35 AM", jobName: "newsdata-news-ingestion" }
 ];
 
 const providers = [
