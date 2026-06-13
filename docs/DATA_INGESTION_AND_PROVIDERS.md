@@ -1,6 +1,6 @@
 # Data Ingestion and Providers
 
-Last updated: 2026-06-12 22:36:00 +08:00
+Last updated: 2026-06-13 14:58:29 +08:00
 
 ## Provider Map
 
@@ -68,10 +68,12 @@ Daily automation should preserve this dependency chain:
 6. Instrument metadata.
 7. Benchmarks.
 8. Portfolio valuation.
-9. FRED macro.
-10. FMP news.
-11. NewsData.
-12. Portfolio summary refresh.
+9. Portfolio summary refresh.
+10. FRED macro.
+11. FMP news.
+12. NewsData.
+
+Important dependency detail: return anchors read from precomputed `instrument_daily_returns`. They should not recompute daily returns internally. If daily returns are stale or failed, anchors may refresh from stale data or fail to produce fresh market metrics.
 
 Exact schedule is in `docs/scheduled-jobs.md`.
 

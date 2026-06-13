@@ -2,6 +2,35 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-13 14:58 SGT - Return Anchor Refresh Timeout Fix
+
+Scope:
+- Investigated the failed `instrument-return-anchors-refresh` Supabase cron run from 2026-06-13 5:50 AM SGT.
+- Found that `refresh_instrument_return_anchors()` still called `refresh_instrument_daily_returns()` internally even though daily returns are already refreshed in the previous scheduled job.
+- Added migration `101` to make return anchors read the precomputed `instrument_daily_returns` table only.
+- Rescheduled dependent daily jobs with wider spacing and longer lock TTLs so anchors, market metrics, risk metrics, metadata, portfolio valuation, portfolio summary, macro, and news jobs are less likely to overlap.
+- Updated scheduled job and data ingestion documentation.
+
+Files updated:
+- `supabase/migrations/101_optimize_return_anchor_refresh_schedule.sql`
+- `docs/scheduled-jobs.md`
+- `docs/JOBS_AND_OPERATIONS.md`
+- `docs/DATA_INGESTION_AND_PROVIDERS.md`
+- `docs/qa-log.md`
+
+Validation:
+- Code review confirmed the old anchor function performed duplicate daily-return work.
+- Schedule documentation now matches the new migration.
+
+Post-deployment QA:
+- Apply migration `101` in Supabase.
+- Confirm `cron.job` shows `app-daily-instrument-return-anchors-refresh` at 5:55 AM SGT and `app-daily-instrument-market-metrics-refresh` at 6:05 AM SGT.
+- After the next run, check `job_runs` for successful `instrument-daily-returns-refresh`, `instrument-return-anchors-refresh`, and `instrument-market-metrics-refresh`.
+- Check Admin/Data Sources derived metric layer freshness.
+
+Residual risks:
+- If anchor refresh still times out after migration `101`, the next hardening step is a stale-only anchor endpoint that selects only instruments whose anchors lag daily returns instead of iterating the full active universe.
+
 ## 2026-06-12 22:36 SGT - Security Master Phase 4C/4D Final Display QA And Documentation Refresh
 
 Scope:
