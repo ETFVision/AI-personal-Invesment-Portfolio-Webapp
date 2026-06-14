@@ -3807,3 +3807,29 @@ Validation:
 - PASS: `npm.cmd run typecheck`
 - PASS: `npm.cmd run lint`
 - PASS: `npm.cmd run build`
+
+## 2026-06-14 23:45 SGT - Recommendation Insufficient Data Follow-Up
+
+Scope:
+- Investigated why the latest 2026-06-14 Insights / Recommendation run showed 8 instruments as `Insufficient Data`.
+- Confirmed this was not a summary-card counting issue. The 8 labels came directly from the latest recommendation output.
+- Added missing deterministic bond ETF classifications for the active bond universe.
+- Added FMP fundamentals provider-symbol normalization for `BRK.B` to use `BRK-B`.
+
+Root cause:
+- `BNDW`, `GOVT`, `IEI`, `JNK`, `STIP`, `VCIT`, and `VGIT` had market and risk metrics but no bond profile classifications, leaving fixed-income recommendation components unavailable and confidence below 50.
+- `BRK.B` had price and risk data, but FMP fundamentals calls used `BRK.B` instead of FMP's `BRK-B` provider symbol, so profile, statement, ratio and scoring inputs were incomplete.
+
+Files updated:
+- `src/application/services/UniverseManagementService.ts`
+- `src/application/services/bonds/BondProfileService.ts`
+- `src/infrastructure/providers/fundamentals/FmpFundamentalsProvider.ts`
+- `tests/bond-analytics.test.ts`
+- `tests/fundamentals.test.ts`
+- `docs/qa-log.md`
+
+Operational follow-up:
+- Deploy the patch.
+- Run Seed Universe or the bond profile repair path so the new seeded bond profiles are stored in Supabase.
+- Run Fundamentals Refresh for stocks so `BRK.B` is refreshed through `BRK-B`.
+- Rerun Recommendation / Insights and confirm `Insufficient Data` falls from 8 unless a new missing-input case appears.

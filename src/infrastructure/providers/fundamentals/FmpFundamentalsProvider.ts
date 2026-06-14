@@ -38,6 +38,12 @@ function fiscalQuarterFromPeriod(period: FinancialPeriod, item: Record<string, u
   return match ? Number(match[1]) : 0;
 }
 
+function normalizeFmpSymbol(symbol: string) {
+  const normalized = symbol.trim().toUpperCase();
+  if (normalized === "BRK.B") return "BRK-B";
+  return normalized;
+}
+
 async function fetchWithRetry(url: URL) {
   let lastError: Error | null = null;
   for (let attempt = 1; attempt <= FMP_MAX_ATTEMPTS; attempt += 1) {
@@ -181,7 +187,7 @@ export class FmpFundamentalsProvider implements FundamentalsProvider {
   async getFundamentals(symbol: string, options: { period?: FinancialPeriod; limit?: number } = {}) {
     const apiKey = process.env.FMP_API_KEY;
     if (!apiKey) throw new Error("FMP_API_KEY is not configured.");
-    const normalizedSymbol = symbol.trim().toUpperCase();
+    const normalizedSymbol = normalizeFmpSymbol(symbol);
     const period = options.period ?? "annual";
     const limit = String(options.limit ?? 5);
 
@@ -206,6 +212,7 @@ export class FmpFundamentalsProvider implements FundamentalsProvider {
 }
 
 export const fmpFundamentalsInternals = {
+  normalizeFmpSymbol,
   normalizeProfile,
   normalizeStatement,
   normalizeRatio,

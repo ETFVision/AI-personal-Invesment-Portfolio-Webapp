@@ -121,14 +121,24 @@ test("classifies the seeded bond ETF universe consistently", () => {
   const expected = new Map([
     ["SGOV", ["ultra-short", "treasury", "government", false, "positive"]],
     ["BIL", ["ultra-short", "treasury", "government", false, "positive"]],
+    ["SHV", ["ultra-short", "treasury", "government", false, "positive"]],
+    ["GBIL", ["ultra-short", "treasury", "government", false, "positive"]],
+    ["CLIP", ["ultra-short", "treasury", "government", false, "positive"]],
     ["SHY", ["short", "treasury", "government", false, "positive"]],
+    ["IEI", ["intermediate", "treasury", "government", false, "positive"]],
     ["IEF", ["intermediate", "treasury", "government", false, "positive"]],
+    ["VGIT", ["intermediate", "treasury", "government", false, "positive"]],
+    ["GOVT", ["intermediate", "treasury", "government", false, "positive"]],
     ["TLT", ["long", "treasury", "government", false, "positive"]],
     ["BND", ["intermediate", "aggregate", "mixed investment grade", false, "mixed"]],
+    ["BNDW", ["intermediate", "global aggregate", "mixed investment grade", false, "mixed"]],
     ["AGG", ["intermediate", "aggregate", "mixed investment grade", false, "mixed"]],
     ["TIP", ["intermediate", "inflation-linked", "government", true, "mixed"]],
+    ["STIP", ["short", "inflation-linked", "government", true, "mixed"]],
     ["LQD", ["intermediate", "corporate", "investment grade", false, "negative"]],
+    ["VCIT", ["intermediate", "corporate", "investment grade", false, "negative"]],
     ["HYG", ["short/intermediate", "high yield", "high yield", false, "negative"]],
+    ["JNK", ["short/intermediate", "high yield", "high yield", false, "negative"]],
     ["BNDX", ["intermediate", "international", "investment grade", false, "mixed"]]
   ]);
 
