@@ -240,6 +240,12 @@ test("FMP fundamentals normalization preserves nulls and raw provider data", () 
   assert.equal(profile?.providerMetadata && "symbol" in profile.providerMetadata, true);
 });
 
+test("FMP fundamentals provider maps Berkshire share-class symbol to provider format", () => {
+  assert.equal(fmpFundamentalsInternals.normalizeFmpSymbol("BRK.B"), "BRK-B");
+  assert.equal(fmpFundamentalsInternals.normalizeFmpSymbol("brk.b"), "BRK-B");
+  assert.equal(fmpFundamentalsInternals.normalizeFmpSymbol("AAPL"), "AAPL");
+});
+
 test("fundamental scoring produces deterministic scores and confidence", () => {
   const service = new FundamentalScoringService();
   const score = service.calculateScore({
