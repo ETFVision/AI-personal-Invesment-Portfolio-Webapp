@@ -1,6 +1,6 @@
 # ETFVision Score Methodology
 
-Last updated: 2026-06-11 20:34:49 +08:00
+Last updated: 2026-06-15 00:25:00 +08:00
 
 Authoritative status: formula-level handover snapshot based on current code and migrations. This document explains how the main derived scores are calculated. If a score is later recalibrated, update this file in the same commit.
 
@@ -663,7 +663,9 @@ Primary code:
 
 Missing components are excluded from the denominator.
 
-### Label Thresholds
+### Internal Label Thresholds
+
+Internal labels are kept for scoring, guardrails, telemetry, and historical compatibility. They should not be presented to users as investment recommendations.
 
 | Score | Internal label |
 |---:|---|
@@ -674,6 +676,31 @@ Missing components are excluded from the denominator.
 | 20-34.99 | Reduce |
 | Below 20 | Sell |
 | Missing | Insufficient Data |
+
+### User-Facing Insights Labels
+
+The webapp presents the internal labels as neutral characteristics assessments:
+
+| Internal label | User-facing label |
+|---|---|
+| Strong Buy | Excellent |
+| Buy | Good |
+| Hold | Neutral |
+| Watch | Weak |
+| Reduce | Poor |
+| Sell | Significant Concerns |
+| Insufficient Data | Insufficient Data |
+| Not Applicable | Not Applicable |
+
+The user-facing language is intentionally framed around characteristics and concerns. It should not say an instrument is a buy, sell, hold, reduce, purchase candidate, or trade instruction.
+
+Generated instrument insight summaries use wording such as:
+
+`TSM has a Good characteristics assessment with a deterministic score of 74/100.`
+
+They should not use wording such as:
+
+`TSM is rated Buy.`
 
 ### Recommendation Confidence
 

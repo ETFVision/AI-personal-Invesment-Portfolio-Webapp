@@ -373,10 +373,11 @@ test("assistant prompt builder carries telemetry and recommendation explanation 
 });
 
 test("assistant assessment labels map internal labels to consumer-safe labels", () => {
-  assert.equal(ASSISTANT_RECOMMENDATION_LABELS.strongBuy, "Very Favorable Characteristics");
-  assert.equal(assistantRecommendationLabel("strong_buy"), "Very Favorable Characteristics");
-  assert.equal(assistantRecommendationLabel("Hold"), "Balanced Characteristics");
-  assert.equal(assistantRecommendationLabel("watch"), "Review Area");
+  assert.equal(ASSISTANT_RECOMMENDATION_LABELS.strongBuy, "Excellent");
+  assert.equal(assistantRecommendationLabel("strong_buy"), "Excellent");
+  assert.equal(assistantRecommendationLabel("Hold"), "Neutral");
+  assert.equal(assistantRecommendationLabel("watch"), "Weak");
+  assert.equal(assistantRecommendationLabel("Reduce"), "Poor");
 });
 
 test("assistant system prompt defines Personal CIO response contract", () => {

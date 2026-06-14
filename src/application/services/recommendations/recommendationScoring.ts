@@ -6,6 +6,7 @@ import type { BondProfile, Instrument, InstrumentMarketMetric, InstrumentRiskMet
 import { instrumentTypeLabel, resolveInstrumentType } from "../instruments/InstrumentTypeResolver";
 import type { PortfolioFitResult } from "./portfolioFitService";
 import type { RecommendationRulesService, ScoreComponent } from "./RecommendationRulesService";
+import { assessmentLabel } from "./recommendationPresentation";
 
 export type RecommendationInput = {
   instrument: Instrument;
@@ -202,7 +203,9 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
     ...input.portfolioFit.negativeDrivers,
     ...(extras.negativeDrivers ?? [])
   ].filter(Boolean);
-  const summary = `${input.instrument.symbol ?? input.instrument.name} is rated ${guardrail.label} with a deterministic score of ${score == null ? "insufficient data" : Math.round(score)}. The rating reflects ${components.filter((component) => component.score != null).map((component) => component.label.toLowerCase()).join(", ") || "limited available"} inputs${guardrail.guardrails.length ? `, with guardrails applied for ${guardrail.guardrails.join(", ").toLowerCase()}` : ""}.`;
+  const assessment = assessmentLabel(guardrail.label);
+  const scoreText = score == null ? "insufficient data" : `${Math.round(score)}/100`;
+  const summary = `${input.instrument.symbol ?? input.instrument.name} has a ${assessment} characteristics assessment with a deterministic score of ${scoreText}. The assessment reflects ${components.filter((component) => component.score != null).map((component) => component.label.toLowerCase()).join(", ") || "limited available"} inputs${guardrail.guardrails.length ? `, with guardrails applied for ${guardrail.guardrails.join(", ").toLowerCase()}` : ""}.`;
   const weakComponents = components.filter((component) => component.score != null && (component.score ?? 0) < 50);
   const strongComponents = components.filter((component) => component.score != null && (component.score ?? 0) >= 70);
   const recommendationChangeTriggers = {

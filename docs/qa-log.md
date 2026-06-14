@@ -3833,3 +3833,25 @@ Operational follow-up:
 - Run Seed Universe or the bond profile repair path so the new seeded bond profiles are stored in Supabase.
 - Run Fundamentals Refresh for stocks so `BRK.B` is refreshed through `BRK-B`.
 - Rerun Recommendation / Insights and confirm `Insufficient Data` falls from 8 unless a new missing-input case appears.
+
+## 2026-06-15 00:20 SGT - Insights Label Commercialization Cleanup
+
+Scope:
+- Updated user-facing Insights labels to neutral characteristics-score language.
+- Removed trade-like wording from generated instrument insight summaries.
+- Updated assistant prompt requirements and assistant context labels to use the same neutral vocabulary.
+- Updated portfolio review wording from recommendation alignment to insight alignment where surfaced to users.
+
+User-facing label mapping:
+- `Strong Buy` -> `Excellent`
+- `Buy` -> `Good`
+- `Hold` -> `Neutral`
+- `Watch` -> `Weak`
+- `Reduce` -> `Poor`
+- `Sell` -> `Significant Concerns`
+- `Insufficient Data` -> `Insufficient Data`
+- `Not Applicable` -> `Not Applicable`
+
+Notes:
+- Internal recommendation labels remain unchanged for telemetry, historical records, guardrails and scoring compatibility.
+- This is a product-language hardening pass, not legal advice or a change to scoring methodology.
