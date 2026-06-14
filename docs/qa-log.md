@@ -2,6 +2,41 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-14 23:00 SGT - Market Vision v3 Small Calibration Pass
+
+Scope:
+- Applied the narrow Market Vision calibration pass after reviewing the refreshed 2026-06-14 draft against the 2026-06-07 report.
+- Focused on transition semantics and confidence caps only.
+- Did not change news ingestion, FRED ingestion, portfolio analytics, recommendation scoring, telemetry scoring, or report publishing behavior.
+
+Files updated:
+- `src/application/services/marketVision/MarketVisionGenerationService.ts`
+- `tests/market-vision.test.ts`
+- `docs/MARKET_VISION_METHODOLOGY.md`
+- `docs/MARKET_VISION_CALIBRATION_NOTES.md`
+- `docs/qa-log.md`
+
+Implementation checks:
+- PASS: Liquidity tightening/neutral/easing transitions are now treated as true regime shifts.
+- PASS: Liquidity `Tightening` and `Restrictive` normalize to the same tightening family.
+- PASS: Overall Market `Mixed / selective risk support` to `Mixed but constructive` is treated as a minor classification change.
+- PASS: Overall Market mixed to explicit risk-on/risk-off is treated as a regime shift.
+- PASS: Macro confidence rows default to a 90 cap unless strong direct evidence is present.
+- PASS: 91-95 confidence requires at least 5 supporting observations, at least 4 direct indicator observations, no gaps, no stale data, and a non-mixed regime.
+- PASS: Overall Market confidence is capped more conservatively when mixed or competing cross-currents are present.
+- PASS: Existing tactical filtering remains intact for USD strength, weakening USD suppression, and neutral-liquidity tightening suppression.
+
+Validation:
+- `npm.cmd test -- market-vision` passed: 240 tests, 240 passed.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd run build` passed.
+- Deleted one generated draft report for `2026-06-08` to `2026-06-14` so the calibrated report can be regenerated manually.
+
+Follow-up:
+- Regenerate the 2026-06-08 to 2026-06-14 report manually from Admin/Data Sources.
+- Compare the regenerated 2026-06-14 report against the 2026-06-07 report before marking Market Vision v3 calibration complete.
+
 ## 2026-06-13 16:20 SGT - Security Master Full QA/QC Closeout
 
 Scope:
@@ -3702,3 +3737,73 @@ Findings:
 Validation:
 - Documentation-only update.
 - No runtime tests were run because no executable code changed.
+
+## 2026-06-14 00:00 SGT - Market Vision Portfolio Context Regression Fix
+
+Scope:
+- Fixed scheduled Market Vision generation so cron-created weekly drafts resolve the first active default portfolio before calling the Market Vision generation service.
+- Replaced the old missing-context fallback that showed all portfolio macro rows as Low relevance with explicit `Not assessed` metadata.
+- Added deterministic portfolio macro impact scoring from actual portfolio exposure inputs.
+- Reworked confidence rows to use a mechanical support/direct/conflict/gap/stale formula.
+- Reworked regime transition comparison to use canonical labels and distinguish minor wording/classification changes from true regime shifts.
+
+Root cause:
+- Manual Market Vision generation passed `portfolioId`.
+- Scheduled weekly generation did not pass `portfolioId`, so the report was generated as a global report.
+- The old fallback then made missing portfolio context look like valid Low relevance.
+
+Files updated:
+- `src/application/jobs/GenerateMarketVisionReportJob.ts`
+- `src/application/ports/repositories/PortfolioRepository.ts`
+- `src/application/services/marketVision/MarketVisionGenerationService.ts`
+- `src/domain/marketVision/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseMarketVisionRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabasePortfolioRepository.ts`
+- `src/server/ai/prompts/market-vision.ts`
+- `src/server/container.ts`
+- `tests/market-vision.test.ts`
+- `docs/MARKET_VISION_METHODOLOGY.md`
+- `docs/MARKET_VISION_REGRESSION_FIX.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd test -- market-vision`
+
+Follow-up:
+- Check the next scheduled weekly Market Vision draft in the webapp and confirm `portfolioContextStatus = available`.
+- Continue Market Vision Phase B/C refinement later; this checkpoint only addresses the regression and deterministic metadata hardening.
+
+## 2026-06-14 22:30 SGT - Market Vision Final Calibration Cleanup
+
+Scope:
+- Implemented the final cleanup after comparing the 2026-06-07 and 2026-06-14 Market Vision reports.
+- Tightened canonical regime mapping and transition labels.
+- Added an Overall Market confidence cap for mixed regimes with competing supportive/adverse forces.
+- Capped user-facing composite portfolio impact scores while preserving raw diagnostics and driver breakdowns.
+- Added tactical theme status handling so contradicted/inactive tactical themes are hidden from the report but retained in telemetry diagnostics.
+- Added USD-strength tactical theme normalization and suppression of contradicted weakening-USD themes.
+- Sanitized advice-adjacent Market Vision language such as `tradeable attention`.
+
+Files updated:
+- `src/application/services/marketVision/MarketVisionGenerationService.ts`
+- `src/domain/marketVision/types.ts`
+- `tests/market-vision.test.ts`
+- `docs/MARKET_VISION_METHODOLOGY.md`
+- `docs/MARKET_VISION_FINAL_CLEANUP.md`
+- `docs/qa-log.md`
+
+Expected behavior:
+- Inflation `reaccelerating` to `high and sticky / reaccelerating` is no longer treated as a full regime shift.
+- Yield curve `mixed / normal with conflicting slope signals` to `mixed` is no longer treated as a full regime shift.
+- USD `weakening` to `strengthening` remains a true regime shift.
+- Overall Market mixed-but-constructive confidence should not show High/95.
+- Geopolitics and other composite portfolio impact rows should not display over-100 percentages.
+- `TACTICAL_WEAKENING_USD` should not show in user-facing tactical themes when USD is strengthening.
+
+Validation:
+- PASS: `npm.cmd test -- market-vision`
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`

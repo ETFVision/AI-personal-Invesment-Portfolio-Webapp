@@ -21,6 +21,7 @@ This document records areas where the handover pack intentionally avoids guessin
 1. Market Vision publish/draft lifecycle
    - Verify whether scheduled jobs should publish or create drafts.
    - Follow up in `MarketVisionGenerationService.ts`.
+   - Note: the scheduled portfolio-context regression was fixed on 2026-06-14; scheduled generation still creates drafts unless a separate publish policy is approved.
 
 2. Assistant table/cost schema
    - Confirm exact assistant tables and cost formulas.

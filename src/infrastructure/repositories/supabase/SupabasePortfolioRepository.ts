@@ -164,6 +164,19 @@ export class SupabasePortfolioRepository implements PortfolioRepository {
     return data ? mapPortfolio(data) : null;
   }
 
+  async getFirstDefaultPortfolio() {
+    const { data, error } = await this.db
+      .from("portfolios")
+      .select("*")
+      .eq("is_default", true)
+      .eq("is_active", true)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? mapPortfolio(data) : null;
+  }
+
   async getPortfolioById(portfolioId: string) {
     const { data, error } = await this.db.from("portfolios").select("*").eq("id", portfolioId).maybeSingle();
     if (error) throw new Error(error.message);
