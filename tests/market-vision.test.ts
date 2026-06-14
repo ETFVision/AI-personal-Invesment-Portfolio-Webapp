@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { MarketVisionService, emptyPortfolioImplications } from "../src/application/services/marketVision/MarketVisionService";
 import { emptyMarketVisionMetadata, MarketVisionGenerationService, normalizeGeneratedText, validateMarketVisionGenerationOutput } from "../src/application/services/marketVision/MarketVisionGenerationService";
+import { GenerateMarketVisionReportJob } from "../src/application/jobs/GenerateMarketVisionReportJob";
 import { MacroIndicatorService } from "../src/application/services/marketVision/MacroIndicatorService";
 import { MarketThemeService } from "../src/application/services/marketVision/MarketThemeService";
 import type {
@@ -231,6 +232,8 @@ function marketVisionMetadataFixture(): MarketVisionReport["marketVisionMetadata
     tacticalThemes: [{ id: "TACTICAL_OTHER", displayName: "restrictive rates", type: "tactical", name: "restrictive rates", evidence: ["rates remained restrictive"], persistence: "short", confidence: "Medium" }],
     keyWatchItems: ["Inflation persistence", "Technology concentration"],
     evidenceGaps: ["Employment evidence is limited."],
+    portfolioContextStatus: "missing",
+    portfolioContextInputs: {},
     portfolioRelevance: { equity: "Low", bond: "Low", gold: "Low", crypto: "Low", cash: "Low", risk: "Low" },
     regimeTransitions: [],
     confidenceScores: [],
@@ -267,6 +270,8 @@ function marketVisionMetadataFixture(): MarketVisionReport["marketVisionMetadata
       structuralThemes: ["AI infrastructure"],
       tacticalThemes: ["restrictive rates"],
       evidenceGaps: ["Employment evidence is limited."],
+      portfolioContextStatus: "missing",
+      portfolioContextInputs: {},
       portfolioRelevance: { equity: "Low", bond: "Low", gold: "Low", crypto: "Low", cash: "Low", risk: "Low" },
       regimeTransitions: [],
       confidenceScores: [],
@@ -353,6 +358,29 @@ function equityOnlyDashboard(): PortfolioDashboard {
     cashPercent: 0,
     investedPercent: 1,
     latestPriceDate: "2026-06-07"
+  };
+}
+
+function macroSensitiveDashboard(): PortfolioDashboard {
+  const dashboard = equityOnlyDashboard();
+  return {
+    ...dashboard,
+    totalCash: 6.8,
+    totalHoldingsMarketValue: 100,
+    totalValueEstimate: 106.8,
+    investedAmount: 100,
+    allocationByType: [
+      { label: "Equity", value: 99.54, percent: 0.932 },
+      { label: "Gold / Commodities", value: 5.77, percent: 0.054 }
+    ],
+    allocationBySector: [
+      { label: "Technology", value: 35, percent: 0.328 },
+      { label: "Energy", value: 5, percent: 0.047 }
+    ],
+    allocationByGeography: [{ label: "International", value: 106.8, percent: 1 }],
+    currencyExposure: [{ label: "USD", currency: "USD", value: 106.8, percent: 1 }],
+    cashPercent: 0.068,
+    investedPercent: 0.932
   };
 }
 
@@ -518,13 +546,78 @@ test("AI Market Vision generation recalibrates overconfident mixed evidence and 
   assert.equal(report.marketVisionMetadata.telemetryMetadata.portfolioImpactMatrix.find((item) => item.dimension === "Growth")?.relevance, "High");
 });
 
+test("AI Market Vision generation derives portfolio macro impact from actual exposure context", async () => {
+  const repository = new FakeMarketVisionRepository();
+  const service = new MarketVisionGenerationService(
+    repository,
+    new FakeNewsRepository(weeklyReconciliation()) as unknown as NewsRepository,
+    new FakeMacroRepository() as unknown as MacroIndicatorRepository,
+    new FakeAiMarketVisionProvider(),
+    { getPortfolioDashboard: async () => macroSensitiveDashboard() }
+  );
+
+  const report = await service.generateWeeklyReport({ portfolioId: "portfolio-1" });
+  const impact = (dimension: string) => report.marketVisionMetadata.portfolioImpactMatrix.find((item) => item.dimension === dimension);
+
+  assert.equal(report.marketVisionMetadata.portfolioContextStatus, "available");
+  assert.equal(impact("Growth")?.relevance, "High");
+  assert.equal(impact("Liquidity")?.relevance, "High");
+  assert.equal(impact("USD")?.relevance, "High");
+  assert.equal(impact("Commodities")?.relevance, "Medium");
+  assert.doesNotMatch(impact("Growth")?.reason ?? "", /No portfolio context available/i);
+  assert.equal(report.marketVisionMetadata.telemetryMetadata.portfolioContextStatus, "available");
+});
+
+test("AI Market Vision generation marks missing portfolio context as not assessed", async () => {
+  const repository = new FakeMarketVisionRepository();
+  const service = new MarketVisionGenerationService(
+    repository,
+    new FakeNewsRepository(weeklyReconciliation()) as unknown as NewsRepository,
+    new FakeMacroRepository() as unknown as MacroIndicatorRepository,
+    new FakeAiMarketVisionProvider()
+  );
+
+  const report = await service.generateWeeklyReport();
+
+  assert.equal(report.marketVisionMetadata.portfolioContextStatus, "missing");
+  assert.equal(report.marketVisionMetadata.portfolioRelevance.equity, "Not assessed");
+  assert.equal(report.marketVisionMetadata.portfolioImpactMatrix.every((item) => item.relevance === "Not assessed"), true);
+});
+
+test("scheduled Market Vision job resolves the default portfolio before generation", async () => {
+  const repository = new FakeMarketVisionRepository();
+  const service = new MarketVisionGenerationService(
+    repository,
+    new FakeNewsRepository(weeklyReconciliation()) as unknown as NewsRepository,
+    new FakeMacroRepository() as unknown as MacroIndicatorRepository,
+    new FakeAiMarketVisionProvider(),
+    { getPortfolioDashboard: async () => equityOnlyDashboard() }
+  );
+  const job = new GenerateMarketVisionReportJob(service, undefined, async () => "portfolio-1");
+
+  const result = await job.run();
+
+  assert.equal(result.metadata.portfolioId, "portfolio-1");
+  assert.equal(result.metadata.portfolioContextStatus, "available");
+  assert.equal(repository.reports[0]?.marketVisionMetadata.portfolioRelevance.equity, "High");
+});
+
 test("AI Market Vision generation stores regime transitions against prior generated reports", async () => {
   const repository = new FakeMarketVisionRepository();
   const previousMetadata = marketVisionMetadataFixture();
-  previousMetadata.regimeScorecard = previousMetadata.regimeScorecard.map((entry) => entry.label === "Inflation"
-    ? { ...entry, regime: "reaccelerating", explanation: "Prior inflation evidence was reaccelerating." }
-    : entry
-  );
+  previousMetadata.regimeScorecard = previousMetadata.regimeScorecard.map((entry) => {
+    if (entry.label === "Inflation") return { ...entry, regime: "reaccelerating", explanation: "Prior inflation evidence was reaccelerating." };
+    if (entry.label === "Growth") return { ...entry, regime: "Weakening", explanation: "Prior growth evidence was weakening." };
+    if (entry.label === "Rates") return { ...entry, regime: "falling rate support", explanation: "Prior rates evidence had falling rate support." };
+    return entry;
+  });
+  const currentMetadata = marketVisionMetadataFixture();
+  currentMetadata.regimeScorecard = currentMetadata.regimeScorecard.map((entry) => {
+    if (entry.label === "Inflation") return { ...entry, regime: "high_and_sticky", explanation: "Inflation remains high and sticky." };
+    if (entry.label === "Growth") return { ...entry, regime: "Strengthening", explanation: "Growth evidence is strengthening." };
+    if (entry.label === "Rates") return { ...entry, regime: "falling_rate_support", explanation: "Rates evidence still points to falling rate support." };
+    return entry;
+  });
   await repository.upsertReport({
     reportDate: "2026-05-31",
     reportPeriodStart: "2026-05-25",
@@ -551,15 +644,19 @@ test("AI Market Vision generation stores regime transitions against prior genera
     repository,
     new FakeNewsRepository(weeklyReconciliation()) as unknown as NewsRepository,
     new FakeMacroRepository() as unknown as MacroIndicatorRepository,
-    new FakeAiMarketVisionProvider()
+    new FakeAiMarketVisionProvider({ marketVisionMetadata: currentMetadata })
   );
 
   const report = await service.generateWeeklyReport();
   const inflationTransition = report.marketVisionMetadata.regimeTransitions.find((item) => item.dimension === "Inflation");
+  const growthTransition = report.marketVisionMetadata.regimeTransitions.find((item) => item.dimension === "Growth");
+  const ratesTransition = report.marketVisionMetadata.regimeTransitions.find((item) => item.dimension === "Rates");
 
-  assert.equal(inflationTransition?.previous, "reaccelerating");
-  assert.equal(inflationTransition?.current, "cooling");
-  assert.equal(inflationTransition?.status, "Regime Shift Detected");
+  assert.equal(inflationTransition?.previousCanonical, "inflation_reaccelerating");
+  assert.equal(inflationTransition?.currentCanonical, "inflation_high_and_sticky");
+  assert.equal(inflationTransition?.status, "Minor Classification Change");
+  assert.equal(growthTransition?.status, "Regime Shift Detected");
+  assert.equal(ratesTransition?.status, "No Change");
 });
 
 test("AI Market Vision validation provides structured metadata defaults and evidence gaps", () => {

@@ -7,11 +7,13 @@ export class GenerateMarketVisionReportJob implements BackgroundJob {
 
   constructor(
     private readonly service: MarketVisionGenerationService,
-    private readonly telemetrySnapshotService?: TelemetrySnapshotService
+    private readonly telemetrySnapshotService?: TelemetrySnapshotService,
+    private readonly resolvePortfolioId?: () => Promise<string | null>
   ) {}
 
   async run() {
-    const report = await this.service.generateWeeklyReport({ status: "draft" });
+    const portfolioId = this.resolvePortfolioId ? await this.resolvePortfolioId() : null;
+    const report = await this.service.generateWeeklyReport({ status: "draft", portfolioId });
     try {
       await this.telemetrySnapshotService?.captureMarketVisionReport(report);
     } catch {
@@ -20,7 +22,13 @@ export class GenerateMarketVisionReportJob implements BackgroundJob {
     return {
       ok: true,
       message: "Market Vision report generated.",
-      metadata: { reportId: report.id, periodStart: report.reportPeriodStart, periodEnd: report.reportPeriodEnd }
+      metadata: {
+        reportId: report.id,
+        periodStart: report.reportPeriodStart,
+        periodEnd: report.reportPeriodEnd,
+        portfolioId,
+        portfolioContextStatus: report.marketVisionMetadata.portfolioContextStatus
+      }
     };
   }
 }

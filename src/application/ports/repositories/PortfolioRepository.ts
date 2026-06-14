@@ -21,6 +21,7 @@ export interface PortfolioRepository {
   }): Promise<UserProfile>;
   updateUserProfile(userId: string, input: Partial<Pick<UserProfile, "baseCurrency" | "riskProfile">>): Promise<void>;
   getDefaultPortfolio(userId: string): Promise<Portfolio | null>;
+  getFirstDefaultPortfolio(): Promise<Portfolio | null>;
   getPortfolioById(portfolioId: string): Promise<Portfolio | null>;
   createPortfolio(userId: string, input: SetupPortfolioInput): Promise<Portfolio>;
   updatePortfolio(portfolioId: string, input: SetupPortfolioInput): Promise<Portfolio>;

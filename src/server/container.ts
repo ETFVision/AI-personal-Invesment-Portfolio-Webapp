@@ -433,7 +433,11 @@ export function createContainer() {
       newsDataNewsIngestion: new NewsDataNewsIngestionJob(newsDataIngestionService),
       weeklyNewsReconciliation: new WeeklyNewsReconciliationJob(weeklyNewsReconciliationService, newsClassificationService),
       fredMacroIngestion: new FredMacroIngestionJob(macroIndicatorIngestionService),
-      weeklyMarketVision: new GenerateMarketVisionReportJob(marketVisionGenerationService, telemetrySnapshotService),
+      weeklyMarketVision: new GenerateMarketVisionReportJob(
+        marketVisionGenerationService,
+        telemetrySnapshotService,
+        async () => (await portfolioRepository.getFirstDefaultPortfolio())?.id ?? null
+      ),
       fundamentalsRefresh: new FundamentalsRefreshJob(fundamentalsRefreshService),
       recommendationRun: new RecommendationRunJob(recommendationService),
       portfolioReviewRun: new PortfolioReviewRunJob(portfolioReviewRunService),

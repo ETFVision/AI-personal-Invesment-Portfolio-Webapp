@@ -6,6 +6,9 @@ import type {
   MarketVisionConfidenceLevel,
   MarketVisionEvidencePanel,
   MarketVisionMetadata,
+  MarketVisionPortfolioContextStatus,
+  MarketVisionPortfolioImpact,
+  MarketVisionPortfolioRelevanceLevel,
   MarketVisionPortfolioRelevance,
   MarketVisionRegimeEntry,
   MarketVisionTelemetryMetadata,
@@ -48,6 +51,15 @@ const viewLabels = new Set(["Constructive", "Mixed", "Cautious", "Defensive", "N
 
 function toConfidence(value: unknown): MarketVisionConfidenceLevel {
   return confidenceLevels.has(String(value)) ? String(value) as MarketVisionConfidenceLevel : "Low";
+}
+
+function toPortfolioRelevanceLevel(value: unknown): MarketVisionPortfolioRelevanceLevel {
+  return String(value) === "Not assessed" ? "Not assessed" : toConfidence(value);
+}
+
+function toPortfolioContextStatus(value: unknown): MarketVisionPortfolioContextStatus {
+  const status = String(value ?? "");
+  return status === "available" || status === "partial" || status === "missing" ? status : "missing";
 }
 
 function toView(value: unknown): MarketVisionViewLabel | string {
@@ -125,19 +137,61 @@ function normalizeThemeIds(themes: MarketVisionThemeSummary[], type: "structural
   });
 }
 
-function calibratedConfidence(input: { supporting: number; conflicting: number; gaps: number }): MarketVisionConfidenceLevel {
-  if (input.supporting >= 2 && input.conflicting === 0 && input.gaps <= 1) return "High";
-  if (input.supporting === 0 || input.gaps >= 2 || input.conflicting > input.supporting) return "Low";
-  return "Medium";
+function confidenceScoreForCounts(input: {
+  supportingCount: number;
+  directIndicatorCount?: number;
+  conflictingCount: number;
+  gapCount: number;
+  staleIndicatorCount?: number;
+}) {
+  const score =
+    50 +
+    Math.min(input.supportingCount * 10, 35) +
+    Math.min((input.directIndicatorCount ?? 0) * 5, 15) -
+    Math.min(input.conflictingCount * 8, 30) -
+    Math.min(input.gapCount * 6, 24) -
+    Math.min((input.staleIndicatorCount ?? 0) * 8, 20);
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function labelForConfidenceScore(score: number): MarketVisionConfidenceLevel {
+  if (score >= 75) return "High";
+  if (score >= 45) return "Medium";
+  return "Low";
+}
+
+function directIndicatorCount(items: string[]) {
+  return items.filter((item) => /fred|yield|cpi|pce|payroll|unemployment|ism|pmi|oil|dollar|usd|earnings|price|spread|rate|portfolio|exposure/i.test(item)).length;
+}
+
+function staleIndicatorCount(items: string[]) {
+  return items.filter((item) => /stale|old|outdated|lag|delayed/i.test(item)).length;
+}
+
+function calibratedConfidence(input: { supporting: number; direct?: number; conflicting: number; gaps: number; stale?: number }): MarketVisionConfidenceLevel {
+  return labelForConfidenceScore(confidenceScoreForCounts({
+    supportingCount: input.supporting,
+    directIndicatorCount: input.direct ?? 0,
+    conflictingCount: input.conflicting,
+    gapCount: input.gaps,
+    staleIndicatorCount: input.stale ?? 0
+  }));
 }
 
 function calibrateEvidencePanel(panel: MarketVisionEvidencePanel): MarketVisionEvidencePanel {
+  const supporting = panel.supportingIndicators.length;
+  const direct = directIndicatorCount(panel.supportingIndicators);
+  const conflicting = panel.conflictingIndicators.length;
+  const gaps = panel.evidenceGaps.length;
+  const stale = staleIndicatorCount([...panel.supportingIndicators, ...panel.conflictingIndicators, ...panel.evidenceGaps]);
   return {
     ...panel,
     confidence: calibratedConfidence({
-      supporting: panel.supportingIndicators.length,
-      conflicting: panel.conflictingIndicators.length,
-      gaps: panel.evidenceGaps.length
+      supporting,
+      direct,
+      conflicting,
+      gaps,
+      stale
     })
   };
 }
@@ -145,9 +199,17 @@ function calibrateEvidencePanel(panel: MarketVisionEvidencePanel): MarketVisionE
 function calibrateRegimeEntry(entry: MarketVisionRegimeEntry): MarketVisionRegimeEntry {
   const lower = `${entry.explanation} ${entry.supportingIndicators.join(" ")}`.toLowerCase();
   const gaps = lower.includes("limited") || lower.includes("missing") || lower.includes("gap") ? 1 : 0;
+  const stale = lower.includes("stale") || lower.includes("outdated") ? 1 : 0;
   return {
     ...entry,
-    confidence: calibratedConfidence({ supporting: entry.supportingIndicators.length, conflicting: 0, gaps })
+    regime: toDisplayRegime(entry.regime),
+    confidence: calibratedConfidence({
+      supporting: entry.supportingIndicators.length,
+      direct: directIndicatorCount(entry.supportingIndicators),
+      conflicting: 0,
+      gaps,
+      stale
+    })
   };
 }
 
@@ -204,6 +266,8 @@ function emptyTelemetryMetadata(): MarketVisionTelemetryMetadata {
     structuralThemes: [],
     tacticalThemes: [],
     evidenceGaps: ["Evidence is limited."],
+    portfolioContextStatus: "missing",
+    portfolioContextInputs: {},
     portfolioRelevance: defaultPortfolioRelevance(),
     regimeTransitions: [],
     confidenceScores: [],
@@ -240,6 +304,8 @@ export function emptyMarketVisionMetadata(): MarketVisionMetadata {
     tacticalThemes: [],
     keyWatchItems: [],
     evidenceGaps: ["Evidence is limited."],
+    portfolioContextStatus: "missing",
+    portfolioContextInputs: {},
     portfolioRelevance: defaultPortfolioRelevance(),
     regimeTransitions: [],
     confidenceScores: [],
@@ -258,13 +324,17 @@ function toMarketVisionMetadata(value: unknown): MarketVisionMetadata {
   const telemetryFallback = fallback.telemetryMetadata;
   const relevanceRow = typeof row.portfolioRelevance === "object" && row.portfolioRelevance !== null ? row.portfolioRelevance as Record<string, unknown> : {};
   const portfolioRelevanceValue: MarketVisionPortfolioRelevance = {
-    equity: toConfidence(relevanceRow.equity),
-    bond: toConfidence(relevanceRow.bond),
-    gold: toConfidence(relevanceRow.gold),
-    crypto: toConfidence(relevanceRow.crypto),
-    cash: toConfidence(relevanceRow.cash),
-    risk: toConfidence(relevanceRow.risk)
+    equity: toPortfolioRelevanceLevel(relevanceRow.equity),
+    bond: toPortfolioRelevanceLevel(relevanceRow.bond),
+    gold: toPortfolioRelevanceLevel(relevanceRow.gold),
+    crypto: toPortfolioRelevanceLevel(relevanceRow.crypto),
+    cash: toPortfolioRelevanceLevel(relevanceRow.cash),
+    risk: toPortfolioRelevanceLevel(relevanceRow.risk)
   };
+  const portfolioContextInputs = typeof row.portfolioContextInputs === "object" && row.portfolioContextInputs !== null
+    ? row.portfolioContextInputs as Record<string, unknown>
+    : {};
+  const portfolioContextStatus = toPortfolioContextStatus(row.portfolioContextStatus);
   const crossCurrentsRow = typeof row.crossCurrents === "object" && row.crossCurrents !== null ? row.crossCurrents as Record<string, unknown> : {};
   const telemetryCrossCurrentsRow = typeof telemetryRow.crossCurrents === "object" && telemetryRow.crossCurrents !== null
     ? telemetryRow.crossCurrents as Record<string, unknown>
@@ -286,13 +356,21 @@ function toMarketVisionMetadata(value: unknown): MarketVisionMetadata {
       const transition = typeof item === "object" && item !== null ? item as Record<string, unknown> : {};
       const status = String(transition.status ?? "No Change");
       const transitionStatus: MarketVisionMetadata["regimeTransitions"][number]["status"] =
-        status === "Regime Shift Detected" || status === "New Signal" ? status : "No Change";
+        status === "Regime Shift Detected" ||
+        status === "New Signal" ||
+        status === "Minor Classification Change" ||
+        status === "Signal Removed"
+          ? status
+          : "No Change";
       return {
         dimension: toString(transition.dimension, "Regime"),
         previous: transition.previous == null ? null : toString(transition.previous),
         current: toString(transition.current, "mixed"),
+        previousCanonical: transition.previousCanonical == null ? null : toString(transition.previousCanonical),
+        currentCanonical: toString(transition.currentCanonical, ""),
         changed: Boolean(transition.changed),
-        status: transitionStatus
+        status: transitionStatus,
+        explanation: toString(transition.explanation)
       };
     }).slice(0, 12)
     : [];
@@ -305,8 +383,10 @@ function toMarketVisionMetadata(value: unknown): MarketVisionMetadata {
         confidenceScore,
         confidenceLabel: toConfidence(score.confidenceLabel),
         supportingCount: Math.max(0, Math.round(Number(score.supportingCount ?? 0))),
+        directIndicatorCount: Math.max(0, Math.round(Number(score.directIndicatorCount ?? 0))),
         conflictingCount: Math.max(0, Math.round(Number(score.conflictingCount ?? 0))),
-        gapCount: Math.max(0, Math.round(Number(score.gapCount ?? 0)))
+        gapCount: Math.max(0, Math.round(Number(score.gapCount ?? 0))),
+        staleIndicatorCount: Math.max(0, Math.round(Number(score.staleIndicatorCount ?? 0)))
       };
     }).slice(0, 16)
     : [];
@@ -315,8 +395,10 @@ function toMarketVisionMetadata(value: unknown): MarketVisionMetadata {
       const impact = typeof item === "object" && item !== null ? item as Record<string, unknown> : {};
       return {
         dimension: toString(impact.dimension, "Macro factor"),
-        relevance: toConfidence(impact.relevance),
-        reason: toString(impact.reason, "No portfolio context available.")
+        relevance: toPortfolioRelevanceLevel(impact.relevance),
+        reason: toString(impact.reason, "No portfolio context available."),
+        driver: toString(impact.driver),
+        value: impact.value == null ? null : Number(impact.value)
       };
     }).slice(0, 12)
     : [];
@@ -331,6 +413,8 @@ function toMarketVisionMetadata(value: unknown): MarketVisionMetadata {
     tacticalThemes: Array.isArray(row.tacticalThemes) ? normalizeThemeIds(row.tacticalThemes.map(toThemeSummary).slice(0, 8), "tactical") : [],
     keyWatchItems: toLongStringArray(row.keyWatchItems),
     evidenceGaps: toLongStringArray(row.evidenceGaps).length > 0 ? toLongStringArray(row.evidenceGaps) : fallback.evidenceGaps,
+    portfolioContextStatus,
+    portfolioContextInputs,
     portfolioRelevance: portfolioRelevanceValue,
     regimeTransitions: parsedRegimeTransitions,
     confidenceScores: parsedConfidenceScores,
@@ -367,6 +451,10 @@ function toMarketVisionMetadata(value: unknown): MarketVisionMetadata {
       structuralThemes: toLongStringArray(telemetryRow.structuralThemes),
       tacticalThemes: toLongStringArray(telemetryRow.tacticalThemes),
       evidenceGaps: toLongStringArray(telemetryRow.evidenceGaps).length > 0 ? toLongStringArray(telemetryRow.evidenceGaps) : fallback.evidenceGaps,
+      portfolioContextStatus: toPortfolioContextStatus(telemetryRow.portfolioContextStatus ?? portfolioContextStatus),
+      portfolioContextInputs: typeof telemetryRow.portfolioContextInputs === "object" && telemetryRow.portfolioContextInputs !== null
+        ? telemetryRow.portfolioContextInputs as Record<string, unknown>
+        : portfolioContextInputs,
       portfolioRelevance: portfolioRelevanceValue,
       regimeTransitions: Array.isArray(telemetryRow.regimeTransitions) ? telemetryRow.regimeTransitions as MarketVisionMetadata["regimeTransitions"] : parsedRegimeTransitions,
       confidenceScores: Array.isArray(telemetryRow.confidenceScores) ? telemetryRow.confidenceScores as MarketVisionMetadata["confidenceScores"] : parsedConfidenceScores,
@@ -380,7 +468,7 @@ function finalizedMarketVisionMetadata(
   metadata: MarketVisionMetadata,
   relevance: MarketVisionPortfolioRelevance,
   previousMetadata: MarketVisionMetadata | null,
-  dashboard: PortfolioDashboard | null
+  portfolioContext: PortfolioContextSummary
 ): MarketVisionMetadata {
   const regimeScorecard = metadata.regimeScorecard.map(calibrateRegimeEntry);
   const evidencePanels = metadata.evidencePanels.map(calibrateEvidencePanel);
@@ -441,51 +529,132 @@ function finalizedMarketVisionMetadata(
       structuralThemes: structuralThemes.map((theme) => theme.displayName),
       tacticalThemes: tacticalThemes.map((theme) => theme.displayName),
       evidenceGaps: evidenceGaps.length > 0 ? evidenceGaps : ["Evidence is limited."],
+      portfolioContextStatus: portfolioContext.status,
+      portfolioContextInputs: portfolioContext.inputs,
       portfolioRelevance: relevance
     }
   };
-  return enrichPhaseAMetadata(finalized, { relevance, previous: previousMetadata, dashboard });
+  return enrichPhaseAMetadata(finalized, { relevance, previous: previousMetadata, portfolioContext });
 }
 
-function confidenceScoreForCounts(supportingCount: number, conflictingCount: number, gapCount: number) {
-  const score = Math.max(0, Math.min(100, 50 + supportingCount * 18 - conflictingCount * 16 - gapCount * 14));
-  return Math.round(score);
-}
-
-function labelForConfidenceScore(score: number): MarketVisionConfidenceLevel {
-  if (score >= 80) return "High";
-  if (score >= 50) return "Medium";
-  return "Low";
-}
-
-function confidenceScores(evidencePanels: MarketVisionEvidencePanel[]) {
-  return evidencePanels.map((panel) => {
+function confidenceScores(evidencePanels: MarketVisionEvidencePanel[], regimes: MarketVisionRegimeEntry[]) {
+  const evidenceRows = evidencePanels.map((panel) => {
     const supportingCount = panel.supportingIndicators.length;
     const conflictingCount = panel.conflictingIndicators.length;
     const gapCount = panel.evidenceGaps.length;
-    const confidenceScore = confidenceScoreForCounts(supportingCount, conflictingCount, gapCount);
+    const directCount = directIndicatorCount(panel.supportingIndicators);
+    const staleCount = staleIndicatorCount([...panel.supportingIndicators, ...panel.conflictingIndicators, ...panel.evidenceGaps]);
+    const confidenceScore = confidenceScoreForCounts({
+      supportingCount,
+      directIndicatorCount: directCount,
+      conflictingCount,
+      gapCount,
+      staleIndicatorCount: staleCount
+    });
     return {
       section: panel.section,
       confidenceScore,
       confidenceLabel: labelForConfidenceScore(confidenceScore),
       supportingCount,
+      directIndicatorCount: directCount,
       conflictingCount,
-      gapCount
+      gapCount,
+      staleIndicatorCount: staleCount
     };
   });
+  const regimeRows = regimes.map((entry) => {
+    const lower = `${entry.explanation} ${entry.supportingIndicators.join(" ")}`.toLowerCase();
+    const supportingCount = entry.supportingIndicators.length;
+    const gapCount = lower.includes("limited") || lower.includes("missing") || lower.includes("gap") ? 1 : 0;
+    const directCount = directIndicatorCount(entry.supportingIndicators);
+    const staleCount = staleIndicatorCount([...entry.supportingIndicators, entry.explanation]);
+    const confidenceScore = confidenceScoreForCounts({
+      supportingCount,
+      directIndicatorCount: directCount,
+      conflictingCount: 0,
+      gapCount,
+      staleIndicatorCount: staleCount
+    });
+    return {
+      section: `Macro - ${entry.label}`,
+      confidenceScore,
+      confidenceLabel: labelForConfidenceScore(confidenceScore),
+      supportingCount,
+      directIndicatorCount: directCount,
+      conflictingCount: 0,
+      gapCount,
+      staleIndicatorCount: staleCount
+    };
+  });
+  return [...regimeRows, ...evidenceRows];
+}
+
+function canonicalText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function toDisplayRegime(value: string) {
+  const normalized = normalizeGeneratedText(value).replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return normalized || "mixed";
+}
+
+function canonicalRegime(value: string) {
+  const normalized = canonicalText(value);
+  if (["falling_rate_support", "falling_rates", "rate_support", "rates_falling"].includes(normalized)) return "falling_rate_support";
+  if (["high_and_sticky", "sticky_high", "sticky_inflation"].includes(normalized)) return "inflation_high_and_sticky";
+  if (["reaccelerating", "inflation_reaccelerating", "inflation_reacceleration"].includes(normalized)) return "inflation_reaccelerating";
+  if (["cooling", "disinflation", "moderating", "inflation_cooling"].includes(normalized)) return "inflation_cooling";
+  if (["weakening", "growth_weakening", "slowing", "contracting"].includes(normalized)) return "growth_weakening";
+  if (["strengthening", "growth_strengthening", "accelerating", "expanding"].includes(normalized)) return "growth_strengthening";
+  if (["mixed", "balanced", "neutral", "stable"].includes(normalized)) return normalized;
+  return normalized || "mixed";
+}
+
+function regimeFamily(canonical: string) {
+  if (canonical.startsWith("inflation_")) return "inflation";
+  if (canonical.startsWith("growth_")) return "growth";
+  if (canonical.includes("rate")) return "rates";
+  return canonical;
+}
+
+function isOppositeRegimeShift(previousCanonical: string | null, currentCanonical: string) {
+  if (!previousCanonical) return false;
+  const pair = new Set([previousCanonical, currentCanonical]);
+  return pair.has("growth_weakening") && pair.has("growth_strengthening");
 }
 
 function regimeTransitions(current: MarketVisionRegimeEntry[], previous?: MarketVisionMetadata | null) {
   const previousEntries = previous?.regimeScorecard ?? [];
   return current.map((entry) => {
     const prior = previousEntries.find((item) => item.label.toLowerCase() === entry.label.toLowerCase())?.regime ?? null;
-    const changed = prior !== null && prior.toLowerCase() !== entry.regime.toLowerCase();
+    const previousCanonical = prior ? canonicalRegime(prior) : null;
+    const currentCanonical = canonicalRegime(entry.regime);
+    const changed = previousCanonical !== null && previousCanonical !== currentCanonical;
+    const sameFamily = previousCanonical !== null && regimeFamily(previousCanonical) === regimeFamily(currentCanonical);
+    const oppositeShift = isOppositeRegimeShift(previousCanonical, currentCanonical);
+    const status =
+      prior === null
+        ? "New Signal" as const
+        : previousCanonical === currentCanonical
+          ? "No Change" as const
+          : sameFamily && !oppositeShift
+            ? "Minor Classification Change" as const
+            : "Regime Shift Detected" as const;
     return {
       dimension: entry.label,
-      previous: prior,
-      current: entry.regime,
+      previous: prior ? toDisplayRegime(prior) : null,
+      current: toDisplayRegime(entry.regime),
+      previousCanonical,
+      currentCanonical,
       changed,
-      status: prior === null ? "New Signal" as const : changed ? "Regime Shift Detected" as const : "No Change" as const
+      status,
+      explanation: status === "No Change"
+        ? "Raw wording changed little after canonical normalization."
+        : status === "Minor Classification Change"
+          ? "The regime moved within the same macro family, so this is not treated as a full regime shift."
+          : status === "New Signal"
+            ? "No prior comparable signal was available."
+            : "The current canonical regime moved to a different macro family."
     };
   });
 }
@@ -514,53 +683,133 @@ function crossCurrents(regimeScorecard: MarketVisionRegimeEntry[]) {
   };
 }
 
-function impactReason(dimension: string, relevance: MarketVisionConfidenceLevel, reason: string) {
-  return { dimension, relevance, reason };
+type PortfolioContextSummary = {
+  status: MarketVisionPortfolioContextStatus;
+  inputs: Record<string, unknown>;
+  impactMatrix: MarketVisionPortfolioImpact[];
+};
+
+function levelFromPercent(percent: number, highThreshold: number, mediumThreshold: number): MarketVisionConfidenceLevel {
+  if (percent >= highThreshold) return "High";
+  if (percent >= mediumThreshold) return "Medium";
+  return "Low";
 }
 
-function portfolioImpactMatrix(dashboard: PortfolioDashboard | null, relevance: MarketVisionPortfolioRelevance) {
-  if (!dashboard) {
-    return [
-      impactReason("Growth", "Low", "No portfolio context available."),
-      impactReason("Inflation", "Low", "No portfolio context available."),
-      impactReason("Rates", "Low", "No portfolio context available."),
-      impactReason("Liquidity", "Low", "No portfolio context available."),
-      impactReason("USD", "Low", "No portfolio context available."),
-      impactReason("Commodities", "Low", "No portfolio context available."),
-      impactReason("Geopolitics", "Low", "No portfolio context available.")
-    ];
+function portfolioContextSummary(dashboard: PortfolioDashboard | null, exposureContext?: PortfolioExposureContext | null): PortfolioContextSummary {
+  const missingRows = [
+    "Growth",
+    "Inflation",
+    "Rates",
+    "Liquidity",
+    "USD",
+    "Commodities",
+    "Geopolitics"
+  ].map((dimension) => ({
+    dimension,
+    relevance: "Not assessed" as const,
+    reason: "Portfolio context was not available for this generated report.",
+    driver: "missing_portfolio_context",
+    value: null
+  }));
+  if (!dashboard) return { status: "missing", inputs: {}, impactMatrix: missingRows };
+  const typePercent = (assetTypes: string[], labelNeedles: string[]) => {
+    const holdingPercent = dashboard.holdingValuations
+      .filter((holding) => assetTypes.includes(holding.holding.assetType) || labelHasAny(holding.holding.assetName, labelNeedles) || labelHasAny(holding.holding.ticker, labelNeedles))
+      .reduce((sum, holding) => sum + (dashboard.totalValueEstimate > 0 ? holding.value / dashboard.totalValueEstimate : 0), 0);
+    const allocation = dashboard.allocationByType
+      .filter((item) => labelHasAny(item.label, labelNeedles))
+      .reduce((sum, item) => sum + item.percent, 0);
+    return Math.max(holdingPercent, allocation);
+  };
+  const equityPercent = typePercent(["stock", "etf"], ["stock", "equity", "etf", "technology", "healthcare", "financial", "consumer", "industrial"]);
+  const bondPercent = typePercent(["bond_etf"], ["bond", "fixed income", "treasury", "tips"]);
+  const commodityPercent = typePercent(["gold_etf", "commodity_etf"], ["gold", "commodit", "precious"]);
+  const cryptoPercent = typePercent(["crypto", "crypto_etf"], ["crypto", "bitcoin", "ethereum"]);
+  const cashPercent = dashboard.cashPercent;
+  const nonUsPercent = dashboard.allocationByGeography
+    .filter((item) => !["us", "u.s.", "usa", "united states", "united states of america"].includes(item.label.toLowerCase()))
+    .reduce((sum, item) => sum + item.percent, 0);
+  const energyPercent = (exposureContext?.sectorAllocation ?? dashboard.allocationBySector)
+    .filter((item) => labelHasAny(item.label, ["energy"]))
+    .reduce((sum, item) => sum + item.percent, 0);
+  const defenseSecurityPercent = (exposureContext?.sectorAllocation ?? dashboard.allocationBySector)
+    .filter((item) => labelHasAny(item.label, ["defense", "security", "aerospace"]))
+    .reduce((sum, item) => sum + item.percent, 0);
+  const inputs = {
+    equityPercent: roundedPercent(equityPercent),
+    bondPercent: roundedPercent(bondPercent),
+    commodityGoldPercent: roundedPercent(commodityPercent),
+    cryptoPercent: roundedPercent(cryptoPercent),
+    cashPercent: roundedPercent(cashPercent),
+    nonUsPercent: roundedPercent(nonUsPercent),
+    energyPercent: roundedPercent(energyPercent),
+    defenseSecurityPercent: roundedPercent(defenseSecurityPercent),
+    sectorSource: exposureContext?.sectorSource ?? "direct_metadata",
+    geographySource: exposureContext?.geographySource ?? "direct_metadata",
+    lookthroughCoverage: exposureContext?.coverage ?? null,
+    latestPriceDate: dashboard.latestPriceDate
+  };
+  const row = (
+    dimension: string,
+    relevance: MarketVisionConfidenceLevel,
+    reason: string,
+    driver: string,
+    value: number
+  ): MarketVisionPortfolioImpact => ({ dimension, relevance, reason, driver, value: roundedPercent(value) });
+  const inflationDriver = bondPercent + commodityPercent;
+  const ratesDriver = bondPercent + cashPercent;
+  const liquidityDriver = equityPercent + cryptoPercent;
+  const commodityDriver = commodityPercent + energyPercent;
+  const geopoliticalDriver = nonUsPercent + commodityPercent + energyPercent + defenseSecurityPercent;
+  return {
+    status: dashboard.totalValueEstimate > 0 ? "available" : "partial",
+    inputs,
+    impactMatrix: [
+      row("Growth", levelFromPercent(equityPercent, 0.6, 0.3), `Growth relevance is driven by equity-sensitive exposure of ${roundedPercent(equityPercent)}%.`, "equityPercent", equityPercent),
+      row("Inflation", levelFromPercent(inflationDriver, 0.3, 0.1), `Inflation relevance uses bond plus commodity/gold exposure of ${roundedPercent(inflationDriver)}%.`, "bondPlusCommodityGoldPercent", inflationDriver),
+      row("Rates", levelFromPercent(ratesDriver, 0.3, 0.1), `Rates relevance uses bond plus cash exposure of ${roundedPercent(ratesDriver)}%.`, "bondPlusCashPercent", ratesDriver),
+      row("Liquidity", levelFromPercent(liquidityDriver, 0.6, 0.3), `Liquidity relevance uses equity plus crypto/risk-asset exposure of ${roundedPercent(liquidityDriver)}%.`, "equityPlusCryptoPercent", liquidityDriver),
+      row("USD", levelFromPercent(nonUsPercent, 0.3, 0.1), `USD relevance reflects non-US geography exposure of ${roundedPercent(nonUsPercent)}%.`, "nonUsPercent", nonUsPercent),
+      row("Commodities", levelFromPercent(commodityDriver, 0.15, 0.05), `Commodity relevance uses commodity/gold plus energy exposure of ${roundedPercent(commodityDriver)}%.`, "commodityGoldPlusEnergyPercent", commodityDriver),
+      row("Geopolitics", levelFromPercent(geopoliticalDriver, 0.3, 0.1), `Geopolitical relevance uses non-US, commodity, energy and defense/security exposure of ${roundedPercent(geopoliticalDriver)}%.`, "nonUsPlusCommodityEnergyDefensePercent", geopoliticalDriver)
+    ]
+  };
+}
+
+function portfolioRelevanceFromContext(context: PortfolioContextSummary): MarketVisionPortfolioRelevance {
+  if (context.status === "missing") {
+    return { equity: "Not assessed", bond: "Not assessed", gold: "Not assessed", crypto: "Not assessed", cash: "Not assessed", risk: "Not assessed" };
   }
-  const pct = (value: number) => `${Math.round(value * 1000) / 10}%`;
-  const international = dashboard.allocationByGeography
-    .filter((item) => !["us", "united states", "usa"].includes(item.label.toLowerCase()))
-    .reduce((sum, item) => sum + item.percent, 0);
-  const commodityLike = dashboard.allocationByType
-    .filter((item) => labelHasAny(item.label, ["gold", "commodit"]))
-    .reduce((sum, item) => sum + item.percent, 0);
-  return [
-    impactReason("Growth", relevance.equity, `Equity-sensitive exposure is the primary growth channel; invested share is ${pct(dashboard.investedPercent)}.`),
-    impactReason("Inflation", relevance.gold === "High" || relevance.bond === "High" ? "High" : relevance.gold === "Medium" || relevance.bond === "Medium" ? "Medium" : "Low", `Inflation relevance reflects gold/commodities and bond sensitivity; commodity-like exposure is ${pct(commodityLike)}.`),
-    impactReason("Rates", relevance.bond === "High" || relevance.cash === "High" ? "High" : relevance.bond === "Medium" || relevance.cash === "Medium" ? "Medium" : "Low", `Rates relevance reflects bond and cash exposure; cash is ${pct(dashboard.cashPercent)}.`),
-    impactReason("Liquidity", relevance.crypto === "High" || relevance.equity === "High" ? "High" : "Medium", "Liquidity relevance reflects risk-asset exposure and crypto sensitivity where present."),
-    impactReason("USD", international >= 0.25 ? "High" : international >= 0.05 ? "Medium" : "Low", `USD relevance reflects non-US geography exposure of ${pct(international)}.`),
-    impactReason("Commodities", relevance.gold, `Commodity relevance is tied to explicit gold/commodity exposure of ${pct(commodityLike)}.`),
-    impactReason("Geopolitics", international >= 0.25 || commodityLike >= 0.05 ? "High" : international >= 0.05 ? "Medium" : "Low", "Geopolitical relevance reflects international and commodity-sensitive exposure.")
-  ];
+  const impact = (dimension: string) => context.impactMatrix.find((item) => item.dimension === dimension)?.relevance ?? "Low";
+  const inputs = context.inputs as Record<string, number>;
+  return {
+    equity: impact("Growth"),
+    bond: impact("Rates"),
+    gold: impact("Commodities"),
+    crypto: (inputs.cryptoPercent ?? 0) >= 5 ? "Medium" : "Low",
+    cash: (inputs.cashPercent ?? 0) >= 10 ? "Medium" : "Low",
+    risk: impact("Liquidity")
+  };
 }
 
-function enrichPhaseAMetadata(metadata: MarketVisionMetadata, input: { relevance: MarketVisionPortfolioRelevance; previous?: MarketVisionMetadata | null; dashboard: PortfolioDashboard | null }) {
+function enrichPhaseAMetadata(metadata: MarketVisionMetadata, input: { relevance: MarketVisionPortfolioRelevance; previous?: MarketVisionMetadata | null; portfolioContext: PortfolioContextSummary }) {
   const regimeTransitionRows = regimeTransitions(metadata.regimeScorecard, input.previous);
-  const confidenceRows = confidenceScores(metadata.evidencePanels);
+  const confidenceRows = confidenceScores(metadata.evidencePanels, metadata.regimeScorecard);
   const crossCurrentRows = crossCurrents(metadata.regimeScorecard);
-  const impactRows = portfolioImpactMatrix(input.dashboard, input.relevance);
+  const impactRows = input.portfolioContext.impactMatrix;
   return {
     ...metadata,
+    portfolioContextStatus: input.portfolioContext.status,
+    portfolioContextInputs: input.portfolioContext.inputs,
     regimeTransitions: regimeTransitionRows,
     confidenceScores: confidenceRows,
     crossCurrents: crossCurrentRows,
     portfolioImpactMatrix: impactRows,
     telemetryMetadata: {
       ...metadata.telemetryMetadata,
+      portfolioContextStatus: input.portfolioContext.status,
+      portfolioContextInputs: input.portfolioContext.inputs,
+      portfolioRelevance: input.relevance,
       regimeTransitions: regimeTransitionRows,
       confidenceScores: confidenceRows,
       crossCurrents: crossCurrentRows,
@@ -786,39 +1035,6 @@ function portfolioExposureFlags(dashboard: PortfolioDashboard | null): Portfolio
   };
 }
 
-function allocationPercent(dashboard: PortfolioDashboard, assetTypes: string[], labelNeedles: string[]) {
-  const holdingValue = dashboard.holdings.some((holding) => assetTypes.includes(holding.assetType)) ? 1 : 0;
-  const allocation = dashboard.allocationByType
-    .filter((item) => labelHasAny(item.label, labelNeedles))
-    .reduce((sum, item) => sum + item.percent, 0);
-  return Math.max(allocation, holdingValue > 0 ? 0.01 : 0);
-}
-
-function relevanceFromPercent(percent: number): MarketVisionConfidenceLevel {
-  if (percent >= 0.25) return "High";
-  if (percent >= 0.03) return "Medium";
-  return "Low";
-}
-
-function portfolioRelevance(dashboard: PortfolioDashboard | null): MarketVisionPortfolioRelevance {
-  if (!dashboard) return defaultPortfolioRelevance();
-  const equity = dashboard.allocationByType
-    .filter((item) => labelHasAny(item.label, ["stock", "equity", "etf"]))
-    .reduce((sum, item) => sum + item.percent, 0);
-  const bond = allocationPercent(dashboard, ["bond_etf"], ["bond", "fixed income"]);
-  const gold = allocationPercent(dashboard, ["gold_etf"], ["gold", "commodit"]);
-  const crypto = allocationPercent(dashboard, ["crypto"], ["crypto", "bitcoin", "ethereum"]);
-  const cash = dashboard.cashPercent;
-  return {
-    equity: relevanceFromPercent(equity),
-    bond: relevanceFromPercent(bond),
-    gold: relevanceFromPercent(gold),
-    crypto: relevanceFromPercent(crypto),
-    cash: relevanceFromPercent(cash),
-    risk: dashboard.totalValueEstimate > 0 ? "High" : "Low"
-  };
-}
-
 function portfolioExposureGuidance(flags: PortfolioExposureFlags | null) {
   if (!flags) {
     return {
@@ -988,7 +1204,8 @@ export class MarketVisionGenerationService {
     ]);
 
     const exposureFlags = portfolioExposureFlags(dashboard);
-    const relevance = portfolioRelevance(dashboard);
+    const portfolioContext = portfolioContextSummary(dashboard, exposureContext);
+    const relevance = portfolioRelevanceFromContext(portfolioContext);
     const structuredEvidencePack = evidencePack({
       weekly: {
         equitiesSummary: weekly.equitiesSummary ?? "",
@@ -1050,6 +1267,10 @@ export class MarketVisionGenerationService {
         }))
       },
       portfolio: portfolioSnapshot(dashboard, exposureContext),
+      portfolioContextStatus: portfolioContext.status,
+      portfolioContextInputs: portfolioContext.inputs,
+      portfolioMacroImpactMatrix: portfolioContext.impactMatrix,
+      portfolioContextWarning: portfolioContext.status === "missing" ? "No portfolio context was available for this generated report. Portfolio-specific relevance must be shown as Not assessed." : null,
       portfolioExposureFlags: exposureFlags,
       portfolioExposureGuidance: portfolioExposureGuidance(exposureFlags),
       portfolioRelevance: relevance,
@@ -1070,7 +1291,7 @@ export class MarketVisionGenerationService {
       }), exposureFlags);
       const completedAt = new Date();
       const duration = completedAt.getTime() - startedAt.getTime();
-      const calibratedMetadata = finalizedMarketVisionMetadata(aiOutput.marketVisionMetadata, relevance, previousMarketVisionMetadata, dashboard);
+      const calibratedMetadata = finalizedMarketVisionMetadata(aiOutput.marketVisionMetadata, relevance, previousMarketVisionMetadata, portfolioContext);
       const marketVisionMetadata: MarketVisionMetadata = {
         ...calibratedMetadata,
         telemetryMetadata: {
@@ -1122,7 +1343,12 @@ export class MarketVisionGenerationService {
         promptVersion: MARKET_VISION_PROMPT_VERSION,
         tokenUsage: aiOutput.tokenUsage ?? {},
         costEstimate: aiOutput.costEstimate ?? null,
-        metadata: { durationMs: duration, portfolioContextIncluded: Boolean(dashboard) }
+        metadata: {
+          durationMs: duration,
+          portfolioContextIncluded: Boolean(dashboard),
+          portfolioContextStatus: portfolioContext.status,
+          portfolioContextInputs: portfolioContext.inputs
+        }
       });
       return report;
     } catch (error) {

@@ -58,14 +58,22 @@ function mapMarketVisionMetadata(value: unknown): MarketVisionMetadata {
   const telemetryRelevance = typeof (telemetry as Record<string, unknown>).portfolioRelevance === "object" && (telemetry as Record<string, unknown>).portfolioRelevance !== null
     ? (telemetry as Record<string, unknown>).portfolioRelevance as Record<string, unknown>
     : {};
+  const relevanceValue = (value: unknown) =>
+    value === "High" || value === "Medium" || value === "Low" || value === "Not assessed" ? value : "Low";
   const mapRelevance = (source: Record<string, unknown>) => ({
-    equity: (source.equity as MarketVisionMetadata["portfolioRelevance"]["equity"]) ?? "Low",
-    bond: (source.bond as MarketVisionMetadata["portfolioRelevance"]["bond"]) ?? "Low",
-    gold: (source.gold as MarketVisionMetadata["portfolioRelevance"]["gold"]) ?? "Low",
-    crypto: (source.crypto as MarketVisionMetadata["portfolioRelevance"]["crypto"]) ?? "Low",
-    cash: (source.cash as MarketVisionMetadata["portfolioRelevance"]["cash"]) ?? "Low",
-    risk: (source.risk as MarketVisionMetadata["portfolioRelevance"]["risk"]) ?? "Low"
+    equity: relevanceValue(source.equity) as MarketVisionMetadata["portfolioRelevance"]["equity"],
+    bond: relevanceValue(source.bond) as MarketVisionMetadata["portfolioRelevance"]["bond"],
+    gold: relevanceValue(source.gold) as MarketVisionMetadata["portfolioRelevance"]["gold"],
+    crypto: relevanceValue(source.crypto) as MarketVisionMetadata["portfolioRelevance"]["crypto"],
+    cash: relevanceValue(source.cash) as MarketVisionMetadata["portfolioRelevance"]["cash"],
+    risk: relevanceValue(source.risk) as MarketVisionMetadata["portfolioRelevance"]["risk"]
   });
+  const portfolioContextStatus = row.portfolioContextStatus === "available" || row.portfolioContextStatus === "partial" || row.portfolioContextStatus === "missing"
+    ? row.portfolioContextStatus
+    : "missing";
+  const portfolioContextInputs = typeof row.portfolioContextInputs === "object" && row.portfolioContextInputs !== null
+    ? row.portfolioContextInputs as Record<string, unknown>
+    : {};
   const crossCurrents = typeof row.crossCurrents === "object" && row.crossCurrents !== null
     ? row.crossCurrents as MarketVisionMetadata["crossCurrents"]
     : { positiveForces: [], negativeForces: [], neutralForces: [], netInterpretation: "Mixed" as const };
@@ -83,6 +91,8 @@ function mapMarketVisionMetadata(value: unknown): MarketVisionMetadata {
     tacticalThemes: Array.isArray(row.tacticalThemes) ? row.tacticalThemes as MarketVisionMetadata["tacticalThemes"] : [],
     keyWatchItems: toStringArray(row.keyWatchItems),
     evidenceGaps: toStringArray(row.evidenceGaps),
+    portfolioContextStatus,
+    portfolioContextInputs,
     portfolioRelevance,
     regimeTransitions,
     confidenceScores,
@@ -119,6 +129,10 @@ function mapMarketVisionMetadata(value: unknown): MarketVisionMetadata {
       structuralThemes: toStringArray((telemetry as Record<string, unknown>).structuralThemes),
       tacticalThemes: toStringArray((telemetry as Record<string, unknown>).tacticalThemes),
       evidenceGaps: toStringArray((telemetry as Record<string, unknown>).evidenceGaps),
+      portfolioContextStatus: portfolioContextStatus,
+      portfolioContextInputs: typeof (telemetry as Record<string, unknown>).portfolioContextInputs === "object" && (telemetry as Record<string, unknown>).portfolioContextInputs !== null
+        ? (telemetry as Record<string, unknown>).portfolioContextInputs as Record<string, unknown>
+        : portfolioContextInputs,
       portfolioRelevance: mapRelevance(telemetryRelevance),
       regimeTransitions: Array.isArray((telemetry as Record<string, unknown>).regimeTransitions)
         ? (telemetry as Record<string, unknown>).regimeTransitions as MarketVisionMetadata["regimeTransitions"]

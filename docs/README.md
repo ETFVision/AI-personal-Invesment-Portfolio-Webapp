@@ -1,6 +1,6 @@
 # ETFVision Documentation Index
 
-Last updated: 2026-06-13 16:20:00 +08:00
+Last updated: 2026-06-14 00:00:00 +08:00
 
 This folder contains both current handover documents and older historical audits. The uppercase documents below are the current authoritative handover pack as of the timestamp above.
 
@@ -19,7 +19,7 @@ The handover pack is current for the major architecture and audit work completed
 | Portfolio Review | Current for current UI | `PORTFOLIO_REVIEW_METHODOLOGY.md`, `SECURITY_MASTER_AUDIT.md`, `qa-log.md` | Uses issuer-level company exposure where available, preserves direct ETF wrappers, and stores security-level drill-down for audit. |
 | Recommendation / Insights | Mostly current | `RECOMMENDATION_INSIGHTS_METHODOLOGY.md`, `SCORE_METHODOLOGY.md`, `recommendation-language-audit.md` | Deterministic engine. Portfolio fit can use issuer-level exposure. Recommendation, recommendation history, and telemetry recommendation snapshots now persist stable `security_id` / `issuer_id` where available. |
 | Assistant | Mostly current | `ASSISTANT_ARCHITECTURE.md`, `SECURITY_MASTER_AUDIT.md` | Assistant context can explain issuer-level hidden overlap after Portfolio Review refresh. Cost tracking and exact table inventory still need final schema audit. |
-| Market Vision, News, Macro, Fundamentals, Risk, Fixed Income, Telemetry | Methodology documented; some UI/data-map gaps remain | `MARKET_VISION_METHODOLOGY.md`, `NEWS_THEME_METHODOLOGY.md`, `SCORE_METHODOLOGY.md`, `TELEMETRY_ARCHITECTURE.md`, `DOCUMENTATION_GAPS.md` | Formula/methodology exists, but route-by-route field lineage is still a follow-up documentation task. |
+| Market Vision, News, Macro, Fundamentals, Risk, Fixed Income, Telemetry | Methodology documented; some UI/data-map gaps remain | `MARKET_VISION_METHODOLOGY.md`, `MARKET_VISION_REGRESSION_FIX.md`, `NEWS_THEME_METHODOLOGY.md`, `SCORE_METHODOLOGY.md`, `TELEMETRY_ARCHITECTURE.md`, `DOCUMENTATION_GAPS.md` | Market Vision scheduled portfolio context regression is fixed. Route-by-route field lineage is still a follow-up documentation task. |
 | Scheduled refresh automation | Current, but should be checked against live Supabase cron after edits | `scheduled-jobs.md`, `JOBS_AND_OPERATIONS.md`, `DATA_INGESTION_AND_PROVIDERS.md` | Supabase cron replaced GitHub Actions for production refreshes. Keep schedule docs aligned with migrations and live `cron.job`. |
 | Feature gates and alpha branch | Partly completed | `feature-gated-production-architecture-audit.md`, `COMMERCIALIZATION_AUDIT_PLAN.md`, `SECURITY_AND_ACCESS_ARCHITECTURE.md` | Alpha is intended to expose a smaller consumer surface. Future merges from main/development into alpha should preserve feature flags. |
 | Commercialization readiness | In progress | `COMMERCIALIZATION_AUDIT_PLAN.md`, `DOCUMENTATION_GAPS.md`, focused audit docs | Commercialization audit is the master checklist. Completed audits should be marked there, not only in implementation notes. |
@@ -39,7 +39,7 @@ This is the quick map of notable audits completed or started so far. `qa-log.md`
 | Taxonomy and data normalization | Completed for current checkpoint | `DATA_NORMALIZATION_AUDIT.md`, `DATABASE_SCHEMA.md`, `COMMERCIALIZATION_AUDIT_PLAN.md` | `qa-log.md` Taxonomy QA Backfill, Data Normalization Commercialization Audit Completion |
 | Risk analytics | Current formula methodology documented; route-level lineage pending | `SCORE_METHODOLOGY.md`, `CALCULATION_METHODOLOGY.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` Risk Analytics Layer QA, Exposure Context Consistency QA |
 | Fixed income / bond intelligence | Current methodology documented; profile coverage map pending | `SCORE_METHODOLOGY.md`, `DATABASE_SCHEMA.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` Bond Intelligence Foundation, Enrichment, and Layer QA |
-| Market Vision | Methodology documented; publish/draft lifecycle and next-phase QA pending | `MARKET_VISION_METHODOLOGY.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` Market Vision Skeleton QA, Market Vision Follow-Up Backlog Checkpoint |
+| Market Vision | Methodology documented; scheduled context regression fixed; publish/draft lifecycle remains a product-policy question | `MARKET_VISION_METHODOLOGY.md`, `MARKET_VISION_REGRESSION_FIX.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` Market Vision Skeleton QA, Market Vision Follow-Up Backlog Checkpoint, Market Vision Portfolio Context Regression Fix |
 | News and themes | Methodology documented; threshold/page map follow-up pending | `NEWS_THEME_METHODOLOGY.md`, `DATA_INGESTION_AND_PROVIDERS.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` News Intelligence Layer Comprehensive QA |
 | Fundamentals layer | Score/trend methodology documented; page-field map pending | `SCORE_METHODOLOGY.md`, `DATABASE_SCHEMA.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` Documentation Methodology Follow-Up entries |
 | Recommendation / Insights | Mostly completed | `RECOMMENDATION_INSIGHTS_METHODOLOGY.md`, `recommendation-language-audit.md`, `SCORE_METHODOLOGY.md` | `qa-log.md` Recommendation Language Refinement QA, Exposure Context Consistency QA, Security Master Phase 5 identity propagation |
@@ -68,6 +68,7 @@ This is the quick map of notable audits completed or started so far. `qa-log.md`
 - [Recommendation Insights Methodology](RECOMMENDATION_INSIGHTS_METHODOLOGY.md)
 - [News and Theme Methodology](NEWS_THEME_METHODOLOGY.md)
 - [Market Vision Methodology](MARKET_VISION_METHODOLOGY.md)
+- [Market Vision Regression Fix](MARKET_VISION_REGRESSION_FIX.md)
 - [Assistant Architecture](ASSISTANT_ARCHITECTURE.md)
 - [Telemetry Architecture](TELEMETRY_ARCHITECTURE.md)
 - [Jobs and Operations](JOBS_AND_OPERATIONS.md)

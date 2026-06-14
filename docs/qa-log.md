@@ -3702,3 +3702,40 @@ Findings:
 Validation:
 - Documentation-only update.
 - No runtime tests were run because no executable code changed.
+
+## 2026-06-14 00:00 SGT - Market Vision Portfolio Context Regression Fix
+
+Scope:
+- Fixed scheduled Market Vision generation so cron-created weekly drafts resolve the first active default portfolio before calling the Market Vision generation service.
+- Replaced the old missing-context fallback that showed all portfolio macro rows as Low relevance with explicit `Not assessed` metadata.
+- Added deterministic portfolio macro impact scoring from actual portfolio exposure inputs.
+- Reworked confidence rows to use a mechanical support/direct/conflict/gap/stale formula.
+- Reworked regime transition comparison to use canonical labels and distinguish minor wording/classification changes from true regime shifts.
+
+Root cause:
+- Manual Market Vision generation passed `portfolioId`.
+- Scheduled weekly generation did not pass `portfolioId`, so the report was generated as a global report.
+- The old fallback then made missing portfolio context look like valid Low relevance.
+
+Files updated:
+- `src/application/jobs/GenerateMarketVisionReportJob.ts`
+- `src/application/ports/repositories/PortfolioRepository.ts`
+- `src/application/services/marketVision/MarketVisionGenerationService.ts`
+- `src/domain/marketVision/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseMarketVisionRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabasePortfolioRepository.ts`
+- `src/server/ai/prompts/market-vision.ts`
+- `src/server/container.ts`
+- `tests/market-vision.test.ts`
+- `docs/MARKET_VISION_METHODOLOGY.md`
+- `docs/MARKET_VISION_REGRESSION_FIX.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd test -- market-vision`
+
+Follow-up:
+- Check the next scheduled weekly Market Vision draft in the webapp and confirm `portfolioContextStatus = available`.
+- Continue Market Vision Phase B/C refinement later; this checkpoint only addresses the regression and deterministic metadata hardening.
