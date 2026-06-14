@@ -716,7 +716,13 @@ function confidenceScores(evidencePanels: MarketVisionEvidencePanel[], regimes: 
     });
     const confidenceScore = entry.label.toLowerCase().includes("overall")
       ? overallMarketConfidenceScore(rawConfidenceScore, regimes)
-      : rawConfidenceScore;
+      : macroRegimeConfidenceScore(rawConfidenceScore, {
+        supportingCount,
+        directIndicatorCount: directCount,
+        gapCount,
+        staleIndicatorCount: staleCount,
+        regime: entry.regime
+      });
     return {
       section: `Macro - ${entry.label}`,
       confidenceScore,
@@ -731,9 +737,34 @@ function confidenceScores(evidencePanels: MarketVisionEvidencePanel[], regimes: 
   return [...regimeRows, ...evidenceRows];
 }
 
+function macroRegimeConfidenceScore(rawScore: number, input: {
+  supportingCount: number;
+  directIndicatorCount: number;
+  gapCount: number;
+  staleIndicatorCount: number;
+  regime: string;
+}) {
+  const mixed = canonicalText(input.regime).includes("mixed");
+  const exceptional =
+    input.supportingCount >= 7 &&
+    input.directIndicatorCount >= 5 &&
+    input.gapCount === 0 &&
+    input.staleIndicatorCount === 0 &&
+    !mixed;
+  if (exceptional) return Math.min(rawScore, 100);
+  const strong =
+    input.supportingCount >= 5 &&
+    input.directIndicatorCount >= 4 &&
+    input.gapCount === 0 &&
+    input.staleIndicatorCount === 0 &&
+    !mixed;
+  if (strong) return Math.min(rawScore, 95);
+  return Math.min(rawScore, 90);
+}
+
 function overallMarketConfidenceScore(rawScore: number, regimes: MarketVisionRegimeEntry[]) {
   const canonicalRows = regimes.map((entry) => canonicalRegime(entry.regime, entry.label));
-  const hasMixedOverall = canonicalRows.includes("OVERALL_MIXED");
+  const hasMixedOverall = canonicalRows.some((regime) => regime.startsWith("OVERALL_MIXED"));
   const mixedSignals = canonicalRows.filter((regime) =>
     regime.includes("MIXED") ||
     regime.endsWith("_NEUTRAL") ||
@@ -758,11 +789,11 @@ function overallMarketConfidenceScore(rawScore: number, regimes: MarketVisionReg
     regime === "COMMODITY_ENERGY_PRESSURE" ||
     regime === "OVERALL_DEFENSIVE"
   ).length;
-  const cap = hasMixedOverall || (supportiveSignals >= 2 && adverseSignals >= 2)
+  const cap = mixedSignals >= 2
     ? 74
-    : mixedSignals >= 2
-      ? 82
-      : 95;
+    : hasMixedOverall || (supportiveSignals >= 2 && adverseSignals >= 2)
+      ? 80
+      : 90;
   return Math.min(rawScore, cap);
 }
 
@@ -804,7 +835,7 @@ function canonicalRegime(value: string, dimension = "") {
     return "CURVE_MIXED";
   }
   if (dim.includes("liquidity") || normalized.includes("liquidity")) {
-    if (normalized.includes("tight")) return "LIQUIDITY_TIGHTENING";
+    if (normalized.includes("tight") || normalized.includes("restrict")) return "LIQUIDITY_TIGHTENING";
     if (normalized.includes("eas") || normalized.includes("support")) return "LIQUIDITY_EASING";
     return "LIQUIDITY_NEUTRAL";
   }
@@ -819,9 +850,14 @@ function canonicalRegime(value: string, dimension = "") {
     return "COMMODITY_NEUTRAL_OR_MIXED";
   }
   if (dim.includes("overall") || normalized.includes("overall") || normalized.includes("constructive") || normalized.includes("defensive")) {
-    if (normalized.includes("defensive") || normalized.includes("risk_off")) return "OVERALL_DEFENSIVE";
-    if (normalized.includes("mixed") || normalized.includes("selective") || normalized.includes("balanced")) return "OVERALL_MIXED";
-    if (normalized.includes("constructive") || normalized.includes("risk_support") || normalized.includes("support")) return "OVERALL_CONSTRUCTIVE";
+    if (normalized.includes("risk_off")) return "OVERALL_DEFENSIVE_RISK_OFF";
+    if (normalized.includes("defensive")) return "OVERALL_DEFENSIVE";
+    if (normalized.includes("risk_on")) return "OVERALL_CONSTRUCTIVE_RISK_ON";
+    if ((normalized.includes("mixed") || normalized.includes("selective") || normalized.includes("balanced")) && normalized.includes("constructive") && (normalized.includes("inflation") || normalized.includes("pressure"))) return "OVERALL_MIXED_CONSTRUCTIVE_WITH_INFLATION_PRESSURE";
+    if ((normalized.includes("mixed") || normalized.includes("selective") || normalized.includes("balanced")) && normalized.includes("constructive")) return "OVERALL_MIXED_CONSTRUCTIVE";
+    if (normalized.includes("selective") || normalized.includes("risk_support")) return "OVERALL_MIXED_SELECTIVE_SUPPORT";
+    if (normalized.includes("mixed") || normalized.includes("balanced")) return "OVERALL_MIXED_NEUTRAL";
+    if (normalized.includes("constructive") || normalized.includes("support")) return "OVERALL_CONSTRUCTIVE";
     return "OVERALL_MIXED";
   }
   if (["mixed", "balanced", "neutral", "stable"].includes(normalized)) return "MIXED";
@@ -829,6 +865,10 @@ function canonicalRegime(value: string, dimension = "") {
 }
 
 function regimeFamily(canonical: string) {
+  if (canonical.startsWith("LIQUIDITY_")) return canonical.toLowerCase();
+  if (canonical.startsWith("OVERALL_MIXED")) return "overall_mixed";
+  if (canonical.startsWith("OVERALL_CONSTRUCTIVE")) return "overall_constructive";
+  if (canonical.startsWith("OVERALL_DEFENSIVE")) return "overall_defensive";
   if (canonical.includes("_")) return canonical.split("_")[0].toLowerCase();
   return canonical;
 }
@@ -842,6 +882,7 @@ function isDirectionalRegimeShift(previousCanonical: string | null, currentCanon
     (pair.has("LIQUIDITY_TIGHTENING") && pair.has("LIQUIDITY_EASING")) ||
     (pair.has("RATES_FALLING") && pair.has("RATES_RISING")) ||
     (pair.has("COMMODITY_ENERGY_PRESSURE") && pair.has("COMMODITY_ENERGY_RELIEF")) ||
+    (previousCanonical.startsWith("LIQUIDITY_") && currentCanonical.startsWith("LIQUIDITY_") && previousCanonical !== currentCanonical) ||
     (pair.has("OVERALL_DEFENSIVE") && pair.has("OVERALL_CONSTRUCTIVE"));
 }
 

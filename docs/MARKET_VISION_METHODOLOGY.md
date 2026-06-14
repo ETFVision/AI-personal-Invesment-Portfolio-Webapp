@@ -1,6 +1,6 @@
 # Market Vision Methodology
 
-Last updated: 2026-06-14 22:30:00 +08:00
+Last updated: 2026-06-14 23:00:00 +08:00
 
 ## Purpose
 
@@ -99,7 +99,20 @@ Labels:
 
 Confidence score rows are separated by macro regime and market/evidence panel. Macro regime rows are labelled as `Macro - Growth`, `Macro - Inflation`, `Macro - Rates`, etc., so they are not collapsed into a generic macro bucket.
 
+Macro regime confidence has additional caps after the raw formula is calculated:
+
+- Default macro regime cap: 90.
+- 91-95 is allowed only when all of the following are true: at least 5 supporting observations, at least 4 direct indicator observations, no evidence gaps, no stale indicators, and the regime is not mixed.
+- 96-100 is reserved for exceptional evidence: at least 7 supporting observations, at least 5 direct indicator observations, no evidence gaps, no stale indicators, and the regime is not mixed.
+
 Overall Market confidence has an additional cap because it is a synthesis dimension. If supportive and adverse forces coexist, or if the overall canonical state is mixed, the confidence score is capped at Medium or Medium-high even when the model wording is constructive.
+
+Overall Market cap rules:
+
+- Mixed overall regime: maximum 80.
+- Supportive and adverse signals both present: maximum 80.
+- Two or more mixed/neutral cross-currents: maximum 74, so the displayed label remains Medium.
+- Overall Market should almost never exceed 90 because it synthesizes several dimensions rather than representing one direct data series.
 
 ## Regime Transition Tracker
 
@@ -109,6 +122,8 @@ Transitions are compared using canonical regime labels rather than raw text:
 - Inflation wording such as `reaccelerating` and `high and sticky / reaccelerating` normalize to `INFLATION_ELEVATED`; if raw wording differs, this is a `Minor Classification Change`, not a full regime shift.
 - Yield-curve wording such as `Mixed / normal with conflicting slope signals` and `mixed` normalize to `CURVE_MIXED` and produce `No Change`.
 - Opposite polarity moves such as `Growth: Weakening` to `Growth: Strengthening`, or `USD: Weakening` to `USD: Strengthening`, are `Regime Shift Detected`.
+- Liquidity transitions between tightening, neutral, and easing are directional regime shifts. `Tightening` and `Restrictive` are treated as the same tightening family and produce `No Change`.
+- Overall Market subtypes are treated more gently: `Mixed / selective risk support` to `Mixed but constructive` is a `Minor Classification Change`; identical mixed subtypes are `No Change`; mixed to clear risk-on or risk-off is a `Regime Shift Detected`.
 - New dimensions produce `New Signal`.
 
 Stored transition rows include raw previous/current labels, canonical previous/current labels, status, and explanation.

@@ -2,6 +2,41 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-14 23:00 SGT - Market Vision v3 Small Calibration Pass
+
+Scope:
+- Applied the narrow Market Vision calibration pass after reviewing the refreshed 2026-06-14 draft against the 2026-06-07 report.
+- Focused on transition semantics and confidence caps only.
+- Did not change news ingestion, FRED ingestion, portfolio analytics, recommendation scoring, telemetry scoring, or report publishing behavior.
+
+Files updated:
+- `src/application/services/marketVision/MarketVisionGenerationService.ts`
+- `tests/market-vision.test.ts`
+- `docs/MARKET_VISION_METHODOLOGY.md`
+- `docs/MARKET_VISION_CALIBRATION_NOTES.md`
+- `docs/qa-log.md`
+
+Implementation checks:
+- PASS: Liquidity tightening/neutral/easing transitions are now treated as true regime shifts.
+- PASS: Liquidity `Tightening` and `Restrictive` normalize to the same tightening family.
+- PASS: Overall Market `Mixed / selective risk support` to `Mixed but constructive` is treated as a minor classification change.
+- PASS: Overall Market mixed to explicit risk-on/risk-off is treated as a regime shift.
+- PASS: Macro confidence rows default to a 90 cap unless strong direct evidence is present.
+- PASS: 91-95 confidence requires at least 5 supporting observations, at least 4 direct indicator observations, no gaps, no stale data, and a non-mixed regime.
+- PASS: Overall Market confidence is capped more conservatively when mixed or competing cross-currents are present.
+- PASS: Existing tactical filtering remains intact for USD strength, weakening USD suppression, and neutral-liquidity tightening suppression.
+
+Validation:
+- `npm.cmd test -- market-vision` passed: 240 tests, 240 passed.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd run build` passed.
+- Deleted one generated draft report for `2026-06-08` to `2026-06-14` so the calibrated report can be regenerated manually.
+
+Follow-up:
+- Regenerate the 2026-06-08 to 2026-06-14 report manually from Admin/Data Sources.
+- Compare the regenerated 2026-06-14 report against the 2026-06-07 report before marking Market Vision v3 calibration complete.
+
 ## 2026-06-13 16:20 SGT - Security Master Full QA/QC Closeout
 
 Scope:
