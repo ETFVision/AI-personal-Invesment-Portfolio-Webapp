@@ -19,7 +19,7 @@ import type { PortfolioDashboard } from "@/domain/portfolio/types";
 import { emptyPortfolioImplications } from "./MarketVisionService";
 import { buildPortfolioExposureContext, dashboardWithExposureContext, type PortfolioExposureContext } from "../portfolio/PortfolioExposureContextService";
 
-export const MARKET_VISION_PROMPT_VERSION = "market-vision-v2";
+export const MARKET_VISION_PROMPT_VERSION = "market-vision-v3";
 
 type OptionalPortfolioServices = {
   getPortfolioDashboard?: (portfolioId: string) => Promise<PortfolioDashboard>;
@@ -96,6 +96,12 @@ function toThemeSummary(value: unknown): MarketVisionThemeSummary {
   const row = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
   const name = toString(row.name ?? row.displayName, "Unspecified theme");
   const type = toString(row.type, "structural");
+  const themeStatus = toThemeStatus(row.themeStatus ?? row.theme_status);
+  const displayToUser = typeof row.displayToUser === "boolean"
+    ? row.displayToUser
+    : typeof row.display_to_user === "boolean"
+      ? row.display_to_user
+      : undefined;
   return {
     id: toString(row.id, themeIdFor(name, type)),
     displayName: toString(row.displayName, name),
@@ -103,7 +109,10 @@ function toThemeSummary(value: unknown): MarketVisionThemeSummary {
     name,
     evidence: toLongStringArray(row.evidence),
     persistence: toString(row.persistence, "medium"),
-    confidence: toConfidence(row.confidence)
+    confidence: toConfidence(row.confidence),
+    themeStatus,
+    displayToUser,
+    statusReason: toString(row.statusReason ?? row.status_reason)
   };
 }
 
@@ -112,6 +121,7 @@ function themeIdFor(name: string, type: string) {
   if (type === "tactical") {
     if (normalized.includes("yield")) return "TACTICAL_FALLING_YIELDS";
     if (normalized.includes("oil") || normalized.includes("energy")) return "TACTICAL_RISING_OIL";
+    if ((normalized.includes("strength") || normalized.includes("stronger")) && (normalized.includes("usd") || normalized.includes("dollar"))) return "TACTICAL_USD_STRENGTH";
     if (normalized.includes("usd") || normalized.includes("dollar")) return "TACTICAL_WEAKENING_USD";
     if (normalized.includes("liquidity")) return "TACTICAL_TIGHTENING_LIQUIDITY";
     if (normalized.includes("ai") && (normalized.includes("capex") || normalized.includes("spend"))) return "TACTICAL_AI_CAPEX_DIGESTION";
@@ -125,16 +135,81 @@ function themeIdFor(name: string, type: string) {
   return "THEME_OTHER";
 }
 
+function toThemeStatus(value: unknown): MarketVisionThemeSummary["themeStatus"] {
+  const status = String(value ?? "").toLowerCase();
+  if (status === "active" || status === "inactive" || status === "contradicted" || status === "watch_only" || status === "internal_only") return status;
+  return "active";
+}
+
 function normalizeThemeIds(themes: MarketVisionThemeSummary[], type: "structural" | "tactical") {
   return themes.map((theme) => {
     const id = themeIdFor(theme.id === "THEME_OTHER" || theme.id === "TACTICAL_OTHER" ? theme.name : theme.id, type);
+    const isDefaultThemeId = theme.id === "THEME_OTHER" || theme.id === "TACTICAL_OTHER" || theme.id === "Unspecified theme";
     return {
       ...theme,
-      id: theme.id && theme.id !== "Unspecified theme" ? theme.id : id,
+      id: theme.id && !isDefaultThemeId ? theme.id : id,
       displayName: theme.displayName || theme.name,
+      themeStatus: theme.themeStatus ?? "active",
       type
     };
   });
+}
+
+function userFacingThemes(themes: MarketVisionThemeSummary[]) {
+  return themes.filter((theme) =>
+    theme.displayToUser !== false &&
+    (theme.themeStatus === "active" || theme.themeStatus === "watch_only" || theme.themeStatus == null)
+  );
+}
+
+function finalizeTacticalThemes(themes: MarketVisionThemeSummary[], regimeScorecard: MarketVisionRegimeEntry[]) {
+  const diagnostics: MarketVisionThemeSummary[] = [];
+  const usd = entryByLabel(regimeScorecard, "USD");
+  const liquidity = entryByLabel(regimeScorecard, "Liquidity");
+  const usdRegime = usd ? canonicalRegime(usd.regime, usd.label) : null;
+  const liquidityRegime = liquidity ? canonicalRegime(liquidity.regime, liquidity.label) : null;
+  const finalized = themes.map((theme) => {
+    if (theme.id === "TACTICAL_WEAKENING_USD" && usdRegime === "USD_STRENGTHENING") {
+      return {
+        ...theme,
+        themeStatus: "contradicted" as const,
+        displayToUser: false,
+        statusReason: "Suppressed because the current USD regime is strengthening, not weakening."
+      };
+    }
+    if (theme.id === "TACTICAL_TIGHTENING_LIQUIDITY" && liquidityRegime === "LIQUIDITY_NEUTRAL") {
+      return {
+        ...theme,
+        themeStatus: "inactive" as const,
+        displayToUser: false,
+        statusReason: "Suppressed because the current liquidity regime is neutral."
+      };
+    }
+    return {
+      ...theme,
+      themeStatus: theme.themeStatus ?? "active" as const,
+      displayToUser: theme.displayToUser ?? true
+    };
+  });
+  diagnostics.push(...finalized);
+  if (usdRegime === "USD_STRENGTHENING" && !finalized.some((theme) => theme.id === "TACTICAL_USD_STRENGTH")) {
+    diagnostics.push({
+      id: "TACTICAL_USD_STRENGTH",
+      displayName: "USD strength",
+      type: "tactical",
+      name: "USD strength",
+      evidence: usd?.supportingIndicators?.slice(0, 3) ?? ["USD regime is strengthening."],
+      persistence: "short",
+      confidence: usd?.confidence ?? "Medium",
+      themeStatus: "active",
+      displayToUser: true,
+      statusReason: "Added because the current USD regime is strengthening."
+    });
+  }
+  return {
+    userFacing: userFacingThemes(diagnostics),
+    diagnostics
+  };
 }
 
 function confidenceScoreForCounts(input: {
@@ -200,17 +275,52 @@ function calibrateRegimeEntry(entry: MarketVisionRegimeEntry): MarketVisionRegim
   const lower = `${entry.explanation} ${entry.supportingIndicators.join(" ")}`.toLowerCase();
   const gaps = lower.includes("limited") || lower.includes("missing") || lower.includes("gap") ? 1 : 0;
   const stale = lower.includes("stale") || lower.includes("outdated") ? 1 : 0;
+  const confidence = calibratedConfidence({
+    supporting: entry.supportingIndicators.length,
+    direct: directIndicatorCount(entry.supportingIndicators),
+    conflicting: 0,
+    gaps,
+    stale
+  });
   return {
     ...entry,
     regime: toDisplayRegime(entry.regime),
-    confidence: calibratedConfidence({
-      supporting: entry.supportingIndicators.length,
-      direct: directIndicatorCount(entry.supportingIndicators),
-      conflicting: 0,
-      gaps,
-      stale
-    })
+    confidence,
+    explanation: reconcileConfidenceWording(entry.explanation, confidence)
   };
+}
+
+function reconcileConfidenceWording(text: string, confidence: MarketVisionConfidenceLevel) {
+  if (confidence === "Low") return text;
+  return text
+    .replace(/\bwith low confidence\b/gi, confidence === "High" ? "with high confidence" : "with medium confidence")
+    .replace(/\blow-confidence\b/gi, confidence === "High" ? "high-confidence" : "medium-confidence")
+    .replace(/\blow confidence\b/gi, confidence === "High" ? "high confidence" : "medium confidence");
+}
+
+function calibrateOverallRegimeConfidence(entries: MarketVisionRegimeEntry[]) {
+  return entries.map((entry) => {
+    if (!entry.label.toLowerCase().includes("overall")) return entry;
+    const lower = `${entry.explanation} ${entry.supportingIndicators.join(" ")}`.toLowerCase();
+    const supportingCount = entry.supportingIndicators.length;
+    const gapCount = lower.includes("limited") || lower.includes("missing") || lower.includes("gap") ? 1 : 0;
+    const directCount = directIndicatorCount(entry.supportingIndicators);
+    const staleCount = staleIndicatorCount([...entry.supportingIndicators, entry.explanation]);
+    const rawConfidenceScore = confidenceScoreForCounts({
+      supportingCount,
+      directIndicatorCount: directCount,
+      conflictingCount: 0,
+      gapCount,
+      staleIndicatorCount: staleCount
+    });
+    const confidenceScore = overallMarketConfidenceScore(rawConfidenceScore, entries);
+    const confidence = labelForConfidenceScore(confidenceScore);
+    return {
+      ...entry,
+      confidence,
+      explanation: reconcileConfidenceWording(entry.explanation, confidence)
+    };
+  });
 }
 
 function entryByLabel(entries: MarketVisionRegimeEntry[], label: string) {
@@ -393,15 +503,35 @@ function toMarketVisionMetadata(value: unknown): MarketVisionMetadata {
   const parsedPortfolioImpactMatrix = Array.isArray(row.portfolioImpactMatrix)
     ? row.portfolioImpactMatrix.map((item) => {
       const impact = typeof item === "object" && item !== null ? item as Record<string, unknown> : {};
+      const driverBreakdownSource = Array.isArray(impact.driverBreakdown)
+        ? impact.driverBreakdown
+        : Array.isArray(impact.driver_breakdown_json)
+          ? impact.driver_breakdown_json
+          : [];
+      const driverBreakdown = driverBreakdownSource.map((driver) => {
+        const row = typeof driver === "object" && driver !== null ? driver as Record<string, unknown> : {};
+        return {
+          label: toString(row.label, "Driver"),
+          value: Number(row.value ?? 0)
+        };
+      }).filter((driver) => driver.label).slice(0, 8);
       return {
         dimension: toString(impact.dimension, "Macro factor"),
         relevance: toPortfolioRelevanceLevel(impact.relevance),
         reason: toString(impact.reason, "No portfolio context available."),
         driver: toString(impact.driver),
-        value: impact.value == null ? null : Number(impact.value)
+        value: impact.value == null ? null : Number(impact.value),
+        rawDriverScore: impact.rawDriverScore == null && impact.raw_driver_score == null ? null : Number(impact.rawDriverScore ?? impact.raw_driver_score),
+        displayDriverScoreCapped: impact.displayDriverScoreCapped == null && impact.display_driver_score_capped == null ? null : Number(impact.displayDriverScoreCapped ?? impact.display_driver_score_capped),
+        driverBreakdown: driverBreakdown.length > 0 ? driverBreakdown : undefined
       };
     }).slice(0, 12)
     : [];
+  const parsedThemeDiagnostics = Array.isArray(row.themeDiagnostics)
+    ? row.themeDiagnostics.map(toThemeSummary).slice(0, 16)
+    : Array.isArray(telemetryRow.themeDiagnostics)
+      ? telemetryRow.themeDiagnostics.map(toThemeSummary).slice(0, 16)
+      : [];
   return {
     regimeScorecard: Array.isArray(row.regimeScorecard) && row.regimeScorecard.length > 0
       ? row.regimeScorecard.map((item, index) => toRegimeEntry(item, fallback.regimeScorecard[index]?.label ?? "Regime"))
@@ -415,6 +545,7 @@ function toMarketVisionMetadata(value: unknown): MarketVisionMetadata {
     evidenceGaps: toLongStringArray(row.evidenceGaps).length > 0 ? toLongStringArray(row.evidenceGaps) : fallback.evidenceGaps,
     portfolioContextStatus,
     portfolioContextInputs,
+    themeDiagnostics: parsedThemeDiagnostics,
     portfolioRelevance: portfolioRelevanceValue,
     regimeTransitions: parsedRegimeTransitions,
     confidenceScores: parsedConfidenceScores,
@@ -451,6 +582,7 @@ function toMarketVisionMetadata(value: unknown): MarketVisionMetadata {
       structuralThemes: toLongStringArray(telemetryRow.structuralThemes),
       tacticalThemes: toLongStringArray(telemetryRow.tacticalThemes),
       evidenceGaps: toLongStringArray(telemetryRow.evidenceGaps).length > 0 ? toLongStringArray(telemetryRow.evidenceGaps) : fallback.evidenceGaps,
+      themeDiagnostics: parsedThemeDiagnostics,
       portfolioContextStatus: toPortfolioContextStatus(telemetryRow.portfolioContextStatus ?? portfolioContextStatus),
       portfolioContextInputs: typeof telemetryRow.portfolioContextInputs === "object" && telemetryRow.portfolioContextInputs !== null
         ? telemetryRow.portfolioContextInputs as Record<string, unknown>
@@ -470,10 +602,15 @@ function finalizedMarketVisionMetadata(
   previousMetadata: MarketVisionMetadata | null,
   portfolioContext: PortfolioContextSummary
 ): MarketVisionMetadata {
-  const regimeScorecard = metadata.regimeScorecard.map(calibrateRegimeEntry);
+  const regimeScorecard = calibrateOverallRegimeConfidence(metadata.regimeScorecard.map(calibrateRegimeEntry));
   const evidencePanels = metadata.evidencePanels.map(calibrateEvidencePanel);
-  const structuralThemes = normalizeThemeIds(metadata.structuralThemes, "structural");
-  const tacticalThemes = normalizeThemeIds(metadata.tacticalThemes, "tactical");
+  const structuralThemes = userFacingThemes(normalizeThemeIds(metadata.structuralThemes, "structural"));
+  const tacticalThemeResult = finalizeTacticalThemes(normalizeThemeIds(metadata.tacticalThemes, "tactical"), regimeScorecard);
+  const tacticalThemes = tacticalThemeResult.userFacing;
+  const themeDiagnostics = [
+    ...structuralThemes,
+    ...tacticalThemeResult.diagnostics
+  ].slice(0, 24);
   const growth = entryByLabel(regimeScorecard, "Growth");
   const inflation = entryByLabel(regimeScorecard, "Inflation");
   const rates = entryByLabel(regimeScorecard, "Rates");
@@ -496,6 +633,7 @@ function finalizedMarketVisionMetadata(
     evidencePanels,
     structuralThemes,
     tacticalThemes,
+    themeDiagnostics,
     evidenceGaps: evidenceGaps.length > 0 ? evidenceGaps : ["Evidence is limited."],
     portfolioRelevance: relevance,
     telemetryMetadata: {
@@ -528,6 +666,7 @@ function finalizedMarketVisionMetadata(
       tacticalThemeIds: tacticalThemes.map((theme) => theme.id),
       structuralThemes: structuralThemes.map((theme) => theme.displayName),
       tacticalThemes: tacticalThemes.map((theme) => theme.displayName),
+      themeDiagnostics,
       evidenceGaps: evidenceGaps.length > 0 ? evidenceGaps : ["Evidence is limited."],
       portfolioContextStatus: portfolioContext.status,
       portfolioContextInputs: portfolioContext.inputs,
@@ -568,13 +707,16 @@ function confidenceScores(evidencePanels: MarketVisionEvidencePanel[], regimes: 
     const gapCount = lower.includes("limited") || lower.includes("missing") || lower.includes("gap") ? 1 : 0;
     const directCount = directIndicatorCount(entry.supportingIndicators);
     const staleCount = staleIndicatorCount([...entry.supportingIndicators, entry.explanation]);
-    const confidenceScore = confidenceScoreForCounts({
+    const rawConfidenceScore = confidenceScoreForCounts({
       supportingCount,
       directIndicatorCount: directCount,
       conflictingCount: 0,
       gapCount,
       staleIndicatorCount: staleCount
     });
+    const confidenceScore = entry.label.toLowerCase().includes("overall")
+      ? overallMarketConfidenceScore(rawConfidenceScore, regimes)
+      : rawConfidenceScore;
     return {
       section: `Macro - ${entry.label}`,
       confidenceScore,
@@ -589,6 +731,41 @@ function confidenceScores(evidencePanels: MarketVisionEvidencePanel[], regimes: 
   return [...regimeRows, ...evidenceRows];
 }
 
+function overallMarketConfidenceScore(rawScore: number, regimes: MarketVisionRegimeEntry[]) {
+  const canonicalRows = regimes.map((entry) => canonicalRegime(entry.regime, entry.label));
+  const hasMixedOverall = canonicalRows.includes("OVERALL_MIXED");
+  const mixedSignals = canonicalRows.filter((regime) =>
+    regime.includes("MIXED") ||
+    regime.endsWith("_NEUTRAL") ||
+    regime.includes("STABLE_OR_MIXED")
+  ).length;
+  const supportiveSignals = canonicalRows.filter((regime) =>
+    regime === "GROWTH_EXPANDING" ||
+    regime === "RATES_FALLING" ||
+    regime === "LIQUIDITY_EASING" ||
+    regime === "USD_WEAKENING" ||
+    regime === "CURVE_NORMAL" ||
+    regime === "OVERALL_CONSTRUCTIVE"
+  ).length;
+  const adverseSignals = canonicalRows.filter((regime) =>
+    regime === "GROWTH_SLOWING" ||
+    regime === "GROWTH_CONTRACTING" ||
+    regime === "INFLATION_ELEVATED" ||
+    regime === "RATES_RISING" ||
+    regime === "LIQUIDITY_TIGHTENING" ||
+    regime === "USD_STRENGTHENING" ||
+    regime === "CURVE_INVERTED" ||
+    regime === "COMMODITY_ENERGY_PRESSURE" ||
+    regime === "OVERALL_DEFENSIVE"
+  ).length;
+  const cap = hasMixedOverall || (supportiveSignals >= 2 && adverseSignals >= 2)
+    ? 74
+    : mixedSignals >= 2
+      ? 82
+      : 95;
+  return Math.min(rawScore, cap);
+}
+
 function canonicalText(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
@@ -598,46 +775,93 @@ function toDisplayRegime(value: string) {
   return normalized || "mixed";
 }
 
-function canonicalRegime(value: string) {
+function canonicalRegime(value: string, dimension = "") {
   const normalized = canonicalText(value);
-  if (["falling_rate_support", "falling_rates", "rate_support", "rates_falling"].includes(normalized)) return "falling_rate_support";
-  if (["high_and_sticky", "sticky_high", "sticky_inflation"].includes(normalized)) return "inflation_high_and_sticky";
-  if (["reaccelerating", "inflation_reaccelerating", "inflation_reacceleration"].includes(normalized)) return "inflation_reaccelerating";
-  if (["cooling", "disinflation", "moderating", "inflation_cooling"].includes(normalized)) return "inflation_cooling";
-  if (["weakening", "growth_weakening", "slowing", "contracting"].includes(normalized)) return "growth_weakening";
-  if (["strengthening", "growth_strengthening", "accelerating", "expanding"].includes(normalized)) return "growth_strengthening";
-  if (["mixed", "balanced", "neutral", "stable"].includes(normalized)) return normalized;
-  return normalized || "mixed";
+  const dim = canonicalText(dimension);
+  const text = `${dim}_${normalized}`;
+  if (dim.includes("inflation") || normalized.includes("inflation") || normalized.includes("sticky") || normalized.includes("reaccelerat") || normalized.includes("disinflation")) {
+    if (normalized.includes("cool") || normalized.includes("moderating") || normalized.includes("disinflation")) return "INFLATION_COOLING";
+    if (normalized.includes("low") || normalized.includes("benign")) return "INFLATION_LOW";
+    if (normalized.includes("sticky") || normalized.includes("high") || normalized.includes("reaccelerat") || normalized.includes("elevated")) return "INFLATION_ELEVATED";
+    return "INFLATION_ELEVATED";
+  }
+  if (dim.includes("growth") || normalized.includes("growth") || normalized.includes("expanding") || normalized.includes("slowing") || normalized.includes("contracting")) {
+    if (normalized.includes("contract")) return "GROWTH_CONTRACTING";
+    if (normalized.includes("weak") || normalized.includes("slow")) return "GROWTH_SLOWING";
+    if (normalized.includes("strength") || normalized.includes("accelerat") || normalized.includes("expand")) return "GROWTH_EXPANDING";
+    return "GROWTH_MIXED";
+  }
+  if (dim.includes("rate") || text.includes("rate")) {
+    if (normalized.includes("fall") || normalized.includes("support") || normalized.includes("eas")) return "RATES_FALLING";
+    if (normalized.includes("ris") || normalized.includes("restrict") || normalized.includes("higher")) return "RATES_RISING";
+    return "RATES_STABLE";
+  }
+  if (dim.includes("yield") || dim.includes("curve") || normalized.includes("curve") || normalized.includes("inverted") || normalized.includes("steepen") || normalized.includes("flatten")) {
+    if (normalized.includes("inverted")) return "CURVE_INVERTED";
+    if (normalized.includes("steepen")) return "CURVE_STEEPENING";
+    if (normalized.includes("flatten")) return "CURVE_FLATTENING";
+    if (normalized.includes("normal") && !normalized.includes("mixed") && !normalized.includes("conflicting")) return "CURVE_NORMAL";
+    return "CURVE_MIXED";
+  }
+  if (dim.includes("liquidity") || normalized.includes("liquidity")) {
+    if (normalized.includes("tight")) return "LIQUIDITY_TIGHTENING";
+    if (normalized.includes("eas") || normalized.includes("support")) return "LIQUIDITY_EASING";
+    return "LIQUIDITY_NEUTRAL";
+  }
+  if (dim.includes("usd") || normalized.includes("usd") || normalized.includes("dollar")) {
+    if (normalized.includes("weak")) return "USD_WEAKENING";
+    if (normalized.includes("strength") || normalized.includes("strong")) return "USD_STRENGTHENING";
+    return "USD_STABLE_OR_MIXED";
+  }
+  if (dim.includes("commod") || normalized.includes("commod") || normalized.includes("energy")) {
+    if (normalized.includes("relief") || normalized.includes("falling") || normalized.includes("lower")) return "COMMODITY_ENERGY_RELIEF";
+    if (normalized.includes("pressure") || normalized.includes("rising") || normalized.includes("energy")) return "COMMODITY_ENERGY_PRESSURE";
+    return "COMMODITY_NEUTRAL_OR_MIXED";
+  }
+  if (dim.includes("overall") || normalized.includes("overall") || normalized.includes("constructive") || normalized.includes("defensive")) {
+    if (normalized.includes("defensive") || normalized.includes("risk_off")) return "OVERALL_DEFENSIVE";
+    if (normalized.includes("mixed") || normalized.includes("selective") || normalized.includes("balanced")) return "OVERALL_MIXED";
+    if (normalized.includes("constructive") || normalized.includes("risk_support") || normalized.includes("support")) return "OVERALL_CONSTRUCTIVE";
+    return "OVERALL_MIXED";
+  }
+  if (["mixed", "balanced", "neutral", "stable"].includes(normalized)) return "MIXED";
+  return normalized.toUpperCase() || "MIXED";
 }
 
 function regimeFamily(canonical: string) {
-  if (canonical.startsWith("inflation_")) return "inflation";
-  if (canonical.startsWith("growth_")) return "growth";
-  if (canonical.includes("rate")) return "rates";
+  if (canonical.includes("_")) return canonical.split("_")[0].toLowerCase();
   return canonical;
 }
 
-function isOppositeRegimeShift(previousCanonical: string | null, currentCanonical: string) {
+function isDirectionalRegimeShift(previousCanonical: string | null, currentCanonical: string) {
   if (!previousCanonical) return false;
   const pair = new Set([previousCanonical, currentCanonical]);
-  return pair.has("growth_weakening") && pair.has("growth_strengthening");
+  return (pair.has("GROWTH_SLOWING") && pair.has("GROWTH_EXPANDING")) ||
+    (pair.has("GROWTH_CONTRACTING") && pair.has("GROWTH_EXPANDING")) ||
+    (pair.has("USD_WEAKENING") && pair.has("USD_STRENGTHENING")) ||
+    (pair.has("LIQUIDITY_TIGHTENING") && pair.has("LIQUIDITY_EASING")) ||
+    (pair.has("RATES_FALLING") && pair.has("RATES_RISING")) ||
+    (pair.has("COMMODITY_ENERGY_PRESSURE") && pair.has("COMMODITY_ENERGY_RELIEF")) ||
+    (pair.has("OVERALL_DEFENSIVE") && pair.has("OVERALL_CONSTRUCTIVE"));
 }
 
 function regimeTransitions(current: MarketVisionRegimeEntry[], previous?: MarketVisionMetadata | null) {
   const previousEntries = previous?.regimeScorecard ?? [];
   return current.map((entry) => {
     const prior = previousEntries.find((item) => item.label.toLowerCase() === entry.label.toLowerCase())?.regime ?? null;
-    const previousCanonical = prior ? canonicalRegime(prior) : null;
-    const currentCanonical = canonicalRegime(entry.regime);
+    const previousCanonical = prior ? canonicalRegime(prior, entry.label) : null;
+    const currentCanonical = canonicalRegime(entry.regime, entry.label);
+    const previousRaw = prior ? canonicalText(prior) : null;
+    const currentRaw = canonicalText(entry.regime);
     const changed = previousCanonical !== null && previousCanonical !== currentCanonical;
     const sameFamily = previousCanonical !== null && regimeFamily(previousCanonical) === regimeFamily(currentCanonical);
-    const oppositeShift = isOppositeRegimeShift(previousCanonical, currentCanonical);
+    const directionalShift = isDirectionalRegimeShift(previousCanonical, currentCanonical);
     const status =
       prior === null
         ? "New Signal" as const
-        : previousCanonical === currentCanonical
+        : previousCanonical === currentCanonical && !(entry.label.toLowerCase().includes("inflation") && previousRaw !== currentRaw)
           ? "No Change" as const
-          : sameFamily && !oppositeShift
+          : sameFamily && !directionalShift
             ? "Minor Classification Change" as const
             : "Regime Shift Detected" as const;
     return {
@@ -649,12 +873,12 @@ function regimeTransitions(current: MarketVisionRegimeEntry[], previous?: Market
       changed,
       status,
       explanation: status === "No Change"
-        ? "Raw wording changed little after canonical normalization."
+        ? `Both labels normalize to ${currentCanonical}.`
         : status === "Minor Classification Change"
-          ? "The regime moved within the same macro family, so this is not treated as a full regime shift."
+          ? `The label moved within the ${regimeFamily(currentCanonical)} family, so it is not treated as a full regime shift.`
           : status === "New Signal"
             ? "No prior comparable signal was available."
-            : "The current canonical regime moved to a different macro family."
+            : `The canonical regime moved from ${previousCanonical} to ${currentCanonical}.`
     };
   });
 }
@@ -754,8 +978,25 @@ function portfolioContextSummary(dashboard: PortfolioDashboard | null, exposureC
     relevance: MarketVisionConfidenceLevel,
     reason: string,
     driver: string,
-    value: number
-  ): MarketVisionPortfolioImpact => ({ dimension, relevance, reason, driver, value: roundedPercent(value) });
+    value: number,
+    driverBreakdown?: Array<{ label: string; value: number }>
+  ): MarketVisionPortfolioImpact => {
+    const rawDriverScore = roundedPercent(value);
+    const displayDriverScoreCapped = Math.min(rawDriverScore, 100);
+    return {
+      dimension,
+      relevance,
+      reason,
+      driver,
+      value: displayDriverScoreCapped,
+      rawDriverScore,
+      displayDriverScoreCapped,
+      driverBreakdown: driverBreakdown?.map((item) => ({
+        label: item.label,
+        value: roundedPercent(item.value)
+      }))
+    };
+  };
   const inflationDriver = bondPercent + commodityPercent;
   const ratesDriver = bondPercent + cashPercent;
   const liquidityDriver = equityPercent + cryptoPercent;
@@ -771,7 +1012,19 @@ function portfolioContextSummary(dashboard: PortfolioDashboard | null, exposureC
       row("Liquidity", levelFromPercent(liquidityDriver, 0.6, 0.3), `Liquidity relevance uses equity plus crypto/risk-asset exposure of ${roundedPercent(liquidityDriver)}%.`, "equityPlusCryptoPercent", liquidityDriver),
       row("USD", levelFromPercent(nonUsPercent, 0.3, 0.1), `USD relevance reflects non-US geography exposure of ${roundedPercent(nonUsPercent)}%.`, "nonUsPercent", nonUsPercent),
       row("Commodities", levelFromPercent(commodityDriver, 0.15, 0.05), `Commodity relevance uses commodity/gold plus energy exposure of ${roundedPercent(commodityDriver)}%.`, "commodityGoldPlusEnergyPercent", commodityDriver),
-      row("Geopolitics", levelFromPercent(geopoliticalDriver, 0.3, 0.1), `Geopolitical relevance uses non-US, commodity, energy and defense/security exposure of ${roundedPercent(geopoliticalDriver)}%.`, "nonUsPlusCommodityEnergyDefensePercent", geopoliticalDriver)
+      row(
+        "Geopolitics",
+        levelFromPercent(geopoliticalDriver, 0.3, 0.1),
+        "Geopolitical relevance is based on the combined exposure mix across non-US, commodity/gold, energy and defense/security drivers.",
+        "nonUsPlusCommodityEnergyDefensePercent",
+        geopoliticalDriver,
+        [
+          { label: "Non-US exposure", value: nonUsPercent },
+          { label: "Commodity/gold exposure", value: commodityPercent },
+          { label: "Energy exposure", value: energyPercent },
+          { label: "Defense/security exposure", value: defenseSecurityPercent }
+        ]
+      )
     ]
   };
 }
@@ -913,11 +1166,20 @@ function replaceUnsupportedExposureLists(text: string, exposureFlags: PortfolioE
 }
 
 function removeInternalGuardrailLanguage(text: string) {
-  return text
+  return sanitizeAdviceAdjacentLanguage(text)
     .replace(/\bfor a portfolio with ([^.]*?) allowed as exposures\b/gi, "for the portfolio context provided")
     .replace(/\ballowedClaims\b/g, "portfolio context")
     .replace(/\ballowed claims?\b/gi, "portfolio context")
     .replace(/\ballowed exposures?\b/gi, "portfolio context");
+}
+
+function sanitizeAdviceAdjacentLanguage(text: string) {
+  return text
+    .replace(/\btradeable attention\b/gi, "monitoring attention")
+    .replace(/\btradeable\b/gi, "notable")
+    .replace(/\bentry points?\b/gi, "monitoring points")
+    .replace(/\bactionable buys?\b/gi, "items to monitor")
+    .replace(/\bbuying opportunities?\b/gi, "areas to monitor");
 }
 
 function sanitizeYieldCurveLanguage(text: string) {
@@ -936,7 +1198,10 @@ function removeUnsupportedExposureClaims(output: AiMarketVisionOutput, exposureF
   if (!exposureFlags) {
     return {
       ...output,
+      executiveSummary: patchMacroText(output.executiveSummary),
       globalMarketSummary: patchMacroText(output.globalMarketSummary),
+      keyRisks: output.keyRisks.map(patchMacroText),
+      keyOpportunities: output.keyOpportunities.map(patchMacroText),
       bondOutlook: patchMacroText(output.bondOutlook),
       ratesOutlook: patchMacroText(output.ratesOutlook)
     };
@@ -958,6 +1223,13 @@ function removeUnsupportedExposureClaims(output: AiMarketVisionOutput, exposureF
     cryptoOutlook: patchText(output.cryptoOutlook),
     bondOutlook: patchText(output.bondOutlook),
     ratesOutlook: patchText(output.ratesOutlook),
+    inflationOutlook: patchText(output.inflationOutlook),
+    growthOutlook: patchText(output.growthOutlook),
+    employmentOutlook: patchText(output.employmentOutlook),
+    currencyOutlook: patchText(output.currencyOutlook),
+    geopoliticalOutlook: patchText(output.geopoliticalOutlook),
+    keyRisks: output.keyRisks.map(patchText),
+    keyOpportunities: output.keyOpportunities.map(patchText),
     portfolioImplications: {
       ...output.portfolioImplications,
       bondAllocationImplication: patchText(output.portfolioImplications.bondAllocationImplication),
@@ -1122,7 +1394,7 @@ function evidencePack(input: {
     ? input.weekly.coverageMetadata.themeSummaries
     : [];
   return {
-    instruction: "Use these structured inputs as the source of truth. If a section has weak or missing evidence, mark confidence Low and include an evidence gap. Do not invent regimes or unsupported conclusions.",
+    instruction: "Use these structured inputs as the source of truth. If a section has weak or missing evidence, mark confidence Low and include an evidence gap. Do not invent regimes, unsupported conclusions, or advice-like trading language.",
     regimeInputs: {
       latestRegime: input.macroDashboard.latestRegime ?? null,
       macroSignals: input.macroSignals
@@ -1144,7 +1416,11 @@ function evidencePack(input: {
     requiredEvidenceDiscipline: [
       "Every major view needs supporting indicators, conflicting indicators, confidence and evidence gaps.",
       "Use Low confidence when evidence is thin, stale, missing, or conflicting.",
-      "Portfolio Context must explain relevance only and never recommend trades or allocation changes."
+      "Portfolio Context must explain relevance only and never recommend trades or allocation changes.",
+      "Map regime labels to canonical macro states before describing transitions. Wording-only changes within the same canonical family should be Minor Classification Change or No Change, not Regime Shift.",
+      "Overall Market confidence should be capped at Medium or Medium-high when supportive and adverse forces coexist, even if the narrative feels constructive.",
+      "For tactical themes, only show active or useful watch-only themes. Suppress contradicted themes such as weakening USD when the USD regime is strengthening; use TACTICAL_USD_STRENGTH when that signal is active.",
+      "Avoid words such as tradeable, buying opportunity, entry point, overweight, underweight, buy, sell, trim, add, reduce, or rotate. Use monitor, watch item, or portfolio implication instead."
     ]
   };
 }

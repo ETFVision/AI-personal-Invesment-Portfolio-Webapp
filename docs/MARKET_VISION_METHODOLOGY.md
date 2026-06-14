@@ -1,6 +1,6 @@
 # Market Vision Methodology
 
-Last updated: 2026-06-14 00:00:00 +08:00
+Last updated: 2026-06-14 22:30:00 +08:00
 
 ## Purpose
 
@@ -77,6 +77,14 @@ The impact matrix is calculated in application code, not by the LLM. Thresholds 
 | Commodities | >=15% | 5-14% | Commodity/gold + energy exposure |
 | Geopolitics | >=30% | 10-29% | Non-US + commodity + energy + defense/security exposure |
 
+Composite drivers can mathematically exceed 100% because they add several independent exposure sensitivities. User-facing display values are capped at 100 while metadata keeps:
+
+- `rawDriverScore`: the uncapped composite diagnostic score.
+- `displayDriverScoreCapped`: the UI-safe capped score.
+- `driverBreakdown`: component exposures used to explain the composite.
+
+Example: Geopolitics may combine non-US, commodity/gold, energy, and defense/security exposure. The report should explain the component mix rather than print a single `108.3%` composite percentage.
+
 ## Confidence Calibration
 
 Market Vision confidence rows are finalized mechanically after the model response:
@@ -91,16 +99,33 @@ Labels:
 
 Confidence score rows are separated by macro regime and market/evidence panel. Macro regime rows are labelled as `Macro - Growth`, `Macro - Inflation`, `Macro - Rates`, etc., so they are not collapsed into a generic macro bucket.
 
+Overall Market confidence has an additional cap because it is a synthesis dimension. If supportive and adverse forces coexist, or if the overall canonical state is mixed, the confidence score is capped at Medium or Medium-high even when the model wording is constructive.
+
 ## Regime Transition Tracker
 
 Transitions are compared using canonical regime labels rather than raw text:
 
-- `falling rate support` and `falling_rate_support` normalize to the same canonical value and produce `No Change`.
-- Inflation subtype movement such as `reaccelerating` to `high_and_sticky` is a `Minor Classification Change`.
-- Opposite growth polarity such as `Weakening` to `Strengthening` is a `Regime Shift Detected`.
+- `falling rate support` and `falling_rate_support` normalize to `RATES_FALLING` and produce `No Change`.
+- Inflation wording such as `reaccelerating` and `high and sticky / reaccelerating` normalize to `INFLATION_ELEVATED`; if raw wording differs, this is a `Minor Classification Change`, not a full regime shift.
+- Yield-curve wording such as `Mixed / normal with conflicting slope signals` and `mixed` normalize to `CURVE_MIXED` and produce `No Change`.
+- Opposite polarity moves such as `Growth: Weakening` to `Growth: Strengthening`, or `USD: Weakening` to `USD: Strengthening`, are `Regime Shift Detected`.
 - New dimensions produce `New Signal`.
 
 Stored transition rows include raw previous/current labels, canonical previous/current labels, status, and explanation.
+
+## Tactical Theme Display
+
+Tactical themes are normalized and filtered after model generation:
+
+- User-facing report themes show only `active` or useful `watch_only` themes.
+- `inactive`, `contradicted`, and `internal_only` themes are retained in `themeDiagnostics` for telemetry/debugging but hidden from the report.
+- `TACTICAL_WEAKENING_USD` is suppressed if the USD regime is strengthening.
+- `TACTICAL_USD_STRENGTH` is added when the USD regime is strengthening and the model did not provide that tactical theme.
+- `TACTICAL_TIGHTENING_LIQUIDITY` is suppressed if the liquidity regime is neutral.
+
+## Language Guardrails
+
+Market Vision is a CIO-style context report, not a recommendation engine. Generated text is sanitized to avoid advice-adjacent wording such as `tradeable`, `buying opportunity`, and `entry point`. Preferred terms are `monitor`, `watch item`, `area to monitor`, and `portfolio implication`.
 
 ## AI Role
 

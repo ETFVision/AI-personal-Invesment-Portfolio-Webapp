@@ -564,6 +564,11 @@ test("AI Market Vision generation derives portfolio macro impact from actual exp
   assert.equal(impact("Liquidity")?.relevance, "High");
   assert.equal(impact("USD")?.relevance, "High");
   assert.equal(impact("Commodities")?.relevance, "Medium");
+  assert.equal(impact("Geopolitics")?.value, 100);
+  assert.equal(impact("Geopolitics")?.rawDriverScore, 110.1);
+  assert.equal(impact("Geopolitics")?.displayDriverScoreCapped, 100);
+  assert.doesNotMatch(impact("Geopolitics")?.reason ?? "", /110\.1%|108\.3%/);
+  assert.equal((impact("Geopolitics")?.driverBreakdown ?? []).some((item) => item.label === "Non-US exposure"), true);
   assert.doesNotMatch(impact("Growth")?.reason ?? "", /No portfolio context available/i);
   assert.equal(report.marketVisionMetadata.telemetryMetadata.portfolioContextStatus, "available");
 });
@@ -609,6 +614,10 @@ test("AI Market Vision generation stores regime transitions against prior genera
     if (entry.label === "Inflation") return { ...entry, regime: "reaccelerating", explanation: "Prior inflation evidence was reaccelerating." };
     if (entry.label === "Growth") return { ...entry, regime: "Weakening", explanation: "Prior growth evidence was weakening." };
     if (entry.label === "Rates") return { ...entry, regime: "falling rate support", explanation: "Prior rates evidence had falling rate support." };
+    if (entry.label === "Yield curve") return { ...entry, regime: "Mixed / normal with conflicting slope signals", explanation: "Prior curve evidence was mixed." };
+    if (entry.label === "Liquidity") return { ...entry, regime: "Tightening", explanation: "Prior liquidity evidence was tightening." };
+    if (entry.label === "USD") return { ...entry, regime: "Weakening", explanation: "Prior USD evidence was weakening." };
+    if (entry.label === "Commodities") return { ...entry, regime: "Rising energy pressure", explanation: "Prior commodity evidence showed energy pressure." };
     return entry;
   });
   const currentMetadata = marketVisionMetadataFixture();
@@ -616,6 +625,10 @@ test("AI Market Vision generation stores regime transitions against prior genera
     if (entry.label === "Inflation") return { ...entry, regime: "high_and_sticky", explanation: "Inflation remains high and sticky." };
     if (entry.label === "Growth") return { ...entry, regime: "Strengthening", explanation: "Growth evidence is strengthening." };
     if (entry.label === "Rates") return { ...entry, regime: "falling_rate_support", explanation: "Rates evidence still points to falling rate support." };
+    if (entry.label === "Yield curve") return { ...entry, regime: "mixed", explanation: "Yield curve signals remain mixed." };
+    if (entry.label === "Liquidity") return { ...entry, regime: "neutral", explanation: "Liquidity evidence is neutral." };
+    if (entry.label === "USD") return { ...entry, regime: "strengthening", explanation: "USD evidence is strengthening." };
+    if (entry.label === "Commodities") return { ...entry, regime: "rising energy pressure", explanation: "Commodity evidence still shows energy pressure." };
     return entry;
   });
   await repository.upsertReport({
@@ -651,12 +664,61 @@ test("AI Market Vision generation stores regime transitions against prior genera
   const inflationTransition = report.marketVisionMetadata.regimeTransitions.find((item) => item.dimension === "Inflation");
   const growthTransition = report.marketVisionMetadata.regimeTransitions.find((item) => item.dimension === "Growth");
   const ratesTransition = report.marketVisionMetadata.regimeTransitions.find((item) => item.dimension === "Rates");
+  const curveTransition = report.marketVisionMetadata.regimeTransitions.find((item) => item.dimension === "Yield curve");
+  const liquidityTransition = report.marketVisionMetadata.regimeTransitions.find((item) => item.dimension === "Liquidity");
+  const usdTransition = report.marketVisionMetadata.regimeTransitions.find((item) => item.dimension === "USD");
+  const commoditiesTransition = report.marketVisionMetadata.regimeTransitions.find((item) => item.dimension === "Commodities");
 
-  assert.equal(inflationTransition?.previousCanonical, "inflation_reaccelerating");
-  assert.equal(inflationTransition?.currentCanonical, "inflation_high_and_sticky");
+  assert.equal(inflationTransition?.previousCanonical, "INFLATION_ELEVATED");
+  assert.equal(inflationTransition?.currentCanonical, "INFLATION_ELEVATED");
   assert.equal(inflationTransition?.status, "Minor Classification Change");
   assert.equal(growthTransition?.status, "Regime Shift Detected");
   assert.equal(ratesTransition?.status, "No Change");
+  assert.equal(curveTransition?.status, "No Change");
+  assert.equal(liquidityTransition?.status, "Minor Classification Change");
+  assert.equal(usdTransition?.status, "Regime Shift Detected");
+  assert.equal(commoditiesTransition?.status, "No Change");
+});
+
+test("AI Market Vision generation caps mixed overall confidence and filters contradicted tactical themes", async () => {
+  const metadata = marketVisionMetadataFixture();
+  metadata.regimeScorecard = metadata.regimeScorecard.map((entry) => {
+    if (entry.label === "Growth") return { ...entry, regime: "expanding", supportingIndicators: ["equity breadth", "jobs evidence"], confidence: "High", explanation: "Growth is expanding." };
+    if (entry.label === "Inflation") return { ...entry, regime: "high and sticky / reaccelerating", supportingIndicators: ["CPI sticky", "wage pressure"], confidence: "High", explanation: "Inflation is high and sticky." };
+    if (entry.label === "Rates") return { ...entry, regime: "falling rate support", supportingIndicators: ["yields easing"], confidence: "High", explanation: "Rates support is visible." };
+    if (entry.label === "Yield curve") return { ...entry, regime: "mixed", supportingIndicators: ["curve signals mixed"], confidence: "High", explanation: "Yield curve signals are mixed." };
+    if (entry.label === "Liquidity") return { ...entry, regime: "neutral", supportingIndicators: ["liquidity evidence neutral"], confidence: "Medium", explanation: "Liquidity is neutral with medium confidence." };
+    if (entry.label === "USD") return { ...entry, regime: "strengthening", supportingIndicators: ["dollar index rising"], confidence: "Medium", explanation: "USD is strengthening." };
+    if (entry.label === "Commodities") return { ...entry, regime: "rising energy pressure", supportingIndicators: ["oil higher"], confidence: "Medium", explanation: "Commodities show energy pressure." };
+    if (entry.label === "Overall market") return { ...entry, regime: "mixed but constructive", supportingIndicators: ["equities resilient", "rates support", "AI leadership", "inflation sticky", "USD stronger"], confidence: "High", explanation: "Overall evidence is constructive with low confidence." };
+    return entry;
+  });
+  metadata.tacticalThemes = [
+    { id: "TACTICAL_OTHER", displayName: "Weakening USD", type: "tactical", name: "Weakening USD", evidence: ["old currency theme"], persistence: "short", confidence: "Low" },
+    { id: "TACTICAL_TIGHTENING_LIQUIDITY", displayName: "Tightening liquidity", type: "tactical", name: "Tightening liquidity", evidence: ["old liquidity theme"], persistence: "short", confidence: "Medium" }
+  ];
+  const repository = new FakeMarketVisionRepository();
+  const service = new MarketVisionGenerationService(
+    repository,
+    new FakeNewsRepository(weeklyReconciliation()) as unknown as NewsRepository,
+    new FakeMacroRepository() as unknown as MacroIndicatorRepository,
+    new FakeAiMarketVisionProvider({
+      keyOpportunities: ["Selected market pullbacks may create tradeable attention."],
+      marketVisionMetadata: metadata
+    })
+  );
+
+  const report = await service.generateWeeklyReport();
+  const overallConfidence = report.marketVisionMetadata.confidenceScores.find((score) => score.section === "Macro - Overall market");
+
+  assert.equal(report.marketVisionMetadata.regimeScorecard.find((entry) => entry.label === "Overall market")?.confidence, "Medium");
+  assert.equal(overallConfidence?.confidenceScore, 74);
+  assert.equal(report.marketVisionMetadata.tacticalThemes.some((theme) => theme.id === "TACTICAL_WEAKENING_USD"), false);
+  assert.equal(report.marketVisionMetadata.tacticalThemes.some((theme) => theme.id === "TACTICAL_TIGHTENING_LIQUIDITY"), false);
+  assert.equal(report.marketVisionMetadata.tacticalThemes.some((theme) => theme.id === "TACTICAL_USD_STRENGTH"), true);
+  assert.equal(report.marketVisionMetadata.telemetryMetadata.themeDiagnostics?.some((theme) => theme.id === "TACTICAL_WEAKENING_USD" && theme.themeStatus === "contradicted"), true);
+  assert.doesNotMatch(report.opportunities.join(" "), /tradeable/i);
+  assert.match(report.opportunities.join(" "), /monitoring attention/i);
 });
 
 test("AI Market Vision validation provides structured metadata defaults and evidence gaps", () => {

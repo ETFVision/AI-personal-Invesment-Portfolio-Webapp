@@ -3739,3 +3739,36 @@ Validation:
 Follow-up:
 - Check the next scheduled weekly Market Vision draft in the webapp and confirm `portfolioContextStatus = available`.
 - Continue Market Vision Phase B/C refinement later; this checkpoint only addresses the regression and deterministic metadata hardening.
+
+## 2026-06-14 22:30 SGT - Market Vision Final Calibration Cleanup
+
+Scope:
+- Implemented the final cleanup after comparing the 2026-06-07 and 2026-06-14 Market Vision reports.
+- Tightened canonical regime mapping and transition labels.
+- Added an Overall Market confidence cap for mixed regimes with competing supportive/adverse forces.
+- Capped user-facing composite portfolio impact scores while preserving raw diagnostics and driver breakdowns.
+- Added tactical theme status handling so contradicted/inactive tactical themes are hidden from the report but retained in telemetry diagnostics.
+- Added USD-strength tactical theme normalization and suppression of contradicted weakening-USD themes.
+- Sanitized advice-adjacent Market Vision language such as `tradeable attention`.
+
+Files updated:
+- `src/application/services/marketVision/MarketVisionGenerationService.ts`
+- `src/domain/marketVision/types.ts`
+- `tests/market-vision.test.ts`
+- `docs/MARKET_VISION_METHODOLOGY.md`
+- `docs/MARKET_VISION_FINAL_CLEANUP.md`
+- `docs/qa-log.md`
+
+Expected behavior:
+- Inflation `reaccelerating` to `high and sticky / reaccelerating` is no longer treated as a full regime shift.
+- Yield curve `mixed / normal with conflicting slope signals` to `mixed` is no longer treated as a full regime shift.
+- USD `weakening` to `strengthening` remains a true regime shift.
+- Overall Market mixed-but-constructive confidence should not show High/95.
+- Geopolitics and other composite portfolio impact rows should not display over-100 percentages.
+- `TACTICAL_WEAKENING_USD` should not show in user-facing tactical themes when USD is strengthening.
+
+Validation:
+- PASS: `npm.cmd test -- market-vision`
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`

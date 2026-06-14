@@ -42,6 +42,9 @@ export type MarketVisionThemeSummary = {
   evidence: string[];
   persistence: "short" | "medium" | "long" | string;
   confidence: MarketVisionConfidenceLevel;
+  themeStatus?: "active" | "inactive" | "contradicted" | "watch_only" | "internal_only";
+  displayToUser?: boolean;
+  statusReason?: string;
 };
 
 export type MarketVisionPortfolioRelevance = {
@@ -88,6 +91,12 @@ export type MarketVisionPortfolioImpact = {
   reason: string;
   driver?: string;
   value?: number | null;
+  rawDriverScore?: number | null;
+  displayDriverScoreCapped?: number | null;
+  driverBreakdown?: Array<{
+    label: string;
+    value: number;
+  }>;
 };
 
 export type MarketVisionTelemetryMetadata = {
@@ -125,6 +134,7 @@ export type MarketVisionTelemetryMetadata = {
   evidenceGaps: string[];
   portfolioContextStatus: MarketVisionPortfolioContextStatus;
   portfolioContextInputs: Record<string, unknown>;
+  themeDiagnostics?: MarketVisionThemeSummary[];
   portfolioRelevance: MarketVisionPortfolioRelevance;
   regimeTransitions: MarketVisionRegimeTransition[];
   confidenceScores: MarketVisionConfidenceScore[];
@@ -141,6 +151,7 @@ export type MarketVisionMetadata = {
   evidenceGaps: string[];
   portfolioContextStatus: MarketVisionPortfolioContextStatus;
   portfolioContextInputs: Record<string, unknown>;
+  themeDiagnostics?: MarketVisionThemeSummary[];
   portfolioRelevance: MarketVisionPortfolioRelevance;
   regimeTransitions: MarketVisionRegimeTransition[];
   confidenceScores: MarketVisionConfidenceScore[];
