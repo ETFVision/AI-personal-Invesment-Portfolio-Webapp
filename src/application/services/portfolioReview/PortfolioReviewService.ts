@@ -63,7 +63,7 @@ function dataLimitations(context: PortfolioReviewInputContext) {
     context.dashboard.holdings.length === 0 ? "No holdings are available for portfolio review." : null,
     !context.dashboard.latestPriceDate ? "Latest portfolio price date is unavailable." : null,
     context.riskReport.riskContributionMethod !== "covariance" ? "Risk contribution may use proxy estimates where overlapping price history is insufficient." : null,
-    context.recommendations.length === 0 ? "Recommendation alignment is limited because no latest recommendations were found." : null,
+    context.recommendations.length === 0 ? "Insight alignment is limited because no latest instrument insights were found." : null,
     !context.marketVisionReport ? "Market Vision context is unavailable." : null,
     !context.macroRegime ? "FRED macro regime snapshot is unavailable." : null,
     !context.themeIntelligence?.topThemesThisWeek.length ? "Theme intelligence summary is unavailable or empty." : null,

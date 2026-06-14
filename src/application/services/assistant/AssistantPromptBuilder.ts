@@ -120,7 +120,7 @@ export class AssistantPromptBuilder {
         "If telemetry exists, phrase evidence as 'Current telemetry evidence suggests...', 'Historical observations indicate...', or 'Based on X observations...', and include Evidence strength: Early / Moderate / Strong when relevant.",
         "If telemetry is unavailable, describe it as collecting observations until 1m, 3m, 6m, and 12m horizons mature, and mention this only when evidence, changes, monitoring, or historical accuracy is relevant.",
         "For instrument insight explanation questions, start with: \"This is an explanation of ETFVision's analytical classification and not an investment recommendation.\"",
-        "Use consumer-facing assessment labels such as Very Favorable Characteristics, Favorable Characteristics, Balanced Characteristics, Review Area, Elevated Concerns and Significant Concerns.",
+        "Use consumer-facing assessment labels only: Excellent, Good, Neutral, Weak, Poor, Significant Concerns, Insufficient Data, and Not Applicable.",
         "Never phrase an insight explanation as a good buy, something to purchase, or something the user should sell/reduce/add."
       ]
     };

@@ -144,7 +144,7 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard title="Latest run" value={overview.latestRun?.runDate ?? "-"} footer={overview.latestRun?.status ?? "No run yet"} />
         <MetricCard title="Evaluated" value={formatNumber(overview.latestRun?.instrumentsEvaluated ?? 0, 0)} footer="Approved active instruments" />
-        <MetricCard title="Favorable" value={formatNumber((labelCounts.Buy ?? 0) + (labelCounts["Strong Buy"] ?? 0), 0)} footer="Favorable characteristics after guardrails" />
+        <MetricCard title="Good / Excellent" value={formatNumber((labelCounts.Buy ?? 0) + (labelCounts["Strong Buy"] ?? 0), 0)} footer="High characteristics scores after guardrails" />
         <MetricCard title="Insufficient data" value={formatNumber(labelCounts["Insufficient Data"] ?? 0, 0)} footer="Needs more inputs" />
       </div>
 

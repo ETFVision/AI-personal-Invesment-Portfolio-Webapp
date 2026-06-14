@@ -1,9 +1,9 @@
 export const ASSISTANT_RECOMMENDATION_LABELS = {
-  strongBuy: "Very Favorable Characteristics",
-  buy: "Favorable Characteristics",
-  hold: "Balanced Characteristics",
-  watch: "Review Area",
-  reduce: "Elevated Concerns",
+  strongBuy: "Excellent",
+  buy: "Good",
+  hold: "Neutral",
+  watch: "Weak",
+  reduce: "Poor",
   sell: "Significant Concerns"
 } as const;
 

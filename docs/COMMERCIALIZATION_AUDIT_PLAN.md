@@ -1,6 +1,6 @@
 # ETFVision Commercialization Audit Plan
 
-Last updated: 2026-06-13 16:20:00 +08:00
+Last updated: 2026-06-15 00:25:00 +08:00
 
 ## Purpose
 
@@ -361,11 +361,14 @@ Output:
 - Consumer-facing label audit.
 - API response audit.
 
-Current status: partly completed.
+Current status: mostly completed.
 
 Notes:
-- Language has been refined toward Insights/Assessments/Characteristics.
-- Recommendation calibration should be rerun after the next complete weekly refresh.
+- User-facing Insights labels now use neutral characteristics language: `Excellent`, `Good`, `Neutral`, `Weak`, `Poor`, `Significant Concerns`, `Insufficient Data`, and `Not Applicable`.
+- Internal scoring labels remain unchanged for telemetry, historical records, and guardrail compatibility, but should not be shown as user-facing investment recommendations.
+- Instrument detail summaries now describe characteristics assessments instead of saying an instrument is rated Buy/Hold/Reduce/Sell.
+- Portfolio Review user-facing wording now refers to insight alignment rather than recommendation alignment.
+- Recommendation calibration should still be rerun after the next complete weekly refresh; this is a calibration QA item, not a remaining language-cleanup blocker.
 
 ## 11. Security Audit
 
@@ -981,7 +984,7 @@ Recommended:
 | 7 | Portfolio Review Audit | Mostly completed | Engine works and is documented. Issuer-level look-through and direct/indirect exposure QA passed. Broader regression fixtures and unsafe wording review remain. |
 | 8 | AI Output Audit | Partly completed | Prompts hardened. Formal regression suite still needed. |
 | 9 | Market Vision Audit | Partly completed | Engine exists. Draft/publish lifecycle and evidence traceability need final audit. |
-| 10 | Recommendation / Insights Audit | Partly completed | Language refined. Needs post-refresh calibration QA. |
+| 10 | Recommendation / Insights Audit | Mostly completed | User-facing label and wording cleanup is complete for the current surface. Post-refresh calibration QA and internal API terminology review remain. |
 | 11 | Security Audit | Not completed | High-priority commercialization blocker. |
 | 12 | Feature Flags And Product Modes Audit | Partly completed | Branch/feature model exists. Direct alpha audit remains. |
 | 13 | Performance And Rendering Audit | In progress | Render timing and some summary optimizations done. Further route work remains. |

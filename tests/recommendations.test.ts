@@ -357,6 +357,8 @@ test("stock recommendation uses fundamentals, trends, risk and portfolio fit", (
   const result = new StockRecommendationService(rules).evaluate(input());
   assert.ok((result.overallScore ?? 0) >= 70);
   assert.match(result.recommendationReasoningSummary, /deterministic score/i);
+  assert.match(result.recommendationReasoningSummary, /characteristics assessment/i);
+  assert.doesNotMatch(result.recommendationReasoningSummary, /\brated\s+(Strong Buy|Buy|Hold|Watch|Reduce|Sell)\b/i);
   assert.ok(result.positiveDrivers.includes("Strong profitability"));
   assert.ok(result.recommendationChangeTriggers.upgrade.length > 0);
   assert.ok(result.recommendationChangeTriggers.downgrade.length > 0);

@@ -1,11 +1,11 @@
 import type { RecommendationLabel } from "@/domain/recommendations/types";
 
 export const ASSESSMENT_LABELS: Record<RecommendationLabel, string> = {
-  "Strong Buy": "Very Favorable Characteristics",
-  Buy: "Favorable Characteristics",
-  Hold: "Balanced Characteristics",
-  Watch: "Review Area",
-  Reduce: "Elevated Concerns",
+  "Strong Buy": "Excellent",
+  Buy: "Good",
+  Hold: "Neutral",
+  Watch: "Weak",
+  Reduce: "Poor",
   Sell: "Significant Concerns",
   "Insufficient Data": "Insufficient Data",
   "Not Applicable": "Not Applicable"
@@ -17,10 +17,10 @@ export function assessmentLabel(label: string | null | undefined) {
 
 export function assessmentTone(label: string) {
   const mapped = assessmentLabel(label);
-  if (mapped === "Very Favorable Characteristics" || mapped === "Favorable Characteristics") return "positive";
-  if (mapped === "Balanced Characteristics") return "info";
-  if (mapped === "Review Area") return "warning";
-  if (mapped === "Elevated Concerns" || mapped === "Significant Concerns") return "danger";
+  if (mapped === "Excellent" || mapped === "Good") return "positive";
+  if (mapped === "Neutral") return "info";
+  if (mapped === "Weak") return "warning";
+  if (mapped === "Poor" || mapped === "Significant Concerns") return "danger";
   return "neutral";
 }
 
