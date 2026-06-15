@@ -1,6 +1,6 @@
 # Recommendation Language Audit
 
-Date: 2026-06-08
+Date: 2026-06-15
 
 ## Scope
 
@@ -12,11 +12,11 @@ ETFVision should present the output as analytical classifications and instrument
 
 Public labels now map from internal labels as follows:
 
-- Strong Buy -> Very Favorable Characteristics
-- Buy -> Favorable Characteristics
-- Hold -> Balanced Characteristics
-- Watch -> Review Area
-- Reduce -> Elevated Concerns
+- Strong Buy -> Excellent
+- Buy -> Good
+- Hold -> Neutral
+- Watch -> Weak
+- Reduce -> Poor
 - Sell -> Significant Concerns
 - Insufficient Data -> Insufficient Data
 - Not Applicable -> Not Applicable
@@ -28,9 +28,12 @@ Public labels now map from internal labels as follows:
 - Instrument detail tabs now show `Insights`.
 - Instrument detail insight cards now use assessment labels, positive characteristics, concern areas, improvement triggers, and deterioration triggers.
 - Portfolio Review candidate sections now present improvement observations and assessment labels.
+- Portfolio Review gap sections now present deterministic Gap Analysis, Analytical Gap Summary, underweighted-category labels, disclaimer chips, and why-this-appeared tooltips.
 - Telemetry now presents insight snapshots, insight outcomes, and assessment labels.
 - Portfolio Assistant prompt and drawer copy now use insights and analytical classifications.
 - Assistant response guardrails continue blocking buy/sell, position sizing, target allocation, and return-prediction language.
+- The public `/methodology` page explains Characteristics Score, Portfolio Score, confidence, guardrails, risk, gap analysis and Market Vision methodology using neutral public labels.
+- The root footer and first-login modal carry persistent compliance disclaimers.
 
 ## Intentionally Preserved Internal Terms
 
@@ -52,3 +55,4 @@ A deeper migration could rename route/API/domain terms from `recommendation` to 
 - Guardrail thresholds were not changed.
 - Generated outputs remain bounded by no-buy/sell/no-target-allocation instructions.
 - Old user questions such as "Why is NVDA Hold?" remain supported so existing language and user habits do not break.
+- Formula-level methodology detail is preserved for transparency, but dense public tables are collapsed behind accordions by default for readability.

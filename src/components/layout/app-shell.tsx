@@ -2,6 +2,7 @@ import {
   Banknote,
   BarChart3,
   Bookmark,
+  BookOpenText,
   Database,
   Globe2,
   LineChart,
@@ -28,6 +29,7 @@ import { NavLink } from "@/components/layout/nav-link";
 import { PortfolioAssistantDrawer } from "@/components/assistant/portfolio-assistant-drawer";
 import { ETFVisionLogo } from "@/components/brand/etfvision-logo";
 import { isAlphaRelease } from "@/config/release";
+import { DisclaimerModal } from "@/components/compliance/DisclaimerModal";
 
 type NavItem = {
   href: string;
@@ -73,6 +75,7 @@ const navGroups: NavGroup[] = [
       { href: "/bonds", label: "Fixed Income", icon: Landmark },
       { href: "/recommendations", label: "Insights", icon: Sparkles },
       { href: "/portfolio-review", label: "Portfolio Review", icon: ClipboardCheck },
+      { href: "/methodology", label: "Methodology", icon: BookOpenText },
       { href: "/assistant", label: "Assistant", icon: Bot, alpha: false },
       { href: "/telemetry", label: "Telemetry", icon: Activity, alpha: false }
     ]
@@ -151,6 +154,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="mx-auto w-full max-w-[1500px] px-4 py-6 md:px-8 lg:px-10">{children}</main>
         {!isAlphaRelease ? <PortfolioAssistantDrawer /> : null}
       </div>
+      <DisclaimerModal mode="acknowledgement" />
     </div>
   );
 }

@@ -3855,3 +3855,48 @@ User-facing label mapping:
 Notes:
 - Internal recommendation labels remain unchanged for telemetry, historical records, guardrails and scoring compatibility.
 - This is a product-language hardening pass, not legal advice or a change to scoring methodology.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`
+
+## 2026-06-15 20:15 SGT - Compliance Disclaimer And Public Methodology Updates
+
+Scope:
+- Added first-login compliance disclaimer acknowledgement modal and persistent footer disclaimer.
+- Added user acknowledgement persistence through localStorage key `etfvision_disclaimer_v1` and PATCH `/api/user/disclaimer-acknowledged`.
+- Added export/report disclaimer helper and wired disclaimer text into CSV/PDF export/report surfaces where implemented.
+- Reframed Portfolio Review gap language away from improvement/action terminology and toward deterministic gap analysis.
+- Added instrument-card disclaimer chips and why-this-appeared tooltip context for Portfolio Review gap findings.
+- Added public `/methodology` and `/legal/disclosures` routes plus Methodology links in navigation/footer.
+- Expanded `/methodology` from high-level definitions to formula-level scoring methodology, then hid dense formula tables behind closed-by-default accordions for non-technical readability.
+
+Files and areas updated:
+- `src/components/compliance/DisclaimerModal.tsx`
+- `src/components/compliance/DisclaimerFooter.tsx`
+- `src/lib/compliance/disclaimers.ts`
+- `src/lib/compliance/exportDisclaimer.ts`
+- `src/app/api/user/disclaimer-acknowledged/route.ts`
+- `src/app/methodology/page.tsx`
+- `src/app/methodology/constants.ts`
+- `src/app/legal/disclosures/page.tsx`
+- `src/components/compliance/MethodologyRelatedLinks.tsx`
+- `src/components/layout/app-shell.tsx`
+- Portfolio Review page/service language and gap-analysis rendering paths.
+
+Expected behavior:
+- First-login users see the compliance acknowledgement modal until they tick the acknowledgement checkbox and click Continue.
+- Acknowledgement stores an ISO timestamp in `localStorage` and sends it to `/api/user/disclaimer-acknowledged`.
+- A sticky footer disclaimer is visible across routes and links to the read-only full disclaimer modal.
+- Portfolio Review gap analysis is presented as deterministic underweighted-category screening, not action or trade guidance.
+- `/methodology` is public, explains the Characteristics Score, Portfolio Score, confidence, guardrails, risk, gap analysis, Market Vision inputs, and limitations.
+- Public methodology tables show user-facing assessment labels only; internal labels remain internal to scoring, guardrails, telemetry, and history.
+- Dense formula tables remain available for transparency but are collapsed behind formula-detail accordions by default.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`
+- PASS: Manual source review confirmed internal labels are not exposed in the public methodology assessment table.
+- NOTE: Browser/Supabase acknowledgement metadata verification should still be repeated in the deployed environment because it depends on authenticated session state and live Supabase user metadata.

@@ -230,6 +230,6 @@ export class PortfolioReviewService {
       score >= 75 ? "is broadly healthy" :
       score >= 60 ? "is workable but has review areas" :
       "needs attention before it can be considered well balanced";
-    return `Portfolio review score is ${scoreText}. The portfolio ${posture}. ${watchAreaCount} watch areas, ${suggestionCount} improvement suggestions and ${limitationCount} data limitations were identified. Suggestions are review prompts only and do not recommend exact trades or position sizes.`;
+    return `Portfolio review score is ${scoreText}. The portfolio ${posture}. ${watchAreaCount} watch areas, ${suggestionCount} gap findings and ${limitationCount} data limitations were identified. Gap findings are deterministic analytical outputs and do not constitute investment advice, trade instructions, or position sizing guidance.`;
   }
 }

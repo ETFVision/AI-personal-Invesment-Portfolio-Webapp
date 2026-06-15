@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-13 16:20 SGT
+Last updated: 2026-06-15 20:15 SGT
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -40,6 +40,7 @@ This document records areas where the handover pack intentionally avoids guessin
 
 6. Score methodology maintenance
    - Formula-level score documentation now exists in `docs/SCORE_METHODOLOGY.md`.
+   - Public `/methodology` now presents the formula-level methodology with neutral labels and collapsible technical sections.
    - Future scoring changes must update that document in the same commit.
 
 7. Page data map documentation
@@ -93,9 +94,9 @@ This document records areas where the handover pack intentionally avoids guessin
    - Clarify how recommendation history and telemetry relate to current insight labels.
 
 17. Portfolio Review page map
-   - Expand candidate suggestion ranking and explanation rules, especially diversification, healthcare/defensive, fixed-income, and inflation/geopolitical hedge candidates.
+   - Expand gap-finding ranking and explanation rules, especially diversification, healthcare/defensive, fixed-income, and inflation/geopolitical hedge candidates.
    - Map each Portfolio Review section to the underlying service, score formula, portfolio exposure source, and refresh dependency.
-   - Document the difference between diversification candidates, defensive/healthcare candidates, fixed-income candidates, and issue-specific portfolio actions.
+   - Document the difference between diversification gap findings, defensive/healthcare gap findings, fixed-income candidates, and issue-specific analytical diagnostics.
 
 ## Low Priority
 
@@ -114,6 +115,19 @@ This document records areas where the handover pack intentionally avoids guessin
    - Do not delete until the user approves an archive/cleanup pass.
 
 ## Recently Closed Documentation Gaps
+
+Closed on 2026-06-15:
+
+- Product compliance and public methodology surfaces are now documented in:
+  - `docs/ARCHITECTURE_OVERVIEW.md`
+  - `docs/SCORE_METHODOLOGY.md`
+  - `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`
+  - `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+  - `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+  - `docs/qa-log.md`
+- The first-login disclaimer modal, sticky footer disclaimer, full-disclaimer modal, export/report disclaimer helper, `/methodology`, and `/legal/disclosures` placeholder are covered in the handover pack.
+- Portfolio Review user-facing gap analysis wording is now documented as deterministic underweighted-category screening rather than action-oriented candidate suggestions.
+- The public methodology page is documented as the user-facing presentation layer for formula-level score methodology, with internal labels kept out of public assessment tables.
 
 Closed on 2026-06-13:
 

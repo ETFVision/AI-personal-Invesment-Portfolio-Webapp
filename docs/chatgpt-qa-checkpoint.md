@@ -1,6 +1,6 @@
 # QA Checkpoint For ChatGPT Handoff
 
-Last updated: 2026-06-05
+Last updated: 2026-06-15
 
 This document is a compact checkpoint for continuing QA in a new ChatGPT conversation. It summarizes completed QA layers, current production readiness, unresolved low-priority improvements, and the latest architecture hardening work.
 
@@ -21,6 +21,7 @@ The app is a personal investment portfolio web app with these major layers imple
 - Fundamentals and Fundamental Trends
 - Recommendation Engine V1
 - Portfolio Review Engine
+- Compliance disclaimers and public methodology page
 - Scheduled data refreshes using protected job endpoints
 
 ## Current Overall Readiness
@@ -34,6 +35,15 @@ Current assessment:
 - Recommendation Engine V1 is deterministic and should remain non-AI unless explicitly redesigned.
 
 ## Latest QA-Relevant Architecture Change
+
+Latest compliance/methodology update:
+
+- First-login disclaimer acknowledgement, sticky footer disclaimer, full disclaimer modal, export/report disclaimer helper, public `/methodology`, and `/legal/disclosures` placeholder are implemented.
+- `/methodology` uses neutral public assessment labels and keeps dense formula tables behind accordions for readability.
+- Portfolio Review gap analysis language is reframed as deterministic underweighted-category screening.
+- Validation for the latest methodology readability pass: typecheck, lint, and build passed.
+
+Earlier price-refresh checkpoint:
 
 Latest commit:
 
@@ -294,17 +304,17 @@ Implemented:
 - Macro review
 - Theme exposure review
 - Fixed income review
-- Recommendation alignment
-- Portfolio improvement suggestions
-- Potential portfolio actions without trade amounts
+- Insight alignment
+- Gap analysis findings
+- Analytical gap summary
 
 Remaining low-priority improvements:
 
-- Add before/after diversification simulation for suggested candidates.
+- Add before/after diversification simulation for gap findings if the feature remains product-appropriate.
 - Add provider-quality badges for ETF exposure data.
 - Add stale-age indicators for ETF exposure snapshots.
 - Add more edge-case fixtures.
-- Improve candidate explanation templates over time.
+- Improve gap-finding explanation templates over time.
 
 ## Scheduled Refresh QA
 

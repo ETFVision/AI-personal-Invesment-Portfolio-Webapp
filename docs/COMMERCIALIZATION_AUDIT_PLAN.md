@@ -1,6 +1,6 @@
 # ETFVision Commercialization Audit Plan
 
-Last updated: 2026-06-15 00:25:00 +08:00
+Last updated: 2026-06-15 20:15:00 +08:00
 
 ## Purpose
 
@@ -281,6 +281,8 @@ Current status: mostly completed.
 
 Notes:
 - Portfolio Review uses ETF look-through exposure and deterministic review sections.
+- Portfolio Review gap analysis is now framed as deterministic underweighted-category screening, not as action or trade guidance.
+- Instrument cards in the gap section include disclaimer chips and why-this-appeared context.
 - Candidate explanation and ranking can be refined further.
 
 ## 8. AI Output Audit
@@ -354,7 +356,8 @@ Safer terms:
 - Assessment Label.
 - Characteristics Score.
 - Portfolio Relevance.
-- Review Areas.
+- Gap Analysis.
+- Analytical Gap Summary.
 
 Output:
 - Risky terminology report.
@@ -368,6 +371,7 @@ Notes:
 - Internal scoring labels remain unchanged for telemetry, historical records, and guardrail compatibility, but should not be shown as user-facing investment recommendations.
 - Instrument detail summaries now describe characteristics assessments instead of saying an instrument is rated Buy/Hold/Reduce/Sell.
 - Portfolio Review user-facing wording now refers to insight alignment rather than recommendation alignment.
+- Public `/methodology` explains the Characteristics Score and Portfolio Score calculations using neutral user-facing labels.
 - Recommendation calibration should still be rerun after the next complete weekly refresh; this is a calibration QA item, not a remaining language-cleanup blocker.
 
 ## 11. Security Audit
@@ -518,10 +522,12 @@ Output:
 - Data licensing confirmation.
 - Privacy compliance checklist.
 
-Current status: not completed.
+Current status: partly completed.
 
 Notes:
-- This should involve qualified legal review before paid users.
+- First-login disclaimer acknowledgement, persistent footer disclaimer, full-disclaimer modal, export/report disclaimer helper, public `/methodology`, and `/legal/disclosures` placeholder are implemented.
+- Public wording now states that scores are deterministic analytical classifications for informational purposes only and not investment advice, securities ratings, or buy/sell/hold recommendations.
+- This still requires qualified legal review before paid users. The current implementation is product compliance positioning, not a legal opinion.
 
 ## 16. Data Licensing Audit
 
@@ -981,15 +987,15 @@ Recommended:
 | 4 | Security Master Audit | Completed | Canonical securities, identifiers, aliases, internal ETF underlyings, issuer master, dual-run QA, issuer-level look-through rollups, Phase 5 stable identity propagation, Phase 8 monitoring, Phase 6 corporate-action readiness, and Phase 7 provider-reconciliation readiness are implemented. Final QA passed with 306/306 selectable instruments mapped, 240/240 ETF holdings mapped, and 0 unmapped/ambiguous holdings. |
 | 5 | ETF Holdings Data Audit | Mostly completed for current portfolio | Sector/country look-through works. ETF top holdings are mapped through security master/internal underlyings for current coverage. Full provider-plan expansion and mapping monitoring remain. |
 | 6 | Calculation And Logic Audit | Mostly completed | Methodology and core optimizations exist. Golden regression/manual validation pack remains. |
-| 7 | Portfolio Review Audit | Mostly completed | Engine works and is documented. Issuer-level look-through and direct/indirect exposure QA passed. Broader regression fixtures and unsafe wording review remain. |
+| 7 | Portfolio Review Audit | Mostly completed | Engine works and is documented. Issuer-level look-through and direct/indirect exposure QA passed. Gap analysis wording has been reframed as deterministic underweighted-category screening. Broader regression fixtures remain. |
 | 8 | AI Output Audit | Partly completed | Prompts hardened. Formal regression suite still needed. |
 | 9 | Market Vision Audit | Partly completed | Engine exists. Draft/publish lifecycle and evidence traceability need final audit. |
-| 10 | Recommendation / Insights Audit | Mostly completed | User-facing label and wording cleanup is complete for the current surface. Post-refresh calibration QA and internal API terminology review remain. |
+| 10 | Recommendation / Insights Audit | Mostly completed | User-facing label and wording cleanup is complete for the current surface. Public methodology now documents Characteristics Score calculations with neutral labels. Post-refresh calibration QA and internal API terminology review remain. |
 | 11 | Security Audit | Not completed | High-priority commercialization blocker. |
 | 12 | Feature Flags And Product Modes Audit | Partly completed | Branch/feature model exists. Direct alpha audit remains. |
 | 13 | Performance And Rendering Audit | In progress | Render timing and some summary optimizations done. Further route work remains. |
 | 14 | Observability And Reproducibility Audit | Mostly completed | Logs and snapshots exist. Full reproducibility matrix still needed. |
-| 15 | Legal And Compliance Audit | Not completed | Needs qualified review. |
+| 15 | Legal And Compliance Audit | Partly completed | Product disclaimers, acknowledgement modal, footer disclaimer, export/report disclaimer helper, public methodology, and legal-disclosures placeholder are implemented. Qualified legal review remains required. |
 | 16 | Data Licensing Audit | Not completed | Needs provider licensing confirmation. |
 | 17 | Scheduled Jobs And Refresh Audit | Mostly completed | Supabase cron exists. Needs live drift and reliability checks. |
 | 18 | Database And Backup Audit | Partly completed | Schema documented. Formal index/RLS/backup/restore audit remains. |

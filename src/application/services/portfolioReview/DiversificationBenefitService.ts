@@ -52,15 +52,15 @@ export class DiversificationBenefitService {
     let concentrationScore = 0;
     let correlationScore = 0;
     let overlapPenalty = 0;
-    let primaryReason = `${input.symbol} addresses ${input.issueCategory.replaceAll("_", " ")} with ${input.roleLabel.toLowerCase()}.`;
-    let secondaryBenefit = "Adds a differentiated exposure driver if portfolio overlap is acceptable.";
+    let primaryReason = `${input.symbol} appears for ${input.issueCategory.replaceAll("_", " ")} with ${input.roleLabel.toLowerCase()}.`;
+    let secondaryBenefit = "Provides a differentiated exposure driver if portfolio overlap is acceptable.";
 
     if (hasAny(role, ["international equity", "developed international", "emerging-market", "global equity"])) {
       gapScore += clampRange((input.usExposure - 0.55) * 120, 0, 24);
       if (input.internationalExposure < 0.4) gapScore += 10;
       correlationScore += 7;
-      primaryReason = `${input.symbol} adds non-US equity exposure where US look-through exposure is ${pct(input.usExposure)}.`;
-      secondaryBenefit = "Reduces reliance on US market leadership and adds regional/currency diversification.";
+      primaryReason = `${input.symbol} provides exposure to non-US equity where US look-through exposure is ${pct(input.usExposure)}.`;
+      secondaryBenefit = "May reduce reliance on US market leadership and provides regional/currency diversification.";
       if (hasAny(role, ["global equity"])) overlapPenalty += 8;
     }
 
@@ -68,24 +68,24 @@ export class DiversificationBenefitService {
       gapScore += clampRange((0.12 - input.healthcareWeight) * 260, 0, 28);
       if (input.technologyWeight > 0.25) concentrationScore += 16;
       correlationScore += 8;
-      primaryReason = `${input.symbol} adds Healthcare exposure where Healthcare is ${pct(input.healthcareWeight)} versus Technology at ${pct(input.technologyWeight)}.`;
-      secondaryBenefit = "Adds defensive earnings drivers from pharma, services, devices and care delivery.";
+      primaryReason = `${input.symbol} provides exposure to Healthcare where Healthcare is ${pct(input.healthcareWeight)} versus Technology at ${pct(input.technologyWeight)}.`;
+      secondaryBenefit = "Provides exposure to defensive earnings drivers from pharma, services, devices and care delivery.";
     }
 
     if (hasAny(role, ["defensive utilities", "defensive consumer staples"])) {
       gapScore += input.technologyWeight > 0.25 ? 15 : 8;
       concentrationScore += input.dominantSectorWeight > 0.25 ? 12 : 5;
       correlationScore += 8;
-      primaryReason = `${input.symbol} adds defensive sector exposure while ${input.dominantSector ?? "the largest sector"} is ${pct(input.dominantSectorWeight)}.`;
+      primaryReason = `${input.symbol} provides exposure to a defensive sector while ${input.dominantSector ?? "the largest sector"} is ${pct(input.dominantSectorWeight)}.`;
       secondaryBenefit = hasAny(role, ["utilities"])
-        ? "Adds regulated demand exposure that can behave differently from growth equities."
-        : "Adds essential-consumption exposure that can be more resilient in slower growth.";
+        ? "Provides exposure to regulated demand that can behave differently from growth equities."
+        : "Provides exposure to essential-consumption businesses that can be more resilient in slower growth.";
     }
 
     if (hasAny(role, ["bond", "treasury", "fixed income", "credit"])) {
       gapScore += clampRange((0.2 - input.bondAllocation) * 180, 0, 30);
       correlationScore += hasAny(role, ["high-yield"]) ? 2 : 12;
-      primaryReason = `${input.symbol} adds fixed-income exposure where bond allocation is ${pct(input.bondAllocation)}.`;
+      primaryReason = `${input.symbol} provides exposure to fixed income where bond allocation is ${pct(input.bondAllocation)}.`;
       secondaryBenefit = hasAny(role, ["international fixed income"])
         ? "Diversifies rate, currency and issuer exposure beyond US-only bond ballast."
         : "Adds ballast that may reduce equity-driven portfolio volatility.";
@@ -95,8 +95,8 @@ export class DiversificationBenefitService {
     if (hasAny(role, ["gold", "inflation hedge"])) {
       gapScore += clampRange((0.06 - input.goldAllocation) * 320, 0, 28);
       correlationScore += 10;
-      primaryReason = `${input.symbol} adds hedge exposure where gold allocation is ${pct(input.goldAllocation)}.`;
-      secondaryBenefit = "Can improve resilience to inflation, real-rate and geopolitical shocks.";
+      primaryReason = `${input.symbol} provides exposure to hedge characteristics where gold allocation is ${pct(input.goldAllocation)}.`;
+      secondaryBenefit = "May relate to resilience to inflation, real-rate and geopolitical shocks.";
     }
 
     if (input.issueCategory === "sector_concentration" || input.issueCategory === "theme_concentration" || input.issueCategory === "concentration_risk") {
