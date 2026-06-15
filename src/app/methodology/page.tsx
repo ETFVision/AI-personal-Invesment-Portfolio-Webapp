@@ -21,13 +21,39 @@ const toc = [
 ];
 
 const assessmentRows = [
-  ["85-100", "Excellent", "Strong Buy"],
-  ["70-84", "Good", "Buy"],
-  ["50-69", "Neutral", "Hold"],
-  ["35-49", "Weak", "Watch"],
-  ["20-34", "Poor", "Reduce"],
-  ["Below 20", "Significant Concerns", "Sell"],
-  ["Missing", "Insufficient Data", "Insufficient Data"]
+  ["85-100", "Excellent"],
+  ["70-84", "Good"],
+  ["50-69", "Neutral"],
+  ["35-49", "Weak"],
+  ["20-34", "Poor"],
+  ["Below 20", "Significant Concerns"],
+  ["Missing", "Insufficient Data"]
+];
+
+const componentDefinitionRows = [
+  ["Fundamentals", "Company-level financial statement and ratio score covering growth, profitability, valuation, balance sheet, cash flow, and quality."],
+  ["Fundamental trends", "Direction and strength of financial metrics over available reporting periods, with lower confidence when trend direction is volatile."],
+  ["Valuation", "Relative valuation sub-score using P/E, forward P/E, price/sales, price/book, EV/EBITDA, and free cash flow yield. Lower multiples score higher; higher free cash flow yield scores higher."],
+  ["Market Vision alignment", "Mechanical text and theme alignment between the instrument, its sector/themes/asset class, and the latest Market Vision context."],
+  ["Theme alignment / Theme fit / Theme score", "Score based on canonical themes and thematic tags attached to the instrument. Theme count and selected themes can raise or lower the score."],
+  ["Risk analytics", "Instrument risk score inverted onto the 0-100 Characteristics scale. Higher instrument risk lowers this component."],
+  ["Portfolio fit / Allocation fit", "How the instrument fits current portfolio allocation, concentration, duplicate exposure, and portfolio context."],
+  ["Momentum", "Price momentum score based on one-year return, year-to-date return, and daily return when available."],
+  ["Diversification benefit", "Deterministic estimate of whether the instrument adds exposure away from existing dominant holdings, sectors, geographies, or asset classes."],
+  ["Macro fit", "Rules-based fit between the instrument's asset class/sector and FRED macro regimes such as rates, inflation, growth, liquidity, and risk appetite."],
+  ["Benchmark relative", "ETF component based on one-year return relative to a neutral midpoint when market metric data is available."],
+  ["Duration fit", "Bond ETF component based on duration category. Ultra-short/short scores 72, intermediate scores 62, and long scores 48 before other macro components apply."],
+  ["Rate regime", "Bond ETF component that adjusts for duration under high, restrictive, rising, or supportive rate conditions."],
+  ["Inflation regime", "Bond ETF component that reflects whether inflation-linked exposure is relevant and whether long duration is exposed to elevated inflation."],
+  ["Yield curve", "Bond ETF component using the macro-fit function with bond duration and profile data."],
+  ["Credit risk", "Bond ETF component based on credit quality. High-yield credit receives a lower score than investment-grade or treasury classifications."],
+  ["Portfolio stability", "Bond ETF component reflecting treasury or cash-like ballast characteristics compared with more volatile fixed-income profiles."],
+  ["Inflation hedge", "Gold ETF component that scores higher when inflation regime text is elevated or rising."],
+  ["Geopolitical hedge", "Gold ETF component that scores higher when liquidity or risk regime text indicates stress or tightness."],
+  ["Rates context", "Gold ETF component using macro-fit rules for rates, inflation, and asset-class context."],
+  ["Portfolio concentration", "Crypto component that falls as crypto concentration rises in the current portfolio."],
+  ["Liquidity regime", "Crypto component that falls when macro liquidity regime text indicates tight conditions."],
+  ["Macro risk appetite", "Crypto component using macro-fit rules for risk appetite and macro regime context."]
 ];
 
 const instrumentPanels = [
@@ -136,6 +162,18 @@ const portfolioRows = [
   ["Fixed Income", "10%", "Duration, credit quality and recession-hedge roles"],
   ["Theme Exposure", "5%", "ETF look-through theme alignment vs current news and macro themes"],
   ["Geography", "0%", "Displayed diagnostic dimension; currently excluded from the composite"]
+];
+
+const portfolioDefinitionRows = [
+  ["Allocation", "Starts from an 82 baseline and adjusts for equity-heavy exposure, low fixed-income ballast, high cash, and material crypto exposure."],
+  ["Concentration", "Uses direct holdings plus ETF look-through where available. Penalizes high largest holding, high top-five exposure, and high largest-sector exposure."],
+  ["Diversification", "Uses meaningful holding count, asset-class count, sector count, currency count, average correlation, top holding concentration, and top-five concentration."],
+  ["Risk", "Uses portfolio volatility, current drawdown, max drawdown, and risk contribution diagnostics from flow-adjusted return data."],
+  ["Macro Fit", "Compares portfolio posture against FRED rates, inflation, growth, liquidity regimes and the latest Market Vision risk context."],
+  ["Insight Alignment", "Compares current holdings with the Characteristics Score engine output and measures coverage of scored instruments."],
+  ["Fixed Income", "Uses total bond allocation, duration exposure, high-yield exposure, treasury/corporate mix, recession hedge exposure, and bond profile coverage."],
+  ["Theme Exposure", "Uses ETF look-through theme exposure and current news/macro theme intelligence where available."],
+  ["Geography", "Uses ETF country look-through or direct geography fallback. It is displayed as a diagnostic and currently carries 0% portfolio-score weight."]
 ];
 
 function Section({
@@ -266,9 +304,9 @@ export default function MethodologyPage() {
                 </CardHeader>
                 <CardContent className="space-y-5">
                   <Paragraph>
-                    The engine maps internal score labels to user-facing analytical assessment labels. Internal label names are implementation terminology only; the displayed assessment labels do not mean buy, sell, hold, reduce, or any other trade instruction.
+                    The Characteristics Score is shown with user-facing analytical assessment labels. These labels do not mean buy, sell, hold, reduce, or any other trade instruction.
                   </Paragraph>
-                  <MethodologyTable columns={["Score range", "Displayed assessment label", "Internal engine label"]} rows={assessmentRows} />
+                  <MethodologyTable columns={["Score range", "Assessment label"]} rows={assessmentRows} />
                   <div className="space-y-3">
                     {instrumentPanels.map((panel) => (
                       <details key={panel.title} className="rounded-lg border border-slate-200 bg-white p-3" open={panel.title === "Stocks"}>
@@ -279,6 +317,13 @@ export default function MethodologyPage() {
                         </div>
                       </details>
                     ))}
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-base font-semibold text-slate-950">Component Definitions</h3>
+                    <Paragraph>
+                      The terms below define the score components, fits, and alignments used across the Characteristics Score panels. Components only contribute when their underlying data is available.
+                    </Paragraph>
+                    <MethodologyTable columns={["Component / fit / alignment", "Definition"]} rows={componentDefinitionRows} />
                   </div>
                 </CardContent>
               </Card>
@@ -343,6 +388,10 @@ export default function MethodologyPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <MethodologyTable columns={["Dimension", "Weight", "What it measures"]} rows={portfolioRows} />
+                  <div className="space-y-3">
+                    <h3 className="text-base font-semibold text-slate-950">Portfolio Dimension Definitions</h3>
+                    <MethodologyTable columns={["Dimension", "How it is evaluated"]} rows={portfolioDefinitionRows} />
+                  </div>
                   <Paragraph>
                     The Portfolio Score reflects analytical characteristics at the time of the last review run. It does not predict future performance or assess suitability for any individual.
                   </Paragraph>
