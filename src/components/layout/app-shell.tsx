@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/layout/nav-link";
 import { PortfolioAssistantDrawer } from "@/components/assistant/portfolio-assistant-drawer";
 import { ETFVisionLogo } from "@/components/brand/etfvision-logo";
+import { DisclaimerModal } from "@/components/compliance/DisclaimerModal";
 
 const navGroups = [
   {
@@ -128,6 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="mx-auto w-full max-w-[1500px] px-4 py-6 md:px-8 lg:px-10">{children}</main>
         <PortfolioAssistantDrawer />
       </div>
+      <DisclaimerModal mode="acknowledgement" />
     </div>
   );
 }
