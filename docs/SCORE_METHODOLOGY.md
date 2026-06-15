@@ -1,6 +1,6 @@
 # ETFVision Score Methodology
 
-Last updated: 2026-06-15 00:25:00 +08:00
+Last updated: 2026-06-15 20:15:00 +08:00
 
 Authoritative status: formula-level handover snapshot based on current code and migrations. This document explains how the main derived scores are calculated. If a score is later recalibrated, update this file in the same commit.
 
@@ -702,6 +702,19 @@ They should not use wording such as:
 
 `TSM is rated Buy.`
 
+### Public Methodology Page
+
+The public `/methodology` route is the user-facing presentation layer for this document's formula-level methodology. It is intentionally written as an explanatory methodology page, not as an internal developer spec.
+
+Current presentation rules:
+
+- The page is public and does not require authentication.
+- The page shows Characteristics Score assessment ranges using user-facing labels only.
+- Internal labels such as Strong Buy, Buy, Hold, Watch, Reduce, and Sell remain internal compatibility labels and should not appear in public assessment tables.
+- Formula-level details for Characteristics components, fundamentals normalization, fundamentals sub-scores, confidence, Portfolio Review formulas, and macro/Market Vision inputs remain available for transparency.
+- Dense formula tables are collapsed behind formula-detail accordions by default so non-technical users can skim the page before opening technical detail.
+- The page includes compliance positioning that scores are deterministic analytical outputs, not investment advice, trade instructions, securities ratings, or predictions of future performance.
+
 ### Recommendation Confidence
 
 Inputs:
@@ -891,7 +904,7 @@ Primary code: `src/application/services/portfolioReview`
 | Diversification | 15% |
 | Risk | 15% |
 | Macro fit | 15% |
-| Recommendation alignment | 10% |
+| Insight alignment | 10% |
 | Fixed income | 10% |
 | Theme exposure | 5% |
 | Geography | 0% |
@@ -919,7 +932,7 @@ Macro fit:
 
 `72 - 8 if restrictive rates and equity allocation > 75% - 10 if weak growth and equity allocation > 70% + 5 if elevated inflation and portfolio has gold exposure`
 
-Recommendation alignment:
+Insight alignment:
 
 `60 + constructiveHeldCount * 4 - weakHeldCount * 8 + coverage * 12`
 

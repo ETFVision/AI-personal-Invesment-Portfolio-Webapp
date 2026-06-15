@@ -1,10 +1,12 @@
 # Recommendation Insights Methodology
 
-Last updated: 2026-06-13
+Last updated: 2026-06-15
 
 ## Purpose
 
 The recommendation engine is deterministic. It uses stored data, rules, weighted scores, and guardrails. OpenAI is not used to decide recommendation labels.
+
+Public surfaces should describe these outputs as Insights, Characteristics Scores, assessment labels, analytical classifications, or guardrail classifications. The underlying recommendation service and database names remain for compatibility, but consumer-facing pages should not present the outputs as investment recommendations.
 
 ## Main Code Paths
 
@@ -56,7 +58,20 @@ Internal label thresholds:
 | Below 20 | Sell |
 | No score | Insufficient Data |
 
-User-facing language has been softened in presentation layers to avoid direct investment-instruction wording.
+User-facing language maps these internal labels to neutral assessment labels:
+
+| Internal label | User-facing assessment label |
+|---|---|
+| Strong Buy | Excellent |
+| Buy | Good |
+| Hold | Neutral |
+| Watch | Weak |
+| Reduce | Poor |
+| Sell | Significant Concerns |
+| Insufficient Data | Insufficient Data |
+| Not Applicable | Not Applicable |
+
+User-facing pages should avoid direct investment-instruction wording. Internal labels remain in services, database rows, telemetry, and history for compatibility.
 
 ## Guardrails
 
@@ -90,6 +105,12 @@ This matters for cases like:
 - Direct `MSFT` plus Microsoft exposure through `VOO`, `QQQ`, and `VT`.
 - `GOOG` and `GOOGL` rolling up under `Alphabet Inc`.
 - Broad ETF candidates being evaluated against existing underlying exposure rather than only ETF product category.
+
+## Public Methodology And Disclaimers
+
+The `/methodology` page presents Characteristics Score and Portfolio Score methodology in public-friendly language while preserving formula-level detail behind closed-by-default accordions. The page should not expose internal labels as recommendations.
+
+The root layout includes a persistent disclaimer footer and the first-login disclaimer modal captures acknowledgement using `etfvision_disclaimer_v1`. Export/report disclaimer text is centralized in the compliance helper so generated outputs can repeat the informational-only framing.
 
 ## Recommendation History
 

@@ -1,6 +1,6 @@
 # ChatGPT Handover Document
 
-Last updated: 2026-06-05
+Last updated: 2026-06-15
 
 This document is written for a new ChatGPT conversation. It explains the current state, architecture, recent changes, and recommended next steps for the personal investment portfolio web app. It intentionally avoids local coding-agent instructions and focuses on product, architecture, QA, and operating context.
 
@@ -39,7 +39,19 @@ Implemented or substantially built:
 - Fundamental Trends
 - Recommendation Engine V1
 - Portfolio Review Engine
+- Compliance disclaimers and public methodology page
 - Scheduled data refreshes
+
+## Latest Compliance And Methodology Addendum
+
+Recent updates after the prior QA checkpoint:
+
+- User-facing Insights labels now use neutral Characteristics Score assessment labels: Excellent, Good, Neutral, Weak, Poor, Significant Concerns, Insufficient Data, and Not Applicable.
+- First-login disclaimer acknowledgement, sticky footer disclaimer, read-only full disclaimer modal, and export/report disclaimer helper are implemented.
+- `/methodology` is a public static page explaining Characteristics Score, Fundamentals Score, Confidence, Guardrails, Portfolio Score, Risk Analytics, Gap Analysis, Market Vision inputs, and limitations.
+- `/legal/disclosures` exists as a public legal-disclosures placeholder.
+- Dense formula-level methodology tables remain available for transparency but are collapsed behind accordions by default for non-technical readability.
+- Portfolio Review gap analysis is now framed as deterministic underweighted-category screening, not as a suggestion or action engine.
 
 ## Current Data Providers
 
@@ -548,16 +560,16 @@ Includes:
 - Macro review
 - Theme exposure review
 - Fixed income review
-- Recommendation alignment
-- Portfolio improvement suggestions
-- Potential portfolio actions without execution amounts
+- Insight alignment
+- Gap analysis findings
+- Analytical gap summary
 - ETF look-through exposure
 - Direct and indirect holdings exposure
 
 Important:
 
-- Suggestions are review prompts, not trade instructions.
-- Candidate explanations should explain why the candidate improves the current portfolio.
+- Gap findings are deterministic analytical outputs, not trade instructions.
+- Candidate explanations should explain why an instrument appeared in an underweighted category and should include the relevant disclaimer context.
 
 ## ETF Look-Through Exposure
 
@@ -622,7 +634,7 @@ Current production-readiness assessment:
 ### Portfolio Review
 
 - Add before/after diversification simulation.
-- Improve candidate explanations further.
+- Improve gap-finding explanations further.
 - Add stale-age indicators for ETF exposure.
 - Add provider-quality badges.
 
@@ -671,4 +683,3 @@ Important context:
 First task:
 Help me verify the deployed Daily Data Refresh behavior and diagnose any stale freshness or price mismatch issues.
 ```
-

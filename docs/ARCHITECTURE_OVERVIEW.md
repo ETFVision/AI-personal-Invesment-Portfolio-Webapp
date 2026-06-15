@@ -1,6 +1,6 @@
 # ETFVision Architecture Overview
 
-Last updated: 2026-06-13
+Last updated: 2026-06-15
 
 Authoritative status: current handover snapshot for future developers. This document supersedes older overlapping architecture notes where the contents conflict, while older audit logs remain useful as historical context.
 
@@ -41,6 +41,7 @@ The codebase follows a mostly clean architecture layout:
 - Portfolio: `/holdings`, `/transactions`, `/cash`
 - Instruments: `/instruments/universe`, `/instruments/watchlist`, `/instruments/[symbol]`
 - Research: `/market-vision`, `/news`, `/macro`, `/risk`, `/bonds`, `/fundamentals`, `/recommendations`, `/portfolio-review`, `/telemetry`, `/assistant`
+- Public compliance/methodology: `/methodology`, `/legal/disclosures`
 - Admin: `/admin/data-sources`, `/admin/jobs`, `/admin/assistant-usage`, `/admin/system-health`, `/setup/taxonomy`
 
 ## API Job Routes
@@ -53,6 +54,20 @@ Protected job endpoints live under `src/app/api/jobs`. They are wrapped by `src/
 - Structured JSON status with `success`, `partial_success`, `failed`, or `skipped`.
 
 Important job routes include instrument prices, daily returns, return anchors, market metrics, risk metrics, metadata, ETF look-through, fundamentals, FRED macro, FMP news, NewsData.io, GDELT, benchmarks, portfolio valuation, summary refresh, Market Vision, recommendations, portfolio review, and telemetry evaluation.
+
+## Compliance And Public Methodology Surfaces
+
+The app now has a lightweight compliance layer intended to make user-facing analytics positioning explicit:
+
+- `src/components/compliance/DisclaimerModal.tsx` shows a first-login acknowledgement modal when `localStorage.etfvision_disclaimer_v1` is absent.
+- On acknowledgement, the client stores an ISO timestamp locally and calls PATCH `/api/user/disclaimer-acknowledged`; the API stores `etfvision_disclaimer_v1_acknowledged_at` in Supabase Auth user metadata when a user session is available.
+- `src/components/compliance/DisclaimerFooter.tsx` renders a persistent sticky footer disclaimer across the root layout and opens the full disclaimer in read-only mode.
+- `src/lib/compliance/disclaimers.ts` is the shared source for full disclaimer and export/report disclaimer copy.
+- `src/lib/compliance/exportDisclaimer.ts` exposes helper text for CSV/PDF/report generation.
+- `/methodology` is a public static route explaining Characteristics Score, Fundamentals Score, Confidence, Guardrails, Portfolio Score, Risk Analytics, Gap Analysis, Market Vision inputs, and limitations.
+- `/legal/disclosures` is a public legal-disclosures placeholder route linked from the footer and methodology related-links section.
+
+Public methodology wording must expose only neutral assessment labels such as `Excellent`, `Good`, `Neutral`, `Weak`, `Poor`, and `Significant Concerns`. Internal scoring labels remain available for data contracts, guardrails, telemetry and history, but should not be presented to users as investment instructions.
 
 ## Security Master And Identity Layers
 
@@ -99,6 +114,7 @@ The following audits have architecture-level implications and should be treated 
 | Scheduled Jobs Audit | Moves production refresh orchestration to Supabase cron and splits heavy jobs into smaller dependent stages. | `scheduled-jobs.md`, `JOBS_AND_OPERATIONS.md`, `DATA_INGESTION_AND_PROVIDERS.md` |
 | Market Vision / News / Macro QA | Separates scheduled NewsData/FMP/FRED inputs from manual GDELT and documents Market Vision as a narrative layer over stored intelligence. | `MARKET_VISION_METHODOLOGY.md`, `NEWS_THEME_METHODOLOGY.md`, `DATA_INGESTION_AND_PROVIDERS.md` |
 | Fundamentals / Risk / Fixed Income QA | Documents deterministic score and metric methodologies for fundamentals, risk, fixed income, and stored derived metrics. | `SCORE_METHODOLOGY.md`, `CALCULATION_METHODOLOGY.md`, `DATABASE_SCHEMA.md` |
+| Compliance / Public Methodology | Adds first-login disclaimer acknowledgement, sticky footer disclaimer, export/report disclaimer copy, legal disclosures placeholder, and public formula-level methodology page. | `SCORE_METHODOLOGY.md`, `RECOMMENDATION_INSIGHTS_METHODOLOGY.md`, `PORTFOLIO_REVIEW_METHODOLOGY.md`, `qa-log.md` |
 | Telemetry Audit | Tracks recommendation/Market Vision/Portfolio Review outcome evaluation architecture. | `TELEMETRY_ARCHITECTURE.md`, `DOCUMENTATION_GAPS.md` |
 | Feature Gates / Alpha Audit | Documents alpha versus full-product surface separation and the need to preserve flags when merging. | `feature-gated-production-architecture-audit.md`, `SECURITY_AND_ACCESS_ARCHITECTURE.md` |
 

@@ -1,17 +1,17 @@
 # Portfolio Review Methodology
 
-Last updated: 2026-06-12 22:36:00 +08:00
+Last updated: 2026-06-15 20:15:00 +08:00
 
 ## Purpose
 
-Portfolio Review is a deterministic portfolio-level diagnostic engine. It does not execute trades. It generates observations, section scores, improvement suggestions, and non-execution potential actions.
+Portfolio Review is a deterministic portfolio-level diagnostic engine. It does not execute trades. It generates observations, section scores, gap findings, and explanatory diagnostics. User-facing wording should avoid action-oriented framing and should not imply personalised investment advice.
 
 ## Main Code Paths
 
 - Orchestration: `src/application/services/portfolioReview/PortfolioReviewService.ts`
 - Run service: `src/application/services/portfolioReview/PortfolioReviewRunService.ts`
 - Scoring helpers: `src/application/services/portfolioReview/portfolioReviewScoring.ts`
-- Suggestions: `PortfolioImprovementSuggestionService.ts`, `PortfolioActionSuggestionService.ts`, `DiversificationBenefitService.ts`
+- Gap and diversification diagnostics: `PortfolioImprovementSuggestionService.ts`, `PortfolioActionSuggestionService.ts`, `DiversificationBenefitService.ts`
 - Reports: `portfolio_review_runs`, `portfolio_review_reports`
 
 ## Section Weights
@@ -25,7 +25,7 @@ Current weights from `portfolioReviewScoring.ts`:
 | Diversification | 15% |
 | Risk | 15% |
 | Macro fit | 15% |
-| Recommendation alignment | 10% |
+| Insight alignment | 10% |
 | Fixed income | 10% |
 | Theme exposure | 5% |
 | Geography | 0% |
@@ -43,12 +43,12 @@ Portfolio Review includes:
 - Diversification review.
 - Portfolio risk review.
 - Macro fit review.
-- Recommendation alignment review.
+- Insight alignment review.
 - Fixed income review.
 - Theme exposure review.
 - Geography review.
-- Improvement suggestions.
-- Potential portfolio actions.
+- Gap analysis findings.
+- Analytical gap summary.
 
 ## Exposure Inputs
 
@@ -80,20 +80,32 @@ Related files:
 - `src/app/(dashboard)/portfolio-review/page.tsx`
 - `docs/SECURITY_MASTER_AUDIT.md`
 
-## Candidate Suggestions
+## Gap Analysis Findings
 
-Candidates are filtered from recommendation outputs and active instruments. Suggested candidates should explain:
+Gap Analysis is framed as a mechanical screener, not as a suggestion or action engine. Instruments appear only when their category is underweighted in the current portfolio look-through exposure, they are in the active approved universe, and they have passed all guardrail filters.
+
+Candidate instruments should explain:
 
 - What portfolio issue they address.
 - Why the exposure is different.
 - Diversification benefit.
 - Trade-offs and overlap risk.
 
-The candidate logic should not change recommendation labels. It uses recommendation outputs as one input into portfolio-level suggestions.
+The candidate logic should not change internal scoring labels. It uses stored insight outputs and active universe data as inputs into portfolio-level gap findings. User-facing cards should include the disclaimer chip: `Shown because category is underweighted - not a buy recommendation`.
+
+The Portfolio Review page should use the following public language:
+
+- `Gap Analysis - Instruments in Underweighted Categories`
+- `Analytical Gap Summary`
+- `Gap findings`
+- `Healthcare & Defensive - Underweighted Category`
+- `International Equity - Underweighted Category`
+
+The page should not present these outputs as recommendations to buy, sell, hold, review, or trade an instrument. Explanatory tooltips can show why an instrument appeared, using existing look-through exposure data and guardrail-pass status.
 
 ## Current Limitations
 
-- Candidate explanations are deterministic templates and exposure-aware, but not a full optimizer.
+- Gap-finding explanations are deterministic templates and exposure-aware, but not a full optimizer.
 - Geography currently has 0% score weight in the overall portfolio score.
 - Exact issue-to-candidate scoring thresholds should be verified in the candidate services for any future recalibration.
 - Historical reports generated before Security Master Phase 4C/4D may not contain issuer IDs or `securityBreakdown`; refresh Portfolio Review before using issuer-level outputs for QA.
