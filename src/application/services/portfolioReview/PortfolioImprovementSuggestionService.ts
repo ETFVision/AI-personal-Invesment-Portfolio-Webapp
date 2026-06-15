@@ -204,56 +204,56 @@ function diversificationType(instrument: Instrument) {
 function roleExplanation(instrument: Instrument, issueCategory: PortfolioImprovementIssueCategory, context: SuggestionContext) {
   const symbol = instrument.symbol ?? instrument.name;
   const role = candidateRole(instrument);
-  if (role === "international_equity") return `${symbol} adds broad non-US equity exposure, directly reducing reliance on ${pct(context.usExposure)} US look-through exposure.`;
-  if (role === "developed_international_equity") return `${symbol} adds developed-market non-US equities, improving regional balance without adding emerging-market concentration.`;
-  if (role === "emerging_market_equity") return `${symbol} adds emerging-market equities, introducing different growth, currency and valuation drivers from US large caps.`;
-  if (role === "global_equity") return `${symbol} adds global equity breadth, but its US overlap should be reviewed because current US exposure is ${pct(context.usExposure)}.`;
-  if (role === "international_bond") return `${symbol} adds international investment-grade bond exposure. Compared with BND, it diversifies fixed income across non-US rate cycles and currencies instead of only adding US aggregate bond ballast.`;
-  if (role === "core_us_bond") return `${symbol} adds core US aggregate bond ballast, diversifying away from equity sector risk and large single-name exposures.`;
-  if (role === "intermediate_treasury") return `${symbol} adds intermediate Treasury duration, which can help offset equity stress without the larger rate sensitivity of long-duration Treasuries.`;
-  if (role === "long_duration_treasury") return `${symbol} adds long-duration Treasury exposure with stronger recession-hedge potential, but higher sensitivity to interest-rate moves.`;
-  if (role === "short_treasury_cash_like") return `${symbol} adds short-duration Treasury or cash-like ballast, improving liquidity and reducing equity-volatility dependence.`;
-  if (role === "tips_inflation_linked") return `${symbol} adds inflation-linked bond exposure, which is more directly tied to inflation protection than nominal bonds.`;
-  if (role === "investment_grade_credit") return `${symbol} adds investment-grade corporate credit, introducing income exposure with less equity beta than stock-heavy sectors.`;
-  if (role === "high_yield_credit") return `${symbol} adds high-yield credit exposure, but it is a risk asset and should not be treated as defensive bond ballast.`;
-  if (role === "gold_hedge") return `${symbol} adds gold exposure, a hedge sleeve that can respond differently to inflation, real-rate and geopolitical stress than equities.`;
-  if (role === "healthcare_defensive") return `${symbol} adds Healthcare exposure where current Healthcare weight is ${pct(context.healthcareWeight)} versus Technology at ${pct(context.technologyWeight)}; the sector has different earnings drivers such as pharma, services and medical devices.`;
-  if (role === "utilities_defensive") return `${symbol} adds regulated utility exposure, which can reduce dependence on technology earnings cycles and usually has more defensive demand characteristics.`;
-  if (role === "consumer_staples_defensive") return `${symbol} adds Consumer Staples exposure, giving the portfolio essential-consumption businesses that can behave differently in slower-growth environments.`;
-  if (role === "real_estate") return `${symbol} adds real estate exposure, diversifying sector mix through property income and rate-sensitive assets.`;
-  if (role === "energy_inflation_equity") return `${symbol} adds energy exposure, which can improve sensitivity to oil and commodity cycles but remains cyclical equity risk.`;
-  if (role === "financials_cyclical") return `${symbol} adds financial-sector exposure, increasing sensitivity to credit, rates and capital-market cycles.`;
-  if (role === "industrials_cyclical") return `${symbol} adds industrial exposure, diversifying toward infrastructure, manufacturing and capital-spending cycles.`;
+  if (role === "international_equity") return `${symbol} provides exposure to broad non-US equity, and may reduce reliance on ${pct(context.usExposure)} US look-through exposure.`;
+  if (role === "developed_international_equity") return `${symbol} provides exposure to developed-market non-US equities, adding regional balance without adding emerging-market concentration.`;
+  if (role === "emerging_market_equity") return `${symbol} provides exposure to emerging-market equities, introducing different growth, currency and valuation drivers from US large caps.`;
+  if (role === "global_equity") return `${symbol} provides exposure to global equity breadth, but its US overlap may be reviewed because current US exposure is ${pct(context.usExposure)}.`;
+  if (role === "international_bond") return `${symbol} provides exposure to international investment-grade bonds. Compared with BND, it diversifies fixed income across non-US rate cycles and currencies instead of only adding US aggregate bond ballast.`;
+  if (role === "core_us_bond") return `${symbol} provides exposure to core US aggregate bond ballast, diversifying away from equity sector risk and large single-name exposures.`;
+  if (role === "intermediate_treasury") return `${symbol} provides exposure to intermediate Treasury duration, which can help offset equity stress without the larger rate sensitivity of long-duration Treasuries.`;
+  if (role === "long_duration_treasury") return `${symbol} provides exposure to long-duration Treasuries with stronger recession-hedge potential, but higher sensitivity to interest-rate moves.`;
+  if (role === "short_treasury_cash_like") return `${symbol} provides exposure to short-duration Treasury or cash-like ballast, improving liquidity and reducing equity-volatility dependence.`;
+  if (role === "tips_inflation_linked") return `${symbol} provides exposure to inflation-linked bonds, which are more directly tied to inflation protection than nominal bonds.`;
+  if (role === "investment_grade_credit") return `${symbol} provides exposure to investment-grade corporate credit, introducing income exposure with less equity beta than stock-heavy sectors.`;
+  if (role === "high_yield_credit") return `${symbol} provides exposure to high-yield credit, but it is a risk asset and is not treated as defensive bond ballast.`;
+  if (role === "gold_hedge") return `${symbol} provides exposure to gold, a hedge sleeve that can respond differently to inflation, real-rate and geopolitical stress than equities.`;
+  if (role === "healthcare_defensive") return `${symbol} provides exposure to Healthcare where current Healthcare weight is ${pct(context.healthcareWeight)} versus Technology at ${pct(context.technologyWeight)}; the sector has different earnings drivers such as pharma, services and medical devices.`;
+  if (role === "utilities_defensive") return `${symbol} provides exposure to regulated utilities, which can reduce dependence on technology earnings cycles and usually has more defensive demand characteristics.`;
+  if (role === "consumer_staples_defensive") return `${symbol} provides exposure to Consumer Staples, giving the portfolio essential-consumption businesses that can behave differently in slower-growth environments.`;
+  if (role === "real_estate") return `${symbol} provides exposure to real estate, diversifying sector mix through property income and rate-sensitive assets.`;
+  if (role === "energy_inflation_equity") return `${symbol} provides exposure to energy, which may affect sensitivity to oil and commodity cycles but remains cyclical equity risk.`;
+  if (role === "financials_cyclical") return `${symbol} provides exposure to financials, increasing sensitivity to credit, rates and capital-market cycles.`;
+  if (role === "industrials_cyclical") return `${symbol} provides exposure to industrials, diversifying toward infrastructure, manufacturing and capital-spending cycles.`;
   if (issueCategory === "sector_concentration" || issueCategory === "theme_concentration") {
     return `${symbol} broadens away from ${context.dominantSector ?? "the dominant sector"}, currently ${pct(context.dominantSectorWeight)} of look-through sector exposure.`;
   }
-  if (symbol) return `${symbol} adds ${roleLabels[role].toLowerCase()} to address ${issueCategory.replaceAll("_", " ")}.`;
-  return `${symbol} adds a different exposure profile to address ${issueCategory.replaceAll("_", " ")}.`;
+  if (symbol) return `${symbol} provides exposure to ${roleLabels[role].toLowerCase()} to address ${issueCategory.replaceAll("_", " ")}.`;
+  return `${symbol} provides exposure to a different profile to address ${issueCategory.replaceAll("_", " ")}.`;
 }
 
 function expectedBenefit(instrument: Instrument, issueCategory: PortfolioImprovementIssueCategory) {
   const role = candidateRole(instrument);
   if (["international_equity", "developed_international_equity", "emerging_market_equity", "global_equity"].includes(role)) {
-    return "Improves geographic diversification and reduces dependence on US equity leadership.";
+    return "May relate to geographic diversification and may reduce dependence on US equity leadership.";
   }
-  if (role === "international_bond") return "Adds fixed-income ballast while diversifying rate, currency and issuer exposure beyond US-only bonds.";
+  if (role === "international_bond") return "Provides exposure to fixed-income ballast while diversifying rate, currency and issuer exposure beyond US-only bonds.";
   if (["core_us_bond", "intermediate_treasury", "long_duration_treasury", "short_treasury_cash_like", "tips_inflation_linked", "investment_grade_credit"].includes(role)) {
-    return "Adds fixed-income ballast that can reduce reliance on equity returns and improve portfolio stability.";
+    return "Provides exposure to fixed-income ballast that may reduce reliance on equity returns and may relate to portfolio stability.";
   }
-  if (role === "gold_hedge") return "Adds a hedge sleeve that can improve resilience to inflation, real-rate shocks and geopolitical stress.";
+  if (role === "gold_hedge") return "Provides exposure to a hedge sleeve that may relate to resilience to inflation, real-rate shocks and geopolitical stress.";
   if (["healthcare_defensive", "utilities_defensive", "consumer_staples_defensive"].includes(role)) {
     return "Broadens sector exposure toward more defensive earnings drivers and away from technology-led concentration.";
   }
-  if (role === "energy_inflation_equity") return "Adds commodity-cycle sensitivity that may help when inflation or energy shocks are important portfolio risks.";
-  if (role === "real_estate") return "Adds property-income exposure and a different sensitivity profile from growth equities.";
-  if (issueCategory === "concentration_risk") return "Can reduce reliance on the current largest direct and ETF look-through exposures.";
-  return "Adds a different exposure driver that may improve diversification if overlap is acceptable.";
+  if (role === "energy_inflation_equity") return "Provides exposure to commodity-cycle sensitivity that may help when inflation or energy shocks are important portfolio risks.";
+  if (role === "real_estate") return "Provides exposure to property income and a different sensitivity profile from growth equities.";
+  if (issueCategory === "concentration_risk") return "May affect reliance on the current largest direct and ETF look-through exposures.";
+  return "Provides exposure to a different driver that may improve diversification if overlap is acceptable.";
 }
 
 function potentialTradeOff(instrument: Instrument) {
   const role = candidateRole(instrument);
-  if (role === "international_bond") return "Adds currency and non-US rate-cycle exposure; returns may diverge from US aggregate bonds.";
-  if (role === "core_us_bond") return "May lower upside participation during strong equity rallies and remains exposed to US rate moves.";
+  if (role === "international_bond") return "Introduces currency and non-US rate-cycle exposure; returns may diverge from US aggregate bonds.";
+  if (role === "core_us_bond") return "May reduce upside participation during strong equity rallies and remains exposed to US rate moves.";
   if (role === "long_duration_treasury") return "Can be volatile when long-term interest rates rise.";
   if (role === "short_treasury_cash_like") return "Provides stability but limited long-term return potential.";
   if (role === "tips_inflation_linked") return "Inflation protection can lag when real yields rise or inflation cools.";
@@ -264,7 +264,7 @@ function potentialTradeOff(instrument: Instrument) {
   if (["healthcare_defensive", "utilities_defensive", "consumer_staples_defensive"].includes(role)) return "Defensive sectors can lag during high-beta growth rallies and may overlap with broad-market ETFs.";
   if (role === "energy_inflation_equity") return "Energy exposure is cyclical and can be sensitive to commodity-price swings.";
   if (role === "real_estate") return "Real estate can be sensitive to interest rates and financing conditions.";
-  return "May overlap with existing holdings and should be reviewed for duplication.";
+  return "May overlap with existing holdings; duplication can be reviewed analytically.";
 }
 
 function recommendationComponentScore(recommendation: InstrumentRecommendation | undefined, keys: string[], fallback = 50) {
@@ -438,7 +438,7 @@ export class PortfolioImprovementSuggestionService {
         issueCategory: "sector_concentration",
         priority: issueContext.dominantSectorWeight > 0.45 ? "medium" : "low",
         title: "Review sector concentration alternatives",
-        rationale: `${issueContext.dominantSector ?? "One sector"} is the largest look-through sector exposure; candidates should broaden away from that sector, not add to it.`,
+        rationale: `${issueContext.dominantSector ?? "One sector"} is the largest look-through sector exposure; candidates are filtered for categories away from that sector.`,
         candidates: rankedCandidates(context, issueContext, "sector_concentration", 5),
         benefit: "Can reduce dependency on a single sector driver.",
         tradeOff: "May dilute exposure to the portfolio's strongest current theme."
@@ -463,10 +463,10 @@ export class PortfolioImprovementSuggestionService {
         category: "diversification",
         issueCategory: "insufficient_defensive_exposure",
         priority: "low",
-        title: "Review healthcare and defensive diversification",
+        title: "Healthcare & Defensive — Underweighted Category",
         rationale: "Healthcare and defensive sectors are modest relative to technology exposure.",
         candidates: rankedCandidates(context, issueContext, "insufficient_defensive_exposure", 5),
-        benefit: "Can improve sector balance without relying only on broad-market ETFs.",
+        benefit: "May relate to sector balance without relying only on broad-market ETFs.",
         tradeOff: "Defensive sectors may lag during high-beta technology-led rallies."
       }));
     }
@@ -476,10 +476,10 @@ export class PortfolioImprovementSuggestionService {
         category: "diversification",
         issueCategory: "concentration_risk",
         priority: topHolding > 0.3 ? "high" : "medium",
-        title: "Review diversification candidates",
+        title: "International Equity — Underweighted Category",
         rationale: "Concentration and diversification metrics suggest the portfolio could benefit from broader exposure review.",
         candidates: rankedCandidates(context, issueContext, "concentration_risk", 5),
-        benefit: "Can lower direct or indirect concentration risk.",
+        benefit: "May affect direct or indirect concentration risk.",
         tradeOff: "May add overlap with broad ETFs already held."
       }));
     }
@@ -507,7 +507,7 @@ export class PortfolioImprovementSuggestionService {
         rationale: "Portfolio Review can run without insight outputs, but alignment and candidate screening are limited.",
         candidateInstruments: [],
         expectedPortfolioBenefit: "Improves candidate screening and insight alignment review.",
-        potentialTradeOff: "No portfolio exposure change; this is a data readiness action.",
+        potentialTradeOff: "No portfolio exposure change; this is a data readiness item.",
         source: "deterministic_portfolio_review"
       });
     }

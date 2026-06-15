@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Info } from "lucide-react";
 import { createContainer } from "@/server/container";
 import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { runPortfolioReviewAction } from "@/server/actions/portfolioReviewActions";
@@ -11,6 +12,7 @@ import { formatPercent } from "@/lib/utils";
 import type {
   PortfolioImprovementSuggestion,
   PortfolioPotentialAction,
+  PortfolioReviewCandidate,
   PortfolioReviewFinding,
   PortfolioReviewReport,
   PortfolioReviewSection
@@ -59,6 +61,68 @@ function normalizeDisplayRatio(value: number) {
   let normalized = value;
   while (Math.abs(normalized) > 1) normalized /= 100;
   return normalized;
+}
+
+function formatPctOneDecimal(value: number) {
+  return (normalizeDisplayRatio(value) * 100).toFixed(1);
+}
+
+function sanitizeGapText(value: string | null | undefined) {
+  if (!value) return value;
+  return value
+    .replace(/\bPortfolio Improvement Observations\b/gi, "Gap Analysis — Instruments in Underweighted Categories")
+    .replace(/\bPotential Review Actions\b/gi, "Analytical Gap Summary")
+    .replace(/\bimprovement suggestions\b/gi, "gap findings")
+    .replace(/\bReview healthcare and defensive diversification\b/gi, "Healthcare & Defensive — Underweighted Category")
+    .replace(/\bReview diversification candidates\b/gi, "International Equity — Underweighted Category")
+    .replace(/\byou should consider\b/gi, "context for review:")
+    .replace(/\bAdds ([^.]+?) exposure\b/gi, "Provides exposure to $1")
+    .replace(/\bAdds a differentiated exposure driver\b/gi, "Provides a differentiated exposure driver")
+    .replace(/\bAdds defensive earnings drivers\b/gi, "Provides exposure to defensive earnings drivers")
+    .replace(/\bAdds essential-consumption exposure\b/gi, "Provides exposure to essential-consumption")
+    .replace(/\bReduces reliance\b/gi, "May reduce reliance")
+    .replace(/\bCan lower\b/gi, "May affect")
+    .replace(/\bCan improve\b/gi, "May relate to")
+    .replace(
+      /\bSuggestions are review prompts only and do not recommend exact trades or position sizes\./gi,
+      "Gap findings are deterministic analytical outputs and do not constitute investment advice, trade instructions, or position sizing guidance."
+    );
+}
+
+function exposureWeight(rows: PortfolioLookthroughExposure[], name: string) {
+  return rows.find((row) => row.exposureName.toLowerCase() === name.toLowerCase())?.exposureWeight ?? 0;
+}
+
+function gapCategoryForTooltip(suggestion: PortfolioImprovementSuggestion, candidate: PortfolioReviewCandidate) {
+  const title = sanitizeGapText(suggestion.title) ?? suggestion.title;
+  if (suggestion.issueCategory === "insufficient_defensive_exposure" || title.includes("Healthcare")) return "Healthcare";
+  if (suggestion.issueCategory === "insufficient_international_exposure" || title.includes("International Equity")) return "International equity";
+  return candidate.diversificationType?.replace(/ sector$/i, "") ?? title.replace(" — Underweighted Category", "");
+}
+
+function whyThisAppearedText(
+  suggestion: PortfolioImprovementSuggestion,
+  candidate: PortfolioReviewCandidate,
+  lookthrough: PortfolioLookthroughReport | null
+) {
+  const sectors = lookthrough?.sectorExposures ?? [];
+  const countries = lookthrough?.countryExposures ?? [];
+  const category = gapCategoryForTooltip(suggestion, candidate);
+
+  if (category === "Healthcare") {
+    return `This instrument appears because Healthcare look-through is ${formatPctOneDecimal(exposureWeight(sectors, "Healthcare"))}% vs Technology at ${formatPctOneDecimal(exposureWeight(sectors, "Technology"))}%. It belongs to the Healthcare category in the approved analytics universe and has passed all guardrail filters.`;
+  }
+
+  if (category === "International equity") {
+    const usWeight = countries.find((row) => ["us", "usa", "united states"].includes(row.exposureName.toLowerCase()))?.exposureWeight ?? 0;
+    return `This instrument appears because US look-through is ${formatPctOneDecimal(usWeight)}%, exceeding the broad-market allocation threshold. It belongs to the International equity category in the approved analytics universe and has passed all guardrail filters.`;
+  }
+
+  const actual = exposureWeight(sectors, category);
+  const comparison = sectors[0];
+  const comparisonCategory = comparison?.exposureName ?? "the largest comparison category";
+  const comparisonPct = comparison?.exposureWeight ?? 0;
+  return `This instrument appears because ${category} look-through is ${formatPctOneDecimal(actual)}% vs ${comparisonCategory} at ${formatPctOneDecimal(comparisonPct)}%. It belongs to the ${category} category in the approved analytics universe and has passed all guardrail filters.`;
 }
 
 function isRatioMetric(key: string) {
@@ -254,52 +318,95 @@ function SectionCard({ title, section }: { title: string; section: PortfolioRevi
   );
 }
 
-function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggestion[] }) {
+function GapAnalysisTooltip({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-slate-800 focus:bg-muted focus:text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+        aria-label={`Why this appeared: ${text}`}
+      >
+        <Info className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-72 -translate-x-1/2 rounded-md border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-700 shadow-xl group-hover:block group-focus-within:block"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function Suggestions({ suggestions, lookthrough }: { suggestions: PortfolioImprovementSuggestion[]; lookthrough: PortfolioLookthroughReport | null }) {
   const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Portfolio Improvement Observations</CardTitle>
-        <CardDescription>Review prompts only. Candidate instruments are filtered to approved active universe items and exclude elevated-concern classifications.</CardDescription>
+        <CardTitle>Gap Analysis — Instruments in Underweighted Categories</CardTitle>
+        <CardDescription>Instruments below belong to categories where look-through exposure is below median in the approved universe and have passed all guardrail filters. This is a deterministic filter output only. Not a recommendation to buy, sell, or hold any instrument.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {safeSuggestions.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No improvement suggestion generated for the latest review.</p>
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No gap finding generated for the latest review.</p>
         ) : safeSuggestions.map((suggestion) => {
           const candidates = Array.isArray(suggestion.candidateInstruments) ? suggestion.candidateInstruments : [];
+          const title = sanitizeGapText(suggestion.title) ?? suggestion.title;
           return <div key={`${suggestion.category}-${suggestion.title}`} className="rounded-md border p-4">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-medium">{suggestion.title}</p>
+              <p className="font-medium">{title}</p>
               <span className="rounded-md bg-muted px-2 py-1 text-xs capitalize">{suggestion.priority}</span>
               <span className="rounded-md bg-muted px-2 py-1 text-xs">{suggestion.category.replaceAll("_", " ")}</span>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">{suggestion.rationale}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{sanitizeGapText(suggestion.rationale)}</p>
             {suggestion.expectedPortfolioBenefit || suggestion.potentialTradeOff ? (
               <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
                 {suggestion.expectedPortfolioBenefit ? (
                   <div className="rounded-md bg-emerald-50 p-3 text-emerald-900">
-                    <p className="text-xs font-medium uppercase">Expected benefit</p>
-                    <p className="mt-1">{suggestion.expectedPortfolioBenefit}</p>
+                    <p className="text-xs font-medium uppercase">Analytical context</p>
+                    <p className="mt-1">{sanitizeGapText(suggestion.expectedPortfolioBenefit)}</p>
                   </div>
                 ) : null}
                 {suggestion.potentialTradeOff ? (
                   <div className="rounded-md bg-amber-50 p-3 text-amber-900">
                     <p className="text-xs font-medium uppercase">Trade-off</p>
-                    <p className="mt-1">{suggestion.potentialTradeOff}</p>
+                    <p className="mt-1">{sanitizeGapText(suggestion.potentialTradeOff)}</p>
                   </div>
                 ) : null}
               </div>
             ) : null}
             {candidates.length > 0 ? (
               <div className="mt-3 grid gap-2">
-                {candidates.map((candidate) => (
-                  <Link
+                {candidates.map((candidate) => {
+                  const tooltip = whyThisAppearedText(suggestion, candidate, lookthrough);
+                  return (
+                  <div
                     key={`${suggestion.title}-${candidate.instrumentId}`}
-                    href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
-                    className="rounded-md border p-3 text-xs hover:bg-muted"
+                    className="rounded-md border p-3 text-xs transition-colors hover:bg-muted"
                   >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{candidate.symbol}</span>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <Link
+                          href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
+                          className="font-medium text-slate-900 underline-offset-4 hover:underline"
+                        >
+                          {candidate.symbol}
+                        </Link>
+                        <p className="mt-1 inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                          Shown because category is underweighted — not a buy recommendation
+                        </p>
+                      </div>
+                      <div className="flex min-w-0 flex-1 items-center justify-end gap-1 text-right">
+                        <Link
+                          href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
+                          className="truncate font-medium text-slate-800 underline-offset-4 hover:underline"
+                        >
+                          {candidate.name}
+                        </Link>
+                        <GapAnalysisTooltip text={tooltip} />
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
                       <span>{assessmentLabel(candidate.recommendationLabel)}</span>
                       <span>Characteristics {score(candidate.recommendationScore ?? candidate.score)}</span>
                       {candidate.confidenceScore != null ? <span>Conf {formatPercent(candidate.confidenceScore / 100)}</span> : null}
@@ -308,12 +415,13 @@ function Suggestions({ suggestions }: { suggestions: PortfolioImprovementSuggest
                       {candidate.overlapPenalty != null && candidate.overlapPenalty > 0 ? <span>Overlap penalty {score(candidate.overlapPenalty)}</span> : null}
                       {candidate.diversificationType ? <span>{candidate.diversificationType}</span> : null}
                     </div>
-                    <p className="mt-1 text-muted-foreground">{candidate.primaryReason ?? candidate.whyThisCandidate ?? candidate.reason}</p>
-                    {candidate.secondaryBenefit ? <p className="mt-1">Benefit: {candidate.secondaryBenefit}</p> : candidate.expectedPortfolioBenefit ? <p className="mt-1">Benefit: {candidate.expectedPortfolioBenefit}</p> : null}
+                    <p className="mt-1 text-muted-foreground">{sanitizeGapText(candidate.primaryReason ?? candidate.whyThisCandidate ?? candidate.reason)}</p>
+                    {candidate.secondaryBenefit ? <p className="mt-1">Context: {sanitizeGapText(candidate.secondaryBenefit)}</p> : candidate.expectedPortfolioBenefit ? <p className="mt-1">Context: {sanitizeGapText(candidate.expectedPortfolioBenefit)}</p> : null}
                     {candidate.overlapWarning ? <p className="mt-1 text-muted-foreground">Overlap: {candidate.overlapWarning}</p> : null}
-                    {candidate.potentialTradeOff ? <p className="mt-1 text-muted-foreground">Trade-off: {candidate.potentialTradeOff}</p> : null}
-                  </Link>
-                ))}
+                    {candidate.potentialTradeOff ? <p className="mt-1 text-muted-foreground">Trade-off: {sanitizeGapText(candidate.potentialTradeOff)}</p> : null}
+                  </div>
+                );
+                })}
               </div>
             ) : null}
           </div>;
@@ -623,16 +731,16 @@ function Actions({ actions }: { actions: PortfolioPotentialAction[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Potential Review Actions</CardTitle>
-        <CardDescription>Non-trading review actions. No exact amounts, shares or order instructions are generated.</CardDescription>
+        <CardTitle>Analytical Gap Summary</CardTitle>
+        <CardDescription>Deterministic summary of gap findings. Not investment advice, trade instructions, or a recommendation to buy, sell, or hold any instrument.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         {safeActions.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No review action generated.</p>
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No analytical gap summary generated.</p>
         ) : safeActions.map((action) => (
           <div key={`${action.actionType}-${action.title}`} className="rounded-md border p-3 text-sm">
-            <p className="font-medium">{action.title}</p>
-            <p className="mt-1 text-muted-foreground">{action.detail}</p>
+            <p className="font-medium">{sanitizeGapText(action.title)}</p>
+            <p className="mt-1 text-muted-foreground">{sanitizeGapText(action.detail)}</p>
           </div>
         ))}
       </CardContent>
@@ -676,6 +784,7 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
   );
   const latestEtfExposureLog = etfExposureLogs[0] ?? null;
   const report = dashboard.latestReport;
+  const currentLookthroughReport = report ? lookthroughReport(report) : null;
 
   return (
     <PageContainer>
@@ -727,7 +836,7 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm leading-6 text-muted-foreground">{report.executiveSummary}</p>
+              <p className="text-sm leading-6 text-muted-foreground">{sanitizeGapText(report.executiveSummary)}</p>
             </CardContent>
           </Card>
 
@@ -743,29 +852,29 @@ export default async function PortfolioReviewPage({ searchParams }: PortfolioRev
             <SectionCard title="Geography Review" section={report.geographyReview} />
           </div>
 
-          {lookthroughReport(report) ? (
+          {currentLookthroughReport ? (
             <section className="space-y-4">
               <SectionHeader
                 title="ETF Look-Through Exposure"
                 description="Provider ETF allocations are used where cached; direct instrument taxonomy is used as fallback."
               />
               <div className="grid gap-4 lg:grid-cols-2">
-                <ExposureTable title="Look-Through Sector Exposure" description="Actual sector exposure after decomposing equity ETFs." rows={lookthroughReport(report)?.sectorExposures ?? []} />
-                <ExposureTable title="Look-Through Country Exposure" description="Country exposure from ETF allocations and direct holdings." rows={lookthroughReport(report)?.countryExposures ?? []} />
-                <DirectPositionExposureTable rows={lookthroughReport(report)?.holdingExposures ?? []} />
-                <HoldingExposureTable rows={lookthroughReport(report)?.holdingExposures ?? []} />
-                <IndirectHoldingExposureTable rows={lookthroughReport(report)?.holdingExposures ?? []} />
+                <ExposureTable title="Look-Through Sector Exposure" description="Actual sector exposure after decomposing equity ETFs." rows={currentLookthroughReport.sectorExposures} />
+                <ExposureTable title="Look-Through Country Exposure" description="Country exposure from ETF allocations and direct holdings." rows={currentLookthroughReport.countryExposures ?? []} />
+                <DirectPositionExposureTable rows={currentLookthroughReport.holdingExposures} />
+                <HoldingExposureTable rows={currentLookthroughReport.holdingExposures} />
+                <IndirectHoldingExposureTable rows={currentLookthroughReport.holdingExposures} />
                 <ExposureTable
                   title="Look-Through Theme Signals"
                   description="Canonical themes derived from ETF sectors and instrument taxonomy."
-                  rows={lookthroughReport(report)?.themeExposures ?? []}
+                  rows={currentLookthroughReport.themeExposures ?? []}
                   mode="overlap"
                 />
               </div>
             </section>
           ) : null}
 
-          <Suggestions suggestions={report.portfolioImprovementSuggestions} />
+          <Suggestions suggestions={report.portfolioImprovementSuggestions} lookthrough={currentLookthroughReport} />
           <Actions actions={report.potentialActions} />
 
           <section className="grid gap-4 lg:grid-cols-2">
