@@ -477,7 +477,7 @@ export class PortfolioImprovementSuggestionService {
         issueCategory: "concentration_risk",
         priority: topHolding > 0.3 ? "high" : "medium",
         title: "International Equity — Underweighted Category",
-        rationale: "Concentration and diversification metrics suggest the portfolio could benefit from broader exposure review.",
+        rationale: "Concentration and diversification metrics indicate the portfolio has below-median exposure in the international equity category.",
         candidates: rankedCandidates(context, issueContext, "concentration_risk", 5),
         benefit: "May affect direct or indirect concentration risk.",
         tradeOff: "May add overlap with broad ETFs already held."

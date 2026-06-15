@@ -84,6 +84,10 @@ function sanitizeGapText(value: string | null | undefined) {
     .replace(/\bCan lower\b/gi, "May affect")
     .replace(/\bCan improve\b/gi, "May relate to")
     .replace(
+      /\bConcentration and diversification metrics suggest the portfolio could benefit from broader exposure review\./gi,
+      "Concentration and diversification metrics indicate the portfolio has below-median exposure in the international equity category."
+    )
+    .replace(
       /\bSuggestions are review prompts only and do not recommend exact trades or position sizes\./gi,
       "Gap findings are deterministic analytical outputs and do not constitute investment advice, trade instructions, or position sizing guidance."
     );
