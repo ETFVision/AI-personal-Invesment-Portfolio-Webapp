@@ -30,30 +30,25 @@ const assessmentRows = [
   ["Missing", "Insufficient Data"]
 ];
 
-const componentDefinitionRows = [
-  ["Fundamentals", "Company-level financial statement and ratio score covering growth, profitability, valuation, balance sheet, cash flow, and quality."],
-  ["Fundamental trends", "Direction and strength of financial metrics over available reporting periods, with lower confidence when trend direction is volatile."],
-  ["Valuation", "Relative valuation sub-score using P/E, forward P/E, price/sales, price/book, EV/EBITDA, and free cash flow yield. Lower multiples score higher; higher free cash flow yield scores higher."],
-  ["Market Vision alignment", "Mechanical text and theme alignment between the instrument, its sector/themes/asset class, and the latest Market Vision context."],
-  ["Theme alignment / Theme fit / Theme score", "Score based on canonical themes and thematic tags attached to the instrument. Theme count and selected themes can raise or lower the score."],
-  ["Risk analytics", "Instrument risk score inverted onto the 0-100 Characteristics scale. Higher instrument risk lowers this component."],
-  ["Portfolio fit / Allocation fit", "How the instrument fits current portfolio allocation, concentration, duplicate exposure, and portfolio context."],
-  ["Momentum", "Price momentum score based on one-year return, year-to-date return, and daily return when available."],
-  ["Diversification benefit", "Deterministic estimate of whether the instrument adds exposure away from existing dominant holdings, sectors, geographies, or asset classes."],
-  ["Macro fit", "Rules-based fit between the instrument's asset class/sector and FRED macro regimes such as rates, inflation, growth, liquidity, and risk appetite."],
-  ["Benchmark relative", "ETF component based on one-year return relative to a neutral midpoint when market metric data is available."],
-  ["Duration fit", "Bond ETF component based on duration category. Ultra-short/short scores 72, intermediate scores 62, and long scores 48 before other macro components apply."],
-  ["Rate regime", "Bond ETF component that adjusts for duration under high, restrictive, rising, or supportive rate conditions."],
-  ["Inflation regime", "Bond ETF component that reflects whether inflation-linked exposure is relevant and whether long duration is exposed to elevated inflation."],
-  ["Yield curve", "Bond ETF component using the macro-fit function with bond duration and profile data."],
-  ["Credit risk", "Bond ETF component based on credit quality. High-yield credit receives a lower score than investment-grade or treasury classifications."],
-  ["Portfolio stability", "Bond ETF component reflecting treasury or cash-like ballast characteristics compared with more volatile fixed-income profiles."],
-  ["Inflation hedge", "Gold ETF component that scores higher when inflation regime text is elevated or rising."],
-  ["Geopolitical hedge", "Gold ETF component that scores higher when liquidity or risk regime text indicates stress or tightness."],
-  ["Rates context", "Gold ETF component using macro-fit rules for rates, inflation, and asset-class context."],
-  ["Portfolio concentration", "Crypto component that falls as crypto concentration rises in the current portfolio."],
-  ["Liquidity regime", "Crypto component that falls when macro liquidity regime text indicates tight conditions."],
-  ["Macro risk appetite", "Crypto component using macro-fit rules for risk appetite and macro regime context."]
+const componentCalculationRows = [
+  ["Weighted composite", "Final score = sum(component score x component weight) / sum(available component weights). Missing or non-finite component scores are excluded from both numerator and denominator."],
+  ["Momentum", "Starts at 50. Adds clamp(1Y return x 60, -25, 25), clamp(YTD return x 40, -15, 15), and clamp(daily return x 80, -5, 5). Final value is clamped to 0-100."],
+  ["Risk analytics", "Uses 100 - instrumentRiskScore. Instrument risk itself is based on volatility, drawdown, downside volatility, and negative-return frequency. A higher risk analytics score means lower measured risk."],
+  ["Theme alignment / Theme fit / Theme score", "Starts at 55 + 5 per canonical or thematic tag, capped at +20. Adds +5 for AI / Automation, Quality, or Global Diversification. Subtracts 5 for High Beta. Clamped to 0-100."],
+  ["Macro fit", "Starts at 55. Gold gains +20 when inflation is elevated/rising/sticky or liquidity is stress/tight. Crypto loses 25 under stress/tight liquidity. Long-duration bonds lose 20 in restrictive/rising/high rates. Treasuries gain 15 when growth is weak/slowing/recessionary. Technology loses 8 in restrictive rates. Consumer Staples gains 8 when growth is weak."],
+  ["Market Vision alignment", "Starts at 55. Adds +8 if Market Vision text mentions the instrument sector, +8 for theme mentions, +5 for supportive/tailwind language, and subtracts 5 for risk/headwind/stress/caution language. Adds asset-specific term bonuses for bonds (+3), gold (+5), and crypto (+3)."],
+  ["Portfolio fit / Allocation fit", "Starts at 65. Adds +10 if the instrument is not already directly held and no issuer-level look-through exposure is present. Adds +5 if sector allocation is below 15%. Subtracts 25 if sector allocation is above 35%. Subtracts 20 if direct or issuer-level concentration is above 15%. Duplicate exposure is true when the instrument is directly held, issuer look-through exposure is above 5%, or sector allocation is above 35%."],
+  ["ETF diversification benefit", "Score is 72 when duplicate exposure is false and 40 when duplicate exposure is true."],
+  ["ETF benchmark relative", "Score = 50 + one-year return x 50, clamped to 0-100. Missing one-year return means this component is excluded."],
+  ["Bond duration fit", "Ultra-short or short duration = 72. Intermediate duration = 62. Long duration = 48."],
+  ["Bond rate regime", "Long duration in high/restrictive/rising rates = 35. Ultra-short or short duration in restrictive rates = 75. Other available bond/rate combinations = 58."],
+  ["Bond inflation regime", "Inflation-linked bond exposure in elevated/rising inflation = 78. Long duration under elevated inflation = 42. Other available combinations = 58."],
+  ["Bond credit risk", "High-yield credit quality = 40. Other known credit quality = 65. Missing credit quality is excluded."],
+  ["Bond portfolio stability", "Cash-like liquidity role or Treasury classification = 75. Other bond profiles = 55."],
+  ["Gold inflation hedge", "Elevated or rising inflation regime = 78. Other available inflation regimes = 55."],
+  ["Gold geopolitical hedge", "Stress or tight liquidity regime = 72. Other available liquidity regimes = 55."],
+  ["Crypto portfolio concentration", "Score = clamp(70 - concentrationPercent x 500, 0, 100). Higher crypto concentration lowers the score."],
+  ["Crypto liquidity regime", "Tight liquidity regime = 35. Macro regime available and not tight = 58. Missing macro regime is excluded."]
 ];
 
 const instrumentPanels = [
@@ -133,11 +128,51 @@ const fundamentalRows = [
   ["Quality", "10%"]
 ];
 
+const fundamentalHelperRows = [
+  ["Positive percent metrics", "scorePositivePercent(value): value <= -10% gives 10; values up to neutral produce 35-50; values from neutral to excellent produce 50-100; final result is clamped to 0-100. Defaults: neutral 5%, excellent 30%."],
+  ["Margin metrics", "scoreMargin(value, weak, strong) = ((value - weak) / (strong - weak)) x 70 + 25, clamped to 0-100."],
+  ["Return metrics", "scoreReturn(value, weak, strong) = ((value - weak) / (strong - weak)) x 75 + 20, clamped to 0-100."],
+  ["Lower-is-better metrics", "scoreLowerBetter(value, excellent, poor) = 100 - ((value - excellent) / (poor - excellent)) x 80, clamped to 0-100. Null or negative values are excluded."],
+  ["Higher-is-better metrics", "scoreHigherBetter(value, poor, excellent) = ((value - poor) / (excellent - poor)) x 80 + 10, clamped to 0-100."]
+];
+
+const fundamentalCalculationRows = [
+  ["Growth", "Average of revenue growth, EPS growth, net income growth, and free cash flow growth after each input is scored with scorePositivePercent."],
+  ["Profitability", "Average of gross margin scoreMargin(0.15, 0.65), operating margin scoreMargin(0.05, 0.35), net margin scoreMargin(0.03, 0.25), ROE scoreReturn(0.03, 0.25), ROIC scoreReturn(0.03, 0.25), and ROA scoreReturn(0.02, 0.15)."],
+  ["Valuation", "Average of P/E scoreLowerBetter(12, 60), forward P/E scoreLowerBetter(12, 55), price/sales scoreLowerBetter(2, 20), price/book scoreLowerBetter(1.5, 15), EV/EBITDA scoreLowerBetter(8, 35), and free cash flow yield scoreHigherBetter(0, 0.08)."],
+  ["Balance sheet", "Average of debt/equity scoreLowerBetter(0.2, 3), net debt/EBITDA scoreLowerBetter(0.5, 5), current ratio scoreHigherBetter(0.7, 2.5), quick ratio scoreHigherBetter(0.5, 2), and cash/debt scoreHigherBetter(0.05, 1)."],
+  ["Cash flow", "Average of operating cash flow relative to 25% of revenue, free cash flow relative to 20% of revenue, free cash flow margin scoreMargin(0, 0.25), and free cash flow growth scorePositivePercent(neutral 3%, excellent 25%)."],
+  ["Quality", "Average of profitability score, cash flow score, balance sheet score, ROIC score, and operating margin score."],
+  ["Overall fundamentals", "Weighted average of available category scores: growth 20%, profitability 20%, valuation 20%, balance sheet 15%, cash flow 15%, quality 10%. Missing categories are excluded from the denominator."],
+  ["Quality valuation adjustment", "For large-cap quality-growth companies with market cap at least $50B in technology, communication, semiconductor, software, internet, healthcare, biotechnology, or pharmaceutical areas, a quality composite of growth/profitability/cash flow/quality at least 70 can add +12 to +22 to raw valuation, plus +4 when growth is at least 70. Adjusted valuation is at least 28 and capped at 55."]
+];
+
+const trendRows = [
+  ["Observation windows", "Short-term trend uses the latest five quarterly observations where the metric supports quarterly analysis. Long-term trend uses the latest five annual observations. Annual-only metrics use not applicable for short-term direction."],
+  ["Direction inputs", "Trend direction compares first-half average, second-half average, latest value, prior value, direction changes, and volatility. Lower-is-better metrics invert the direction."],
+  ["Positive directions", "Accelerating or improving scores 90 when strong, 74 when moderate, and 66 when weak. Rebounding scores 78 when strong and 68 otherwise. Stable scores 56."],
+  ["Negative directions", "Decelerating scores 44 when strong and 50 otherwise. Deteriorating scores 18 when strong, 34 when moderate, and 42 when weak. Volatile scores 32 when strong and 44 otherwise."],
+  ["Trend confidence", "Fewer than 3 observations = 20. 3-4 observations = 62. 5+ observations = 82. Volatile direction subtracts 18. Non-finite values subtract 20."],
+  ["Per-metric score", "overallTrendScore = weighted average of short-term and long-term trend scores. Short-term weight = confidence x 0.4. Long-term weight = confidence x 0.6."],
+  ["Summary trend score", "Category scores are confidence-weighted and combined as growth 35%, margin 25%, profitability 20%, balance sheet 10%, and quality 10%."]
+];
+
 const confidenceRows = [
   ["Fundamentals", "Available data points divided by 16 defined inputs, clamped to 0-100."],
   ["Trend scores", "3-4 observations produce 62%; 5+ observations produce 82%; volatile direction subtracts 18."],
   ["Risk metrics", "30 days = 40%, 60 days = 55%, 120 days = 70%, 252+ days = 90%."],
   ["Characteristics Score", "Composite of available component ratio, score dispersion, strategic agreement, and signal conflict; strong/weak conflict subtracts 8."]
+];
+
+const characteristicsConfidenceRows = [
+  ["Available ratio", "available component weight / total configured component weight."],
+  ["Base confidence", "Usually 72. Crypto uses 62 because crypto classifications are intentionally conservative in V1."],
+  ["Completeness bonus", "+8 when available ratio is at least 95%; +4 when at least 80%."],
+  ["Agreement bonus", "+5 when component-score dispersion is greater than 0 and below 12."],
+  ["Strategic agreement bonus", "+5 when fundamentals, Market Vision alignment, and theme alignment are all at least 70."],
+  ["Conflict penalty", "-8 when at least one component is at least 70 and at least one component is below 45."],
+  ["Dispersion penalty", "min(12, dispersion x 0.25)."],
+  ["Final formula", "confidence = baseConfidence x availableRatio + completenessBonus + agreementBonus + strategicAgreementBonus - conflictPenalty - dispersionPenalty, clamped to 0-100."]
 ];
 
 const guardrailRows = [
@@ -174,6 +209,40 @@ const portfolioDefinitionRows = [
   ["Fixed Income", "Uses total bond allocation, duration exposure, high-yield exposure, treasury/corporate mix, recession hedge exposure, and bond profile coverage."],
   ["Theme Exposure", "Uses ETF look-through theme exposure and current news/macro theme intelligence where available."],
   ["Geography", "Uses ETF country look-through or direct geography fallback. It is displayed as a diagnostic and currently carries 0% portfolio-score weight."]
+];
+
+const portfolioFormulaRows = [
+  ["Allocation", "82 - max(0, equity - 0.85) x 80 - max(0, 0.08 - bonds) x 90 - max(0, cash - 0.35) x 55 - max(0, crypto - 0.10) x 90."],
+  ["Concentration", "90 - max(0, topHolding - 0.15) x 120 - max(0, topCombinedFive - 0.50) x 80 - max(0, sectorTop - 0.40) x 60."],
+  ["Diversification", "Starts from the Risk Analytics diversification score. If ETF look-through exists, adds min(8, sectorCount + countryCount)."],
+  ["Risk", "88 - max(0, volatility - 0.18) x 120 - max(0, abs(maxDrawdown) - 0.15) x 100 - max(0, abs(currentDrawdown) - 0.08) x 70."],
+  ["Macro Fit", "72 - 8 if rates are restrictive and equity allocation is above 75% - 10 if growth is weak and equity allocation is above 70% + 5 if inflation is elevated and the portfolio has gold exposure."],
+  ["Insight Alignment", "60 + constructiveHeldCount x 4 - weakHeldCount x 8 + coverage x 12."],
+  ["Fixed Income", "78 - max(0, 0.08 - totalBondAllocation) x 120 - max(0, longDurationExposure - 0.35) x 60 - max(0, highYieldExposure - 0.20) x 80 + min(8, recessionHedgeExposure x 10)."],
+  ["Theme Exposure", "64 + min(15, alignedThemeCount x 4) - max(0, largestSectorWeight - 0.45) x 50."],
+  ["Geography", "86 - max(0, usWeight - 0.70) x 80 - max(0, 0.12 - internationalWeight) x 120. This is diagnostic only and currently has 0% overall weight."]
+];
+
+const riskMetricRows = [
+  ["Instrument daily return", "daily_return = close_price / previous_close_price - 1."],
+  ["Instrument weekly return", "weekly_return = close_price / five_day_close_price - 1."],
+  ["Instrument annualized volatility", "stddev_samp(daily_return_window) x sqrt(252). 30D requires at least 10 observations, 90D at least 30, and 1Y at least 60."],
+  ["Instrument drawdown", "drawdown = close_price / running_peak - 1. Current drawdown is the latest drawdown. Max drawdown is the most negative drawdown in the analyzed history."],
+  ["Instrument risk score", "volScore x 35% + drawdownScore x 35% + downsideScore x 20% + frequencyScore x 10%, where volScore = bounded(1Y volatility / 0.60 x 100), drawdownScore = bounded(abs(maxDrawdown) / 0.50 x 100), downsideScore = bounded(downsideVolatility / 0.45 x 100), and frequencyScore = negativeReturnFrequency x 100 or 50 when missing."],
+  ["Risk buckets", "Risk score below 25 = low, below 50 = medium, below 75 = high, 75 or above = very high. Missing risk score = insufficient data."],
+  ["Portfolio period return", "periodReturn = (currentTotalValue - netExternalFlow) / previousTotalValue - 1. Deposits are positive external flows; withdrawals are negative external flows."],
+  ["Portfolio volatility", "annualizedVolatility = sample standard deviation of flow-adjusted daily portfolio returns x sqrt(252)."],
+  ["Portfolio drawdown", "The flow-adjusted return series is chained from a level of 100, a running peak is tracked, current drawdown = current level / peak - 1, and max drawdown is the most negative point."],
+  ["Covariance risk contribution", "When at least 30 overlapping observations exist and eligible coverage is about 70% of portfolio value, the system annualizes covariance by multiplying by 252, calculates portfolio variance as weights' x covariance x weights, and derives each holding's contribution from marginal and absolute contribution."],
+  ["Proxy risk contribution", "When covariance coverage is insufficient, riskShare = allocationWeight x proxyRiskWeight and riskContribution = riskShare / sum(riskShare). Proxy weights are crypto 1.80, stock 1.25, gold ETF 1.05, bond ETF 0.55, other 1.00."]
+];
+
+const macroRows = [
+  ["Macro trend confidence", "round(observationCount / needed x 100), clamped to 0-100. Needed observations: quarterly = 6, daily = 30, other = 12."],
+  ["Macro trend severity", "Inflation indicators use abs(oneYearChange) x 15, capped at 100. Rates/yields use abs(latestValue) x 10. Unemployment uses max(0, latestValue - 3.5) x 25. Other indicators use abs(oneYearChange) x 10."],
+  ["Macro persistence", "Uses the latest six observations and counts how many are non-decreasing versus the prior observation. persistenceScore = min(100, count x 16)."],
+  ["FRED theme signals", "Indicator signals are mapped to themes such as Rates, Inflation, Growth, Employment, Yield Curve, Currency, and Energy. Severity, persistence, and confidence are copied or clamped from macro trends."],
+  ["Market Vision source text", "Alignment scans the report executive summary, asset-class views, rates/inflation/growth/currency/geopolitical views, opportunities, risks, and portfolio implication text."]
 ];
 
 function Section({
@@ -307,6 +376,9 @@ export default function MethodologyPage() {
                     The Characteristics Score is shown with user-facing analytical assessment labels. These labels do not mean buy, sell, hold, reduce, or any other trade instruction.
                   </Paragraph>
                   <MethodologyTable columns={["Score range", "Assessment label"]} rows={assessmentRows} />
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                    Characteristics Score = weighted average of available component scores for the instrument type. A component contributes only when its score is available and finite. Each result is clamped to the 0-100 scoring scale.
+                  </div>
                   <div className="space-y-3">
                     {instrumentPanels.map((panel) => (
                       <details key={panel.title} className="rounded-lg border border-slate-200 bg-white p-3" open={panel.title === "Stocks"}>
@@ -319,11 +391,11 @@ export default function MethodologyPage() {
                     ))}
                   </div>
                   <div className="space-y-3">
-                    <h3 className="text-base font-semibold text-slate-950">Component Definitions</h3>
+                    <h3 className="text-base font-semibold text-slate-950">Component Calculation Details</h3>
                     <Paragraph>
-                      The terms below define the score components, fits, and alignments used across the Characteristics Score panels. Components only contribute when their underlying data is available.
+                      The table below explains how the main score components, fits, and alignments are calculated before they are combined by instrument type.
                     </Paragraph>
-                    <MethodologyTable columns={["Component / fit / alignment", "Definition"]} rows={componentDefinitionRows} />
+                    <MethodologyTable columns={["Component / fit / alignment", "Calculation detail"]} rows={componentCalculationRows} />
                   </div>
                 </CardContent>
               </Card>
@@ -338,14 +410,23 @@ export default function MethodologyPage() {
                 <CardContent className="space-y-4">
                   <MethodologyTable columns={["Component", "Weight"]} rows={fundamentalRows} />
                   <Paragraph>
-                    Growth inputs include revenue growth, EPS growth, net income growth, and free cash flow growth. Profitability inputs include gross margin, operating margin, net margin, ROE, ROIC, and ROA. Valuation inputs include P/E, forward P/E, price/sales, price/book, EV/EBITDA, and free cash flow yield.
+                    Only available component scores contribute to the weighted average. Missing components are excluded from the denominator, so a missing input does not become a zero score.
                   </Paragraph>
-                  <Paragraph>
-                    Lower valuation multiples score higher, while higher free cash flow yield scores higher. For large-cap quality-growth companies with market capitalization at least $50B in technology, communication, semiconductor, software, internet, healthcare, biotechnology, or pharmaceutical sectors, a quality valuation tolerance may add 12-22 points plus a possible 4-point growth bonus, capped at 55.
-                  </Paragraph>
-                  <Paragraph>
-                    Fundamentals confidence is calculated from 16 defined data points and clamped to 0-100.
-                  </Paragraph>
+                  <div className="space-y-3">
+                    <h3 className="text-base font-semibold text-slate-950">Normalization Helpers</h3>
+                    <MethodologyTable columns={["Helper", "Formula"]} rows={fundamentalHelperRows} />
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-base font-semibold text-slate-950">Sub-Score Calculations</h3>
+                    <MethodologyTable columns={["Sub-score", "Calculation detail"]} rows={fundamentalCalculationRows} />
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                    Fundamentals confidence = clamp((availableInputs / 16) x 100). The availability count includes growth, profitability, valuation, balance-sheet, and cash-flow data points used by the scoring service.
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-base font-semibold text-slate-950">Fundamental Trend Calculations</h3>
+                    <MethodologyTable columns={["Trend element", "Calculation detail"]} rows={trendRows} />
+                  </div>
                 </CardContent>
               </Card>
             </Section>
@@ -358,6 +439,10 @@ export default function MethodologyPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <MethodologyTable columns={["Context", "How confidence is calculated"]} rows={confidenceRows} />
+                  <div className="space-y-3">
+                    <h3 className="text-base font-semibold text-slate-950">Characteristics Confidence Formula</h3>
+                    <MethodologyTable columns={["Input", "Calculation detail"]} rows={characteristicsConfidenceRows} />
+                  </div>
                   <Paragraph>
                     Higher confidence means more complete underlying data. It does not represent expected return, probability of outperformance, or suitability.
                   </Paragraph>
@@ -392,6 +477,13 @@ export default function MethodologyPage() {
                     <h3 className="text-base font-semibold text-slate-950">Portfolio Dimension Definitions</h3>
                     <MethodologyTable columns={["Dimension", "How it is evaluated"]} rows={portfolioDefinitionRows} />
                   </div>
+                  <div className="space-y-3">
+                    <h3 className="text-base font-semibold text-slate-950">Portfolio Section Score Formulas</h3>
+                    <Paragraph>
+                      Each section score is rounded and clamped to 0-100 before the weighted composite is calculated.
+                    </Paragraph>
+                    <MethodologyTable columns={["Section", "Formula"]} rows={portfolioFormulaRows} />
+                  </div>
                   <Paragraph>
                     The Portfolio Score reflects analytical characteristics at the time of the last review run. It does not predict future performance or assess suitability for any individual.
                   </Paragraph>
@@ -412,6 +504,7 @@ export default function MethodologyPage() {
                   <Paragraph>
                     Daily portfolio returns are calculated as current value less external cash flow, divided by previous value, minus one. This TWR-style adjustment avoids treating deposits as gains or withdrawals as drawdowns.
                   </Paragraph>
+                  <MethodologyTable columns={["Metric", "Calculation detail"]} rows={riskMetricRows} />
                   <Paragraph>
                     Annualized volatility is the sample standard deviation of daily returns multiplied by the square root of 252. Drawdown is calculated from a chained level series starting at 100.
                   </Paragraph>
@@ -453,6 +546,7 @@ export default function MethodologyPage() {
                   <Paragraph>
                     Market Vision alignment uses weekly macro and market-context text as scoring input. Its component weight is 10% for stocks, 5% for ETFs, bond ETFs, and gold ETFs, and 3% for crypto.
                   </Paragraph>
+                  <MethodologyTable columns={["Macro / Market Vision element", "Calculation detail"]} rows={macroRows} />
                   <Paragraph>
                     Market Vision is not a market forecast, investment outlook, or CIO opinion. References to supportive context or risk language reflect mechanical alignment scores only, not predictions about future returns.
                   </Paragraph>
