@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Info } from "lucide-react";
 import { MethodologyRelatedLinks } from "@/components/compliance/MethodologyRelatedLinks";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
@@ -223,6 +223,18 @@ const portfolioFormulaRows = [
   ["Geography", "86 - max(0, usWeight - 0.70) x 80 - max(0, 0.12 - internationalWeight) x 120. This is diagnostic only and currently has 0% overall weight."]
 ];
 
+const portfolioPlainEnglishRows = [
+  ["Allocation", "Starts at 82 and is reduced by excess equity concentration, insufficient bond ballast, high cash, or material crypto exposure."],
+  ["Concentration", "Starts at 90 and is reduced by large single holdings, high top-five concentration, or dominant sector exposure."],
+  ["Diversification", "Builds from the risk analytics diversification score and adds points for broader sector and country coverage from ETF look-through."],
+  ["Risk", "Starts at 88 and is reduced by high volatility, large drawdowns, or deep current drawdowns."],
+  ["Macro Fit", "Starts at 72 and adjusts based on whether the portfolio posture is appropriate for current rate, growth, and inflation regimes."],
+  ["Insight Alignment", "Starts at 60 and increases when current holdings score well in the Characteristics Score engine, and decreases when holdings score poorly."],
+  ["Fixed Income", "Starts at 78 and adjusts for bond sleeve size, long-duration exposure, high-yield exposure, and recession-hedge coverage."],
+  ["Theme Exposure", "Starts at 64 and increases for theme alignment, and decreases for excessive single-sector concentration."],
+  ["Geography", "Calculated as a diagnostic only - currently carries 0% weight in the composite score."]
+];
+
 const riskMetricRows = [
   ["Instrument daily return", "daily_return = close_price / previous_close_price - 1."],
   ["Instrument weekly return", "weekly_return = close_price / five_day_close_price - 1."],
@@ -318,6 +330,29 @@ function Paragraph({ children }: { children: React.ReactNode }) {
   return <p className="text-sm leading-6 text-muted-foreground">{children}</p>;
 }
 
+function FormulaAccordion({
+  title,
+  children
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="rounded-lg border border-border bg-muted/40 p-3">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm text-muted-foreground">
+        <span className="flex items-center gap-2 font-medium">
+          <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {title}
+        </span>
+        <span className="text-xs">For transparency - not required reading</span>
+      </summary>
+      <div className="mt-3">
+        {children}
+      </div>
+    </details>
+  );
+}
+
 export default function MethodologyPage() {
   return (
     <main className="mx-auto w-full max-w-[1500px] px-4 py-8 md:px-8 lg:px-10">
@@ -330,6 +365,10 @@ export default function MethodologyPage() {
             </p>
           </div>
         </div>
+
+        <p className="max-w-4xl text-sm leading-6 text-muted-foreground">
+          This page explains how ETFVision calculates the scores and labels you see in the app. Start with Characteristics Score to understand what Good, Neutral, or Weak means. Go to Portfolio Score to understand your overall portfolio rating. Technical formula details are included for transparency - they are not required reading.
+        </p>
 
         <PageHeader
           eyebrow="Public methodology"
@@ -395,7 +434,9 @@ export default function MethodologyPage() {
                     <Paragraph>
                       The table below explains how the main score components, fits, and alignments are calculated before they are combined by instrument type.
                     </Paragraph>
-                    <MethodologyTable columns={["Component / fit / alignment", "Calculation detail"]} rows={componentCalculationRows} />
+                    <FormulaAccordion title="Show component formula detail">
+                      <MethodologyTable columns={["Component / fit / alignment", "Calculation detail"]} rows={componentCalculationRows} />
+                    </FormulaAccordion>
                   </div>
                 </CardContent>
               </Card>
@@ -408,17 +449,24 @@ export default function MethodologyPage() {
                   <CardDescription>Weighted composite across six categories, with unavailable components excluded from the denominator.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <Paragraph>
+                    The Fundamentals Score measures the financial health and quality of a company across six dimensions. A higher score means stronger reported financials across growth, profitability, valuation, balance sheet, cash flow, and quality metrics. It does not predict future performance.
+                  </Paragraph>
                   <MethodologyTable columns={["Component", "Weight"]} rows={fundamentalRows} />
                   <Paragraph>
                     Only available component scores contribute to the weighted average. Missing components are excluded from the denominator, so a missing input does not become a zero score.
                   </Paragraph>
                   <div className="space-y-3">
                     <h3 className="text-base font-semibold text-slate-950">Normalization Helpers</h3>
-                    <MethodologyTable columns={["Helper", "Formula"]} rows={fundamentalHelperRows} />
+                    <FormulaAccordion title="Show normalization formulas">
+                      <MethodologyTable columns={["Helper", "Formula"]} rows={fundamentalHelperRows} />
+                    </FormulaAccordion>
                   </div>
                   <div className="space-y-3">
                     <h3 className="text-base font-semibold text-slate-950">Sub-Score Calculations</h3>
-                    <MethodologyTable columns={["Sub-score", "Calculation detail"]} rows={fundamentalCalculationRows} />
+                    <FormulaAccordion title="Show sub-score calculations">
+                      <MethodologyTable columns={["Sub-score", "Calculation detail"]} rows={fundamentalCalculationRows} />
+                    </FormulaAccordion>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
                     Fundamentals confidence = clamp((availableInputs / 16) x 100). The availability count includes growth, profitability, valuation, balance-sheet, and cash-flow data points used by the scoring service.
@@ -441,10 +489,12 @@ export default function MethodologyPage() {
                   <MethodologyTable columns={["Context", "How confidence is calculated"]} rows={confidenceRows} />
                   <div className="space-y-3">
                     <h3 className="text-base font-semibold text-slate-950">Characteristics Confidence Formula</h3>
-                    <MethodologyTable columns={["Input", "Calculation detail"]} rows={characteristicsConfidenceRows} />
+                    <FormulaAccordion title="Show confidence formula detail">
+                      <MethodologyTable columns={["Input", "Calculation detail"]} rows={characteristicsConfidenceRows} />
+                    </FormulaAccordion>
                   </div>
                   <Paragraph>
-                    Higher confidence means more complete underlying data. It does not represent expected return, probability of outperformance, or suitability.
+                    Higher confidence means more complete underlying data. It does not represent expected return, probability of outperformance, or suitability for any individual investor.
                   </Paragraph>
                 </CardContent>
               </Card>
@@ -482,7 +532,10 @@ export default function MethodologyPage() {
                     <Paragraph>
                       Each section score is rounded and clamped to 0-100 before the weighted composite is calculated.
                     </Paragraph>
-                    <MethodologyTable columns={["Section", "Formula"]} rows={portfolioFormulaRows} />
+                    <MethodologyTable columns={["Dimension", "Plain-English explanation"]} rows={portfolioPlainEnglishRows} />
+                    <FormulaAccordion title="Show portfolio score formulas">
+                      <MethodologyTable columns={["Section", "Formula"]} rows={portfolioFormulaRows} />
+                    </FormulaAccordion>
                   </div>
                   <Paragraph>
                     The Portfolio Score reflects analytical characteristics at the time of the last review run. It does not predict future performance or assess suitability for any individual.
@@ -501,6 +554,9 @@ export default function MethodologyPage() {
                   <CardDescription>Portfolio risk metrics use flow-adjusted return series where portfolio snapshots and transactions are available.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <Paragraph>
+                    Risk Analytics measures how volatile and loss-prone an instrument or portfolio has been based on historical price data. A higher risk score means higher measured risk. These are backward-looking metrics - they describe past behaviour, not future risk.
+                  </Paragraph>
                   <Paragraph>
                     Daily portfolio returns are calculated as current value less external cash flow, divided by previous value, minus one. This TWR-style adjustment avoids treating deposits as gains or withdrawals as drawdowns.
                   </Paragraph>
@@ -546,7 +602,9 @@ export default function MethodologyPage() {
                   <Paragraph>
                     Market Vision alignment uses weekly macro and market-context text as scoring input. Its component weight is 10% for stocks, 5% for ETFs, bond ETFs, and gold ETFs, and 3% for crypto.
                   </Paragraph>
-                  <MethodologyTable columns={["Macro / Market Vision element", "Calculation detail"]} rows={macroRows} />
+                  <FormulaAccordion title="Show macro and Market Vision formula detail">
+                    <MethodologyTable columns={["Macro / Market Vision element", "Calculation detail"]} rows={macroRows} />
+                  </FormulaAccordion>
                   <Paragraph>
                     Market Vision is not a market forecast, investment outlook, or CIO opinion. References to supportive context or risk language reflect mechanical alignment scores only, not predictions about future returns.
                   </Paragraph>
