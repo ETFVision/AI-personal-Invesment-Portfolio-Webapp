@@ -2,6 +2,7 @@ import {
   Banknote,
   BarChart3,
   Bookmark,
+  BookOpenText,
   Database,
   Globe2,
   LineChart,
@@ -60,6 +61,7 @@ const navGroups = [
       { href: "/bonds", label: "Fixed Income", icon: Landmark },
       { href: "/recommendations", label: "Insights", icon: Sparkles },
       { href: "/portfolio-review", label: "Portfolio Review", icon: ClipboardCheck },
+      { href: "/methodology", label: "Methodology", icon: BookOpenText },
       { href: "/assistant", label: "Assistant", icon: Bot },
       { href: "/telemetry", label: "Telemetry", icon: Activity }
     ]

@@ -1,0 +1,1 @@
+export const METHODOLOGY_LAST_UPDATED = "2026-06-15";
