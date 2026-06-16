@@ -52,10 +52,10 @@ Previously-zero-policy table inventory:
 
 | Table | SELECT policy status | Write policy status | Notes |
 |---|---|---|---|
-| `portfolio_dashboard_summary` | User-scoped SELECT added in `107_portfolio_summary_rls_policies.sql` via `portfolio_id` -> `portfolios.user_id = auth.uid()` | No write policies; service-role-only writes | Defensive only. App reads/writes through `SupabaseAnalyticsRepository` service-role client. |
-| `portfolio_performance_summary` | User-scoped SELECT added in `107_portfolio_summary_rls_policies.sql` via `portfolio_id` -> `portfolios.user_id = auth.uid()` | No write policies; service-role-only writes | Defensive only. App reads/writes through `SupabaseAnalyticsRepository` service-role client. |
+| `portfolio_dashboard_summary` | User-scoped SELECT added in `107_portfolio_summary_rls_policies.sql` (corrected by `108`) via `exists()` join through `users.auth_provider_user_id = auth.uid()::text` | No write policies; service-role-only writes | Defensive only. App reads/writes through `SupabaseAnalyticsRepository` service-role client. |
+| `portfolio_performance_summary` | User-scoped SELECT added in `107_portfolio_summary_rls_policies.sql` (corrected by `108`) via `exists()` join through `users.auth_provider_user_id = auth.uid()::text` | No write policies; service-role-only writes | Defensive only. App reads/writes through `SupabaseAnalyticsRepository` service-role client. |
 | `ingestion_events` | No SELECT policy | No write policies | Unused legacy/internal table in current `src/`; blocked state is intentional. |
-| `instrument_directory_summary` | No policy added | No policy added | Orphaned live table: not present in migrations and not referenced by source code. Investigate origin before adding any policy. |
+| `instrument_directory_summary` | No policy added | No policy added | Confirmed orphaned experimental table from page-rendering performance work; implementation reverted per `docs/PAGE_RENDERING_AUDIT.md`. Not present in any migration or source file. No policy needed. |
 
 ## Job Security
 

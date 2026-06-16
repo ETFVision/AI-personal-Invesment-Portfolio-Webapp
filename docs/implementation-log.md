@@ -1,4 +1,59 @@
-﻿## 2026-06-16 - Portfolio Summary RLS Policy Correction
+﻿## 2026-06-16 - Fix Portfolio Review Test Assertion
+
+### Source
+Claude Code
+
+### Objective
+Fix the pre-existing stale test assertion at `tests/portfolio-review.test.ts:331` that referenced a phrase no longer present in the source string.
+
+### Root Cause
+`DiversificationBenefitService.ts:81` returns "Provides exposure to regulated demand that can behave differently from growth equities." The test asserted `/regulated demand exposure/` - the substring "regulated demand exposure" does not appear in this string (the word after "regulated demand" is "that"). The source text changed at some point and the test was not updated.
+
+### Files Changed
+- `tests/portfolio-review.test.ts`
+- `docs/implementation-log.md`
+
+### Summary
+- Changed test regex from `/regulated demand exposure/` to `/regulated demand/`.
+- Changed stale XLP regex checks from `/essential-consumption exposure/` to `/essential-consumption businesses/`.
+- No changes to `DiversificationBenefitService.ts` or any other source file.
+- No scoring, methodology, or compliance wording changed.
+
+### Tests Run
+- `npm run test` blocked by PowerShell execution policy for `npm.ps1`.
+- `npm.cmd run test` - PASS (248/248).
+
+### Result
+Completed. Test suite now fully green.
+
+---
+## 2026-06-16 - instrument_directory_summary Origin Investigation Closed
+
+### Source
+Claude Code
+
+### Objective
+Close the open origin investigation for the orphaned `instrument_directory_summary` live DB table.
+
+### Root Cause
+Table was created experimentally during page-rendering performance work (alongside `portfolio_risk_summary`, `telemetry_summary`, `data_source_health_summary`). All four implementations were reverted. Confirmed by `docs/PAGE_RENDERING_AUDIT.md:661`.
+
+### Files Changed
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/SECURITY_AND_ACCESS_ARCHITECTURE.md`
+- `docs/implementation-log.md`
+
+### Summary
+- No TypeScript changes.
+- No SQL changes.
+- No migration added.
+- Documentation updated to mark the item closed in DOCUMENTATION_GAPS.md High Priority item 1 and in the SECURITY_AND_ACCESS_ARCHITECTURE.md table inventory.
+
+### Result
+Closed. No further action required for this table.
+---
+
+## 2026-06-16 - Portfolio Summary RLS Policy Correction
 
 ### Source
 Claude Code (review-phase correction)
@@ -231,6 +286,5 @@ Completed, with one unrelated existing Portfolio Review wording-test follow-up n
 - Admin-vs-user decisions: `recommendationActions.runRecommendationsAction` stayed user-accessible as a self-service Insights run; `portfolioReviewActions.runPortfolioReviewAction` stayed user-accessible; `portfolioReviewActions.refreshEtfLookthroughExposureAction` became admin-only; `marketVisionActions` draft/save/publish/archive/generate actions became admin-only editorial actions because they mutate global Market Vision reports.
 - `universeActions` is mixed: seed, metadata/price refresh, active status, tags, and bond profile overrides became admin-only; watchlist add/remove stayed user-accessible.
 - This change does not add a DB `users.is_admin` flag, does not alter RLS, and does not address the broader `assets` RLS or write-policy audit.
-
 
 
