@@ -24,7 +24,8 @@ An independent deep architecture audit with live read-only database verification
    - Confirm Admin/Data Sources and internal diagnostics are not exposed if not intended for alpha.
    - `qa-log.md` records alpha realignment during page rendering work, but a complete route-by-route alpha feature audit remains open.
    - **Updated 2026-06-16:** app-level admin authorization is now implemented through `AuthProvider.requireAdmin()` and environment allowlists (`ADMIN_USER_IDS`, optional `ADMIN_EMAILS`). `/admin/*`, `/setup/taxonomy`, and admin-only server actions are guarded, and the Admin nav is hidden for non-admins.
-   - Remaining gap: there is still no runtime feature-flag/product-mode system for broader alpha/full surface gating, and there is still no DB-backed `users.is_admin` role. The broader RLS write-policy audit and `instrument_directory_summary` origin investigation remain open under item #1.
+   - Remaining gap: there is still no runtime feature-flag/product-mode system for broader alpha/full surface gating, and there is still no DB-backed `users.is_admin` role.
+   - **QA follow-up (2026-06-16):** live browser QA still needed to confirm admin users see Admin nav, non-admin users do not, and direct `/admin/*` requests return 404 for non-admins. Should be done before inviting any alpha users.
 
 3. Price-refresh route reconciliation (confirmed drift)
    - **Confirmed live 2026-06-16:** `/api/jobs/price-refresh` is not present in `cron.job`. The active daily chain uses `instrument-price-refresh` ×5 + `portfolio-valuation-refresh`.
@@ -32,9 +33,21 @@ An independent deep architecture audit with live read-only database verification
 
 4. Daily derived-metrics chain reliability and job monitoring
    - **Confirmed live 2026-06-16 (`job_runs`, 7-day window):** `instrument-daily-returns-refresh` (3 failed), `instrument-return-anchors-refresh` (2 failed), and `instrument-market-metrics-refresh` (1 failed) intermittently fail; `refresh_instrument_risk_metrics` is mostly skipped (68 skipped / 39 success); `newsdata-news-ingestion` is chronically `partial_success` (7/7).
-   - Add alerting on required-chain failures and investigate the risk-metrics lock-contention/skip rate and the NewsData partial cause.
+   - **Updated 2026-06-16:** all five failing jobs (`instrument-daily-returns-refresh`, `instrument-return-anchors-refresh`, `instrument-market-metrics-refresh`, `refresh_instrument_risk_metrics`, `newsdata-news-ingestion`) are resolved for now. Root cause for anchor refresh was duplicate daily-return work, fixed in migration `101`. Monitor in future runs.
+   - Remaining gap: no alerting exists on required-chain failures. Add job-failure alerting before commercial launch so persistent failures surface without manual `job_runs` inspection.
 
-5. Migration tracking and numbering
+5. Signup restriction and assistant rate-limit
+   - Open signup means any person who reaches the login page can create an account and consume OpenAI spend.
+   - No per-user assistant rate-limit or daily conversation quota exists. `ENABLE_PORTFOLIO_ASSISTANT` is a global toggle only.
+   - **Planned 2026-06-16:** Codex implementation prompt ready. Tasks: add `ALLOWED_SIGNUP_EMAILS` env allowlist (same pattern as `ADMIN_USER_IDS`), gate `signUpWithPassword` in `SupabaseAuthProvider`, update login page UI, add `ASSISTANT_DAILY_LIMIT` env var, add `countTodayConversations` to `AssistantRepository`, enforce limit in `PortfolioAssistantService`, return HTTP 429 with user-friendly message. Must be done before any alpha invites go out.
+
+6. AI cost constants and model ID validation
+   - `PORTFOLIO_ASSISTANT_INPUT_COST_PER_1M` and `MARKET_VISION_INPUT_COST_PER_1M` (and output equivalents) all default to `0`, so `estimateCost()` always returns `null` and Admin > Assistant Usage shows no real spend data.
+   - Model ID defaults (`gpt-5.4-mini`) need validation against the current OpenAI API to confirm they resolve to real model IDs.
+   - Note: `OpenAiNewsProvider` also calls OpenAI but is disabled by default (`ENABLE_AI_NEWS_CLASSIFICATION=false`, `ENABLE_WEEKLY_NEWS_RECONCILIATION=false`); news model cost tracking is deferred until those features are enabled.
+   - **Planned 2026-06-16:** Codex implementation prompt ready. Tasks: validate model IDs, populate `.env.example` with confirmed real IDs and per-1M pricing for Portfolio Assistant and Market Vision only.
+
+7. Migration tracking and numbering
    - **Confirmed live 2026-06-16:** `supabase_migrations.schema_migrations` does not exist, so applied migration state cannot be verified from a ledger.
    - Duplicate-numbered files exist (`052`, `061`, `062`). Adopt tracked/timestamped migrations and generate a consolidated schema snapshot before commercial launch.
 
@@ -44,10 +57,22 @@ An independent deep architecture audit with live read-only database verification
    - Verify whether scheduled jobs should publish or create drafts.
    - Follow up in `MarketVisionGenerationService.ts`.
    - Note: the scheduled portfolio-context regression was fixed on 2026-06-14; scheduled generation still creates drafts unless a separate publish policy is approved.
+   - **QA follow-up (2026-06-14):** the 2026-06-08 to 2026-06-14 report was deleted for regeneration after the v3 calibration pass. Regenerate from Admin/Data Sources and compare against the 2026-06-07 report to confirm calibration is complete before marking Market Vision v3 closed.
 
-2. Assistant table/cost schema
+2. CI pipeline enforcement
+   - No CI pipeline exists. Tests, typecheck, and build run manually only. Nothing enforces them on PRs or branch merges.
+   - Risk: regressions can be merged into `development` or `main` without detection. Test suite is now 248/248 green — the right time to lock this in.
+   - Action: add a GitHub Actions workflow running `npm run typecheck && npm run test && npm run build` on pull requests to `development` and `main`. Low effort.
+
+3. CRON_SECRET accepted as URL query parameter
+   - `/api/jobs/*` routes currently accept `CRON_SECRET` as either a bearer token header or a `secret` query parameter.
+   - Query-param secrets appear in server logs, reverse-proxy access logs, and browser history. This is a log-leak risk.
+   - Action: remove the query-parameter path; require the `Authorization: Bearer <secret>` header only. Update Supabase Vault job definitions to pass the secret as a header. Low effort.
+
+4. Assistant table/cost schema
    - Confirm exact assistant tables and cost formulas.
    - Follow up in assistant migrations and `SupabaseAssistantRepository.ts`.
+   - **Note 2026-06-16:** cost constants are being addressed in High Priority item #6 (AI cost constants). Once `.env.example` is populated with real values and set in Vercel, Admin > Assistant Usage will show real spend data.
 
 3. News classification formula and thresholds
    - Summarize deterministic rules, confidence scoring, source quality weighting, and review queue conditions.
