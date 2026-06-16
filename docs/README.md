@@ -88,6 +88,7 @@ This is the quick map of notable audits completed or started so far. `qa-log.md`
 - [Instrument Taxonomy Alpha Universe](instrument-taxonomy-alpha-universe.md)
 - [Feature-Gated Production Architecture Audit](feature-gated-production-architecture-audit.md)
 - [Recommendation Language Audit](recommendation-language-audit.md)
+- [Deep Architecture Audit 2026-06-16](ARCHITECTURE_AUDIT_2026-06-16.md) — independent 20-domain review with live read-only database verification (§1A).
 
 ## Maintenance Rule
 
