@@ -13,7 +13,7 @@ async function classifyBackfill(container: ReturnType<typeof createContainer>) {
 
 export async function runDailyNewsIngestionAction() {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   let target = "/news?error=News%20ingestion%20failed.";
   try {
     const result = await container.jobs.dailyNewsIngestion.run();
@@ -26,7 +26,7 @@ export async function runDailyNewsIngestionAction() {
 
 export async function runGdeltNewsIngestionAction() {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   let target = "/news?error=GDELT%20ingestion%20failed.";
   try {
     const result = await container.jobs.gdeltNewsIngestion.run();
@@ -45,7 +45,7 @@ export async function runGdeltNewsIngestionAction() {
 
 export async function runNewsDataNewsIngestionAction() {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   let target = "/news?error=NewsData%20ingestion%20failed.";
   try {
     const result = await container.jobs.newsDataNewsIngestion.run({ force: true });
@@ -66,7 +66,7 @@ export async function runNewsDataNewsIngestionAction() {
 
 export async function runWeeklyNewsReconciliationAction() {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   let target = "/news?error=Weekly%20reconciliation%20failed.";
   try {
     const reconciliation = await container.jobs.weeklyNewsReconciliation.run();
@@ -79,7 +79,7 @@ export async function runWeeklyNewsReconciliationAction() {
 
 export async function reclassifyPendingNewsAction() {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   let target = "/news?error=News%20classification%20failed.";
   try {
     const result = await container.newsClassificationService.classifyPending();
@@ -91,7 +91,7 @@ export async function reclassifyPendingNewsAction() {
 }
 
 export async function duplicateOverrideAction(formData: FormData) {
-  await createContainer().authProvider.requireUser();
+  await createContainer().authProvider.requireAdmin();
   const newsItemId = formString(formData, "newsItemId");
   const duplicateOfId = formString(formData, "duplicateOfId") || null;
   await createContainer().newsRepository.markDuplicate(newsItemId, duplicateOfId);

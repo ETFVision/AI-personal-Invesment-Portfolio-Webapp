@@ -28,7 +28,7 @@ function formNullableNumber(formData: FormData, key: string) {
 
 export async function seedUniverseAction(formData?: FormData) {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   const job = await container.jobRunService.runManual("seed_universe", async () => {
     const result = await container.universeManagementService.ensureSeededUniverse();
     return {
@@ -47,8 +47,8 @@ export async function seedUniverseAction(formData?: FormData) {
 }
 
 export async function refreshUniverseMetadataAction() {
-  const authUser = await createContainer().authProvider.requireUser();
   const container = createContainer();
+  const authUser = await container.authProvider.requireAdmin();
   const appUser = await container.portfolioService.ensureApplicationUser(authUser);
   const result = await container.metadataRefreshService.refreshUniverseMetadata({ requestedByUserId: appUser.id });
   const params = new URLSearchParams({
@@ -59,8 +59,9 @@ export async function refreshUniverseMetadataAction() {
 }
 
 export async function refreshInstrumentPricesAction() {
-  await createContainer().authProvider.requireUser();
-  const result = await createContainer().instrumentMarketService.refreshInstrumentPrices({ lookbackDays: 30, maxSymbols: 40 });
+  const container = createContainer();
+  await container.authProvider.requireAdmin();
+  const result = await container.instrumentMarketService.refreshInstrumentPrices({ lookbackDays: 30, maxSymbols: 40 });
   const params = new URLSearchParams({
     priceMessage: result.message
   });
@@ -69,25 +70,27 @@ export async function refreshInstrumentPricesAction() {
 }
 
 export async function toggleInstrumentActiveAction(formData: FormData) {
-  await createContainer().authProvider.requireUser();
+  const container = createContainer();
+  await container.authProvider.requireAdmin();
   const instrumentId = formString(formData, "instrumentId");
   const isActive = formBoolean(formData, "isActive");
-  await createContainer().instrumentService.setInstrumentActive(instrumentId, isActive);
+  await container.instrumentService.setInstrumentActive(instrumentId, isActive);
   redirect("/instruments/universe?message=Instrument%20status%20updated.");
 }
 
 export async function saveInstrumentTagsAction(formData: FormData) {
-  await createContainer().authProvider.requireUser();
+  const container = createContainer();
+  await container.authProvider.requireAdmin();
   const instrumentId = formString(formData, "instrumentId");
   const benchmarkTags = formTags(formData, "benchmarkTags");
   const thematicTags = formTags(formData, "thematicTags");
-  await createContainer().instrumentService.updateInstrumentTags([{ instrumentId, benchmarkTags, thematicTags }]);
+  await container.instrumentService.updateInstrumentTags([{ instrumentId, benchmarkTags, thematicTags }]);
   redirect("/instruments/universe?message=Instrument%20tags%20updated.");
 }
 
 export async function saveBondProfileAction(formData: FormData) {
-  await createContainer().authProvider.requireUser();
   const container = createContainer();
+  await container.authProvider.requireAdmin();
   const instrumentId = formString(formData, "instrumentId");
   const instruments = await container.instrumentService.listInstruments({ isActive: true });
   if (!instruments.some((instrument) => instrument.id === instrumentId)) {

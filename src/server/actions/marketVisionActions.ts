@@ -29,14 +29,15 @@ function portfolioImplicationsFromForm(formData: FormData) {
 }
 
 export async function createMarketVisionDraftAction() {
-  await createContainer().authProvider.requireUser();
-  const report = await createContainer().marketVisionService.createDraft();
+  const container = createContainer();
+  await container.authProvider.requireAdmin();
+  const report = await container.marketVisionService.createDraft();
   redirect(`/market-vision?reportId=${report.id}&message=Draft%20created.`);
 }
 
 export async function createMarketVisionDraftFromLatestNewsAction() {
-  await createContainer().authProvider.requireUser();
   const container = createContainer();
+  await container.authProvider.requireAdmin();
   const weekly = await container.newsRepository.getLatestWeeklyReconciliation();
   const report = await container.marketVisionService.createDraft({
     title: weekly ? `Market Vision - ${weekly.periodEnd}` : undefined,
@@ -59,8 +60,8 @@ export async function createMarketVisionDraftFromLatestNewsAction() {
 }
 
 export async function generateAiMarketVisionDraftAction() {
-  const authUser = await createContainer().authProvider.requireUser();
   const container = createContainer();
+  const authUser = await container.authProvider.requireAdmin();
   const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
   const report = await container.marketVisionGenerationService.generateWeeklyReport({
     portfolioId: portfolio?.id ?? null,
@@ -71,9 +72,10 @@ export async function generateAiMarketVisionDraftAction() {
 }
 
 export async function saveMarketVisionDraftAction(formData: FormData) {
-  await createContainer().authProvider.requireUser();
+  const container = createContainer();
+  await container.authProvider.requireAdmin();
   const reportId = formString(formData, "reportId");
-  const report = await createContainer().marketVisionService.saveDraft({
+  const report = await container.marketVisionService.saveDraft({
     id: reportId,
     reportDate: formString(formData, "reportDate"),
     reportPeriodStart: formString(formData, "reportPeriodStart") || null,
@@ -101,15 +103,17 @@ export async function saveMarketVisionDraftAction(formData: FormData) {
 }
 
 export async function publishMarketVisionReportAction(formData: FormData) {
-  await createContainer().authProvider.requireUser();
+  const container = createContainer();
+  await container.authProvider.requireAdmin();
   const reportId = formString(formData, "reportId");
-  await createContainer().marketVisionService.publishReport(reportId);
+  await container.marketVisionService.publishReport(reportId);
   redirect(`/market-vision?reportId=${reportId}&message=Report%20published.`);
 }
 
 export async function archiveMarketVisionReportAction(formData: FormData) {
-  await createContainer().authProvider.requireUser();
+  const container = createContainer();
+  await container.authProvider.requireAdmin();
   const reportId = formString(formData, "reportId");
-  await createContainer().marketVisionService.archiveReport(reportId);
+  await container.marketVisionService.archiveReport(reportId);
   redirect(`/market-vision?message=Report%20archived.`);
 }

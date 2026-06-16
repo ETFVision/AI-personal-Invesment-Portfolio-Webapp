@@ -11,6 +11,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const container = createContainer();
   const authUser = await container.authProvider.requireUser();
+  const isAdmin = await container.authProvider.isAdmin();
   const { portfolio, user } = await measureRenderStep("setup:portfolio-context", () =>
     container.portfolioService.getOrCreateDefaultPortfolio(authUser)
   );
@@ -107,7 +108,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
           )}
         </CardContent>
       </Card>
-      {portfolio ? (
+      {portfolio && isAdmin ? (
         <Card>
           <CardHeader>
             <CardTitle>Admin settings</CardTitle>

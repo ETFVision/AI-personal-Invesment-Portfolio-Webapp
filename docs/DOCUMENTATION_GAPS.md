@@ -1,8 +1,10 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-15 20:15 SGT
+Last updated: 2026-06-16 SGT
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
+
+An independent deep architecture audit with live read-only database verification was completed on 2026-06-16; see `docs/ARCHITECTURE_AUDIT_2026-06-16.md`. Several items below now carry confirmed live evidence from that pass and are marked accordingly.
 
 ## High Priority
 
@@ -10,11 +12,31 @@ This document records areas where the handover pack intentionally avoids guessin
    - Verify every user-specific table is scoped correctly.
    - Check assistant conversations, recommendation history, telemetry, portfolio review, and summary tables.
    - `qa-log.md` contains scattered RLS fixes, but there is not yet a full table-by-table RLS audit.
+   - **Confirmed live 2026-06-16 (see `ARCHITECTURE_AUDIT_2026-06-16.md` section 1A):** every public table currently has exactly one `SELECT`-only policy and **zero INSERT/UPDATE/DELETE policies**; user-table writes rely entirely on the service role plus application-layer `userId` scoping. Add owner-scoped write policies where needed, or formally document and test the service-role-only write model.
+   - **Updated 2026-06-16:** `assets` now has migration `106_assets_rls.sql`, which enables RLS and adds one authenticated SELECT policy. No write policies were added, preserving default-deny writes for non-service-role callers. This closes the specific `assets` RLS-disabled gap.
+   - **Updated 2026-06-16:** `portfolio_dashboard_summary` and `portfolio_performance_summary` now have migration `107_portfolio_summary_rls_policies.sql`, which adds user-scoped SELECT policies through `portfolio_id` -> `portfolios.user_id = auth.uid()`.
+   - **Updated 2026-06-16:** `ingestion_events` is confirmed unused by current `src/` code and remains intentionally blocked with no policy.
+   - **Updated 2026-06-16:** the zero-write-policy service-role model is formally documented in `SECURITY_AND_ACCESS_ARCHITECTURE.md`.
+   - **Closed 2026-06-16:** `instrument_directory_summary` confirmed as an orphaned experimental table from page-rendering performance work; implementation reverted per `docs/PAGE_RENDERING_AUDIT.md`. Not present in any migration or source file. No policy added; no policy needed. No further action required.
 
 2. Alpha branch feature gate audit
    - Validate on `alpha` branch, not only `development`.
    - Confirm Admin/Data Sources and internal diagnostics are not exposed if not intended for alpha.
    - `qa-log.md` records alpha realignment during page rendering work, but a complete route-by-route alpha feature audit remains open.
+   - **Updated 2026-06-16:** app-level admin authorization is now implemented through `AuthProvider.requireAdmin()` and environment allowlists (`ADMIN_USER_IDS`, optional `ADMIN_EMAILS`). `/admin/*`, `/setup/taxonomy`, and admin-only server actions are guarded, and the Admin nav is hidden for non-admins.
+   - Remaining gap: there is still no runtime feature-flag/product-mode system for broader alpha/full surface gating, and there is still no DB-backed `users.is_admin` role. The broader RLS write-policy audit and `instrument_directory_summary` origin investigation remain open under item #1.
+
+3. Price-refresh route reconciliation (confirmed drift)
+   - **Confirmed live 2026-06-16:** `/api/jobs/price-refresh` is not present in `cron.job`. The active daily chain uses `instrument-price-refresh` ×5 + `portfolio-valuation-refresh`.
+   - `chatgpt-handover.md` "Unified Price Refresh" describes `price-refresh` as the daily path; this is stale. Either remove the orphan route or repoint docs to the real chain, and assert one canonical price path.
+
+4. Daily derived-metrics chain reliability and job monitoring
+   - **Confirmed live 2026-06-16 (`job_runs`, 7-day window):** `instrument-daily-returns-refresh` (3 failed), `instrument-return-anchors-refresh` (2 failed), and `instrument-market-metrics-refresh` (1 failed) intermittently fail; `refresh_instrument_risk_metrics` is mostly skipped (68 skipped / 39 success); `newsdata-news-ingestion` is chronically `partial_success` (7/7).
+   - Add alerting on required-chain failures and investigate the risk-metrics lock-contention/skip rate and the NewsData partial cause.
+
+5. Migration tracking and numbering
+   - **Confirmed live 2026-06-16:** `supabase_migrations.schema_migrations` does not exist, so applied migration state cannot be verified from a ledger.
+   - Duplicate-numbered files exist (`052`, `061`, `062`). Adopt tracked/timestamped migrations and generate a consolidated schema snapshot before commercial launch.
 
 ## Medium Priority
 

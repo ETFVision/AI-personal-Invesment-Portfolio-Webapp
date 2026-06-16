@@ -1,8 +1,9 @@
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 import { AuthProvider, AuthUser } from "@/application/ports/providers/AuthProvider";
+import { isAdminUser, parseAdminAllowlist } from "@/application/services/auth/adminAccess";
 import { env } from "@/infrastructure/config/env";
 
 type CookieToSet = {
@@ -42,6 +43,44 @@ export class SupabaseAuthProvider implements AuthProvider {
   async requireUser(): Promise<AuthUser> {
     const user = await this.getCurrentUser();
     if (!user) redirect("/login");
+    return user;
+  }
+
+  async requireUserWithAdminFlag(): Promise<{ user: AuthUser; isAdmin: boolean }> {
+    const user = await this.getCurrentUser();
+    if (!user) redirect("/login");
+    return {
+      user,
+      isAdmin: isAdminUser(
+        user.id,
+        user.email,
+        parseAdminAllowlist(env.ADMIN_USER_IDS),
+        parseAdminAllowlist(env.ADMIN_EMAILS)
+      )
+    };
+  }
+
+  async isAdmin(): Promise<boolean> {
+    const user = await this.getCurrentUser();
+    if (!user) return false;
+    return isAdminUser(
+      user.id,
+      user.email,
+      parseAdminAllowlist(env.ADMIN_USER_IDS),
+      parseAdminAllowlist(env.ADMIN_EMAILS)
+    );
+  }
+
+  async requireAdmin(): Promise<AuthUser> {
+    const user = await this.getCurrentUser();
+    if (!user) redirect("/login");
+    const isAdmin = isAdminUser(
+      user.id,
+      user.email,
+      parseAdminAllowlist(env.ADMIN_USER_IDS),
+      parseAdminAllowlist(env.ADMIN_EMAILS)
+    );
+    if (!isAdmin) notFound();
     return user;
   }
 

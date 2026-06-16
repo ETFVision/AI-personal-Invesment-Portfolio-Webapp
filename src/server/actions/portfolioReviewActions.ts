@@ -36,7 +36,7 @@ export async function runPortfolioReviewAction(formData?: FormData) {
 
 export async function refreshEtfLookthroughExposureAction(formData?: FormData) {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   const destination = String(formData?.get("returnTo") ?? "/portfolio-review");
   const force = String(formData?.get("force") ?? "") === "true";
   let target = destination.startsWith("/") ? destination : "/portfolio-review";

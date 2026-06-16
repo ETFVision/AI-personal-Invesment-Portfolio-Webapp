@@ -328,9 +328,9 @@ test("improvement suggestions map concentration issues to diversifying candidate
   assert.match(internationalSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "VXUS")?.whyThisCandidate ?? "", /US look-through exposure is 72\.9%/);
   assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.whyThisCandidate ?? "", /Technology at 30\.6%/);
   assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.secondaryBenefit ?? "", /pharma, services, devices and care delivery/);
-  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLU")?.secondaryBenefit ?? "", /regulated demand exposure/);
-  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLP")?.secondaryBenefit ?? "", /essential-consumption exposure/);
-  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLP")?.expectedPortfolioBenefit ?? "", /essential-consumption exposure/);
+  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLU")?.secondaryBenefit ?? "", /regulated demand/);
+  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLP")?.secondaryBenefit ?? "", /essential-consumption businesses/);
+  assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLP")?.expectedPortfolioBenefit ?? "", /essential-consumption businesses/);
   assert.equal(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BNDX")?.diversificationType, "International fixed income");
   assert.match(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BNDX")?.secondaryBenefit ?? "", /rate, currency and issuer exposure/);
   assert.match(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BNDX")?.potentialTradeOff ?? "", /currency and non-US rate-cycle exposure/);

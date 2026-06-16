@@ -1,12 +1,12 @@
 # ETFVision Documentation Index
 
-Last updated: 2026-06-15 20:15:00 +08:00
+Last updated: 2026-06-16 SGT
 
 This folder contains both current handover documents and older historical audits. The uppercase documents below are the current authoritative handover pack as of the timestamp above.
 
 ## Handover Status Snapshot
 
-The handover pack is current for the major architecture and audit work completed through 2026-06-13:
+The handover pack is current for the major architecture and audit work completed through 2026-06-16:
 
 | Area | Current status | Primary docs | Notes for next developer |
 |---|---|---|---|
@@ -22,7 +22,7 @@ The handover pack is current for the major architecture and audit work completed
 | Assistant | Mostly current | `ASSISTANT_ARCHITECTURE.md`, `SECURITY_MASTER_AUDIT.md` | Assistant context can explain issuer-level hidden overlap after Portfolio Review refresh. Cost tracking and exact table inventory still need final schema audit. |
 | Market Vision, News, Macro, Fundamentals, Risk, Fixed Income, Telemetry | Methodology documented; some UI/data-map gaps remain | `MARKET_VISION_METHODOLOGY.md`, `MARKET_VISION_REGRESSION_FIX.md`, `NEWS_THEME_METHODOLOGY.md`, `SCORE_METHODOLOGY.md`, `TELEMETRY_ARCHITECTURE.md`, `DOCUMENTATION_GAPS.md` | Market Vision scheduled portfolio context regression is fixed. Route-by-route field lineage is still a follow-up documentation task. |
 | Scheduled refresh automation | Current, but should be checked against live Supabase cron after edits | `scheduled-jobs.md`, `JOBS_AND_OPERATIONS.md`, `DATA_INGESTION_AND_PROVIDERS.md` | Supabase cron replaced GitHub Actions for production refreshes. Keep schedule docs aligned with migrations and live `cron.job`. |
-| Feature gates and alpha branch | Partly completed | `feature-gated-production-architecture-audit.md`, `COMMERCIALIZATION_AUDIT_PLAN.md`, `SECURITY_AND_ACCESS_ARCHITECTURE.md` | Alpha is intended to expose a smaller consumer surface. Future merges from main/development into alpha should preserve feature flags. |
+| Feature gates and alpha branch | Admin auth implemented; broader alpha gating open | `feature-gated-production-architecture-audit.md`, `COMMERCIALIZATION_AUDIT_PLAN.md`, `SECURITY_AND_ACCESS_ARCHITECTURE.md` | Admin authorization via `requireAdmin()` and env allowlists (`ADMIN_USER_IDS`, `ADMIN_EMAILS`) is now implemented; `/admin/*`, `/setup/taxonomy`, and admin server actions are gated. No runtime product-mode feature-flag system yet; broader alpha surface gating remains open. Future merges from development into alpha should preserve admin guards. |
 | Commercialization readiness | In progress | `COMMERCIALIZATION_AUDIT_PLAN.md`, `DOCUMENTATION_GAPS.md`, focused audit docs | Commercialization audit is the master checklist. Completed audits should be marked there, not only in implementation notes. |
 
 If a future implementation changes calculations, refresh order, feature gates, Security Master behavior, AI prompts, recommendation labels, or portfolio exposure logic, update the relevant handover doc and append QA evidence to `qa-log.md` in the same change.
@@ -52,8 +52,8 @@ This is the quick map of notable audits completed or started so far. `qa-log.md`
 | Security Master / issuer rollups | Completed for current commercialization checkpoint | `SECURITY_MASTER_AUDIT.md`, `DATABASE_SCHEMA.md`, `ARCHITECTURE_OVERVIEW.md`, `PORTFOLIO_REVIEW_METHODOLOGY.md` | `qa-log.md` Security Master Phase A through Phase 8/6/7 closeout entries |
 | ETF holdings / look-through | Partly completed due provider top-holding limits; current portfolio rollups work where data exists | `SECURITY_MASTER_AUDIT.md`, `PORTFOLIO_REVIEW_METHODOLOGY.md`, `COMMERCIALIZATION_AUDIT_PLAN.md` | `qa-log.md` ETF holding mapping and Portfolio Review look-through entries |
 | Portfolio Review engine | Current, with future candidate-ranking hardening noted | `PORTFOLIO_REVIEW_METHODOLOGY.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` Portfolio Review and Security Master Phase 4C/4D entries |
-| Feature gates / alpha branch | Partly completed; alpha branch should remain flag-aligned with main | `feature-gated-production-architecture-audit.md`, `COMMERCIALIZATION_AUDIT_PLAN.md` | `qa-log.md` Page Rendering QA notes on alpha realignment |
-| Security/access/RLS | Not fully audited | `SECURITY_AND_ACCESS_ARCHITECTURE.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` only has scattered RLS fixes; full RLS audit remains open |
+| Feature gates / alpha branch | Admin auth implemented 2026-06-16; broader alpha/product-mode gating still open | `feature-gated-production-architecture-audit.md`, `COMMERCIALIZATION_AUDIT_PLAN.md`, `SECURITY_AND_ACCESS_ARCHITECTURE.md` | `qa-log.md` Page Rendering QA notes on alpha realignment; admin access-control QA entry 2026-06-16 |
+| Security/access/RLS | Admin auth layer implemented; full RLS audit still open | `SECURITY_AND_ACCESS_ARCHITECTURE.md`, `DOCUMENTATION_GAPS.md` | `qa-log.md` scattered RLS fixes + admin access-control QA entry 2026-06-16; `assets` RLS disabled and zero write policies remain open (DOCUMENTATION_GAPS.md High Priority #1) |
 
 ## Current Handover Pack
 
@@ -88,6 +88,7 @@ This is the quick map of notable audits completed or started so far. `qa-log.md`
 - [Instrument Taxonomy Alpha Universe](instrument-taxonomy-alpha-universe.md)
 - [Feature-Gated Production Architecture Audit](feature-gated-production-architecture-audit.md)
 - [Recommendation Language Audit](recommendation-language-audit.md)
+- [Deep Architecture Audit 2026-06-16](ARCHITECTURE_AUDIT_2026-06-16.md) — independent 20-domain review with live read-only database verification (§1A).
 
 ## Maintenance Rule
 

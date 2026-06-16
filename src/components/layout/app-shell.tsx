@@ -93,17 +93,20 @@ const navGroups: NavGroup[] = [
   }
 ];
 
-const visibleNavGroups = navGroups
-  .filter((group) => !isAlphaRelease || group.alpha !== false)
-  .map((group) => ({
-    ...group,
-    items: group.items.filter((item) => !isAlphaRelease || item.alpha !== false)
-  }))
-  .filter((group) => group.items.length > 0);
+function visibleNavGroups(isAdmin: boolean) {
+  return navGroups
+    .filter((group) => (!isAlphaRelease || group.alpha !== false) && (group.label !== "Admin" || isAdmin))
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !isAlphaRelease || item.alpha !== false)
+    }))
+    .filter((group) => group.items.length > 0);
+}
 
-const mobileNavItems = visibleNavGroups.flatMap((group) => group.items);
+export function AppShell({ children, isAdmin }: { children: React.ReactNode; isAdmin: boolean }) {
+  const displayedNavGroups = visibleNavGroups(isAdmin);
+  const mobileNavItems = displayedNavGroups.flatMap((group) => group.items);
 
-export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
       <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col bg-slate-950 p-4 text-white shadow-2xl md:flex">
@@ -115,7 +118,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
-          {visibleNavGroups.map((group) => (
+          {displayedNavGroups.map((group) => (
             <div key={group.label} className="space-y-1">
               <p className="px-3 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-teal-200">{group.label}</p>
               {group.items.map((item) => {

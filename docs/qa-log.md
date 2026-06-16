@@ -2,6 +2,81 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-16 SGT - Portfolio Summary RLS Policies
+
+Scope:
+- Added migration `107_portfolio_summary_rls_policies.sql`.
+- Added user-scoped SELECT policies to `portfolio_dashboard_summary` and `portfolio_performance_summary`.
+- Added no write policies.
+- Added no policy to `ingestion_events` or `instrument_directory_summary`.
+
+Validation:
+- PASS: migrations `107_portfolio_summary_rls_policies.sql` and `108_fix_portfolio_summary_rls_policies.sql` applied in Supabase (2026-06-16). Note: migration 107 initially used `user_id = auth.uid()` which always returned zero rows. Migration 108 corrected the join to `users.auth_provider_user_id = auth.uid()::text` matching the established pattern from migration 004. Migration 107 file corrected in-place for fresh deployments.
+- PASS: authenticated SELECT on `portfolio_dashboard_summary` returns only the current user's row.
+- PASS: authenticated SELECT on `portfolio_performance_summary` returns only the current user's row.
+- PASS: portfolio dashboard page loads after migration; service-role reads unaffected.
+- `ingestion_events`: documented as unused/internal-blocked; no policy added.
+- `instrument_directory_summary`: documented as orphaned/untracked; no policy added.
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run typecheck`
+- PARTIAL: `npm.cmd test` ran 248 tests; 247 passed and the known pre-existing Portfolio Review wording assertion failed.
+- PASS: `npm.cmd run build`
+
+Residual risks:
+- `instrument_directory_summary` remains the only open item from the previously-zero-policy table set and needs origin investigation before any policy decision.
+
+## 2026-06-16 SGT - Assets RLS Enablement
+
+Scope:
+- Added migration `106_assets_rls.sql` to enable Row Level Security on the global `assets` reference catalog.
+- Added exactly one SELECT policy for authenticated users: `auth.role() = 'authenticated'`.
+- Preserved the service-role-only write model by adding no INSERT, UPDATE, or DELETE policies.
+
+Validation:
+- PASS: migration `106_assets_rls.sql` applied in Supabase (2026-06-16).
+- PASS: authenticated SELECT on `assets` succeeds via user JWT.
+- PASS: authenticated INSERT into `assets` through PostgREST fails with RLS permission error.
+- PASS: service-role Seed Universe or metadata refresh continues writing to `assets`.
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run typecheck`
+- PARTIAL: `npm.cmd test` ran 248 tests; 247 passed and the known pre-existing Portfolio Review wording assertion failed.
+- PASS: `npm.cmd run build`
+
+Residual risks:
+- This closes the specific `assets` RLS-disabled gap only.
+- Task 2B remains open for the four RLS-enabled zero-policy tables and broader formalization of the service-role-only write model.
+
+## 2026-06-16 SGT - Admin Authorization Layer
+
+Scope:
+- Added app-level admin authorization using `ADMIN_USER_IDS` and optional `ADMIN_EMAILS` environment allowlists.
+- Added `requireAdmin()` route/action enforcement for `/admin/*`, `/setup/taxonomy`, and admin-only server actions.
+- Preserved user self-service actions and left `/api/jobs/*` cron authentication unchanged.
+
+Access-control test matrix:
+- PASS: Admin allowlist helper grants access when the Supabase Auth UUID is in `ADMIN_USER_IDS`.
+- PASS: Admin allowlist helper grants access when email is in `ADMIN_EMAILS`, case-insensitively.
+- PASS: Non-members are denied.
+- PASS: Empty allowlists deny all users.
+- PASS: Whitespace and comma-separated allowlists are parsed deterministically.
+- PASS: `/api/jobs/*` source remains unchanged and continues to authorize through `CRON_SECRET`.
+- SOURCE REVIEW PASS: `/admin/*` has an admin layout guard; `/setup/taxonomy` has an admin layout guard.
+- SOURCE REVIEW PASS: Admin-only server actions use `requireAdmin()` for refresh, ingestion, taxonomy, job trigger, universe-curation, Market Vision editorial, and ETF look-through refresh operations.
+- SOURCE REVIEW PASS: User self-service portfolio, watchlist, Portfolio Review run, and Insights/recommendation run actions still use `requireUser()`.
+- SOURCE REVIEW PASS: The `/setup` taxonomy-admin link is hidden from non-admin users while the normal portfolio setup flow remains available.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `node --test .test-build\\tests\\admin-access.test.js` (7/7)
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`
+- PARTIAL: `npm.cmd test` ran the full suite and the new admin tests passed, but one pre-existing Portfolio Review wording assertion failed: `improvement suggestions map concentration issues to diversifying candidates` expects `/regulated demand exposure/` while current output is `Provides exposure to regulated demand that can behave differently from growth equities.`
+
+Residual risks:
+- This implementation uses environment allowlists only. A future DB-backed `users.is_admin` or role model may still be preferable before commercial launch.
+- This does not complete the broader RLS write-policy audit or the `assets` RLS fix documented in `DOCUMENTATION_GAPS.md`.
+- Live browser QA should confirm admin users see Admin navigation, non-admin users do not, non-admin direct `/admin/*` requests return 404, and empty allowlists lock down admin access.
+
 ## 2026-06-14 23:00 SGT - Market Vision v3 Small Calibration Pass
 
 Scope:
