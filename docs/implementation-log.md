@@ -1,4 +1,65 @@
-﻿## 2026-06-16 - Assets RLS Enablement
+﻿## 2026-06-16 - Portfolio Summary RLS Policies
+
+### Source
+Claude Code
+
+### Objective
+Add user-scoped SELECT policies to `portfolio_dashboard_summary` and `portfolio_performance_summary` as defense-in-depth while preserving the service-role-only write model.
+
+### Files Changed
+- `supabase/migrations/107_portfolio_summary_rls_policies.sql`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/SECURITY_AND_ACCESS_ARCHITECTURE.md`
+
+### Summary
+- Confirmed `106_assets_rls.sql` is present, so the next migration number is `107`.
+- Added `supabase/migrations/107_portfolio_summary_rls_policies.sql`.
+- SQL written:
+  ```sql
+  -- Add user-scoped SELECT policies to portfolio summary tables.
+  -- RLS is already enabled on both tables. Reads and writes in the app
+  -- use the service role (which bypasses RLS), so these policies are
+  -- defensive only and do not change application behaviour.
+
+  create policy "users can read own portfolio dashboard summary"
+    on portfolio_dashboard_summary for select
+    using (
+      portfolio_id in (
+        select id from portfolios where user_id = auth.uid()
+      )
+    );
+
+  create policy "users can read own portfolio performance summary"
+    on portfolio_performance_summary for select
+    using (
+      portfolio_id in (
+        select id from portfolios where user_id = auth.uid()
+      )
+    );
+  ```
+- No ALTER TABLE statements were added.
+- No INSERT, UPDATE, or DELETE policies were added.
+- No policy was added to `ingestion_events` or `instrument_directory_summary`.
+- No TypeScript files were changed for this task.
+
+### Tests Run
+- `npm.cmd run lint` - PASS
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd test` - PARTIAL: 247/248 passed; the known pre-existing Portfolio Review wording assertion `improvement suggestions map concentration issues to diversifying candidates` still fails because it expects `/regulated demand exposure/` while current output is `Provides exposure to regulated demand that can behave differently from growth equities.`
+- `npm.cmd run build` - PASS
+
+### Result
+Completed, with unrelated pre-existing Portfolio Review test failure noted.
+
+### Notes for Claude
+- `portfolio_dashboard_summary`: user-scoped SELECT policy added.
+- `portfolio_performance_summary`: user-scoped SELECT policy added.
+- `ingestion_events`: source search found no `src/` references; zero-policy blocked state remains intentional.
+- `instrument_directory_summary`: not present in migrations or source search; no policy added pending origin investigation.
+- `SupabaseAnalyticsRepository` uses `createSupabaseAdminClient()`, so application summary reads/writes remain service-role based and bypass RLS.
+## 2026-06-16 - Assets RLS Enablement
 
 ### Source
 Claude Code
@@ -132,5 +193,6 @@ Completed, with one unrelated existing Portfolio Review wording-test follow-up n
 - Admin-vs-user decisions: `recommendationActions.runRecommendationsAction` stayed user-accessible as a self-service Insights run; `portfolioReviewActions.runPortfolioReviewAction` stayed user-accessible; `portfolioReviewActions.refreshEtfLookthroughExposureAction` became admin-only; `marketVisionActions` draft/save/publish/archive/generate actions became admin-only editorial actions because they mutate global Market Vision reports.
 - `universeActions` is mixed: seed, metadata/price refresh, active status, tags, and bond profile overrides became admin-only; watchlist add/remove stayed user-accessible.
 - This change does not add a DB `users.is_admin` flag, does not alter RLS, and does not address the broader `assets` RLS or write-policy audit.
+
 
 

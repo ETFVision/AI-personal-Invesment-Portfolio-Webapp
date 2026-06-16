@@ -44,11 +44,18 @@ The codebase uses three Row Level Security policy patterns:
 - Authenticated global-reference policies: shared reference tables such as `assets`, securities master tables, issuer tables, ETF exposure tables, and admin/reference diagnostics use `auth.role() = 'authenticated'` for SELECT.
 - Open market-data policies: fully open market/reference data can use `using (true)` when unauthenticated reads are explicitly intended.
 
-Writes to most application tables intentionally go through server-side services using `SUPABASE_SERVICE_ROLE_KEY`. The service role bypasses RLS. For tables with zero INSERT, UPDATE, or DELETE policies, Postgres default-denies writes from anon/authenticated non-service-role callers. This zero-write-policy model is intentional where writes are service-role-only, but it still needs table-by-table documentation and verification before commercialization.
+Writes to most application tables intentionally go through server-side services using `SUPABASE_SERVICE_ROLE_KEY`. The service role bypasses RLS. Zero INSERT, UPDATE, or DELETE policies means Postgres default-denies writes from anon/authenticated non-service-role callers. This is intentional for service-role-only write tables.
 
 `assets` status: completed in migration `106_assets_rls.sql`. RLS is enabled on the global instrument reference catalog and exactly one SELECT policy permits authenticated users to read rows through Supabase REST. No write policies were added, so non-service-role writes remain blocked.
 
-Open Task 2B items: `ingestion_events`, `instrument_directory_summary`, `portfolio_dashboard_summary`, and `portfolio_performance_summary` are RLS-enabled with no policies and still need explicit review/documentation.
+Previously-zero-policy table inventory:
+
+| Table | SELECT policy status | Write policy status | Notes |
+|---|---|---|---|
+| `portfolio_dashboard_summary` | User-scoped SELECT added in `107_portfolio_summary_rls_policies.sql` via `portfolio_id` -> `portfolios.user_id = auth.uid()` | No write policies; service-role-only writes | Defensive only. App reads/writes through `SupabaseAnalyticsRepository` service-role client. |
+| `portfolio_performance_summary` | User-scoped SELECT added in `107_portfolio_summary_rls_policies.sql` via `portfolio_id` -> `portfolios.user_id = auth.uid()` | No write policies; service-role-only writes | Defensive only. App reads/writes through `SupabaseAnalyticsRepository` service-role client. |
+| `ingestion_events` | No SELECT policy | No write policies | Unused legacy/internal table in current `src/`; blocked state is intentional. |
+| `instrument_directory_summary` | No policy added | No policy added | Orphaned live table: not present in migrations and not referenced by source code. Investigate origin before adding any policy. |
 
 ## Job Security
 

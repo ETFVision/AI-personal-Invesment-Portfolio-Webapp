@@ -2,6 +2,29 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-16 SGT - Portfolio Summary RLS Policies
+
+Scope:
+- Added migration `107_portfolio_summary_rls_policies.sql`.
+- Added user-scoped SELECT policies to `portfolio_dashboard_summary` and `portfolio_performance_summary`.
+- Added no write policies.
+- Added no policy to `ingestion_events` or `instrument_directory_summary`.
+
+Validation:
+- Pending: apply migration `107_portfolio_summary_rls_policies.sql` in Supabase.
+- Pending: authenticated SELECT on `portfolio_dashboard_summary` returns only rows where `portfolio_id` belongs to the authenticated user.
+- Pending: authenticated SELECT on `portfolio_performance_summary` returns only rows where `portfolio_id` belongs to the authenticated user.
+- Pending: portfolio dashboard page loads after migration, confirming service-role reads remain unaffected.
+- `ingestion_events`: documented as unused/internal-blocked; no policy added.
+- `instrument_directory_summary`: documented as orphaned/untracked; no policy added.
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run typecheck`
+- PARTIAL: `npm.cmd test` ran 248 tests; 247 passed and the known pre-existing Portfolio Review wording assertion failed.
+- PASS: `npm.cmd run build`
+
+Residual risks:
+- `instrument_directory_summary` remains the only open item from the previously-zero-policy table set and needs origin investigation before any policy decision.
+
 ## 2026-06-16 SGT - Assets RLS Enablement
 
 Scope:
