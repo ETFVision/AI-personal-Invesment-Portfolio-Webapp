@@ -11,10 +11,10 @@ Scope:
 - Added no policy to `ingestion_events` or `instrument_directory_summary`.
 
 Validation:
-- Pending: apply migration `107_portfolio_summary_rls_policies.sql` in Supabase.
-- Pending: authenticated SELECT on `portfolio_dashboard_summary` returns only rows where `portfolio_id` belongs to the authenticated user.
-- Pending: authenticated SELECT on `portfolio_performance_summary` returns only rows where `portfolio_id` belongs to the authenticated user.
-- Pending: portfolio dashboard page loads after migration, confirming service-role reads remain unaffected.
+- PASS: migrations `107_portfolio_summary_rls_policies.sql` and `108_fix_portfolio_summary_rls_policies.sql` applied in Supabase (2026-06-16). Note: migration 107 initially used `user_id = auth.uid()` which always returned zero rows. Migration 108 corrected the join to `users.auth_provider_user_id = auth.uid()::text` matching the established pattern from migration 004. Migration 107 file corrected in-place for fresh deployments.
+- PASS: authenticated SELECT on `portfolio_dashboard_summary` returns only the current user's row.
+- PASS: authenticated SELECT on `portfolio_performance_summary` returns only the current user's row.
+- PASS: portfolio dashboard page loads after migration; service-role reads unaffected.
 - `ingestion_events`: documented as unused/internal-blocked; no policy added.
 - `instrument_directory_summary`: documented as orphaned/untracked; no policy added.
 - PASS: `npm.cmd run lint`
