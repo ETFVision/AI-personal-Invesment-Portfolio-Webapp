@@ -1,6 +1,6 @@
 # ETFVision Commercialization Audit Plan
 
-Last updated: 2026-06-15 20:15:00 +08:00
+Last updated: 2026-06-16 +08:00
 
 ## Purpose
 
@@ -400,10 +400,14 @@ Output:
 - Dependency scan report.
 - Penetration test report when external testing begins.
 
-Current status: not completed.
+Current status: partly completed.
 
 Notes:
-- This is a high-priority blocker before broader external alpha or paid users.
+- Admin authorization is implemented: `ADMIN_USER_IDS` and `ADMIN_EMAILS` env allowlists, `requireAdmin()`, route-level guards on `/admin/*` and `/setup/taxonomy`, and server-action guards on all admin-only operations.
+- Signup access control is implemented: `ALLOWED_SIGNUP_EMAILS` invite-only gating in `SupabaseAuthProvider.signUpWithPassword`, QA-verified on Vercel.
+- RLS coverage has expanded: migration 106 enables RLS on `assets` with an authenticated SELECT policy; migrations 107 and 108 add user-scoped SELECT policies on `portfolio_dashboard_summary` and `portfolio_performance_summary` using the correct `auth_provider_user_id` join pattern.
+- Remaining items: full RLS policy audit across all tables, confirm assistant conversation tables are user-scoped, confirm no service-role key is used in client components, confirm job endpoints reject unauthenticated requests in production, external penetration test before 100+ users.
+- This remains a high-priority blocker before broader external alpha or paid users.
 
 ## 12. Feature Flags And Product Modes Audit
 
@@ -432,8 +436,13 @@ Output:
 Current status: partly completed.
 
 Notes:
-- Branch methodology exists: `development`, `main`, and `alpha`.
-- Direct alpha branch access audit is still required.
+- Runtime product mode implemented: `PRODUCT_MODE=alpha|full` server-only env var in `src/config/productMode.ts`, no `NEXT_PUBLIC_` exposure, Edge Runtime safe.
+- Middleware route blocking active: all non-API, non-asset paths not in `alphaAllowedPrefixes` redirect to `/portfolio?feature=alpha-disabled` in alpha mode.
+- Nav gating implemented: News & Themes, Macro, Assistant, Telemetry, and Admin hidden in alpha mode; `PortfolioAssistantDrawer` suppressed.
+- Market Vision alpha surface: published-only report filter, editorial actions and draft editor hidden in alpha mode.
+- Browser QA (Task 3 + Task 10) passed on Vercel: 14/14 checks verified 2026-06-16.
+- Branch methodology still exists: `development`, `main`, and `alpha`.
+- Remaining items: formal route access matrix document; alpha git branch audit to confirm the branch can receive main updates without patchwork drift.
 
 ## 13. Performance And Rendering Audit
 
@@ -605,7 +614,10 @@ Output:
 Current status: partly completed.
 
 Notes:
-- Schema documentation exists, but a formal index, backup, restore and RLS audit is still needed.
+- Schema documentation exists.
+- RLS coverage has expanded: migration 106 enables RLS on `assets` with an authenticated SELECT policy; migrations 107 and 108 add user-scoped SELECT policies on `portfolio_dashboard_summary` and `portfolio_performance_summary`, with migration 108 correcting the ownership join from `user_id = auth.uid()` to the correct `exists()` pattern via `users.auth_provider_user_id = auth.uid()::text`.
+- `instrument_directory_summary` confirmed as an orphaned experimental table with no source references; no policy needed.
+- Remaining items: formal index audit, backup policy, restore process verification, and full RLS policy audit across all tables.
 
 ## 19. User Privacy Audit
 
@@ -680,7 +692,9 @@ Output:
 Current status: partly completed.
 
 Notes:
-- Branch workflow exists in practice, but a formal audit should verify alpha can keep receiving main updates while preserving feature limits.
+- Branch workflow exists in practice.
+- Runtime `PRODUCT_MODE=alpha|full` is now the primary mechanism for feature-surface control, reducing dependency on a separate alpha git branch for feature gating and reducing drift risk.
+- Remaining items: formal governance policy documenting merge direction, deployment targets, and rollback process; verify the alpha branch can receive main updates safely.
 
 ## 22. Migration Safety Audit
 
@@ -760,6 +774,13 @@ Output:
 - Budget alert recommendation.
 
 Current status: partly completed.
+
+Notes:
+- `ASSISTANT_DAILY_LIMIT` per-user daily conversation cap is implemented and enforced in `PortfolioAssistantService`; returns HTTP 429 when exceeded. This is a cost-control mechanism in addition to a rate limit.
+- `estimateTokenCost()` shared helper is in `src/application/services/ai/costEstimate.ts` for consistent token cost calculation.
+- `PORTFOLIO_ASSISTANT_*_COST_PER_1M` and `MARKET_VISION_*_COST_PER_1M` env-based cost constants are defined; `.env.example` documents current OpenAI pricing ($0.75 input / $4.50 output per 1M tokens for gpt-5.4-mini).
+- News AI cost tracking is explicitly deferred until `ENABLE_AI_NEWS_CLASSIFICATION` and `ENABLE_WEEKLY_NEWS_RECONCILIATION` are enabled.
+- Remaining items: provider quota register, FMP call volume tracking, budget alerting.
 
 ## 26. Error Handling And Empty State Audit
 
@@ -991,21 +1012,21 @@ Recommended:
 | 8 | AI Output Audit | Partly completed | Prompts hardened. Formal regression suite still needed. |
 | 9 | Market Vision Audit | Partly completed | Engine exists. Draft/publish lifecycle and evidence traceability need final audit. |
 | 10 | Recommendation / Insights Audit | Mostly completed | User-facing label and wording cleanup is complete for the current surface. Public methodology now documents Characteristics Score calculations with neutral labels. Post-refresh calibration QA and internal API terminology review remain. |
-| 11 | Security Audit | Not completed | High-priority commercialization blocker. |
-| 12 | Feature Flags And Product Modes Audit | Partly completed | Branch/feature model exists. Direct alpha audit remains. |
+| 11 | Security Audit | Partly completed | Admin auth layer, signup restriction, and RLS migrations 106/107/108 implemented. Full RLS audit, service-role client check, job endpoint auth verification, and penetration test remain. |
+| 12 | Feature Flags And Product Modes Audit | Partly completed | Runtime PRODUCT_MODE=alpha/full implemented and browser QA passed 2026-06-16. Formal route access matrix and alpha git branch audit remain. |
 | 13 | Performance And Rendering Audit | In progress | Render timing and some summary optimizations done. Further route work remains. |
 | 14 | Observability And Reproducibility Audit | Mostly completed | Logs and snapshots exist. Full reproducibility matrix still needed. |
 | 15 | Legal And Compliance Audit | Partly completed | Product disclaimers, acknowledgement modal, footer disclaimer, export/report disclaimer helper, public methodology, and legal-disclosures placeholder are implemented. Qualified legal review remains required. |
 | 16 | Data Licensing Audit | Not completed | Needs provider licensing confirmation. |
 | 17 | Scheduled Jobs And Refresh Audit | Mostly completed | Supabase cron exists. Needs live drift and reliability checks. |
-| 18 | Database And Backup Audit | Partly completed | Schema documented. Formal index/RLS/backup/restore audit remains. |
+| 18 | Database And Backup Audit | Partly completed | Schema documented. RLS expanded: migrations 106/107/108 add policies on assets and portfolio summaries. Formal index/backup/restore and full RLS audit remain. |
 | 19 | User Privacy Audit | Not completed | Needs data retention, export/delete and assistant log review. |
 | 20 | Commercial Readiness Audit | Not started | Pricing, payments, subscription, support and onboarding are not yet productized. |
-| 21 | Branch And Deployment Governance Audit | Partly completed | Working practice exists. Formal policy and alpha update process should be documented. |
+| 21 | Branch And Deployment Governance Audit | Partly completed | Runtime PRODUCT_MODE reduces alpha branch dependency for feature gating. Formal governance policy and alpha branch update verification remain. |
 | 22 | Migration Safety Audit | Partly completed | Migrations are active. Formal rollback and production safety process remains. |
 | 23 | Alpha User Experience Audit | Not completed | Needs direct alpha product walkthrough. |
 | 24 | Data Freshness UX Audit | Partly completed | Freshness and diagnostics exist, but product-facing stale/partial state audit remains. |
-| 25 | Cost Control Audit | Partly completed | AI cost logging exists. Provider quota/cost alerting remains. |
+| 25 | Cost Control Audit | Partly completed | ASSISTANT_DAILY_LIMIT cap, estimateTokenCost() helper, and env-based cost constants implemented. Provider quota register and budget alerting remain. |
 | 26 | Error Handling And Empty State Audit | Partly completed | Some states improved. Full product error-state inventory remains. |
 | 27 | Export And User Data Portability Audit | Not started | Export/delete/retention flows not productized. |
 | 28 | Incident Response Audit | Not completed | No formal incident playbook yet. |
@@ -1028,8 +1049,8 @@ Strong areas:
 - Scheduled refresh architecture.
 
 Main blockers before public alpha:
-- Security/RLS basic audit.
-- Alpha feature-gate audit.
+- Security/RLS basic audit (admin auth, signup restriction, and RLS migrations 106/107/108 in progress; full audit and service-role/job endpoint verification remain).
+- Alpha feature-gate audit (runtime PRODUCT_MODE gate implemented and QA passed; formal route access matrix and alpha git branch audit remain).
 - Data provider coverage matrix.
 - Calculation regression examples.
 - AI output regression tests.

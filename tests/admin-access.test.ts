@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isAdminUser, parseAdminAllowlist } from "../src/application/services/auth/adminAccess";
+import { isAdminUser, isEmailAllowedByAllowlist, parseAdminAllowlist } from "../src/application/services/auth/adminAccess";
 
 test("admin UUID allowlist grants access", () => {
   assert.equal(isAdminUser("user-1", "owner@example.com", ["user-1"], []), true);
@@ -31,4 +31,19 @@ test("trimmed parsed allowlists work for admin matching", () => {
 
 test("both empty parsed allowlists deny all users", () => {
   assert.equal(isAdminUser("user-1", "owner@example.com", parseAdminAllowlist(" , "), parseAdminAllowlist("")), false);
+});
+
+test("empty signup email allowlist permits any email", () => {
+  assert.equal(isEmailAllowedByAllowlist("new@example.com", parseAdminAllowlist("")), true);
+});
+
+test("non-empty signup email allowlist rejects unlisted email", () => {
+  const allowlist = parseAdminAllowlist("alpha@example.com,beta@example.com");
+  assert.equal(isEmailAllowedByAllowlist("alpha@example.com", allowlist), true);
+  assert.equal(isEmailAllowedByAllowlist("external@example.com", allowlist), false);
+});
+
+test("signup email allowlist is case-insensitive", () => {
+  const allowlist = parseAdminAllowlist("user@email.com");
+  assert.equal(isEmailAllowedByAllowlist("User@Email.com", allowlist), true);
 });

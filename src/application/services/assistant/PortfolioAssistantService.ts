@@ -37,7 +37,8 @@ export class PortfolioAssistantService {
     private readonly contextBuilder: AssistantContextBuilder,
     private readonly promptBuilder: AssistantPromptBuilder,
     private readonly provider: AiPortfolioAssistantProvider,
-    private readonly guardrails: AssistantResponseGuardrailService
+    private readonly guardrails: AssistantResponseGuardrailService,
+    private readonly assistantDailyLimit = 0
   ) {}
 
   async answer(input: {
@@ -48,6 +49,13 @@ export class PortfolioAssistantService {
   }): Promise<AssistantAnswer> {
     const startedAt = Date.now();
     const existingConversation = input.conversationId ? await this.assistantRepository.getConversation(input.conversationId) : null;
+    const limit = this.assistantDailyLimit;
+    if (!existingConversation && limit > 0) {
+      const todayCount = await this.assistantRepository.countTodayConversations(input.userId);
+      if (todayCount >= limit) {
+        throw new Error(`Daily conversation limit of ${limit} reached. Resets at midnight UTC.`);
+      }
+    }
     const previousMessages = existingConversation ? await this.assistantRepository.listMessages(existingConversation.id, 4) : [];
     const previousCategory = previousMessages.slice().reverse().find((message) => message.questionCategory)?.questionCategory ?? existingConversation?.latestQuestionCategory ?? null;
     const route = this.router.route(input.question, previousCategory);

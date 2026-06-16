@@ -3,6 +3,7 @@ import type {
   PortfolioAssistantProviderInput,
   PortfolioAssistantProviderOutput
 } from "@/application/ports/providers/AiPortfolioAssistantProvider";
+import { estimateTokenCost } from "@/application/services/ai/costEstimate";
 import { env } from "@/infrastructure/config/env";
 import { PORTFOLIO_ASSISTANT_PROMPT } from "@/server/ai/prompts/portfolio-assistant";
 
@@ -41,8 +42,7 @@ function estimateCost(usage: Record<string, unknown>) {
   const tokens = tokenUsage(usage);
   const inputCost = env.PORTFOLIO_ASSISTANT_INPUT_COST_PER_1M;
   const outputCost = env.PORTFOLIO_ASSISTANT_OUTPUT_COST_PER_1M;
-  if ((inputCost === 0 && outputCost === 0) || (tokens.inputTokens === 0 && tokens.outputTokens === 0)) return null;
-  return Number(((tokens.inputTokens / 1_000_000) * inputCost + (tokens.outputTokens / 1_000_000) * outputCost).toFixed(6));
+  return estimateTokenCost({ input_tokens: tokens.inputTokens, output_tokens: tokens.outputTokens }, inputCost, outputCost);
 }
 
 async function readOpenAiError(response: Response) {

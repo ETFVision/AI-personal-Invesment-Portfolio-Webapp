@@ -93,6 +93,19 @@ export class SupabaseAssistantRepository implements AssistantRepository {
     if (error) throw new Error(error.message);
   }
 
+  async countTodayConversations(userId: string): Promise<number> {
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const { count, error } = await this.db
+      .from("assistant_conversations")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("created_at", startOfDay.toISOString());
+    if (isMissingAssistantTable(error)) return 0;
+    if (error) return 0;
+    return count ?? 0;
+  }
+
   async getConversation(conversationId: string) {
     const { data, error } = await this.db.from("assistant_conversations").select("*").eq("id", conversationId).maybeSingle();
     if (isMissingAssistantTable(error)) return null;
