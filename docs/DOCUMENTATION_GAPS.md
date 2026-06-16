@@ -26,8 +26,8 @@ An independent deep architecture audit with live read-only database verification
    - **Updated 2026-06-16:** app-level admin authorization is now implemented through `AuthProvider.requireAdmin()` and environment allowlists (`ADMIN_USER_IDS`, optional `ADMIN_EMAILS`). `/admin/*`, `/setup/taxonomy`, and admin-only server actions are guarded, and the Admin nav is hidden for non-admins.
    - **Updated 2026-06-16:** runtime product-mode gating is implemented through server-only `PRODUCT_MODE=alpha|full`. Alpha mode hides News & Themes, Macro, Assistant, Telemetry, and Admin navigation; middleware blocks non-alpha routes; Market Vision shows published reports only and hides editorial actions.
    - Remaining gap: there is still no DB-backed `users.is_admin` role.
-   - **QA follow-up (2026-06-16):** live browser QA still needed to confirm admin users see Admin nav, non-admin users do not, and direct `/admin/*` requests return 404 for non-admins. Should be done before inviting any alpha users.
-   - **QA follow-up (2026-06-16):** deployed browser QA still needed to confirm `PRODUCT_MODE=alpha` versus `PRODUCT_MODE=full` nav, route redirects, Portfolio Assistant drawer suppression, and Market Vision published-only/editorial-hidden behavior before alpha invites.
+   - **QA passed 2026-06-16:** admin nav visible for admin users, hidden for non-admins; direct `/admin/*` requests return 404 for non-admins. Confirmed in Vercel preview deployment.
+   - **QA passed 2026-06-16:** `PRODUCT_MODE=alpha` correctly hides nav items, blocks routes, suppresses Assistant drawer, and restricts Market Vision to published reports. `PRODUCT_MODE=full` restores full surface. Logo issue in alpha mode resolved (middleware asset exclusion fix — see implementation log). All checks passed; platform cleared for alpha invites.
 
 3. Price-refresh route reconciliation (confirmed drift)
    - **Confirmed live 2026-06-16:** `/api/jobs/price-refresh` is not present in `cron.job`. The active daily chain uses `instrument-price-refresh` ×5 + `portfolio-valuation-refresh`.

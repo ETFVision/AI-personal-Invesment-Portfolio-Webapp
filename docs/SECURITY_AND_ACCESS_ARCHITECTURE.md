@@ -108,6 +108,10 @@ Runtime product mode is controlled by the server-only `PRODUCT_MODE` environment
 
 Product mode gates route and UI surface only. It does not change stored data, scoring methodology, recommendation labels, or analytical outputs.
 
+### Middleware asset exclusion
+
+The middleware skips the mode check for requests where `pathname.startsWith("/_next")` or the pathname has a file extension (`isAssetRequest` guard). This is necessary because Vercel's image optimization service fetches source images (e.g. `/brand/etfvision-light-lockup.png`) via HTTP from the same origin, and those requests would otherwise be blocked by the alpha mode check. The `config.matcher` pattern alone does not reliably exclude `_next/image` in Next.js 15 on Vercel. Public asset prefixes (`/_next`, `/brand`) are also listed in `alphaAllowedPrefixes` as belt-and-suspenders coverage.
+
 ## Security Follow-Ups
 
 - Full RLS policy audit before commercialization.

@@ -2,6 +2,48 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-16 SGT - Task 3 + Task 10 Browser QA (Product Mode + Admin Authorization)
+
+Scope:
+- Browser QA for Task 3 (runtime product-mode module) and Task 10 (admin authorization layer) conducted in Vercel preview deployment before alpha invites.
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Alpha mode: News & Themes, Macro, Assistant, Telemetry, Admin nav hidden | PASS |
+| Alpha mode: blocked routes redirect to `/portfolio?feature=alpha-disabled` | PASS |
+| Full mode: full nav visible including News, Macro, Assistant, Telemetry | PASS |
+| Admin nav visible for admin user (`ADMIN_USER_IDS` set) | PASS |
+| Admin nav hidden for non-admin user (`ADMIN_USER_IDS` cleared) | PASS |
+| Direct `/admin/*` request returns 404 for non-admin | PASS |
+| Market Vision: published reports only visible in alpha mode | PASS |
+| Market Vision: ReportActions (Archive) visible in full mode for published report | PASS |
+| Market Vision: ReportEditor hidden in alpha mode | PASS |
+| Portfolio Assistant drawer suppressed in alpha mode | PASS |
+| Portfolio Assistant drawer visible in full mode | PASS |
+| Signup restriction: "Early access only" message shown when `ALLOWED_SIGNUP_EMAILS` is set | PASS |
+| Logo loads in alpha mode | PASS (after middleware fix — see below) |
+| Logo loads in full mode | PASS |
+
+Issues found and resolved during QA:
+
+1. `PRODUCT_MODE` and `ALLOWED_SIGNUP_EMAILS` not taking effect after Vercel env var change.
+   - Root cause: Vercel "Redeploy" reuses the same build artifact. Module-level `process.env` reads are baked in at Next.js build time. Setting env vars and redeploying without rebuilding has no effect.
+   - Fix: push a new commit to trigger a full rebuild with the env vars set before the build runs.
+
+2. Logo not loading in alpha mode.
+   - Root cause: Vercel's image optimization service fetches the source image (`/brand/etfvision-light-lockup.png`) via HTTP from the same origin. This internal request went through the middleware and was blocked by the alpha mode check because `/brand/` is not in `alphaAllowedPrefixes`. The `config.matcher` pattern did not reliably exclude `/_next/image` in Next.js 15 on Vercel.
+   - Fix: added `isAssetRequest` guard in `src/middleware.ts` (skips mode check for `/_next*` and paths with file extensions); added `"/_next"` and `"/brand"` to `alphaAllowedPrefixes` in `src/config/productMode.ts`. Three commits: `9e7de98`, `bb9ea0b`, `743cf20`.
+
+3. Market Vision `ReportActions` buttons not visible in full mode (apparent).
+   - Root cause: the `ReportActions` component only shows a Publish button for draft reports and an Archive button for non-archived reports. With two published reports and no drafts, only the Archive button renders. User expected a Publish/Generate button which is correct behaviour — Publish is draft-only.
+   - No code change required.
+
+Residual manual QA:
+- None. All planned checks passed. Platform is cleared for alpha invites.
+
+---
 ## 2026-06-16 SGT - Runtime Product Mode
 
 Scope:

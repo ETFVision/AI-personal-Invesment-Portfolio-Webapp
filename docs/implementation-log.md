@@ -1,4 +1,36 @@
-﻿## 2026-06-16 - Runtime Product Mode
+﻿## 2026-06-16 - Middleware Alpha Mode Asset Blocking Fix (QA Residuals)
+
+### Source
+Claude Code (QA session)
+
+### Objective
+Fix three middleware bugs discovered during Task 3 + Task 10 browser QA: alpha mode was blocking `/_next/image` requests and Vercel's internal image optimizer fetch of public source images.
+
+### Files Changed
+- `src/middleware.ts`
+- `src/config/productMode.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/SECURITY_AND_ACCESS_ARCHITECTURE.md`
+
+### Summary
+- Added `isAssetRequest` guard in `src/middleware.ts` to skip the alpha mode check for any request starting with `/_next` or matching a file extension. Vercel's image optimization service makes a server-side HTTP fetch of the source image (`/brand/etfvision-light-lockup.png`) which went through the middleware and was blocked by the alpha mode check — the browser-level `_next/image` exclusion is not sufficient because of this internal fetch.
+- Added `"/_next"` and `"/brand"` to `alphaAllowedPrefixes` in `src/config/productMode.ts` as belt-and-suspenders coverage.
+- Three commits: `9e7de98`, `bb9ea0b`, `743cf20`.
+
+### Tests Run
+- Manual browser QA confirmed logo loads correctly in alpha mode after `743cf20`.
+
+### Result
+Completed. Logo loads in both alpha and full mode.
+
+### Notes for Claude
+- Vercel's image optimizer fetches source images via HTTP from the same origin. Public asset paths (`/brand/`) must be in `alphaAllowedPrefixes` or excluded by `isAssetRequest`.
+- The `config.matcher` pattern did not reliably exclude `_next/image` in Next.js 15 on Vercel. The runtime `isAssetRequest` guard in the middleware function body is the reliable exclusion path.
+
+---
+## 2026-06-16 - Runtime Product Mode
 
 ### Source
 Claude Code
