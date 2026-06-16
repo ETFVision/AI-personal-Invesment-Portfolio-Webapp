@@ -13,7 +13,7 @@ export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
   const { pathname } = request.nextUrl;
 
-  if (!pathname.startsWith("/api") && !isRouteEnabledInMode(pathname)) {
+  if (!pathname.startsWith("/api") && !pathname.startsWith("/_next/") && !isRouteEnabledInMode(pathname)) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/portfolio";
     redirectUrl.search = "";
