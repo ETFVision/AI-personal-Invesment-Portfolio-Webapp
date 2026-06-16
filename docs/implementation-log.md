@@ -1,4 +1,55 @@
-﻿## 2026-06-16 - Fix Portfolio Review Test Assertion
+﻿## 2026-06-16 - Signup Restriction, Assistant Limit, and AI Cost Constants
+
+### Source
+Claude Code
+
+### Objective
+Gate new user registration behind an email allowlist, add a configurable daily Portfolio Assistant conversation cap, and document real OpenAI model IDs and cost constants for active OpenAI-backed services.
+
+### Files Changed
+- `.env.example`
+- `src/application/ports/repositories/AssistantRepository.ts`
+- `src/application/services/ai/costEstimate.ts`
+- `src/application/services/assistant/PortfolioAssistantService.ts`
+- `src/application/services/auth/adminAccess.ts`
+- `src/app/api/assistant/route.ts`
+- `src/app/login/page.tsx`
+- `src/infrastructure/config/env.ts`
+- `src/infrastructure/providers/ai/OpenAiMarketVisionProvider.ts`
+- `src/infrastructure/providers/ai/OpenAiPortfolioAssistantProvider.ts`
+- `src/infrastructure/providers/auth/SupabaseAuthProvider.ts`
+- `src/infrastructure/repositories/supabase/SupabaseAssistantRepository.ts`
+- `src/server/container.ts`
+- `tests/admin-access.test.ts`
+- `tests/assistant.test.ts`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/SECURITY_AND_ACCESS_ARCHITECTURE.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added `ALLOWED_SIGNUP_EMAILS` to `env.ts` and gated `signUpWithPassword` with a comma-separated, case-insensitive email allowlist. Empty allowlist preserves open signup for development.
+- Updated the login page to hide Create account and show "Early access only. Contact us to request an invitation." when signup is invite-only.
+- Added `ASSISTANT_DAILY_LIMIT` to `env.ts`, `AssistantRepository.countTodayConversations`, Supabase implementation over `assistant_conversations.user_id` and `created_at`, Portfolio Assistant service enforcement, and HTTP 429 handling in `/api/assistant`.
+- Confirmed `gpt-5.4-mini` is a valid OpenAI model ID for Portfolio Assistant and Market Vision. `.env.example` now lists current pricing from OpenAI: `$0.75` input and `$4.50` output per 1M tokens.
+- Added shared `estimateTokenCost` helper and focused tests for signup allowlist behavior, assistant daily-limit enforcement, and cost formula calculation.
+- Updated `docs/qa-log.md` with scope, validation results, and residual manual QA items for the signup restriction, assistant limit, and AI cost constants work.
+- News AI model cost tracking remains excluded because `ENABLE_AI_NEWS_CLASSIFICATION` and `ENABLE_WEEKLY_NEWS_RECONCILIATION` are disabled by default; add cost tracking when those features are enabled.
+
+### Tests Run
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run test` - PASS (253/253).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Set `ALLOWED_SIGNUP_EMAILS`, `ASSISTANT_DAILY_LIMIT`, `PORTFOLIO_ASSISTANT_*_COST_PER_1M`, and `MARKET_VISION_*_COST_PER_1M` in Vercel before alpha invites.
+
+---
+## 2026-06-16 - Fix Portfolio Review Test Assertion
 
 ### Source
 Claude Code

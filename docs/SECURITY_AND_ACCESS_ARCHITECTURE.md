@@ -32,6 +32,22 @@ The Admin navigation group is hidden for non-admin users, but navigation visibil
 
 Bootstrap/lockout note: set `ADMIN_USER_IDS` to the owner's Supabase Auth user UUID before deploying this change to an environment where admin access is required. If both allowlists are empty or the UUID is wrong, all users are locked out of admin tools until the environment variables are corrected and the app is redeployed/restarted.
 
+### Signup Access Control
+
+New registration is controlled by `ALLOWED_SIGNUP_EMAILS`, a comma-separated email allowlist checked by `SupabaseAuthProvider.signUpWithPassword`.
+
+- Empty `ALLOWED_SIGNUP_EMAILS` means open signup. This is the development default.
+- Non-empty `ALLOWED_SIGNUP_EMAILS` means invite-only signup for alpha/production.
+- Existing users are not affected. The check gates only new account registration, not sign-in.
+- To onboard a new user, add their email address to `ALLOWED_SIGNUP_EMAILS` and redeploy/restart the app. No database change is required.
+
+Portfolio Assistant usage can be capped with `ASSISTANT_DAILY_LIMIT`.
+
+- `ASSISTANT_DAILY_LIMIT=0` means unlimited usage. This is the default.
+- A positive value applies a per-user daily assistant conversation cap based on `assistant_conversations.created_at` in UTC.
+- Enforcement occurs in `PortfolioAssistantService` before a new assistant conversation is created.
+- When the cap is exceeded, `/api/assistant` returns HTTP 429 with: `Daily conversation limit of N reached. Resets at midnight UTC.`
+
 ## Service Role Usage
 
 Server-side jobs and admin operations use `SUPABASE_SERVICE_ROLE_KEY` through `createSupabaseAdminClient`. This key must only exist in server-side Vercel environment variables.

@@ -5,6 +5,12 @@ export function parseAdminAllowlist(value: string): string[] {
     .filter(Boolean);
 }
 
+export function isEmailAllowedByAllowlist(email: string, allowedEmails: string[]): boolean {
+  if (allowedEmails.length === 0) return true;
+  const normalizedEmail = email.trim().toLowerCase();
+  return allowedEmails.some((allowed) => allowed.trim().toLowerCase() === normalizedEmail);
+}
+
 export function isAdminUser(
   userId: string,
   email: string | null,

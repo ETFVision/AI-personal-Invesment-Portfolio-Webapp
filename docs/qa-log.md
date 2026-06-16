@@ -2,6 +2,32 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-16 SGT - Signup Restriction, Assistant Limit, and AI Cost Constants
+
+Scope:
+- Added invite-only signup support through `ALLOWED_SIGNUP_EMAILS`.
+- Added per-user daily Portfolio Assistant conversation cap through `ASSISTANT_DAILY_LIMIT`.
+- Updated `.env.example` with confirmed `gpt-5.4-mini` model IDs and real OpenAI pricing for Portfolio Assistant and Market Vision.
+- Excluded news AI cost tracking because `ENABLE_AI_NEWS_CLASSIFICATION` and `ENABLE_WEEKLY_NEWS_RECONCILIATION` remain disabled by default.
+
+Validation:
+- PASS: `gpt-5.4-mini` confirmed as a valid OpenAI model ID in official OpenAI model docs.
+- PASS: OpenAI pricing confirmed at `$0.75 / 1M input tokens` and `$4.50 / 1M output tokens` for `gpt-5.4-mini`.
+- PASS: signup allowlist helper permits any email when empty.
+- PASS: signup allowlist helper permits listed emails and rejects unlisted emails when configured.
+- PASS: signup allowlist matching is case-insensitive.
+- PASS: assistant daily-limit service test blocks new conversations before provider invocation when limit is reached.
+- PASS: shared token cost formula returns `0.00045` for 1,000 input tokens at `$0.15 / 1M` and 500 output tokens at `$0.60 / 1M`, and returns `null` when both costs are zero.
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run test` ran 253 tests; 253 passed.
+- PASS: `npm.cmd run build`
+
+Residual risks:
+- Vercel production/alpha environment variables still need to be set before alpha invites: `ALLOWED_SIGNUP_EMAILS`, `ASSISTANT_DAILY_LIMIT`, `PORTFOLIO_ASSISTANT_*_COST_PER_1M`, and `MARKET_VISION_*_COST_PER_1M`.
+- Manual browser QA still needed for both signup states: empty `ALLOWED_SIGNUP_EMAILS` shows Create account; non-empty `ALLOWED_SIGNUP_EMAILS` hides Create account and shows the early-access message while existing sign-in still works.
+- Manual API/browser QA still needed for `ASSISTANT_DAILY_LIMIT` in a deployed environment to confirm `/api/assistant` returns HTTP 429 after the configured daily cap.
+
 ## 2026-06-16 SGT - Portfolio Summary RLS Policies
 
 Scope:

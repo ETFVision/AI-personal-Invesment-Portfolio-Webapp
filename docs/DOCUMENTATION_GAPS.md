@@ -37,15 +37,17 @@ An independent deep architecture audit with live read-only database verification
    - Remaining gap: no alerting exists on required-chain failures. Add job-failure alerting before commercial launch so persistent failures surface without manual `job_runs` inspection.
 
 5. Signup restriction and assistant rate-limit
-   - Open signup means any person who reaches the login page can create an account and consume OpenAI spend.
-   - No per-user assistant rate-limit or daily conversation quota exists. `ENABLE_PORTFOLIO_ASSISTANT` is a global toggle only.
-   - **Planned 2026-06-16:** Codex implementation prompt ready. Tasks: add `ALLOWED_SIGNUP_EMAILS` env allowlist (same pattern as `ADMIN_USER_IDS`), gate `signUpWithPassword` in `SupabaseAuthProvider`, update login page UI, add `ASSISTANT_DAILY_LIMIT` env var, add `countTodayConversations` to `AssistantRepository`, enforce limit in `PortfolioAssistantService`, return HTTP 429 with user-friendly message. Must be done before any alpha invites go out.
+   - **Implemented 2026-06-16:** signup restriction and assistant daily rate-limit are implemented and configurable.
+   - `ALLOWED_SIGNUP_EMAILS` gates new registration in `SupabaseAuthProvider.signUpWithPassword`; empty value preserves open signup for development, non-empty value makes signup invite-only.
+   - Login UI hides the Create account button and shows "Early access only. Contact us to request an invitation." when the allowlist is set.
+   - `ASSISTANT_DAILY_LIMIT` adds a per-user daily assistant conversation cap; `0` preserves unlimited development/default behavior. The assistant API returns HTTP 429 with a user-friendly reset message when exceeded.
+   - Before alpha invites, set `ALLOWED_SIGNUP_EMAILS` and `ASSISTANT_DAILY_LIMIT` in Vercel.
 
 6. AI cost constants and model ID validation
-   - `PORTFOLIO_ASSISTANT_INPUT_COST_PER_1M` and `MARKET_VISION_INPUT_COST_PER_1M` (and output equivalents) all default to `0`, so `estimateCost()` always returns `null` and Admin > Assistant Usage shows no real spend data.
-   - Model ID defaults (`gpt-5.4-mini`) need validation against the current OpenAI API to confirm they resolve to real model IDs.
+   - **Implemented 2026-06-16:** `gpt-5.4-mini` confirmed as a valid OpenAI model ID for Portfolio Assistant and Market Vision.
+   - `.env.example` now includes real current pricing for Portfolio Assistant and Market Vision: input `$0.75 / 1M tokens`, output `$4.50 / 1M tokens`.
+   - `env.ts` keeps runtime defaults at `0` for cost variables so existing deployments do not break; set non-zero values in Vercel production environment variables for real spend tracking in Admin > Assistant Usage.
    - Note: `OpenAiNewsProvider` also calls OpenAI but is disabled by default (`ENABLE_AI_NEWS_CLASSIFICATION=false`, `ENABLE_WEEKLY_NEWS_RECONCILIATION=false`); news model cost tracking is deferred until those features are enabled.
-   - **Planned 2026-06-16:** Codex implementation prompt ready. Tasks: validate model IDs, populate `.env.example` with confirmed real IDs and per-1M pricing for Portfolio Assistant and Market Vision only.
 
 7. Migration tracking and numbering
    - **Confirmed live 2026-06-16:** `supabase_migrations.schema_migrations` does not exist, so applied migration state cannot be verified from a ledger.

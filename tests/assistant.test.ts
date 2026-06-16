@@ -16,6 +16,7 @@ import { ASSISTANT_RECOMMENDATION_LABELS, assistantRecommendationLabel } from ".
 import { PortfolioAssistantService } from "../src/application/services/assistant/PortfolioAssistantService";
 import { AssistantContextBuilder } from "../src/application/services/assistant/AssistantContextBuilder";
 import { PORTFOLIO_ASSISTANT_PROMPT } from "../src/server/ai/prompts/portfolio-assistant";
+import { estimateTokenCost } from "../src/application/services/ai/costEstimate";
 import {
   ASSISTANT_ADVICE_BLOCKED_RESPONSE,
   ASSISTANT_GENERAL_KNOWLEDGE_BLOCKED_RESPONSE,
@@ -31,6 +32,7 @@ class MemoryAssistantRepository implements AssistantRepository {
   conversations: AssistantConversation[] = [];
   messages: AssistantMessage[] = [];
   usageLogs: AssistantUsageLog[] = [];
+  todayConversationCount = 0;
 
   async createConversation(input: CreateAssistantConversationInput): Promise<AssistantConversation> {
     const conversation: AssistantConversation = {
@@ -54,6 +56,10 @@ class MemoryAssistantRepository implements AssistantRepository {
     if (input.latestQuestionCategory !== undefined) conversation.latestQuestionCategory = input.latestQuestionCategory;
     if (input.status !== undefined) conversation.status = input.status;
     conversation.updatedAt = now;
+  }
+
+  async countTodayConversations(): Promise<number> {
+    return this.todayConversationCount;
   }
 
   async getConversation(conversationId: string): Promise<AssistantConversation | null> {
@@ -395,6 +401,11 @@ test("assistant system prompt defines Personal CIO response contract", () => {
   assert.match(PORTFOLIO_ASSISTANT_PROMPT, /Use consumer-facing assessment labels/);
 });
 
+test("assistant cost formula calculates non-zero usage and returns null for zero costs", () => {
+  assert.equal(estimateTokenCost({ input_tokens: 1000, output_tokens: 500 }, 0.15, 0.60), 0.00045);
+  assert.equal(estimateTokenCost({ input_tokens: 1000, output_tokens: 500 }, 0, 0), null);
+});
+
 test("supported assistant questions pass response requirements to the AI provider", async () => {
   const repository = new MemoryAssistantRepository();
   const provider = new CapturingAssistantProvider();
@@ -416,6 +427,31 @@ test("supported assistant questions pass response requirements to the AI provide
   const input = provider.input as { responseRequirements?: string[] };
   assert.ok(input.responseRequirements?.some((item) => item.includes("Most Important Thing Right Now")));
   assert.ok(input.responseRequirements?.some((item) => item.includes("ETFVision View")));
+});
+
+test("assistant daily limit blocks new conversations before invoking provider", async () => {
+  const repository = new MemoryAssistantRepository();
+  repository.todayConversationCount = 1;
+  const provider = new CapturingAssistantProvider();
+  const service = new PortfolioAssistantService(
+    repository,
+    new AssistantQuestionRouter(),
+    { build: async () => minimalAssistantContext } as never,
+    new AssistantPromptBuilder(),
+    provider,
+    new AssistantResponseGuardrailService(),
+    1
+  );
+
+  await assert.rejects(
+    service.answer({
+      question: "Is my portfolio healthy?",
+      userId: "user-1",
+      portfolioId: "portfolio-1"
+    }),
+    /Daily conversation limit of 1 reached\. Resets at midnight UTC\./
+  );
+  assert.equal(provider.input, null);
 });
 
 test("unsupported assistant questions are logged without invoking the AI provider", async () => {

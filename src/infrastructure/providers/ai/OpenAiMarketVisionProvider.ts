@@ -1,4 +1,5 @@
 import type { AiMarketVisionInput, AiMarketVisionOutput, AiMarketVisionProvider } from "@/application/ports/providers/AiMarketVisionProvider";
+import { estimateTokenCost } from "@/application/services/ai/costEstimate";
 import { env } from "@/infrastructure/config/env";
 import { MARKET_VISION_PROMPT } from "@/server/ai/prompts/market-vision";
 import { validateMarketVisionGenerationOutput } from "@/application/services/marketVision/MarketVisionGenerationService";
@@ -261,12 +262,9 @@ const marketVisionJsonSchema = {
 
 function estimateCost(usage: Record<string, unknown>) {
   const typed = usage as OpenAiUsage;
-  const inputTokens = Number(typed.input_tokens ?? typed.prompt_tokens ?? 0);
-  const outputTokens = Number(typed.output_tokens ?? typed.completion_tokens ?? 0);
   const inputCost = env.MARKET_VISION_INPUT_COST_PER_1M;
   const outputCost = env.MARKET_VISION_OUTPUT_COST_PER_1M;
-  if ((inputCost === 0 && outputCost === 0) || (inputTokens === 0 && outputTokens === 0)) return null;
-  return Number(((inputTokens / 1_000_000) * inputCost + (outputTokens / 1_000_000) * outputCost).toFixed(6));
+  return estimateTokenCost(typed, inputCost, outputCost);
 }
 
 function extractOutputText(payload: Record<string, unknown>) {

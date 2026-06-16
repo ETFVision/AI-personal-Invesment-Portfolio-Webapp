@@ -338,7 +338,8 @@ export function createContainer() {
     assistantContextBuilder,
     assistantPromptBuilder,
     portfolioAssistantProvider,
-    assistantResponseGuardrailService
+    assistantResponseGuardrailService,
+    env.ASSISTANT_DAILY_LIMIT
   );
   return {
     authProvider: new SupabaseAuthProvider(),

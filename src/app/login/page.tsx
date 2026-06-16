@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ETFVisionLogo } from "@/components/brand/etfvision-logo";
+import { env } from "@/infrastructure/config/env";
+import { parseAdminAllowlist } from "@/application/services/auth/adminAccess";
 
 type LoginPageProps = {
   searchParams?: Promise<{ error?: string; redirectTo?: string }>;
@@ -11,6 +13,7 @@ type LoginPageProps = {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
+  const signupOpen = parseAdminAllowlist(env.ALLOWED_SIGNUP_EMAILS).length === 0;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-10">
@@ -42,9 +45,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               <Button type="submit" className="w-full">
                 Sign in
               </Button>
-              <Button type="submit" variant="outline" className="w-full" formAction={signUpAction}>
-                Create account
-              </Button>
+              {signupOpen ? (
+                <Button type="submit" variant="outline" className="w-full" formAction={signUpAction}>
+                  Create account
+                </Button>
+              ) : (
+                <p className="text-center text-sm text-muted-foreground">
+                  Early access only. Contact us to request an invitation.
+                </p>
+              )}
             </div>
           </form>
         </CardContent>
