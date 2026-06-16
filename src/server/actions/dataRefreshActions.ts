@@ -15,7 +15,7 @@ function appendMessage(parts: string[], label: string, message: string) {
 
 export async function refreshAllDataAction(formData?: FormData) {
   const container = createContainer();
-  const authUser = await container.authProvider.requireUser();
+  const authUser = await container.authProvider.requireAdmin();
   const destination = returnPath(formData);
   const messages: string[] = [];
   const errors: string[] = [];
@@ -120,7 +120,7 @@ export async function refreshAllDataAction(formData?: FormData) {
 
 export async function backfillUniverseHistoryAction(formData?: FormData) {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   const destination = returnPath(formData);
   const errors: string[] = [];
   let refreshMessage = "";
@@ -173,7 +173,7 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
 
 export async function refreshInstrumentPricesAction(formData?: FormData) {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   const destination = returnPath(formData);
   const errors: string[] = [];
   let refreshMessage = "";
@@ -217,7 +217,7 @@ export async function refreshInstrumentPricesAction(formData?: FormData) {
 
 export async function refreshInstrumentDailyReturnsAction(formData?: FormData) {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   const destination = returnPath(formData);
   const errors: string[] = [];
   let refreshMessage = "";
@@ -252,7 +252,7 @@ export async function refreshInstrumentDailyReturnsAction(formData?: FormData) {
 
 export async function refreshInstrumentReturnAnchorsAction(formData?: FormData) {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   const destination = returnPath(formData);
   const errors: string[] = [];
   let refreshMessage = "";
@@ -287,7 +287,7 @@ export async function refreshInstrumentReturnAnchorsAction(formData?: FormData) 
 
 export async function refreshInstrumentMarketMetricsAction(formData?: FormData) {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   const destination = returnPath(formData);
   const errors: string[] = [];
   let refreshMessage = "";
@@ -327,7 +327,7 @@ export async function refreshInstrumentMarketMetricsAction(formData?: FormData) 
 
 export async function refreshInstrumentRiskMetricsAction(formData?: FormData) {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   const destination = returnPath(formData);
   const errors: string[] = [];
   let refreshMessage = "";
@@ -365,7 +365,7 @@ export async function refreshInstrumentRiskMetricsAction(formData?: FormData) {
 
 export async function refreshInstrumentMetadataAction(formData?: FormData) {
   const container = createContainer();
-  const authUser = await container.authProvider.requireUser();
+  const authUser = await container.authProvider.requireAdmin();
   const appUser = await container.portfolioService.ensureApplicationUser(authUser);
   const destination = returnPath(formData);
   const errors: string[] = [];
@@ -410,7 +410,7 @@ export async function refreshInstrumentMetadataAction(formData?: FormData) {
 
 export async function refreshPortfolioSummaryTablesAction(formData?: FormData) {
   const container = createContainer();
-  const authUser = await container.authProvider.requireUser();
+  const authUser = await container.authProvider.requireAdmin();
   const destination = returnPath(formData);
   const { portfolio } = await container.portfolioService.getOrCreateDefaultPortfolio(authUser);
   if (!portfolio) redirect("/setup");

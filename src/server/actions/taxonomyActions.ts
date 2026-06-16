@@ -15,7 +15,7 @@ function formTags(formData: FormData, key: string) {
 }
 
 export async function saveInstrumentTaxonomyAction(formData: FormData) {
-  await createContainer().authProvider.requireUser();
+  await createContainer().authProvider.requireAdmin();
   const instrumentId = formString(formData, "instrumentId");
   const canonicalSector = formString(formData, "canonicalSector");
   const canonicalThemes = formTags(formData, "canonicalThemes");
@@ -44,7 +44,7 @@ export async function saveInstrumentTaxonomyAction(formData: FormData) {
 }
 
 export async function approveTaxonomyMappingAction(formData: FormData) {
-  await createContainer().authProvider.requireUser();
+  await createContainer().authProvider.requireAdmin();
   const instrumentId = formString(formData, "instrumentId");
   const canonicalSector = formString(formData, "canonicalSector");
   const canonicalThemes = formTags(formData, "canonicalThemes");

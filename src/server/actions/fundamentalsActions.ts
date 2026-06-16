@@ -11,7 +11,7 @@ function returnPath(formData?: FormData) {
 
 export async function refreshFundamentalsAction(formData?: FormData) {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   const symbol = String(formData?.get("symbol") ?? "").trim().toUpperCase() || undefined;
   const force = String(formData?.get("force") ?? "") === "true";
   const result = await container.jobs.fundamentalsRefresh.run({ force, symbol });

@@ -18,7 +18,8 @@ An independent deep architecture audit with live read-only database verification
    - Validate on `alpha` branch, not only `development`.
    - Confirm Admin/Data Sources and internal diagnostics are not exposed if not intended for alpha.
    - `qa-log.md` records alpha realignment during page rendering work, but a complete route-by-route alpha feature audit remains open.
-   - **Confirmed 2026-06-16:** there is no runtime feature-flag/product-mode system in `src/` and no admin role — `requireUser()` is the only gate, so any authenticated user can reach `/admin/*` and service-role refresh/seed actions. Alpha gating is currently branch-based only. Add a server-side `requireAdmin()` + a feature/product-mode module before exposing alpha to untrusted users.
+   - **Updated 2026-06-16:** app-level admin authorization is now implemented through `AuthProvider.requireAdmin()` and environment allowlists (`ADMIN_USER_IDS`, optional `ADMIN_EMAILS`). `/admin/*`, `/setup/taxonomy`, and admin-only server actions are guarded, and the Admin nav is hidden for non-admins.
+   - Remaining gap: there is still no runtime feature-flag/product-mode system for broader alpha/full surface gating, and there is still no DB-backed `users.is_admin` role. The broader RLS write-policy audit and `assets` RLS fix remain open under item #1.
 
 3. Price-refresh route reconciliation (confirmed drift)
    - **Confirmed live 2026-06-16:** `/api/jobs/price-refresh` is not present in `cron.job`. The active daily chain uses `instrument-price-refresh` ×5 + `portfolio-valuation-refresh`.

@@ -6,7 +6,7 @@ import { createContainer } from "@/server/container";
 
 export async function runTelemetryEvaluationAction() {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   const result = await container.jobRunService.runManual("telemetry-evaluation", () => container.jobs.telemetryEvaluation.run());
 
   revalidatePath("/admin/jobs");

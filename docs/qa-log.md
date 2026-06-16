@@ -2,6 +2,37 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-16 SGT - Admin Authorization Layer
+
+Scope:
+- Added app-level admin authorization using `ADMIN_USER_IDS` and optional `ADMIN_EMAILS` environment allowlists.
+- Added `requireAdmin()` route/action enforcement for `/admin/*`, `/setup/taxonomy`, and admin-only server actions.
+- Preserved user self-service actions and left `/api/jobs/*` cron authentication unchanged.
+
+Access-control test matrix:
+- PASS: Admin allowlist helper grants access when the Supabase Auth UUID is in `ADMIN_USER_IDS`.
+- PASS: Admin allowlist helper grants access when email is in `ADMIN_EMAILS`, case-insensitively.
+- PASS: Non-members are denied.
+- PASS: Empty allowlists deny all users.
+- PASS: Whitespace and comma-separated allowlists are parsed deterministically.
+- PASS: `/api/jobs/*` source remains unchanged and continues to authorize through `CRON_SECRET`.
+- SOURCE REVIEW PASS: `/admin/*` has an admin layout guard; `/setup/taxonomy` has an admin layout guard.
+- SOURCE REVIEW PASS: Admin-only server actions use `requireAdmin()` for refresh, ingestion, taxonomy, job trigger, universe-curation, Market Vision editorial, and ETF look-through refresh operations.
+- SOURCE REVIEW PASS: User self-service portfolio, watchlist, Portfolio Review run, and Insights/recommendation run actions still use `requireUser()`.
+- SOURCE REVIEW PASS: The `/setup` taxonomy-admin link is hidden from non-admin users while the normal portfolio setup flow remains available.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `node --test .test-build\\tests\\admin-access.test.js` (7/7)
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`
+- PARTIAL: `npm.cmd test` ran the full suite and the new admin tests passed, but one pre-existing Portfolio Review wording assertion failed: `improvement suggestions map concentration issues to diversifying candidates` expects `/regulated demand exposure/` while current output is `Provides exposure to regulated demand that can behave differently from growth equities.`
+
+Residual risks:
+- This implementation uses environment allowlists only. A future DB-backed `users.is_admin` or role model may still be preferable before commercial launch.
+- This does not complete the broader RLS write-policy audit or the `assets` RLS fix documented in `DOCUMENTATION_GAPS.md`.
+- Live browser QA should confirm admin users see Admin navigation, non-admin users do not, non-admin direct `/admin/*` requests return 404, and empty allowlists lock down admin access.
+
 ## 2026-06-14 23:00 SGT - Market Vision v3 Small Calibration Pass
 
 Scope:

@@ -5,7 +5,7 @@ import { createContainer } from "@/server/container";
 
 export async function refreshMacroIndicatorsAction() {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   let target = "/macro?error=FRED%20macro%20refresh%20failed.";
   try {
     const result = await container.jobs.fredMacroIngestion.run();
@@ -18,7 +18,7 @@ export async function refreshMacroIndicatorsAction() {
 
 export async function backfillMacroIndicatorsAction() {
   const container = createContainer();
-  await container.authProvider.requireUser();
+  await container.authProvider.requireAdmin();
   let target = "/macro?error=FRED%20macro%20backfill%20failed.";
   try {
     const result = await container.jobs.fredMacroIngestion.run({ backfill: true });
