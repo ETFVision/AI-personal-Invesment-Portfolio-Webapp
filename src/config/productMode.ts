@@ -1,6 +1,7 @@
 export type ProductMode = "alpha" | "full";
 
 const alphaAllowedPrefixes = [
+  "/_next",
   "/portfolio",
   "/holdings",
   "/transactions",
