@@ -189,6 +189,15 @@ An independent deep architecture audit with live read-only database verification
    - Older lowercase docs remain useful, but some overlap with this handover pack.
    - Do not delete until the user approves an archive/cleanup pass.
 
+5. Future ETF universe additions — Factor Investing and Option Income
+   - Nine candidate ETFs confirmed with FMP profile metadata, EOD prices, and historical price data.
+   - Factor Investing: `QUAL`, `SPHQ`, `JQUA`, `MTUM`, `USMV`, `SPLV`.
+   - Option Income: `JEPI`, `JEPQ`, `SPYI`.
+   - Two new ETF product categories will be needed in `alphaUniverse.ts`: `FACTOR_INVESTING` and `OPTION_INCOME` (add to `EtfCategory` type and `ETF_CATEGORY_LABELS`).
+   - Seed only after deciding whether alpha mode should expose the expanded categories.
+   - After seeding: run Seed Universe, instrument metadata refresh, market history backfill, ETF look-through refresh, daily returns, return anchors, market metrics, risk metrics, and summary refresh QA.
+   - Source: `docs/qa-log.md` — "2026-06-12 22:20 SGT - Future ETF Universe Completion Candidate".
+
 ## Recently Closed Documentation Gaps
 
 Closed on 2026-06-15:
