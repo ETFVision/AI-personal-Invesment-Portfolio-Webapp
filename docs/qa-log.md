@@ -10,10 +10,10 @@ Scope:
 - Preserved the service-role-only write model by adding no INSERT, UPDATE, or DELETE policies.
 
 Validation:
-- Pending: apply migration `106_assets_rls.sql` in Supabase.
-- Pending: authenticated SELECT on `assets` succeeds via user JWT.
-- Pending: authenticated INSERT into `assets` through PostgREST fails with HTTP 403 / SQLSTATE 42501 or equivalent RLS permission error.
-- Pending: service-role Seed Universe or metadata refresh continues writing to `assets`.
+- PASS: migration `106_assets_rls.sql` applied in Supabase (2026-06-16).
+- PASS: authenticated SELECT on `assets` succeeds via user JWT.
+- PASS: authenticated INSERT into `assets` through PostgREST fails with RLS permission error.
+- PASS: service-role Seed Universe or metadata refresh continues writing to `assets`.
 - PASS: `npm.cmd run lint`
 - PASS: `npm.cmd run typecheck`
 - PARTIAL: `npm.cmd test` ran 248 tests; 247 passed and the known pre-existing Portfolio Review wording assertion failed.
