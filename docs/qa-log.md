@@ -2,6 +2,27 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-16 SGT - Assets RLS Enablement
+
+Scope:
+- Added migration `106_assets_rls.sql` to enable Row Level Security on the global `assets` reference catalog.
+- Added exactly one SELECT policy for authenticated users: `auth.role() = 'authenticated'`.
+- Preserved the service-role-only write model by adding no INSERT, UPDATE, or DELETE policies.
+
+Validation:
+- Pending: apply migration `106_assets_rls.sql` in Supabase.
+- Pending: authenticated SELECT on `assets` succeeds via user JWT.
+- Pending: authenticated INSERT into `assets` through PostgREST fails with HTTP 403 / SQLSTATE 42501 or equivalent RLS permission error.
+- Pending: service-role Seed Universe or metadata refresh continues writing to `assets`.
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run typecheck`
+- PARTIAL: `npm.cmd test` ran 248 tests; 247 passed and the known pre-existing Portfolio Review wording assertion failed.
+- PASS: `npm.cmd run build`
+
+Residual risks:
+- This closes the specific `assets` RLS-disabled gap only.
+- Task 2B remains open for the four RLS-enabled zero-policy tables and broader formalization of the service-role-only write model.
+
 ## 2026-06-16 SGT - Admin Authorization Layer
 
 Scope:

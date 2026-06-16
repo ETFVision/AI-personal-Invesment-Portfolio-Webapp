@@ -36,6 +36,20 @@ Bootstrap/lockout note: set `ADMIN_USER_IDS` to the owner's Supabase Auth user U
 
 Server-side jobs and admin operations use `SUPABASE_SERVICE_ROLE_KEY` through `createSupabaseAdminClient`. This key must only exist in server-side Vercel environment variables.
 
+## Database RLS Model
+
+The codebase uses three Row Level Security policy patterns:
+
+- User-scoped policies: tables with user or portfolio ownership check the authenticated Supabase user against the app user or portfolio relationship.
+- Authenticated global-reference policies: shared reference tables such as `assets`, securities master tables, issuer tables, ETF exposure tables, and admin/reference diagnostics use `auth.role() = 'authenticated'` for SELECT.
+- Open market-data policies: fully open market/reference data can use `using (true)` when unauthenticated reads are explicitly intended.
+
+Writes to most application tables intentionally go through server-side services using `SUPABASE_SERVICE_ROLE_KEY`. The service role bypasses RLS. For tables with zero INSERT, UPDATE, or DELETE policies, Postgres default-denies writes from anon/authenticated non-service-role callers. This zero-write-policy model is intentional where writes are service-role-only, but it still needs table-by-table documentation and verification before commercialization.
+
+`assets` status: completed in migration `106_assets_rls.sql`. RLS is enabled on the global instrument reference catalog and exactly one SELECT policy permits authenticated users to read rows through Supabase REST. No write policies were added, so non-service-role writes remain blocked.
+
+Open Task 2B items: `ingestion_events`, `instrument_directory_summary`, `portfolio_dashboard_summary`, and `portfolio_performance_summary` are RLS-enabled with no policies and still need explicit review/documentation.
+
 ## Job Security
 
 Protected job endpoints require `CRON_SECRET`, accepted either as bearer token or `secret` query parameter. Supabase Cron calls these endpoints using Vault-stored `APP_URL` and `CRON_SECRET`.

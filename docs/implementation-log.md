@@ -1,4 +1,48 @@
-﻿## 2026-06-16 - Dashboard Auth Call Reduction
+﻿## 2026-06-16 - Assets RLS Enablement
+
+### Source
+Claude Code
+
+### Objective
+Enable Row Level Security on the global `assets` instrument catalog and add a SELECT-only authenticated-user policy while keeping non-service-role writes blocked by default.
+
+### Files Changed
+- `supabase/migrations/106_assets_rls.sql`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/SECURITY_AND_ACCESS_ARCHITECTURE.md`
+
+### Summary
+- Confirmed `105_security_master_phase7_provider_reconciliation.sql` is the highest-numbered migration, so the next migration is `106`.
+- Added `supabase/migrations/106_assets_rls.sql`.
+- SQL written:
+  ```sql
+  -- Enable RLS on the global instrument reference catalog.
+  -- Writes remain service-role only (service role bypasses RLS).
+  alter table assets enable row level security;
+
+  create policy "authenticated users can read assets"
+    on assets for select
+    using (auth.role() = 'authenticated');
+  ```
+- No INSERT, UPDATE, or DELETE policies were added.
+- No TypeScript files were changed for this task.
+
+### Tests Run
+- `npm.cmd run lint` - PASS
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd test` - PARTIAL: 247/248 passed; the known pre-existing Portfolio Review wording assertion `improvement suggestions map concentration issues to diversifying candidates` still fails because it expects `/regulated demand exposure/` while current output is `Provides exposure to regulated demand that can behave differently from growth equities.`
+- `npm.cmd run build` - PASS
+
+### Result
+Completed, with unrelated pre-existing Portfolio Review test failure noted.
+
+### Notes for Claude
+- Manual Supabase verification still needs to be run after applying migration `106`: authenticated SELECT should succeed, authenticated INSERT should fail with permission/RLS error, and service-role seed/metadata refresh writes should continue to work.
+- Task 2B remains open: formalize the zero-write-policy model and review the four RLS-enabled zero-policy tables (`ingestion_events`, `instrument_directory_summary`, `portfolio_dashboard_summary`, `portfolio_performance_summary`).
+
+## 2026-06-16 - Dashboard Auth Call Reduction
 
 ### Source
 Claude Code
@@ -88,4 +132,5 @@ Completed, with one unrelated existing Portfolio Review wording-test follow-up n
 - Admin-vs-user decisions: `recommendationActions.runRecommendationsAction` stayed user-accessible as a self-service Insights run; `portfolioReviewActions.runPortfolioReviewAction` stayed user-accessible; `portfolioReviewActions.refreshEtfLookthroughExposureAction` became admin-only; `marketVisionActions` draft/save/publish/archive/generate actions became admin-only editorial actions because they mutate global Market Vision reports.
 - `universeActions` is mixed: seed, metadata/price refresh, active status, tags, and bond profile overrides became admin-only; watchlist add/remove stayed user-accessible.
 - This change does not add a DB `users.is_admin` flag, does not alter RLS, and does not address the broader `assets` RLS or write-policy audit.
+
 

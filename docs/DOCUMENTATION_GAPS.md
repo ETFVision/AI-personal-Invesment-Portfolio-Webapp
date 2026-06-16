@@ -12,14 +12,16 @@ An independent deep architecture audit with live read-only database verification
    - Verify every user-specific table is scoped correctly.
    - Check assistant conversations, recommendation history, telemetry, portfolio review, and summary tables.
    - `qa-log.md` contains scattered RLS fixes, but there is not yet a full table-by-table RLS audit.
-   - **Confirmed live 2026-06-16 (see `ARCHITECTURE_AUDIT_2026-06-16.md` §1A):** every public table currently has exactly one `SELECT`-only policy and **zero INSERT/UPDATE/DELETE policies** — user-table writes rely entirely on the service role plus application-layer `userId` scoping. **`assets` has RLS disabled entirely** (the only public table with RLS off — a cross-tenant exposure risk via the auto-generated REST API and the highest-priority RLS fix). Four tables are RLS-enabled with no policy (`ingestion_events`, `instrument_directory_summary`, `portfolio_dashboard_summary`, `portfolio_performance_summary`). Add owner-scoped write policies (or formally document and test the service-role-only write model), and enable RLS + an owner policy on `assets`.
+   - **Confirmed live 2026-06-16 (see `ARCHITECTURE_AUDIT_2026-06-16.md` section 1A):** every public table currently has exactly one `SELECT`-only policy and **zero INSERT/UPDATE/DELETE policies**; user-table writes rely entirely on the service role plus application-layer `userId` scoping. Four tables are RLS-enabled with no policy (`ingestion_events`, `instrument_directory_summary`, `portfolio_dashboard_summary`, `portfolio_performance_summary`). Add owner-scoped write policies where needed, or formally document and test the service-role-only write model.
+   - **Updated 2026-06-16:** `assets` now has migration `106_assets_rls.sql`, which enables RLS and adds one authenticated SELECT policy. No write policies were added, preserving default-deny writes for non-service-role callers. This closes the specific `assets` RLS-disabled gap.
+   - Remaining Task 2B: review/formalize the zero-write-policy model and the four RLS-enabled zero-policy tables (`ingestion_events`, `instrument_directory_summary`, `portfolio_dashboard_summary`, `portfolio_performance_summary`).
 
 2. Alpha branch feature gate audit
    - Validate on `alpha` branch, not only `development`.
    - Confirm Admin/Data Sources and internal diagnostics are not exposed if not intended for alpha.
    - `qa-log.md` records alpha realignment during page rendering work, but a complete route-by-route alpha feature audit remains open.
    - **Updated 2026-06-16:** app-level admin authorization is now implemented through `AuthProvider.requireAdmin()` and environment allowlists (`ADMIN_USER_IDS`, optional `ADMIN_EMAILS`). `/admin/*`, `/setup/taxonomy`, and admin-only server actions are guarded, and the Admin nav is hidden for non-admins.
-   - Remaining gap: there is still no runtime feature-flag/product-mode system for broader alpha/full surface gating, and there is still no DB-backed `users.is_admin` role. The broader RLS write-policy audit and `assets` RLS fix remain open under item #1.
+   - Remaining gap: there is still no runtime feature-flag/product-mode system for broader alpha/full surface gating, and there is still no DB-backed `users.is_admin` role. The broader RLS write-policy audit and Task 2B four zero-policy table review remain open under item #1.
 
 3. Price-refresh route reconciliation (confirmed drift)
    - **Confirmed live 2026-06-16:** `/api/jobs/price-refresh` is not present in `cron.job`. The active daily chain uses `instrument-price-refresh` ×5 + `portfolio-valuation-refresh`.
