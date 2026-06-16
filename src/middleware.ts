@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
+import { isRouteEnabledInMode } from "@/config/productMode";
 
 type CookieToSet = {
   name: string;
@@ -11,6 +12,15 @@ type CookieToSet = {
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
   const { pathname } = request.nextUrl;
+
+  if (!pathname.startsWith("/api") && !isRouteEnabledInMode(pathname)) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/portfolio";
+    redirectUrl.search = "";
+    redirectUrl.searchParams.set("feature", "alpha-disabled");
+    return NextResponse.redirect(redirectUrl);
+  }
+
   const protectedPaths = ["/portfolio", "/cash", "/holdings", "/transactions", "/setup"];
   const isProtectedPath = protectedPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`) || pathname.startsWith(`${path}#`));
 

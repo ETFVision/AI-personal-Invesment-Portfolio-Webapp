@@ -17,6 +17,7 @@ import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { NewsSummaryEligibilityService } from "@/application/services/news/NewsSummaryEligibilityService";
+import { isAlphaMode } from "@/config/productMode";
 import type { MacroContextCard, MacroContextIndicator } from "@/application/services/macro/MacroContextService";
 import type { NewsClassification, NewsItem } from "@/domain/news/types";
 import type { MarketThemeEvent, MarketVisionEvidencePanel, MarketVisionReport, MarketVisionThemeSummary } from "@/domain/marketVision/types";
@@ -612,7 +613,12 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
   const dashboard = await measureRenderStep("market-vision:report-dashboard-data", () =>
     container.marketVisionService.getDashboard(params?.reportId)
   );
-  const report = dashboard.selectedReport;
+  const reports = isAlphaMode
+    ? dashboard.reports.filter((dashboardReport) => dashboardReport.status === "published")
+    : dashboard.reports;
+  const report = isAlphaMode && dashboard.selectedReport?.status !== "published"
+    ? reports[0] ?? null
+    : dashboard.selectedReport;
 
   return (
     <PageContainer>
@@ -628,7 +634,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
         }
         actions={
         <div className="flex flex-col gap-2 sm:flex-row">
-          <ReportSelector reports={dashboard.reports} selectedReport={report} />
+          <ReportSelector reports={reports} selectedReport={report} />
         </div>
         }
       />
@@ -689,7 +695,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
                 {report.reportPeriodStart ?? "No period start"} to {report.reportPeriodEnd ?? "No period end"}
               </p>
             </div>
-            <ReportActions report={report} />
+            {!isAlphaMode ? <ReportActions report={report} /> : null}
           </div>
 
           <RegimeScorecard report={report} />
@@ -769,7 +775,7 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
             <MacroWorldNewsInputSection />
           </Suspense>
 
-          {report.status === "draft" ? <ReportEditor report={report} /> : null}
+          {!isAlphaMode && report.status === "draft" ? <ReportEditor report={report} /> : null}
         </>
       )}
     </PageContainer>

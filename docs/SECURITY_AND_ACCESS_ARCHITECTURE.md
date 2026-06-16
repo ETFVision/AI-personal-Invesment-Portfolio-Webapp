@@ -95,7 +95,18 @@ Supabase Vault stores:
 
 Alpha is intended to expose a limited consumer-facing surface. Admin pages and internal diagnostics should not be exposed to alpha end users unless deliberately enabled.
 
-Admin pages and admin-only actions are now separated from ordinary authenticated users through `requireAdmin()` and the env allowlists above. Broader product-mode or route-level alpha feature gating remains a separate follow-up.
+Admin pages and admin-only actions are now separated from ordinary authenticated users through `requireAdmin()` and the env allowlists above. Broader product-mode and route-level feature gating is now implemented via the server-only `PRODUCT_MODE` environment variable. See ## Product Mode below.
+
+## Product Mode
+
+Runtime product mode is controlled by the server-only `PRODUCT_MODE` environment variable. It is not exposed through a `NEXT_PUBLIC_` variable and is not part of the client bundle.
+
+- `PRODUCT_MODE=alpha`: limited alpha surface. This hides News & Themes, Macro, Assistant, Telemetry, and the entire Admin navigation group; middleware redirects blocked routes to `/portfolio?feature=alpha-disabled`; Market Vision shows published reports only and hides editorial actions.
+- `PRODUCT_MODE=full`: full authenticated product surface for development and internal operation.
+- Unset or unrecognized values default to `alpha`, which is the safer deployment default.
+- Local development should set `PRODUCT_MODE=full` in `.env.local`.
+
+Product mode gates route and UI surface only. It does not change stored data, scoring methodology, recommendation labels, or analytical outputs.
 
 ## Security Follow-Ups
 

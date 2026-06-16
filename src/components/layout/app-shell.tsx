@@ -23,14 +23,29 @@ import {
   Table2,
   WalletCards
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { signOutAction } from "@/server/actions/authActions";
 import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/layout/nav-link";
 import { PortfolioAssistantDrawer } from "@/components/assistant/portfolio-assistant-drawer";
 import { ETFVisionLogo } from "@/components/brand/etfvision-logo";
 import { DisclaimerModal } from "@/components/compliance/DisclaimerModal";
+import { isAlphaMode } from "@/config/productMode";
 
-const navGroups = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  alpha?: boolean;
+};
+
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+  alpha?: boolean;
+};
+
+const navGroups: NavGroup[] = [
   {
     label: "Dashboard",
     items: [{ href: "/portfolio", label: "Dashboard", icon: Home }]
@@ -54,20 +69,21 @@ const navGroups = [
     label: "Research",
     items: [
       { href: "/market-vision", label: "Market Vision", icon: Globe2 },
-      { href: "/news", label: "News & Themes", icon: Newspaper },
-      { href: "/macro", label: "Macro", icon: LineChart },
+      { href: "/news", label: "News & Themes", icon: Newspaper, alpha: false },
+      { href: "/macro", label: "Macro", icon: LineChart, alpha: false },
       { href: "/fundamentals", label: "Fundamentals", icon: BarChart3 },
       { href: "/risk", label: "Risk", icon: ShieldCheck },
       { href: "/bonds", label: "Fixed Income", icon: Landmark },
       { href: "/recommendations", label: "Insights", icon: Sparkles },
       { href: "/portfolio-review", label: "Portfolio Review", icon: ClipboardCheck },
       { href: "/methodology", label: "Methodology", icon: BookOpenText },
-      { href: "/assistant", label: "Assistant", icon: Bot },
-      { href: "/telemetry", label: "Telemetry", icon: Activity }
+      { href: "/assistant", label: "Assistant", icon: Bot, alpha: false },
+      { href: "/telemetry", label: "Telemetry", icon: Activity, alpha: false }
     ]
   },
   {
     label: "Admin",
+    alpha: false,
     items: [
       { href: "/setup/taxonomy", label: "Taxonomy", icon: Search },
       { href: "/admin/data-sources", label: "Data Sources", icon: Database },
@@ -78,8 +94,18 @@ const navGroups = [
   }
 ];
 
-function visibleNavGroups(isAdmin: boolean) {
-  return navGroups.filter((group) => group.label !== "Admin" || isAdmin);
+function visibleNavGroups(isAdmin: boolean): NavGroup[] {
+  return navGroups
+    .filter(
+      (group) =>
+        (!isAlphaMode || group.alpha !== false) &&
+        (group.label !== "Admin" || isAdmin)
+    )
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !isAlphaMode || item.alpha !== false)
+    }))
+    .filter((group) => group.items.length > 0);
 }
 
 export function AppShell({ children, isAdmin }: { children: React.ReactNode; isAdmin: boolean }) {
@@ -134,7 +160,7 @@ export function AppShell({ children, isAdmin }: { children: React.ReactNode; isA
           </nav>
         </header>
         <main className="mx-auto w-full max-w-[1500px] px-4 py-6 md:px-8 lg:px-10">{children}</main>
-        <PortfolioAssistantDrawer />
+        {!isAlphaMode ? <PortfolioAssistantDrawer /> : null}
       </div>
       <DisclaimerModal mode="acknowledgement" />
     </div>

@@ -1,4 +1,49 @@
-﻿## 2026-06-16 - Signup Restriction, Assistant Limit, and AI Cost Constants
+﻿## 2026-06-16 - Runtime Product Mode
+
+### Source
+Claude Code
+
+### Objective
+Implement a server-only runtime product-mode module that gates alpha versus full product surface without using a client-exposed release variable.
+
+### Files Changed
+- `.env.example`
+- `package.json`
+- `src/config/productMode.ts`
+- `src/middleware.ts`
+- `src/components/layout/app-shell.tsx`
+- `src/app/(dashboard)/market-vision/page.tsx`
+- `tests/product-mode.test.ts`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/SECURITY_AND_ACCESS_ARCHITECTURE.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added `PRODUCT_MODE=alpha|full` runtime module in `src/config/productMode.ts`, defaulting unset or unrecognized values to `alpha`.
+- Added alpha-mode middleware route blocking for non-API paths, redirecting disabled routes to `/portfolio?feature=alpha-disabled`.
+- Hid News & Themes, Macro, Assistant, Telemetry, and the entire Admin nav group in alpha mode.
+- Suppressed `PortfolioAssistantDrawer` in alpha mode.
+- Restricted Market Vision in alpha mode to published reports and hid report editorial actions and draft editing.
+- Updated `.env.example` with server-only `PRODUCT_MODE=full` local-development guidance.
+- Added product-mode unit tests for mode derivation and alpha/full route decisions.
+- Updated security, documentation gaps, and QA documentation.
+
+### Tests Run
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run test` - PASS (263/263).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Manual browser QA is still needed in Vercel to confirm alpha vs full navigation, route blocking, Portfolio Assistant drawer suppression, and Market Vision published-only/editorial-hidden behavior.
+- Stale security-doc sentence updated to reflect implemented product-mode gating.
+
+---
+## 2026-06-16 - Signup Restriction, Assistant Limit, and AI Cost Constants
 
 ### Source
 Claude Code
@@ -337,5 +382,3 @@ Completed, with one unrelated existing Portfolio Review wording-test follow-up n
 - Admin-vs-user decisions: `recommendationActions.runRecommendationsAction` stayed user-accessible as a self-service Insights run; `portfolioReviewActions.runPortfolioReviewAction` stayed user-accessible; `portfolioReviewActions.refreshEtfLookthroughExposureAction` became admin-only; `marketVisionActions` draft/save/publish/archive/generate actions became admin-only editorial actions because they mutate global Market Vision reports.
 - `universeActions` is mixed: seed, metadata/price refresh, active status, tags, and bond profile overrides became admin-only; watchlist add/remove stayed user-accessible.
 - This change does not add a DB `users.is_admin` flag, does not alter RLS, and does not address the broader `assets` RLS or write-policy audit.
-
-

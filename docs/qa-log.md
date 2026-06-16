@@ -2,6 +2,27 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-16 SGT - Runtime Product Mode
+
+Scope:
+- Added server-only `PRODUCT_MODE=alpha|full` runtime product-mode module.
+- Added middleware route blocking for alpha mode with redirect to `/portfolio?feature=alpha-disabled`.
+- Hid News & Themes, Macro, Assistant, Telemetry, and Admin navigation in alpha mode.
+- Suppressed Portfolio Assistant drawer in alpha mode.
+- Restricted Market Vision in alpha mode to published reports and hid editorial actions.
+
+Validation:
+- PASS: product-mode unit tests cover mode derivation and alpha/full route decisions.
+- PASS: `/methodology` remains enabled in alpha mode.
+- PASS: `/admin/jobs` and `/news` are blocked in alpha mode.
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run test` ran 263 tests; 263 passed.
+- PASS: `npm.cmd run build`
+
+Residual risks:
+- Manual browser QA needed in a deployed Vercel environment to confirm alpha vs full mode nav visibility, route redirect behavior, Portfolio Assistant drawer suppression, and Market Vision published-only/editorial-hidden behavior before alpha invites.
+
 ## 2026-06-16 SGT - Signup Restriction, Assistant Limit, and AI Cost Constants
 
 Scope:

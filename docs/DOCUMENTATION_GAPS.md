@@ -24,8 +24,10 @@ An independent deep architecture audit with live read-only database verification
    - Confirm Admin/Data Sources and internal diagnostics are not exposed if not intended for alpha.
    - `qa-log.md` records alpha realignment during page rendering work, but a complete route-by-route alpha feature audit remains open.
    - **Updated 2026-06-16:** app-level admin authorization is now implemented through `AuthProvider.requireAdmin()` and environment allowlists (`ADMIN_USER_IDS`, optional `ADMIN_EMAILS`). `/admin/*`, `/setup/taxonomy`, and admin-only server actions are guarded, and the Admin nav is hidden for non-admins.
-   - Remaining gap: there is still no runtime feature-flag/product-mode system for broader alpha/full surface gating, and there is still no DB-backed `users.is_admin` role.
+   - **Updated 2026-06-16:** runtime product-mode gating is implemented through server-only `PRODUCT_MODE=alpha|full`. Alpha mode hides News & Themes, Macro, Assistant, Telemetry, and Admin navigation; middleware blocks non-alpha routes; Market Vision shows published reports only and hides editorial actions.
+   - Remaining gap: there is still no DB-backed `users.is_admin` role.
    - **QA follow-up (2026-06-16):** live browser QA still needed to confirm admin users see Admin nav, non-admin users do not, and direct `/admin/*` requests return 404 for non-admins. Should be done before inviting any alpha users.
+   - **QA follow-up (2026-06-16):** deployed browser QA still needed to confirm `PRODUCT_MODE=alpha` versus `PRODUCT_MODE=full` nav, route redirects, Portfolio Assistant drawer suppression, and Market Vision published-only/editorial-hidden behavior before alpha invites.
 
 3. Price-refresh route reconciliation (confirmed drift)
    - **Confirmed live 2026-06-16:** `/api/jobs/price-refresh` is not present in `cron.job`. The active daily chain uses `instrument-price-refresh` ×5 + `portfolio-valuation-refresh`.
