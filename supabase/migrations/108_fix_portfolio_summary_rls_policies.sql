@@ -1,10 +1,12 @@
--- Add user-scoped SELECT policies to portfolio summary tables.
--- RLS is already enabled on both tables. Reads and writes in the app
--- use the service role (which bypasses RLS), so these policies are
--- defensive only and do not change application behaviour.
--- Uses the same exists() pattern as portfolio_snapshots (migration 004):
--- joins through users.auth_provider_user_id because portfolios.user_id
+-- Correction for migration 107: the portfolio summary RLS policies used
+-- user_id = auth.uid() which always returns zero rows because portfolios.user_id
 -- references the internal app users.id UUID, not the Supabase Auth UID.
+-- The Supabase Auth UID is stored in users.auth_provider_user_id (text).
+-- This fix uses the same exists() pattern as portfolio_snapshots (migration 004)
+-- and cash_balances/holdings/transactions (migration 001).
+
+drop policy if exists "users can read own portfolio dashboard summary" on portfolio_dashboard_summary;
+drop policy if exists "users can read own portfolio performance summary" on portfolio_performance_summary;
 
 create policy "users can read own portfolio dashboard summary"
   on portfolio_dashboard_summary for select

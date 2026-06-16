@@ -1,4 +1,42 @@
-﻿## 2026-06-16 - Portfolio Summary RLS Policies
+﻿## 2026-06-16 - Portfolio Summary RLS Policy Correction
+
+### Source
+Claude Code (review-phase correction)
+
+### Objective
+Fix the portfolio summary RLS policies from migration 107, which used the wrong
+ownership join pattern and returned zero rows for authenticated users.
+
+### Root Cause
+`portfolios.user_id` references the internal app `users.id` UUID, which is NOT the
+Supabase Auth UUID. `auth.uid()` returns the Supabase Auth UUID, stored separately
+in `users.auth_provider_user_id TEXT`. Migration 107 used
+`user_id = auth.uid()` which always evaluates to false.
+
+### Files Changed
+- `supabase/migrations/107_portfolio_summary_rls_policies.sql` (corrected in-place)
+- `supabase/migrations/108_fix_portfolio_summary_rls_policies.sql` (correction migration for live DB)
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Migration 108 drops the two wrong policies (IF EXISTS) and re-creates them using
+  the correct `exists()` pattern matching migration 004 (`portfolio_snapshots`):
+  `join users on users.id = portfolios.user_id where users.auth_provider_user_id = auth.uid()::text`
+- Migration 107 file corrected in-place so fresh deployments get the right SQL.
+- No TypeScript changes. No write policies added.
+
+### Tests Run
+- Verified manually: after applying migration 108 in Supabase SQL Editor, authenticated
+  SELECT with real user UUID returns the correct row.
+- `npm run build` and `npm run typecheck` unaffected (SQL-only change).
+
+### Result
+Correction applied. Live DB verification pending re-run of Checks 1 and 2.
+
+---
+
+## 2026-06-16 - Portfolio Summary RLS Policies
 
 ### Source
 Claude Code
