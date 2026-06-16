@@ -66,6 +66,7 @@ export interface AssistantRepository {
     latestQuestionCategory?: AssistantQuestionCategory | string | null;
     status?: AssistantConversationStatus;
   }): Promise<void>;
+  countTodayConversations(userId: string): Promise<number>;
   getConversation(conversationId: string): Promise<AssistantConversation | null>;
   listConversations(userId: string, limit?: number): Promise<AssistantConversation[]>;
   createMessage(input: CreateAssistantMessageInput): Promise<AssistantMessage>;

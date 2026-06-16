@@ -39,6 +39,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Assistant request failed.";
+    if (message.includes("Daily conversation limit")) {
+      return NextResponse.json({ error: message }, { status: 429 });
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

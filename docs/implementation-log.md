@@ -1,4 +1,132 @@
-﻿## 2026-06-16 - Fix Portfolio Review Test Assertion
+﻿## 2026-06-16 - Middleware Alpha Mode Asset Blocking Fix (QA Residuals)
+
+### Source
+Claude Code (QA session)
+
+### Objective
+Fix three middleware bugs discovered during Task 3 + Task 10 browser QA: alpha mode was blocking `/_next/image` requests and Vercel's internal image optimizer fetch of public source images.
+
+### Files Changed
+- `src/middleware.ts`
+- `src/config/productMode.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/SECURITY_AND_ACCESS_ARCHITECTURE.md`
+
+### Summary
+- Added `isAssetRequest` guard in `src/middleware.ts` to skip the alpha mode check for any request starting with `/_next` or matching a file extension. Vercel's image optimization service makes a server-side HTTP fetch of the source image (`/brand/etfvision-light-lockup.png`) which went through the middleware and was blocked by the alpha mode check — the browser-level `_next/image` exclusion is not sufficient because of this internal fetch.
+- Added `"/_next"` and `"/brand"` to `alphaAllowedPrefixes` in `src/config/productMode.ts` as belt-and-suspenders coverage.
+- Three commits: `9e7de98`, `bb9ea0b`, `743cf20`.
+
+### Tests Run
+- Manual browser QA confirmed logo loads correctly in alpha mode after `743cf20`.
+
+### Result
+Completed. Logo loads in both alpha and full mode.
+
+### Notes for Claude
+- Vercel's image optimizer fetches source images via HTTP from the same origin. Public asset paths (`/brand/`) must be in `alphaAllowedPrefixes` or excluded by `isAssetRequest`.
+- The `config.matcher` pattern did not reliably exclude `_next/image` in Next.js 15 on Vercel. The runtime `isAssetRequest` guard in the middleware function body is the reliable exclusion path.
+
+---
+## 2026-06-16 - Runtime Product Mode
+
+### Source
+Claude Code
+
+### Objective
+Implement a server-only runtime product-mode module that gates alpha versus full product surface without using a client-exposed release variable.
+
+### Files Changed
+- `.env.example`
+- `package.json`
+- `src/config/productMode.ts`
+- `src/middleware.ts`
+- `src/components/layout/app-shell.tsx`
+- `src/app/(dashboard)/market-vision/page.tsx`
+- `tests/product-mode.test.ts`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/SECURITY_AND_ACCESS_ARCHITECTURE.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added `PRODUCT_MODE=alpha|full` runtime module in `src/config/productMode.ts`, defaulting unset or unrecognized values to `alpha`.
+- Added alpha-mode middleware route blocking for non-API paths, redirecting disabled routes to `/portfolio?feature=alpha-disabled`.
+- Hid News & Themes, Macro, Assistant, Telemetry, and the entire Admin nav group in alpha mode.
+- Suppressed `PortfolioAssistantDrawer` in alpha mode.
+- Restricted Market Vision in alpha mode to published reports and hid report editorial actions and draft editing.
+- Updated `.env.example` with server-only `PRODUCT_MODE=full` local-development guidance.
+- Added product-mode unit tests for mode derivation and alpha/full route decisions.
+- Updated security, documentation gaps, and QA documentation.
+
+### Tests Run
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run test` - PASS (263/263).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Manual browser QA is still needed in Vercel to confirm alpha vs full navigation, route blocking, Portfolio Assistant drawer suppression, and Market Vision published-only/editorial-hidden behavior.
+- Stale security-doc sentence updated to reflect implemented product-mode gating.
+
+---
+## 2026-06-16 - Signup Restriction, Assistant Limit, and AI Cost Constants
+
+### Source
+Claude Code
+
+### Objective
+Gate new user registration behind an email allowlist, add a configurable daily Portfolio Assistant conversation cap, and document real OpenAI model IDs and cost constants for active OpenAI-backed services.
+
+### Files Changed
+- `.env.example`
+- `src/application/ports/repositories/AssistantRepository.ts`
+- `src/application/services/ai/costEstimate.ts`
+- `src/application/services/assistant/PortfolioAssistantService.ts`
+- `src/application/services/auth/adminAccess.ts`
+- `src/app/api/assistant/route.ts`
+- `src/app/login/page.tsx`
+- `src/infrastructure/config/env.ts`
+- `src/infrastructure/providers/ai/OpenAiMarketVisionProvider.ts`
+- `src/infrastructure/providers/ai/OpenAiPortfolioAssistantProvider.ts`
+- `src/infrastructure/providers/auth/SupabaseAuthProvider.ts`
+- `src/infrastructure/repositories/supabase/SupabaseAssistantRepository.ts`
+- `src/server/container.ts`
+- `tests/admin-access.test.ts`
+- `tests/assistant.test.ts`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/SECURITY_AND_ACCESS_ARCHITECTURE.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added `ALLOWED_SIGNUP_EMAILS` to `env.ts` and gated `signUpWithPassword` with a comma-separated, case-insensitive email allowlist. Empty allowlist preserves open signup for development.
+- Updated the login page to hide Create account and show "Early access only. Contact us to request an invitation." when signup is invite-only.
+- Added `ASSISTANT_DAILY_LIMIT` to `env.ts`, `AssistantRepository.countTodayConversations`, Supabase implementation over `assistant_conversations.user_id` and `created_at`, Portfolio Assistant service enforcement, and HTTP 429 handling in `/api/assistant`.
+- Confirmed `gpt-5.4-mini` is a valid OpenAI model ID for Portfolio Assistant and Market Vision. `.env.example` now lists current pricing from OpenAI: `$0.75` input and `$4.50` output per 1M tokens.
+- Added shared `estimateTokenCost` helper and focused tests for signup allowlist behavior, assistant daily-limit enforcement, and cost formula calculation.
+- Updated `docs/qa-log.md` with scope, validation results, and residual manual QA items for the signup restriction, assistant limit, and AI cost constants work.
+- News AI model cost tracking remains excluded because `ENABLE_AI_NEWS_CLASSIFICATION` and `ENABLE_WEEKLY_NEWS_RECONCILIATION` are disabled by default; add cost tracking when those features are enabled.
+
+### Tests Run
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run test` - PASS (253/253).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Set `ALLOWED_SIGNUP_EMAILS`, `ASSISTANT_DAILY_LIMIT`, `PORTFOLIO_ASSISTANT_*_COST_PER_1M`, and `MARKET_VISION_*_COST_PER_1M` in Vercel before alpha invites.
+
+---
+## 2026-06-16 - Fix Portfolio Review Test Assertion
 
 ### Source
 Claude Code
@@ -286,5 +414,3 @@ Completed, with one unrelated existing Portfolio Review wording-test follow-up n
 - Admin-vs-user decisions: `recommendationActions.runRecommendationsAction` stayed user-accessible as a self-service Insights run; `portfolioReviewActions.runPortfolioReviewAction` stayed user-accessible; `portfolioReviewActions.refreshEtfLookthroughExposureAction` became admin-only; `marketVisionActions` draft/save/publish/archive/generate actions became admin-only editorial actions because they mutate global Market Vision reports.
 - `universeActions` is mixed: seed, metadata/price refresh, active status, tags, and bond profile overrides became admin-only; watchlist add/remove stayed user-accessible.
 - This change does not add a DB `users.is_admin` flag, does not alter RLS, and does not address the broader `assets` RLS or write-policy audit.
-
-

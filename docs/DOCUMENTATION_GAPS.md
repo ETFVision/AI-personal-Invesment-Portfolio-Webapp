@@ -24,7 +24,10 @@ An independent deep architecture audit with live read-only database verification
    - Confirm Admin/Data Sources and internal diagnostics are not exposed if not intended for alpha.
    - `qa-log.md` records alpha realignment during page rendering work, but a complete route-by-route alpha feature audit remains open.
    - **Updated 2026-06-16:** app-level admin authorization is now implemented through `AuthProvider.requireAdmin()` and environment allowlists (`ADMIN_USER_IDS`, optional `ADMIN_EMAILS`). `/admin/*`, `/setup/taxonomy`, and admin-only server actions are guarded, and the Admin nav is hidden for non-admins.
-   - Remaining gap: there is still no runtime feature-flag/product-mode system for broader alpha/full surface gating, and there is still no DB-backed `users.is_admin` role. The broader RLS write-policy audit and `instrument_directory_summary` origin investigation remain open under item #1.
+   - **Updated 2026-06-16:** runtime product-mode gating is implemented through server-only `PRODUCT_MODE=alpha|full`. Alpha mode hides News & Themes, Macro, Assistant, Telemetry, and Admin navigation; middleware blocks non-alpha routes; Market Vision shows published reports only and hides editorial actions.
+   - Remaining gap: there is still no DB-backed `users.is_admin` role.
+   - **QA passed 2026-06-16:** admin nav visible for admin users, hidden for non-admins; direct `/admin/*` requests return 404 for non-admins. Confirmed in Vercel preview deployment.
+   - **QA passed 2026-06-16:** `PRODUCT_MODE=alpha` correctly hides nav items, blocks routes, suppresses Assistant drawer, and restricts Market Vision to published reports. `PRODUCT_MODE=full` restores full surface. Logo issue in alpha mode resolved (middleware asset exclusion fix — see implementation log). All checks passed; platform cleared for alpha invites.
 
 3. Price-refresh route reconciliation (confirmed drift)
    - **Confirmed live 2026-06-16:** `/api/jobs/price-refresh` is not present in `cron.job`. The active daily chain uses `instrument-price-refresh` ×5 + `portfolio-valuation-refresh`.
@@ -32,9 +35,23 @@ An independent deep architecture audit with live read-only database verification
 
 4. Daily derived-metrics chain reliability and job monitoring
    - **Confirmed live 2026-06-16 (`job_runs`, 7-day window):** `instrument-daily-returns-refresh` (3 failed), `instrument-return-anchors-refresh` (2 failed), and `instrument-market-metrics-refresh` (1 failed) intermittently fail; `refresh_instrument_risk_metrics` is mostly skipped (68 skipped / 39 success); `newsdata-news-ingestion` is chronically `partial_success` (7/7).
-   - Add alerting on required-chain failures and investigate the risk-metrics lock-contention/skip rate and the NewsData partial cause.
+   - **Updated 2026-06-16:** all five failing jobs (`instrument-daily-returns-refresh`, `instrument-return-anchors-refresh`, `instrument-market-metrics-refresh`, `refresh_instrument_risk_metrics`, `newsdata-news-ingestion`) are resolved for now. Root cause for anchor refresh was duplicate daily-return work, fixed in migration `101`. Monitor in future runs.
+   - Remaining gap: no alerting exists on required-chain failures. Add job-failure alerting before commercial launch so persistent failures surface without manual `job_runs` inspection.
 
-5. Migration tracking and numbering
+5. Signup restriction and assistant rate-limit
+   - **Implemented 2026-06-16:** signup restriction and assistant daily rate-limit are implemented and configurable.
+   - `ALLOWED_SIGNUP_EMAILS` gates new registration in `SupabaseAuthProvider.signUpWithPassword`; empty value preserves open signup for development, non-empty value makes signup invite-only.
+   - Login UI hides the Create account button and shows "Early access only. Contact us to request an invitation." when the allowlist is set.
+   - `ASSISTANT_DAILY_LIMIT` adds a per-user daily assistant conversation cap; `0` preserves unlimited development/default behavior. The assistant API returns HTTP 429 with a user-friendly reset message when exceeded.
+   - Before alpha invites, set `ALLOWED_SIGNUP_EMAILS` and `ASSISTANT_DAILY_LIMIT` in Vercel.
+
+6. AI cost constants and model ID validation
+   - **Implemented 2026-06-16:** `gpt-5.4-mini` confirmed as a valid OpenAI model ID for Portfolio Assistant and Market Vision.
+   - `.env.example` now includes real current pricing for Portfolio Assistant and Market Vision: input `$0.75 / 1M tokens`, output `$4.50 / 1M tokens`.
+   - `env.ts` keeps runtime defaults at `0` for cost variables so existing deployments do not break; set non-zero values in Vercel production environment variables for real spend tracking in Admin > Assistant Usage.
+   - Note: `OpenAiNewsProvider` also calls OpenAI but is disabled by default (`ENABLE_AI_NEWS_CLASSIFICATION=false`, `ENABLE_WEEKLY_NEWS_RECONCILIATION=false`); news model cost tracking is deferred until those features are enabled.
+
+7. Migration tracking and numbering
    - **Confirmed live 2026-06-16:** `supabase_migrations.schema_migrations` does not exist, so applied migration state cannot be verified from a ledger.
    - Duplicate-numbered files exist (`052`, `061`, `062`). Adopt tracked/timestamped migrations and generate a consolidated schema snapshot before commercial launch.
 
@@ -44,78 +61,114 @@ An independent deep architecture audit with live read-only database verification
    - Verify whether scheduled jobs should publish or create drafts.
    - Follow up in `MarketVisionGenerationService.ts`.
    - Note: the scheduled portfolio-context regression was fixed on 2026-06-14; scheduled generation still creates drafts unless a separate publish policy is approved.
+   - **QA follow-up (2026-06-14):** the 2026-06-08 to 2026-06-14 report was deleted for regeneration after the v3 calibration pass. Regenerate from Admin/Data Sources and compare against the 2026-06-07 report to confirm calibration is complete before marking Market Vision v3 closed.
 
-2. Assistant table/cost schema
+2. CI pipeline enforcement
+   - No CI pipeline exists. Tests, typecheck, and build run manually only. Nothing enforces them on PRs or branch merges.
+   - Risk: regressions can be merged into `development` or `main` without detection. Test suite is now 248/248 green — the right time to lock this in.
+   - Action: add a GitHub Actions workflow running `npm run typecheck && npm run test && npm run build` on pull requests to `development` and `main`. Low effort.
+
+3. CRON_SECRET accepted as URL query parameter
+   - `/api/jobs/*` routes currently accept `CRON_SECRET` as either a bearer token header or a `secret` query parameter.
+   - Query-param secrets appear in server logs, reverse-proxy access logs, and browser history. This is a log-leak risk.
+   - Action: remove the query-parameter path; require the `Authorization: Bearer <secret>` header only. Update Supabase Vault job definitions to pass the secret as a header. Low effort.
+
+4. Assistant table/cost schema
    - Confirm exact assistant tables and cost formulas.
    - Follow up in assistant migrations and `SupabaseAssistantRepository.ts`.
+   - **Note 2026-06-16:** cost constants are being addressed in High Priority item #6 (AI cost constants). Once `.env.example` is populated with real values and set in Vercel, Admin > Assistant Usage will show real spend data.
 
-3. News classification formula and thresholds
+5. News classification formula and thresholds
    - Summarize deterministic rules, confidence scoring, source quality weighting, and review queue conditions.
 
-4. Active universe verification
+6. Active universe verification
    - Confirm live Supabase active count equals intended 201 ETFs and 105 stocks, with raw crypto inactive.
 
-5. Security Master provider observation automation
+7. Security Master provider observation automation
    - Phase 6/7 tables exist for corporate actions and provider reconciliation.
    - Future metadata refresh should write provider observations and conflict rows once provider-priority rules are approved.
    - Do not auto-resolve identifier conflicts until the review queue has been validated.
 
-6. Score methodology maintenance
+8. Score methodology maintenance
    - Formula-level score documentation now exists in `docs/SCORE_METHODOLOGY.md`.
    - Public `/methodology` now presents the formula-level methodology with neutral labels and collapsible technical sections.
    - Future scoring changes must update that document in the same commit.
 
-7. Page data map documentation
+9. FX conversion not implemented
+   - All multi-currency portfolio calculations return native-currency estimates when FX conversion is not performed.
+   - No FX rate table or conversion service exists; portfolios with assets in multiple currencies show values in their base currency without cross-currency normalisation.
+   - Flagged as low-priority carried-forward item from Phase 2 MVP, Portfolio Analytics, Benchmark, and Risk Analytics QA entries.
+   - Resolution: document the limitation explicitly on Portfolio and Risk pages, or implement an FX rate feed and conversion layer.
+
+10. Portfolio volatility distorted by deposits/withdrawals
+    - Portfolio volatility currently uses stored portfolio snapshots. Deposits and withdrawals within a measurement window inflate or deflate the apparent volatility of the investment strategy.
+    - This is a fundamental difference between raw portfolio-value volatility and true investment-return volatility.
+    - Flagged from Risk Analytics Layer QA entry.
+    - Resolution: either document this limitation alongside the volatility metric, or switch to return-series-based volatility using daily percentage changes net of external cash flows.
+
+11. Benchmark total-return vs price-return distinction not documented
+    - The benchmark returns shown in Portfolio Review and Risk are not clearly labelled as total-return (dividends reinvested) or price-return.
+    - Users comparing against published index benchmarks may use different return conventions.
+    - Flagged from Benchmark QA entry.
+    - Resolution: add a tooltip or footnote on any benchmark return figure clarifying the return convention and data source.
+
+12. XIRR / money-weighted return missing
+    - The platform implements TWR (time-weighted return) for portfolio performance.
+    - XIRR / money-weighted return, which accounts for the timing and size of cash flows, is the return figure most personal investors recognise from brokerage statements.
+    - Flagged from Portfolio Return QA entry as a low-priority carried-forward improvement.
+    - Resolution: implement XIRR calculation in `PortfolioPerformanceService` using the existing transaction and cash-flow data, and surface it alongside TWR on the Portfolio dashboard.
+
+13. Page data map documentation
    - Create a canonical `docs/PAGE_DATA_MAP.md`.
    - For each product route, document UI section, server component/action, service, repository, table/view, refresh job dependency, formula reference, cache/summary table, and known performance notes.
    - Minimum routes to cover: `/portfolio`, `/holdings`, `/transactions`, `/cash`, `/instruments/universe`, `/instruments/watchlist`, `/instruments/[symbol]`, `/market-vision`, `/news`, `/macro`, `/fundamentals`, `/risk`, `/bonds`, `/recommendations`, `/portfolio-review`, `/telemetry`, `/assistant`, and Admin pages.
 
-8. Portfolio dashboard page map
+14. Portfolio dashboard page map
    - Map each `/portfolio`, `/holdings`, `/transactions`, and `/cash` section to source services and summary tables.
    - Document which cards use `portfolio_dashboard_summary`, `portfolio_performance_summary`, `portfolio_current_metrics`, `holding_market_metrics`, cash balances, transactions, and live portfolio dashboard services.
    - Clarify the dependency chain between holdings, cash, transactions, portfolio valuation, snapshots, and summary refresh jobs.
 
-9. Universe and watchlist page map
+15. Universe and watchlist page map
    - Document exact grouping/filter logic by asset category, instrument type, ETF product category, stock sector, and active status.
    - Document row-level freshness derivation for price, market metrics, risk metrics, metadata, fundamentals, and watchlist membership.
    - Map page fields to `instruments`, `instrument_market_metrics`, `instrument_risk_metrics`, fundamentals overview/detail views, and watchlist tables.
 
-10. Market Vision UI and lifecycle map
+16. Market Vision UI and lifecycle map
    - Document each Market Vision page section, including report body, structured metadata, macro inputs, world-news inputs, portfolio implications, and generation logs.
    - Confirm and document scheduled generation status behavior: draft versus published.
    - Document source/citation display rules and which stored report fields drive UI rendering.
 
-11. News and themes page map
+17. News and themes page map
    - Expand deterministic classification documentation with threshold details, source-quality effects, review queue conditions, and manual/fallback behavior.
    - Document NewsData query group display, FMP/general article display, GDELT manual role, article URL linking, weekly reconciliation placement, and theme summary data sources.
    - Clarify that NewsData is the preferred scheduled macro/world-news source and GDELT is manual/fallback due to rate-limit instability.
 
-12. Macro page map and integration lineage
+18. Macro page map and integration lineage
    - Document macro dashboard UI sections and their source tables.
    - Expand the indicator-to-theme mapping table for FRED macro signals.
    - Document how macro regimes/signals flow into Market Vision, Insights, Portfolio Review, Risk, Fixed Income, Theme Intelligence, and Assistant context.
 
-13. Fundamentals page map
+19. Fundamentals page map
    - Document which fields appear on the fundamentals overview versus each instrument detail fundamentals tab.
    - Map UI fields to `company_profiles`, `financial_statements`, `financial_ratios`, `fundamental_scores`, `fundamental_trends`, and `fundamental_trend_summaries`.
    - Mark sector-relative scoring and financial-sector-specific scoring as future hardening unless implemented later.
 
-14. Risk page map
+20. Risk page map
    - Map each `/risk` panel to risk analytics service outputs, stored risk metrics, portfolio snapshots, holding snapshots, benchmark snapshots, and look-through exposure tables.
    - Tie covariance/proxy risk contribution eligibility to the UI panels that show risk contributors.
    - Document benchmark comparison display logic separately from portfolio TWR risk logic.
 
-15. Fixed income page map
+21. Fixed income page map
    - Add a fixed-income coverage table showing seeded fallback bond profiles versus provider/manual profile rows.
    - Document bond profile refresh/source quality and manual override behavior.
    - Clearly mark older `bond-intelligence.md` future design items that are not yet built, such as future bond score tables or advanced bond macro snapshots.
 
-16. Insights page map
+22. Insights page map
    - Document public language mapping from internal recommendation records to consumer-facing Insights, Assessments, and Characteristics.
    - Map all Insights page and instrument detail recommendation/insight panels to recommendation service outputs, telemetry snapshots, and stored history.
    - Clarify how recommendation history and telemetry relate to current insight labels.
 
-17. Portfolio Review page map
+23. Portfolio Review page map
    - Expand gap-finding ranking and explanation rules, especially diversification, healthcare/defensive, fixed-income, and inflation/geopolitical hedge candidates.
    - Map each Portfolio Review section to the underlying service, score formula, portfolio exposure source, and refresh dependency.
    - Document the difference between diversification gap findings, defensive/healthcare gap findings, fixed-income candidates, and issue-specific analytical diagnostics.

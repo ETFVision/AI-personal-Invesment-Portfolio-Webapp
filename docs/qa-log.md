@@ -2,6 +2,95 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-16 SGT - Task 3 + Task 10 Browser QA (Product Mode + Admin Authorization)
+
+Scope:
+- Browser QA for Task 3 (runtime product-mode module) and Task 10 (admin authorization layer) conducted in Vercel preview deployment before alpha invites.
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Alpha mode: News & Themes, Macro, Assistant, Telemetry, Admin nav hidden | PASS |
+| Alpha mode: blocked routes redirect to `/portfolio?feature=alpha-disabled` | PASS |
+| Full mode: full nav visible including News, Macro, Assistant, Telemetry | PASS |
+| Admin nav visible for admin user (`ADMIN_USER_IDS` set) | PASS |
+| Admin nav hidden for non-admin user (`ADMIN_USER_IDS` cleared) | PASS |
+| Direct `/admin/*` request returns 404 for non-admin | PASS |
+| Market Vision: published reports only visible in alpha mode | PASS |
+| Market Vision: ReportActions (Archive) visible in full mode for published report | PASS |
+| Market Vision: ReportEditor hidden in alpha mode | PASS |
+| Portfolio Assistant drawer suppressed in alpha mode | PASS |
+| Portfolio Assistant drawer visible in full mode | PASS |
+| Signup restriction: "Early access only" message shown when `ALLOWED_SIGNUP_EMAILS` is set | PASS |
+| Logo loads in alpha mode | PASS (after middleware fix — see below) |
+| Logo loads in full mode | PASS |
+
+Issues found and resolved during QA:
+
+1. `PRODUCT_MODE` and `ALLOWED_SIGNUP_EMAILS` not taking effect after Vercel env var change.
+   - Root cause: Vercel "Redeploy" reuses the same build artifact. Module-level `process.env` reads are baked in at Next.js build time. Setting env vars and redeploying without rebuilding has no effect.
+   - Fix: push a new commit to trigger a full rebuild with the env vars set before the build runs.
+
+2. Logo not loading in alpha mode.
+   - Root cause: Vercel's image optimization service fetches the source image (`/brand/etfvision-light-lockup.png`) via HTTP from the same origin. This internal request went through the middleware and was blocked by the alpha mode check because `/brand/` is not in `alphaAllowedPrefixes`. The `config.matcher` pattern did not reliably exclude `/_next/image` in Next.js 15 on Vercel.
+   - Fix: added `isAssetRequest` guard in `src/middleware.ts` (skips mode check for `/_next*` and paths with file extensions); added `"/_next"` and `"/brand"` to `alphaAllowedPrefixes` in `src/config/productMode.ts`. Three commits: `9e7de98`, `bb9ea0b`, `743cf20`.
+
+3. Market Vision `ReportActions` buttons not visible in full mode (apparent).
+   - Root cause: the `ReportActions` component only shows a Publish button for draft reports and an Archive button for non-archived reports. With two published reports and no drafts, only the Archive button renders. User expected a Publish/Generate button which is correct behaviour — Publish is draft-only.
+   - No code change required.
+
+Residual manual QA:
+- None. All planned checks passed. Platform is cleared for alpha invites.
+
+---
+## 2026-06-16 SGT - Runtime Product Mode
+
+Scope:
+- Added server-only `PRODUCT_MODE=alpha|full` runtime product-mode module.
+- Added middleware route blocking for alpha mode with redirect to `/portfolio?feature=alpha-disabled`.
+- Hid News & Themes, Macro, Assistant, Telemetry, and Admin navigation in alpha mode.
+- Suppressed Portfolio Assistant drawer in alpha mode.
+- Restricted Market Vision in alpha mode to published reports and hid editorial actions.
+
+Validation:
+- PASS: product-mode unit tests cover mode derivation and alpha/full route decisions.
+- PASS: `/methodology` remains enabled in alpha mode.
+- PASS: `/admin/jobs` and `/news` are blocked in alpha mode.
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run test` ran 263 tests; 263 passed.
+- PASS: `npm.cmd run build`
+
+Residual risks:
+- Manual browser QA needed in a deployed Vercel environment to confirm alpha vs full mode nav visibility, route redirect behavior, Portfolio Assistant drawer suppression, and Market Vision published-only/editorial-hidden behavior before alpha invites.
+
+## 2026-06-16 SGT - Signup Restriction, Assistant Limit, and AI Cost Constants
+
+Scope:
+- Added invite-only signup support through `ALLOWED_SIGNUP_EMAILS`.
+- Added per-user daily Portfolio Assistant conversation cap through `ASSISTANT_DAILY_LIMIT`.
+- Updated `.env.example` with confirmed `gpt-5.4-mini` model IDs and real OpenAI pricing for Portfolio Assistant and Market Vision.
+- Excluded news AI cost tracking because `ENABLE_AI_NEWS_CLASSIFICATION` and `ENABLE_WEEKLY_NEWS_RECONCILIATION` remain disabled by default.
+
+Validation:
+- PASS: `gpt-5.4-mini` confirmed as a valid OpenAI model ID in official OpenAI model docs.
+- PASS: OpenAI pricing confirmed at `$0.75 / 1M input tokens` and `$4.50 / 1M output tokens` for `gpt-5.4-mini`.
+- PASS: signup allowlist helper permits any email when empty.
+- PASS: signup allowlist helper permits listed emails and rejects unlisted emails when configured.
+- PASS: signup allowlist matching is case-insensitive.
+- PASS: assistant daily-limit service test blocks new conversations before provider invocation when limit is reached.
+- PASS: shared token cost formula returns `0.00045` for 1,000 input tokens at `$0.15 / 1M` and 500 output tokens at `$0.60 / 1M`, and returns `null` when both costs are zero.
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run test` ran 253 tests; 253 passed.
+- PASS: `npm.cmd run build`
+
+Residual risks:
+- Vercel production/alpha environment variables still need to be set before alpha invites: `ALLOWED_SIGNUP_EMAILS`, `ASSISTANT_DAILY_LIMIT`, `PORTFOLIO_ASSISTANT_*_COST_PER_1M`, and `MARKET_VISION_*_COST_PER_1M`.
+- Manual browser QA still needed for both signup states: empty `ALLOWED_SIGNUP_EMAILS` shows Create account; non-empty `ALLOWED_SIGNUP_EMAILS` hides Create account and shows the early-access message while existing sign-in still works.
+- Manual API/browser QA still needed for `ASSISTANT_DAILY_LIMIT` in a deployed environment to confirm `/api/assistant` returns HTTP 429 after the configured daily cap.
+
 ## 2026-06-16 SGT - Portfolio Summary RLS Policies
 
 Scope:
@@ -296,125 +385,6 @@ Post-deployment QA:
 Residual risks:
 - If anchor refresh still times out after migration `101`, the next hardening step is a stale-only anchor endpoint that selects only instruments whose anchors lag daily returns instead of iterating the full active universe.
 
-## 2026-06-12 22:36 SGT - Security Master Phase 4C/4D Final Display QA And Documentation Refresh
-
-Scope:
-- Verified the post-refresh Portfolio Review output after issuer-level look-through rollups.
-- Confirmed `Alphabet Inc (GOOG + GOOGL)` appears as one issuer-level exposure while preserving security/source ETF drill-down.
-- Fixed direct-position display precedence where ETF indirect exposure could create an issuer row first as `Underlying Security` before the direct stock holding was added.
-- Direct holdings now win `inputsSnapshot.instrumentAssetClass` and security-breakdown display symbols when the same issuer/security also appears through ETF look-through.
-- Updated Security Master and Commercialization Audit documents to reflect Phase 4C/4D completion before moving to Phase 5.
-
-Files updated:
-- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
-- `tests/portfolio-review.test.ts`
-- `docs/SECURITY_MASTER_AUDIT.md`
-- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
-- `docs/qa-log.md`
-
-Validation:
-- Manual QA confirmed MSFT and NVDA direct positions now show as `Stock`.
-- Manual QA confirmed indirect exposure remains indirect-only, with total-with-direct shown separately.
-- `npm.cmd run typecheck` passed.
-- `npm.cmd test` passed with 234 tests.
-
-Residual risks:
-- Recommendation history and telemetry snapshots still need Phase 5 stable `security_id` / `issuer_id` hardening.
-- Future provider/issuer variants should continue to be reviewed through issuer alias and duplicate-candidate workflows.
-
-## 2026-06-12 22:05 SGT - Security Master Phase 4C/4D Issuer Rollups And Drill-Down
-
-Scope:
-- Added issuer IDs/names to portfolio look-through holdings and top-holding exposures.
-- Changed Portfolio Look-through calculation to group direct stock plus ETF underlying exposure by issuer when issuer links exist.
-- Kept fund wrappers as direct security-level positions, not issuer-level company exposure.
-- Added security-level drill-down in `inputsSnapshot.securityBreakdown`.
-- Updated Portfolio Review concentration logic to use issuer IDs first and legacy name normalization only as fallback.
-- Updated Portfolio Review UI details to show issuer-level rows with security/source ETF audit detail.
-- Updated Portfolio Assistant context with issuer-level hidden overlap and security breakdown.
-- Updated recommendation portfolio-fit logic to use issuer-level look-through exposure for duplicate/concentration detection.
-
-Files updated:
-- `supabase/migrations/100_issuer_level_lookthrough_rollups.sql`
-- `src/domain/etfLookthrough/types.ts`
-- `src/application/ports/repositories/EtfExposureRepository.ts`
-- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts`
-- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
-- `src/application/services/portfolioReview/ConcentrationReviewService.ts`
-- `src/application/services/portfolio/PortfolioExposureContextService.ts`
-- `src/application/services/recommendations/portfolioFitService.ts`
-- `src/application/services/assistant/AssistantContextBuilder.ts`
-- `src/app/(dashboard)/portfolio-review/page.tsx`
-- `tests/portfolio-review.test.ts`
-- `tests/recommendations.test.ts`
-- `docs/SECURITY_MASTER_AUDIT.md`
-- `docs/qa-log.md`
-
-Validation:
-- Portfolio look-through test now verifies issuer-level rollup while preserving raw symbols/security breakdown.
-- Recommendation test now verifies issuer-level look-through exposure affects portfolio-fit duplicate exposure.
-
-Post-migration QA:
-- Apply migration `100`.
-- Refresh Portfolio Review.
-- Confirm top underlying and top indirect exposure show issuer-level names such as `Alphabet Inc`.
-- Confirm security drill-down still shows underlying securities/source ETFs such as `GOOG`, `GOOGL`, `VOO`, `QQQ`, and `VT` where present.
-- Re-run recommendation refresh only after Portfolio Review has refreshed so portfolio-fit can consume issuer-level look-through context.
-
-Residual risks:
-- Existing saved Portfolio Review reports need a refresh before issuer IDs and security breakdown appear.
-- Recommendation history and telemetry snapshots still need Phase 5 stable `security_id` / `issuer_id` hardening.
-
-## 2026-06-12 21:35 SGT - Security Master Issuer Display Name Cleanup
-
-Scope:
-- Added `clean_issuer_display_name(input_name text)` to remove share-class/security suffixes from issuer display names.
-- Added an `issuers` trigger so future issuer inserts and issuer-name updates are cleaned automatically.
-- Cleaned existing issuer rows such as `Alphabet Inc Class C` to display as `Alphabet Inc`.
-
-Files updated:
-- `supabase/migrations/099_clean_issuer_display_names.sql`
-- `docs/SECURITY_MASTER_AUDIT.md`
-- `docs/qa-log.md`
-
-Design notes:
-- Issuer display names should represent the company/fund issuer.
-- Share-class detail remains on `security_issuer_links.share_class` and the underlying security record.
-- This is display/master-data cleanup only. It does not merge securities or change portfolio calculations.
-
-Post-migration QA:
-- Run the `GOOG` / `GOOGL` issuer QA query from `docs/SECURITY_MASTER_AUDIT.md`.
-- Expected: both symbols appear under one clean issuer name, for example `Alphabet Inc`.
-
-## 2026-06-12 21:15 SGT - Security Master Phase 4B Issuer Alias Hardening
-
-Scope:
-- Added approved issuer aliases so provider name variants can map to the same issuer without manual SQL.
-- Added `issuer_duplicate_candidates` as a review queue for possible issuer duplicates.
-- Replaced `sync_security_issuer_links()` with an alias-aware version.
-- Seeded aliases for known high-value variants such as `Alphabet` -> `Alphabet Inc`, Berkshire share-class names, `TSMC`, `Meta Platforms`, `JPMorgan Chase`, `Novo Nordisk`, and `Samsung Electronics`.
-
-Files updated:
-- `supabase/migrations/098_issuer_alias_normalization.sql`
-- `docs/SECURITY_MASTER_AUDIT.md`
-- `docs/qa-log.md`
-
-Design notes:
-- `issuer_aliases` is the approved mapping layer. Only aliases with `review_status = 'approved'` and no `valid_to` are used by the sync.
-- `issuer_duplicate_candidates` is review-only. It surfaces likely duplicates from suffix-stripped base names but does not merge or relink anything automatically.
-- `issuer_base_name()` is intentionally used only for duplicate-candidate detection, not production linking.
-- Existing security IDs and ETF holding mappings remain unchanged.
-
-Post-migration QA:
-- Run `select * from public.sync_security_issuer_links();`.
-- Run `select * from public.refresh_issuer_duplicate_candidates();`.
-- Confirm `GOOG` and `GOOGL` return under the same issuer row in the issuer QA query documented in `docs/SECURITY_MASTER_AUDIT.md`.
-- Review `issuer_duplicate_candidates where review_status = 'needs_review'` and convert confirmed variants into `issuer_aliases` only after checking.
-
-Residual risks:
-- Alias seed coverage is intentionally conservative. Some international issuer variants may still need review.
-- This improves issuer grouping, but it is not a full corporate-action or multi-provider identifier reconciliation engine yet.
-
 ## 2026-06-13 03:45 SGT - Security Master Phase 4B Issuer Master Foundation
 
 Scope:
@@ -708,6 +678,125 @@ Recommended next implementation:
 Validation:
 - Documentation/source/schema audit only.
 - No runtime tests were required because no executable code changed.
+
+## 2026-06-12 22:36 SGT - Security Master Phase 4C/4D Final Display QA And Documentation Refresh
+
+Scope:
+- Verified the post-refresh Portfolio Review output after issuer-level look-through rollups.
+- Confirmed `Alphabet Inc (GOOG + GOOGL)` appears as one issuer-level exposure while preserving security/source ETF drill-down.
+- Fixed direct-position display precedence where ETF indirect exposure could create an issuer row first as `Underlying Security` before the direct stock holding was added.
+- Direct holdings now win `inputsSnapshot.instrumentAssetClass` and security-breakdown display symbols when the same issuer/security also appears through ETF look-through.
+- Updated Security Master and Commercialization Audit documents to reflect Phase 4C/4D completion before moving to Phase 5.
+
+Files updated:
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/COMMERCIALIZATION_AUDIT_PLAN.md`
+- `docs/qa-log.md`
+
+Validation:
+- Manual QA confirmed MSFT and NVDA direct positions now show as `Stock`.
+- Manual QA confirmed indirect exposure remains indirect-only, with total-with-direct shown separately.
+- `npm.cmd run typecheck` passed.
+- `npm.cmd test` passed with 234 tests.
+
+Residual risks:
+- Recommendation history and telemetry snapshots still need Phase 5 stable `security_id` / `issuer_id` hardening.
+- Future provider/issuer variants should continue to be reviewed through issuer alias and duplicate-candidate workflows.
+
+## 2026-06-12 22:05 SGT - Security Master Phase 4C/4D Issuer Rollups And Drill-Down
+
+Scope:
+- Added issuer IDs/names to portfolio look-through holdings and top-holding exposures.
+- Changed Portfolio Look-through calculation to group direct stock plus ETF underlying exposure by issuer when issuer links exist.
+- Kept fund wrappers as direct security-level positions, not issuer-level company exposure.
+- Added security-level drill-down in `inputsSnapshot.securityBreakdown`.
+- Updated Portfolio Review concentration logic to use issuer IDs first and legacy name normalization only as fallback.
+- Updated Portfolio Review UI details to show issuer-level rows with security/source ETF audit detail.
+- Updated Portfolio Assistant context with issuer-level hidden overlap and security breakdown.
+- Updated recommendation portfolio-fit logic to use issuer-level look-through exposure for duplicate/concentration detection.
+
+Files updated:
+- `supabase/migrations/100_issuer_level_lookthrough_rollups.sql`
+- `src/domain/etfLookthrough/types.ts`
+- `src/application/ports/repositories/EtfExposureRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts`
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `src/application/services/portfolioReview/ConcentrationReviewService.ts`
+- `src/application/services/portfolio/PortfolioExposureContextService.ts`
+- `src/application/services/recommendations/portfolioFitService.ts`
+- `src/application/services/assistant/AssistantContextBuilder.ts`
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `tests/portfolio-review.test.ts`
+- `tests/recommendations.test.ts`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Validation:
+- Portfolio look-through test now verifies issuer-level rollup while preserving raw symbols/security breakdown.
+- Recommendation test now verifies issuer-level look-through exposure affects portfolio-fit duplicate exposure.
+
+Post-migration QA:
+- Apply migration `100`.
+- Refresh Portfolio Review.
+- Confirm top underlying and top indirect exposure show issuer-level names such as `Alphabet Inc`.
+- Confirm security drill-down still shows underlying securities/source ETFs such as `GOOG`, `GOOGL`, `VOO`, `QQQ`, and `VT` where present.
+- Re-run recommendation refresh only after Portfolio Review has refreshed so portfolio-fit can consume issuer-level look-through context.
+
+Residual risks:
+- Existing saved Portfolio Review reports need a refresh before issuer IDs and security breakdown appear.
+- Recommendation history and telemetry snapshots still need Phase 5 stable `security_id` / `issuer_id` hardening.
+
+## 2026-06-12 21:35 SGT - Security Master Issuer Display Name Cleanup
+
+Scope:
+- Added `clean_issuer_display_name(input_name text)` to remove share-class/security suffixes from issuer display names.
+- Added an `issuers` trigger so future issuer inserts and issuer-name updates are cleaned automatically.
+- Cleaned existing issuer rows such as `Alphabet Inc Class C` to display as `Alphabet Inc`.
+
+Files updated:
+- `supabase/migrations/099_clean_issuer_display_names.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Design notes:
+- Issuer display names should represent the company/fund issuer.
+- Share-class detail remains on `security_issuer_links.share_class` and the underlying security record.
+- This is display/master-data cleanup only. It does not merge securities or change portfolio calculations.
+
+Post-migration QA:
+- Run the `GOOG` / `GOOGL` issuer QA query from `docs/SECURITY_MASTER_AUDIT.md`.
+- Expected: both symbols appear under one clean issuer name, for example `Alphabet Inc`.
+
+## 2026-06-12 21:15 SGT - Security Master Phase 4B Issuer Alias Hardening
+
+Scope:
+- Added approved issuer aliases so provider name variants can map to the same issuer without manual SQL.
+- Added `issuer_duplicate_candidates` as a review queue for possible issuer duplicates.
+- Replaced `sync_security_issuer_links()` with an alias-aware version.
+- Seeded aliases for known high-value variants such as `Alphabet` -> `Alphabet Inc`, Berkshire share-class names, `TSMC`, `Meta Platforms`, `JPMorgan Chase`, `Novo Nordisk`, and `Samsung Electronics`.
+
+Files updated:
+- `supabase/migrations/098_issuer_alias_normalization.sql`
+- `docs/SECURITY_MASTER_AUDIT.md`
+- `docs/qa-log.md`
+
+Design notes:
+- `issuer_aliases` is the approved mapping layer. Only aliases with `review_status = 'approved'` and no `valid_to` are used by the sync.
+- `issuer_duplicate_candidates` is review-only. It surfaces likely duplicates from suffix-stripped base names but does not merge or relink anything automatically.
+- `issuer_base_name()` is intentionally used only for duplicate-candidate detection, not production linking.
+- Existing security IDs and ETF holding mappings remain unchanged.
+
+Post-migration QA:
+- Run `select * from public.sync_security_issuer_links();`.
+- Run `select * from public.refresh_issuer_duplicate_candidates();`.
+- Confirm `GOOG` and `GOOGL` return under the same issuer row in the issuer QA query documented in `docs/SECURITY_MASTER_AUDIT.md`.
+- Review `issuer_duplicate_candidates where review_status = 'needs_review'` and convert confirmed variants into `issuer_aliases` only after checking.
+
+Residual risks:
+- Alias seed coverage is intentionally conservative. Some international issuer variants may still need review.
+- This improves issuer grouping, but it is not a full corporate-action or multi-provider identifier reconciliation engine yet.
 
 Backfilled entries are reconstructed from commit history and prior implementation/QA work before this log existed.
 

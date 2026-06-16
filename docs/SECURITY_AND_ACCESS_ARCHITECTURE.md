@@ -32,6 +32,22 @@ The Admin navigation group is hidden for non-admin users, but navigation visibil
 
 Bootstrap/lockout note: set `ADMIN_USER_IDS` to the owner's Supabase Auth user UUID before deploying this change to an environment where admin access is required. If both allowlists are empty or the UUID is wrong, all users are locked out of admin tools until the environment variables are corrected and the app is redeployed/restarted.
 
+### Signup Access Control
+
+New registration is controlled by `ALLOWED_SIGNUP_EMAILS`, a comma-separated email allowlist checked by `SupabaseAuthProvider.signUpWithPassword`.
+
+- Empty `ALLOWED_SIGNUP_EMAILS` means open signup. This is the development default.
+- Non-empty `ALLOWED_SIGNUP_EMAILS` means invite-only signup for alpha/production.
+- Existing users are not affected. The check gates only new account registration, not sign-in.
+- To onboard a new user, add their email address to `ALLOWED_SIGNUP_EMAILS` and redeploy/restart the app. No database change is required.
+
+Portfolio Assistant usage can be capped with `ASSISTANT_DAILY_LIMIT`.
+
+- `ASSISTANT_DAILY_LIMIT=0` means unlimited usage. This is the default.
+- A positive value applies a per-user daily assistant conversation cap based on `assistant_conversations.created_at` in UTC.
+- Enforcement occurs in `PortfolioAssistantService` before a new assistant conversation is created.
+- When the cap is exceeded, `/api/assistant` returns HTTP 429 with: `Daily conversation limit of N reached. Resets at midnight UTC.`
+
 ## Service Role Usage
 
 Server-side jobs and admin operations use `SUPABASE_SERVICE_ROLE_KEY` through `createSupabaseAdminClient`. This key must only exist in server-side Vercel environment variables.
@@ -79,7 +95,22 @@ Supabase Vault stores:
 
 Alpha is intended to expose a limited consumer-facing surface. Admin pages and internal diagnostics should not be exposed to alpha end users unless deliberately enabled.
 
-Admin pages and admin-only actions are now separated from ordinary authenticated users through `requireAdmin()` and the env allowlists above. Broader product-mode or route-level alpha feature gating remains a separate follow-up.
+Admin pages and admin-only actions are now separated from ordinary authenticated users through `requireAdmin()` and the env allowlists above. Broader product-mode and route-level feature gating is now implemented via the server-only `PRODUCT_MODE` environment variable. See ## Product Mode below.
+
+## Product Mode
+
+Runtime product mode is controlled by the server-only `PRODUCT_MODE` environment variable. It is not exposed through a `NEXT_PUBLIC_` variable and is not part of the client bundle.
+
+- `PRODUCT_MODE=alpha`: limited alpha surface. This hides News & Themes, Macro, Assistant, Telemetry, and the entire Admin navigation group; middleware redirects blocked routes to `/portfolio?feature=alpha-disabled`; Market Vision shows published reports only and hides editorial actions.
+- `PRODUCT_MODE=full`: full authenticated product surface for development and internal operation.
+- Unset or unrecognized values default to `alpha`, which is the safer deployment default.
+- Local development should set `PRODUCT_MODE=full` in `.env.local`.
+
+Product mode gates route and UI surface only. It does not change stored data, scoring methodology, recommendation labels, or analytical outputs.
+
+### Middleware asset exclusion
+
+The middleware skips the mode check for requests where `pathname.startsWith("/_next")` or the pathname has a file extension (`isAssetRequest` guard). This is necessary because Vercel's image optimization service fetches source images (e.g. `/brand/etfvision-light-lockup.png`) via HTTP from the same origin, and those requests would otherwise be blocked by the alpha mode check. The `config.matcher` pattern alone does not reliably exclude `_next/image` in Next.js 15 on Vercel. Public asset prefixes (`/_next`, `/brand`) are also listed in `alphaAllowedPrefixes` as belt-and-suspenders coverage.
 
 ## Security Follow-Ups
 

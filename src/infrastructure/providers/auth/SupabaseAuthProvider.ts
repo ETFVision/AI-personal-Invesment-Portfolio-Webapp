@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 import { AuthProvider, AuthUser } from "@/application/ports/providers/AuthProvider";
-import { isAdminUser, parseAdminAllowlist } from "@/application/services/auth/adminAccess";
+import { isAdminUser, isEmailAllowedByAllowlist, parseAdminAllowlist } from "@/application/services/auth/adminAccess";
 import { env } from "@/infrastructure/config/env";
 
 type CookieToSet = {
@@ -91,6 +91,10 @@ export class SupabaseAuthProvider implements AuthProvider {
   }
 
   async signUpWithPassword(email: string, password: string): Promise<void> {
+    const allowlist = parseAdminAllowlist(env.ALLOWED_SIGNUP_EMAILS);
+    if (!isEmailAllowedByAllowlist(email, allowlist)) {
+      throw new Error("Signup is not currently available. Contact us for access.");
+    }
     const supabase = await createCookieClient();
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) throw new Error(error.message);

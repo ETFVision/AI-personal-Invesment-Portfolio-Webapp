@@ -23,18 +23,19 @@ import {
   Table2,
   WalletCards
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { signOutAction } from "@/server/actions/authActions";
 import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/layout/nav-link";
 import { PortfolioAssistantDrawer } from "@/components/assistant/portfolio-assistant-drawer";
 import { ETFVisionLogo } from "@/components/brand/etfvision-logo";
-import { isAlphaRelease } from "@/config/release";
 import { DisclaimerModal } from "@/components/compliance/DisclaimerModal";
+import { isAlphaMode } from "@/config/productMode";
 
 type NavItem = {
   href: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   alpha?: boolean;
 };
 
@@ -93,12 +94,16 @@ const navGroups: NavGroup[] = [
   }
 ];
 
-function visibleNavGroups(isAdmin: boolean) {
+function visibleNavGroups(isAdmin: boolean): NavGroup[] {
   return navGroups
-    .filter((group) => (!isAlphaRelease || group.alpha !== false) && (group.label !== "Admin" || isAdmin))
+    .filter(
+      (group) =>
+        (!isAlphaMode || group.alpha !== false) &&
+        (group.label !== "Admin" || isAdmin)
+    )
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => !isAlphaRelease || item.alpha !== false)
+      items: group.items.filter((item) => !isAlphaMode || item.alpha !== false)
     }))
     .filter((group) => group.items.length > 0);
 }
@@ -155,7 +160,7 @@ export function AppShell({ children, isAdmin }: { children: React.ReactNode; isA
           </nav>
         </header>
         <main className="mx-auto w-full max-w-[1500px] px-4 py-6 md:px-8 lg:px-10">{children}</main>
-        {!isAlphaRelease ? <PortfolioAssistantDrawer /> : null}
+        {!isAlphaMode ? <PortfolioAssistantDrawer /> : null}
       </div>
       <DisclaimerModal mode="acknowledgement" />
     </div>
