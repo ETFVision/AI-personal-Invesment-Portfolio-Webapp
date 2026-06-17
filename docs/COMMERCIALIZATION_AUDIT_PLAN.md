@@ -919,6 +919,77 @@ Output:
 
 Current status: partly completed.
 
+## 33. Email Deliverability And Auth Configuration Audit
+
+Goal: ensure alpha and paying users can receive Supabase auth emails and complete signup.
+
+Checks:
+- Supabase auth email sender configured (custom SMTP or verified Supabase sender).
+- Sender domain has SPF and DKIM records where applicable.
+- Signup confirmation email delivers successfully to a test inbox.
+- Password reset email delivers successfully.
+- Emails do not land in spam for common providers (Gmail, Outlook).
+- Auth email templates reviewed for brand and clarity.
+- `ALLOWED_SIGNUP_EMAILS` env var set in Vercel before alpha invites.
+
+Output:
+- Email deliverability test results.
+- SMTP/sender configuration confirmation.
+- Auth template review.
+
+Current status: not completed.
+
+Notes:
+- This is a hard blocker for alpha invites. If signup confirmation email fails or goes to spam, users cannot complete registration regardless of the invite gate.
+- Should be tested end-to-end before the first alpha invite is sent.
+
+## 34. Runtime Error Monitoring Audit
+
+Goal: ensure platform errors are detected and reported before users experience silent failures.
+
+Checks:
+- Error monitoring service integrated (Sentry or equivalent).
+- Next.js server-side errors captured.
+- Client-side React rendering errors captured.
+- Source maps configured for readable stack traces.
+- Alerting configured for error spikes.
+- Sensitive data excluded from error payloads.
+- Error monitoring tested with a deliberate error.
+
+Output:
+- Error monitoring integration confirmation.
+- Alert configuration record.
+- Source map verification.
+
+Current status: not completed.
+
+Notes:
+- No error monitoring service is currently configured. When alpha users hit unhandled exceptions or API 500s, there is no automatic detection.
+- This is a prerequisite for alpha so that regressions and user-facing crashes surface without requiring manual bug reports.
+
+## 35. New User Onboarding And Empty State Audit
+
+Goal: ensure a first-time user can understand and begin using the product without external guidance.
+
+Checks:
+- Portfolio dashboard empty state is informative, not blank or broken.
+- Clear call to action exists for adding first holdings and transactions.
+- Empty states on holdings, transactions, risk, portfolio review, and insights pages explain what data is needed.
+- No error states or broken UI appear for a portfolio with zero data.
+- Onboarding copy does not use investment advice language.
+- Limitations relevant to empty portfolios (no data to display, no refresh output yet) are clearly communicated.
+
+Output:
+- Empty state walkthrough report.
+- Onboarding copy review.
+- First-login UX checklist.
+
+Current status: not completed.
+
+Notes:
+- The product currently assumes users arrive with portfolio data. A new alpha user landing on an empty portfolio with no guidance is a significant friction point.
+- This audit should be conducted alongside the Alpha UX walkthrough (Section 23) using a fresh test account with no portfolio data.
+
 ## Recommended Audit Timing
 
 ### Before Public Alpha
@@ -937,6 +1008,9 @@ Must complete:
 10. Alpha User Experience Audit.
 11. Scheduled Jobs And Refresh Audit.
 12. Data Freshness UX Audit.
+13. Email Deliverability And Auth Configuration Audit.
+14. Runtime Error Monitoring Audit.
+15. New User Onboarding And Empty State Audit.
 
 ### Before First Paying User
 
@@ -985,20 +1059,23 @@ Recommended:
 4. AI Output Audit.
 5. Feature Flags And Product Modes Audit.
 6. Security Audit.
-7. Legal And Compliance Audit.
-8. Data Licensing Audit.
-9. Observability Audit.
-10. Performance Audit.
-11. ETF Holdings Data Audit.
-12. Market Vision Audit.
-13. Recommendation / Insights Audit.
-14. Privacy Audit.
-15. Scheduled Jobs And Refresh Audit.
-16. Branch And Deployment Governance Audit.
-17. Migration Safety Audit.
-18. Commercial Readiness Audit.
-19. Cost Control Audit.
-20. Alpha User Experience Audit.
+7. Email Deliverability And Auth Configuration Audit.
+8. Runtime Error Monitoring Audit.
+9. Legal And Compliance Audit.
+10. Data Licensing Audit.
+11. Observability Audit.
+12. Performance Audit.
+13. ETF Holdings Data Audit.
+14. Market Vision Audit.
+15. Recommendation / Insights Audit.
+16. Privacy Audit.
+17. Scheduled Jobs And Refresh Audit.
+18. Branch And Deployment Governance Audit.
+19. Migration Safety Audit.
+20. Commercial Readiness Audit.
+21. Cost Control Audit.
+22. Alpha User Experience Audit.
+23. New User Onboarding And Empty State Audit.
 
 ## Current Commercialization Audit Status
 
@@ -1036,6 +1113,9 @@ Recommended:
 | 30 | Browser And Device Compatibility Audit | Not completed | Needs cross-device/browser testing. |
 | 31 | Support Operations Audit | Not started | Support workflow not productized. |
 | 32 | Model And Prompt Governance Audit | Partly completed | Prompt versions and costs exist. Formal governance and regression suite remain. |
+| 33 | Email Deliverability And Auth Configuration Audit | Not completed | Supabase auth email delivery, SMTP sender, and domain authentication have not been verified. Hard blocker before alpha invites. |
+| 34 | Runtime Error Monitoring Audit | Not completed | No error monitoring service is configured. Alpha regressions and user-facing crashes will be invisible without it. |
+| 35 | New User Onboarding And Empty State Audit | Not completed | No first-login guidance or onboarding flow exists for users with an empty portfolio. |
 
 ## Current Commercialization Readiness Summary
 
@@ -1053,11 +1133,14 @@ Strong areas:
 Main blockers before public alpha:
 - Security/RLS audit (admin auth, signup restriction, RLS migrations 106/107/108, and full RLS policy audit via migration 109 completed; service-role client check, job endpoint auth verification, and penetration test remain).
 - Alpha feature-gate audit (runtime PRODUCT_MODE gate implemented and QA passed; formal route access matrix and alpha git branch audit remain).
+- Email deliverability and Supabase auth email configuration (hard blocker — must be verified before first invite).
+- Runtime error monitoring setup (needed to detect alpha regressions without relying on user reports).
 - Data provider coverage matrix.
 - Calculation regression examples.
 - AI output regression tests.
 - Scheduled job drift/reliability check.
 - Alpha UX walkthrough.
+- New user onboarding and empty state.
 
 Main blockers before paid users:
 - Legal/compliance review.
