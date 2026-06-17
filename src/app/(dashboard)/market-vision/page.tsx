@@ -1,4 +1,5 @@
 import { Archive, FilePenLine, Send } from "lucide-react";
+import { unstable_cache } from "next/cache";
 import { createContainer } from "@/server/container";
 import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Suspense } from "react";
@@ -25,6 +26,24 @@ import type { MarketThemeEvent, MarketVisionEvidencePanel, MarketVisionReport, M
 type MarketVisionPageProps = {
   searchParams?: Promise<{ reportId?: string; message?: string; error?: string }>;
 };
+
+const getCachedMarketVisionDashboard = unstable_cache(
+  async () => {
+    const container = createContainer();
+    return container.marketVisionService.getDashboard(undefined);
+  },
+  ["market-vision-dashboard"],
+  { tags: ["market-vision-data", "news-data"], revalidate: 86400 * 7 }
+);
+
+const getCachedMacroDashboardSummary = unstable_cache(
+  async () => {
+    const container = createContainer();
+    return container.macroDashboardService.getDashboardSummary();
+  },
+  ["market-vision-macro-context"],
+  { tags: ["macro-data"], revalidate: 86400 }
+);
 
 const reportSections: Array<{ key: keyof MarketVisionReport; title: string; description: string }> = [
   { key: "executiveSummary", title: "Executive Summary", description: "Top-level CIO-style readout." },
@@ -432,6 +451,20 @@ function eligibleGdeltInput(items: Array<NewsItem & { classification?: NewsClass
     .filter((item) => eligibilityService.isEligible(item));
 }
 
+const getCachedMarketVisionMacroNews = unstable_cache(
+  async () => {
+    const container = createContainer();
+    const newsDataRows = await container.newsRepository.listNewsWithClassifications({
+      sourceProvider: "newsdata",
+      includeDuplicates: false,
+      limit: 8
+    });
+    return eligibleGdeltInput(newsDataRows).slice(0, 8);
+  },
+  ["market-vision-macro-news"],
+  { tags: ["news-data"], revalidate: 86400 }
+);
+
 function ReportEditor({ report }: { report: MarketVisionReport }) {
   return (
     <Card>
@@ -546,7 +579,7 @@ function MarketVisionSupportFallback({ title, description }: { title: string; de
 async function MacroContextSection() {
   const container = createContainer();
   const macroDashboard = await measureRenderStep("market-vision:macro-context-data", () =>
-    container.macroDashboardService.getDashboardSummary()
+    getCachedMacroDashboardSummary()
   );
   const macroContext = container.macroContextService.buildContext(macroDashboard);
 
@@ -566,12 +599,7 @@ async function MacroContextSection() {
 }
 
 async function MacroWorldNewsInputSection() {
-  const container = createContainer();
-  const latestGlobalNews = await measureRenderStep("market-vision:macro-world-news-data", () =>
-    container.newsRepository
-      .listNewsWithClassifications({ sourceProvider: "newsdata", includeDuplicates: false, limit: 12 })
-      .then((newsDataRows) => eligibleGdeltInput(newsDataRows).slice(0, 8))
-  );
+  const latestGlobalNews = await measureRenderStep("market-vision:macro-world-news-data", () => getCachedMarketVisionMacroNews());
 
   return (
     <Card>
@@ -611,7 +639,9 @@ export default async function MarketVisionPage({ searchParams }: MarketVisionPag
   const container = createContainer();
   await container.authProvider.requireUser();
   const dashboard = await measureRenderStep("market-vision:report-dashboard-data", () =>
-    container.marketVisionService.getDashboard(params?.reportId)
+    params?.reportId
+      ? container.marketVisionService.getDashboard(params.reportId)
+      : getCachedMarketVisionDashboard()
   );
   const reports = isAlphaMode
     ? dashboard.reports.filter((dashboardReport) => dashboardReport.status === "published")

@@ -1,10 +1,23 @@
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { createContainer } from "@/server/container";
 import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricCard, PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import { formatPercent } from "@/lib/utils";
+
+const getCachedFundamentalsData = unstable_cache(
+  async () => {
+    const container = createContainer();
+    return Promise.all([
+      container.fundamentalsRepository.listOverviewRows(),
+      container.fundamentalsRepository.listRefreshLogs(5)
+    ]);
+  },
+  ["fundamentals-overview"],
+  { tags: ["fundamentals-data"], revalidate: 86400 }
+);
 
 function score(value: number | null | undefined) {
   return value == null ? "-" : `${Math.round(value)}/100`;
@@ -24,12 +37,7 @@ export default async function FundamentalsPage({ searchParams }: { searchParams:
   const params = await searchParams;
   const container = createContainer();
   await container.authProvider.requireUser();
-  const [rows, logs] = await measureRenderStep("fundamentals:summary-data", () =>
-    Promise.all([
-      container.fundamentalsRepository.listOverviewRows(),
-      container.fundamentalsRepository.listRefreshLogs(5)
-    ])
-  );
+  const [rows, logs] = await measureRenderStep("fundamentals:summary-data", () => getCachedFundamentalsData());
   const covered = rows.filter((row) => row.latestScore?.overallFundamentalScore != null).length;
 
   return (

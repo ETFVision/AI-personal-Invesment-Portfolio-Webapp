@@ -3,6 +3,10 @@ import { UniverseRepository } from "@/application/ports/repositories/UniverseRep
 export class InstrumentService {
   constructor(private readonly repository: UniverseRepository) {}
 
+  getBySymbol(symbol: string) {
+    return this.repository.getBySymbol(symbol);
+  }
+
   listInstruments(filters?: Parameters<UniverseRepository["listInstruments"]>[0]) {
     return this.repository.listInstruments(filters);
   }

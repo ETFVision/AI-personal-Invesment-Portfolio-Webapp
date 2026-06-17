@@ -79,6 +79,7 @@ export type InstrumentDailyReturnStats = {
 };
 
 export interface UniverseRepository {
+  getBySymbol(symbol: string): Promise<Instrument | null>;
   listInstruments(filters?: ListInstrumentsFilters): Promise<Instrument[]>;
   listDirectoryInstruments(filters?: ListInstrumentsFilters): Promise<Instrument[]>;
   upsertInstruments(input: UpsertInstrumentInput[]): Promise<void>;

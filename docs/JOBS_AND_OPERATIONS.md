@@ -87,6 +87,51 @@ Check these before relying on weekly outputs:
 - FRED macro ingestion succeeded.
 - Weekly Market Vision and recommendations ran after news/macro updates.
 
+## Cache Invalidation Pattern
+
+Each scheduled job that produces data consumed by a shared cached page calls `revalidateTag()` inside an `onSuccess` callback on `runCronJob`. The callback is invoked only after a `success` or `partial_success` status is logged; failures in the callback are swallowed and do not affect the HTTP response.
+
+Pattern:
+
+```typescript
+return runCronJob(
+  request,
+  { jobName: "...", lockTtlSeconds: ..., onSuccess: () => revalidateTag("tag-name") },
+  () => container.jobs.someJob.run(...)
+);
+```
+
+Cache tag to job mapping:
+
+| Job endpoint | Cache tag invalidated |
+|---|---|
+| `instrument-price-refresh` | `market-data` |
+| `instrument-daily-returns-refresh` | `market-data` |
+| `instrument-return-anchors-refresh` | `market-data` |
+| `instrument-market-metrics-refresh` | `market-data` |
+| `instrument-risk-refresh` | `market-data` |
+| `instrument-metadata-refresh` | `market-data` |
+| `benchmark-refresh` | `market-data` |
+| `etf-lookthrough-refresh` | `market-data` |
+| `fred-macro-ingestion` | `macro-data` |
+| `daily-news-ingestion` | `news-data` |
+| `newsdata-news-ingestion` | `news-data` |
+| `weekly-news-reconciliation` | `news-data` |
+| `weekly-market-vision` | `market-vision-data` |
+| `fundamentals-refresh` | `fundamentals-data` |
+
+Pages that consume each tag:
+
+| Cache tag | Pages cached |
+|---|---|
+| `market-data` | `/instruments/universe` |
+| `macro-data` | `/macro`, `/market-vision` (MacroContextSection) |
+| `news-data` | `/news`, `/market-vision` (theme intelligence and world-news support data) |
+| `market-vision-data` | `/market-vision` (main report) |
+| `fundamentals-data` | `/fundamentals` |
+
+Manual cache flush: `POST /api/admin/revalidate` with header `x-admin-secret: <ADMIN_SECRET>` flushes all five tags at once. Requires the `ADMIN_SECRET` environment variable to be set in Vercel.
+
 ## Common Failure Modes
 
 - Missing `CRON_SECRET`, `APP_URL`, or provider API key.

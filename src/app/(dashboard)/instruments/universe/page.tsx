@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { createContainer } from "@/server/container";
 import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,20 @@ type UniversePageProps = {
     status?: string;
   }>;
 };
+
+const getCachedUniverseData = unstable_cache(
+  async () => {
+    const container = createContainer();
+    const instruments = await container.instrumentService.listDirectoryInstruments({ isActive: true });
+    const [rows, fundamentalsRows] = await Promise.all([
+      container.instrumentMarketService.buildInstrumentDirectoryMarketViews(instruments),
+      container.fundamentalsRepository.listSummaryRowsForInstruments(instruments)
+    ]);
+    return { instruments, rows, fundamentalsRows };
+  },
+  ["universe-directory"],
+  { tags: ["market-data", "fundamentals-data"], revalidate: 86400 }
+);
 
 function instrumentBucket(row: InstrumentMarketView) {
   const instrument = row.instrument;
@@ -127,18 +142,20 @@ export default async function InstrumentUniversePage({ searchParams }: UniverseP
   const type = params?.type?.trim() ?? "";
   const sector = params?.sector?.trim() ?? "";
   const status = params?.status?.trim() ?? "";
-  const instruments = await measureRenderStep("instruments-universe:instrument-list", () =>
-    container.instrumentService.listDirectoryInstruments({
-      query: q || undefined,
-      isActive: status === "inactive" ? false : status === "all" ? undefined : true
-    })
-  );
-  const [rows, fundamentalsRows] = await measureRenderStep("instruments-universe:market-and-fundamentals-data", () =>
-    Promise.all([
-      container.instrumentMarketService.buildInstrumentDirectoryMarketViews(instruments),
-      container.fundamentalsRepository.listSummaryRowsForInstruments(instruments)
-    ])
-  );
+  const useCachedDefaultUniverse = !q && status !== "inactive" && status !== "all";
+  const { rows, fundamentalsRows } = useCachedDefaultUniverse
+    ? await measureRenderStep("instruments-universe:market-and-fundamentals-data", () => getCachedUniverseData())
+    : await measureRenderStep("instruments-universe:market-and-fundamentals-data", async () => {
+        const insts = await container.instrumentService.listDirectoryInstruments({
+          query: q || undefined,
+          isActive: status === "inactive" ? false : status === "all" ? undefined : true
+        });
+        const [r, f] = await Promise.all([
+          container.instrumentMarketService.buildInstrumentDirectoryMarketViews(insts),
+          container.fundamentalsRepository.listSummaryRowsForInstruments(insts)
+        ]);
+        return { instruments: insts, rows: r, fundamentalsRows: f };
+      });
   const fundamentalsByInstrumentId = new Map(fundamentalsRows.map((row) => [row.instrument.id, row]));
   const assetOptions = uniqueOptions(rows, (row) => row.instrument.assetCategory ?? "UNKNOWN", (value) => ASSET_CATEGORY_LABELS[value as keyof typeof ASSET_CATEGORY_LABELS] ?? value);
   const rowsForSectorOptions = rows.filter((row) => (!asset || assetClassGroupKey(row) === asset) && (!type || instrumentBucket(row) === type));

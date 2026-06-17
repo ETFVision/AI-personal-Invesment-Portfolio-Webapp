@@ -1,4 +1,126 @@
-﻿## 2026-06-17 - Page Data Map Documentation
+## 2026-06-17 - Cache MacroContextSection FRED data on market-vision page
+
+### Source
+Claude Code
+
+### Objective
+Cache the `getDashboardSummary()` call that was the last uncached DB hit on the market-vision page (~700–760ms on every warm request).
+
+### Files Changed
+- `src/app/(dashboard)/market-vision/page.tsx`
+
+### Summary
+- Added a module-level `getCachedMacroDashboardSummary` wrapper using `unstable_cache` around `macroDashboardService.getDashboardSummary()`.
+- Tagged with `macro-data` so the `fred-macro-ingestion` job invalidates it on success via its `onSuccess` callback.
+- `revalidate: 86400` safety TTL matches other shared-data pages.
+- `MacroContextSection` now receives the pre-fetched cached summary instead of issuing a live DB call on each render.
+
+### Tests Run
+- `npm.cmd run lint` — PASS.
+- `npm.cmd run typecheck` — PASS.
+- `npm.cmd run test` — PASS (268/268).
+- `npm.cmd run build` — PASS.
+
+### Result
+Completed. Market-vision macro-context-data warm timing: 700–760ms → ~12ms.
+
+---
+## 2026-06-17 - Shared-data page caching with tag-based invalidation
+
+### Source
+Claude Code
+
+### Objective
+Add `unstable_cache` wrappers for shared non-personalized data pages and invalidate those cache tags after successful scheduled data refresh jobs.
+
+### Files Changed
+- `src/server/jobs/runCronJob.ts`
+- `src/app/api/jobs/instrument-price-refresh/route.ts`
+- `src/app/api/jobs/instrument-daily-returns-refresh/route.ts`
+- `src/app/api/jobs/instrument-return-anchors-refresh/route.ts`
+- `src/app/api/jobs/instrument-market-metrics-refresh/route.ts`
+- `src/app/api/jobs/instrument-risk-refresh/route.ts`
+- `src/app/api/jobs/instrument-metadata-refresh/route.ts`
+- `src/app/api/jobs/benchmark-refresh/route.ts`
+- `src/app/api/jobs/etf-lookthrough-refresh/route.ts`
+- `src/app/api/jobs/fred-macro-ingestion/route.ts`
+- `src/app/api/jobs/daily-news-ingestion/route.ts`
+- `src/app/api/jobs/newsdata-news-ingestion/route.ts`
+- `src/app/api/jobs/weekly-news-reconciliation/route.ts`
+- `src/app/api/jobs/weekly-market-vision/route.ts`
+- `src/app/api/jobs/fundamentals-refresh/route.ts`
+- `src/app/api/admin/revalidate/route.ts`
+- `src/app/(dashboard)/macro/page.tsx`
+- `src/app/(dashboard)/fundamentals/page.tsx`
+- `src/app/(dashboard)/instruments/universe/page.tsx`
+- `src/app/(dashboard)/news/page.tsx`
+- `src/app/(dashboard)/market-vision/page.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Added optional `onSuccess` support to `runCronJob`, invoked only after `success` or `partial_success` job logging and isolated from the HTTP response if invalidation fails.
+- Wired `revalidateTag` into 14 scheduled job endpoints while preserving existing job names, query parameters, lock TTLs, and job bodies.
+- Added module-level `unstable_cache` fetchers for shared default views on `/macro`, `/fundamentals`, `/instruments/universe`, `/news`, and `/market-vision`.
+- Cached News theme intelligence and Market Vision macro/world-news support data with `news-data` tag invalidation.
+- Added `POST /api/admin/revalidate` protected by `x-admin-secret` and `ADMIN_SECRET` for manual cache flushes across market, macro, news, Market Vision, and fundamentals tags.
+- Preserved auth checks outside cache boundaries and did not cache personalized portfolio, risk, bonds, recommendations, portfolio-review, telemetry, assistant, holdings, transactions, or watchlist pages.
+
+### Tests Run
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run test` - PASS (268/268).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Universe caching applies only to the default active/no-search view. Text search, inactive status, and all-status views bypass cache to preserve existing filter behavior.
+- Cache safety revalidate is 24 hours for daily shared pages and 7 days for the default Market Vision dashboard; job-driven tag invalidation is expected to refresh data earlier.
+- No compliance wording, scoring, methodology, feature flags, PRODUCT_MODE logic, or personalized page data paths were changed.
+
+---
+## 2026-06-17 - Page Rendering Query Path Optimization
+
+### Source
+Claude Code
+
+### Objective
+Reduce unnecessary query work on instrument detail symbol lookup and Market Vision macro/world-news input.
+
+### Files Changed
+- `src/application/ports/repositories/UniverseRepository.ts`
+- `src/application/services/InstrumentService.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/app/(dashboard)/market-vision/page.tsx`
+- `supabase/migrations/110_optimize_route_queries.sql`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `getBySymbol(symbol)` to the universe repository contract and exposed it through `InstrumentService`.
+- Implemented direct active-symbol lookup in `SupabaseUniverseRepository` using the existing instrument mapper.
+- Updated `/instruments/[symbol]` to call `getBySymbol(decodedSymbol)` instead of running a text-search list query and filtering in JavaScript.
+- Reduced `/market-vision` NewsData classification fetch limit from 12 to 8 while preserving the existing filtering and display behavior.
+- Confirmed `listNewsWithClassifications({ includeDuplicates: false })` already applies `is_duplicate = false` in SQL.
+- Added `idx_news_items_provider_published` on `news_items (source_provider, published_at desc)` to support provider-filtered latest-news reads.
+- No product logic, UI copy, compliance wording, calculation methodology, feature flags, or data model tables were changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run build` - PASS.
+- `npm.cmd run test` - PASS (268/268).
+
+### Result
+Completed.
+
+### Notes for Claude
+- Expected timing improvement: `/instruments/[symbol]` removes the broad text-search/list-plus-filter lookup; `/market-vision` transfers fewer NewsData rows and gains a composite provider/date index for the latest-news access pattern.
+- `docs/chatgpt-handover.md` was listed in AGENTS.md but is not present in this worktree; `docs/ARCHITECTURE_OVERVIEW.md` and task-specific files were read instead.
+
+---
+## 2026-06-17 - Page Data Map Documentation
 
 ### Source
 Claude Code
