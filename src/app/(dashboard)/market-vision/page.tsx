@@ -569,7 +569,7 @@ async function MacroWorldNewsInputSection() {
   const container = createContainer();
   const latestGlobalNews = await measureRenderStep("market-vision:macro-world-news-data", () =>
     container.newsRepository
-      .listNewsWithClassifications({ sourceProvider: "newsdata", includeDuplicates: false, limit: 12 })
+      .listNewsWithClassifications({ sourceProvider: "newsdata", includeDuplicates: false, limit: 8 })
       .then((newsDataRows) => eligibleGdeltInput(newsDataRows).slice(0, 8))
   );
 

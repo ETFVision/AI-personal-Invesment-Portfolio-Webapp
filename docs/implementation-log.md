@@ -1,4 +1,44 @@
-﻿## 2026-06-17 - Page Data Map Documentation
+﻿## 2026-06-17 - Page Rendering Query Path Optimization
+
+### Source
+Claude Code
+
+### Objective
+Reduce unnecessary query work on instrument detail symbol lookup and Market Vision macro/world-news input.
+
+### Files Changed
+- `src/application/ports/repositories/UniverseRepository.ts`
+- `src/application/services/InstrumentService.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/app/(dashboard)/market-vision/page.tsx`
+- `supabase/migrations/110_optimize_route_queries.sql`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `getBySymbol(symbol)` to the universe repository contract and exposed it through `InstrumentService`.
+- Implemented direct active-symbol lookup in `SupabaseUniverseRepository` using the existing instrument mapper.
+- Updated `/instruments/[symbol]` to call `getBySymbol(decodedSymbol)` instead of running a text-search list query and filtering in JavaScript.
+- Reduced `/market-vision` NewsData classification fetch limit from 12 to 8 while preserving the existing filtering and display behavior.
+- Confirmed `listNewsWithClassifications({ includeDuplicates: false })` already applies `is_duplicate = false` in SQL.
+- Added `idx_news_items_provider_published` on `news_items (source_provider, published_at desc)` to support provider-filtered latest-news reads.
+- No product logic, UI copy, compliance wording, calculation methodology, feature flags, or data model tables were changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run build` - PASS.
+- `npm.cmd run test` - PASS (268/268).
+
+### Result
+Completed.
+
+### Notes for Claude
+- Expected timing improvement: `/instruments/[symbol]` removes the broad text-search/list-plus-filter lookup; `/market-vision` transfers fewer NewsData rows and gains a composite provider/date index for the latest-news access pattern.
+- `docs/chatgpt-handover.md` was listed in AGENTS.md but is not present in this worktree; `docs/ARCHITECTURE_OVERVIEW.md` and task-specific files were read instead.
+
+---
+## 2026-06-17 - Page Data Map Documentation
 
 ### Source
 Claude Code

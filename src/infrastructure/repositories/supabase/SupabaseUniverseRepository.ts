@@ -370,6 +370,22 @@ function applyInstrumentFilters(query: any, filters?: ListInstrumentsFilters) {
 export class SupabaseUniverseRepository implements UniverseRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
+  async getBySymbol(symbol: string) {
+    const normalizedSymbol = symbol.trim().toUpperCase();
+    if (!normalizedSymbol) return null;
+
+    const { data, error } = await this.db
+      .from("instruments")
+      .select("*")
+      .eq("symbol", normalizedSymbol)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+    if (isMissingUniverseTable(error)) return null;
+    if (error) throw new Error(error.message);
+    return data ? mapInstrument(data) : null;
+  }
+
   async listInstruments(filters?: ListInstrumentsFilters) {
     let query = this.db.from("instruments").select("*").order("symbol", { ascending: true });
     query = applyInstrumentFilters(query, filters);
