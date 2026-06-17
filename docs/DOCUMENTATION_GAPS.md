@@ -322,8 +322,8 @@ An independent deep architecture audit with live read-only database verification
    Additional candidate categories identified in universe comprehensiveness review (2026-06-17), in priority order:
 
    - **Priority 1 — Mid-cap ETFs** (`MID_CAP`): MDY, IJH, VO. Most impactful single addition after the 9 confirmed ETFs. Mid-cap is a common holding in a diversified US equity portfolio alongside large-cap and small-cap. Many three-fund US equity allocations would have a mid-cap ETF outside the current universe. FMP coverage TBD.
-   - **Priority 2 — International bond ETFs** (`INTERNATIONAL_BOND`): BNDX, IAGG, BWX. Investors with a global bond allocation will not find these in the current `BOND` category, which is primarily US-focused. FMP coverage TBD.
-   - **Priority 2 — TIPS / inflation-protected ETFs** (`TIPS_INFLATION_PROTECTED`): TIP, SCHP, STIP. Common inflation hedge and fixed-income portfolio diversifier. FMP coverage TBD.
+   - ~~Priority 2 — International bond ETFs~~ **Not a gap (2026-06-17 correction).** BNDX and BNDW are already in the Bond category. The only absent international bond instruments are IAGG and BWX, which are not critical given existing coverage. No separate `INTERNATIONAL_BOND` category needed.
+   - ~~Priority 2 — TIPS / inflation-protected ETFs~~ **Not a gap (2026-06-17 correction).** TIP and STIP are already in the Bond category. Only SCHP is absent, which is not critical given TIP and STIP coverage. No separate `TIPS_INFLATION_PROTECTED` category needed.
    - **Priority 3 — ESG / socially responsible ETFs** (`ESG_SOCIALLY_RESPONSIBLE`): ESGU, ESGD, ESGE, SUSA. Growing investor segment but niche for most current ETF portfolios. FMP coverage TBD.
    - **Priority 3 — Multi-asset / balanced ETFs** (`MULTI_ASSET_BALANCED`): AOR, AOM, AOA. Some investors use a single balanced ETF as their entire holding. Lower priority since the platform is better suited to multi-holding portfolios. FMP coverage TBD.
 
