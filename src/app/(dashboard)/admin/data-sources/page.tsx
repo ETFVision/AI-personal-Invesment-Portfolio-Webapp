@@ -102,11 +102,11 @@ function daysAgoIso(days: number) {
 }
 
 function fundamentalsCoverageSummary(rows: FundamentalsSummaryRow[], batchSize: number, refreshFrequencyDays: number) {
-  const completeRows = rows.filter((row) => row.profile && row.latestScore && row.latestTrendSummary && row.statementCount > 0);
+  const completeRows = rows.filter((row) => row.profile && row.latestScore && row.latestTrendSummary);
   const missingComplete = rows.length - completeRows.length;
   const staleRows = rows.filter((row) => row.profile && daysBetween(row.profile.lastRefreshedAt) >= refreshFrequencyDays);
   const actionable = rows.filter((row) => {
-    const complete = Boolean(row.profile && row.latestScore && row.latestTrendSummary && row.statementCount > 0);
+    const complete = Boolean(row.profile && row.latestScore && row.latestTrendSummary);
     const stale = row.profile ? daysBetween(row.profile.lastRefreshedAt) >= refreshFrequencyDays : true;
     return !complete || stale;
   }).length;
