@@ -13,6 +13,7 @@ The authoritative schedule is `docs/scheduled-jobs.md`.
 All protected job endpoints should use:
 
 - `assertCronAuthorized` in `src/server/jobs/cronAuth.ts`.
+- Authentication is via `Authorization: Bearer <CRON_SECRET>` header only. Query-parameter secrets (`?secret=`) are not accepted.
 - `runCronJob` in `src/server/jobs/runCronJob.ts`.
 - `CRON_SECRET`.
 - `job_locks`.

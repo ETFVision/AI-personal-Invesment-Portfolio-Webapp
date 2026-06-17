@@ -67,9 +67,9 @@ An independent deep architecture audit with live read-only database verification
    - **Closed 2026-06-17:** `.github/workflows/ci.yml` added for pull requests and pushes targeting `development` and `main`. Workflow runs lint, typecheck, test, and build. Branch protection rules enabled (GitHub Team account). `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` added as repository secrets. CI verified working end-to-end.
 
 3. CRON_SECRET accepted as URL query parameter
-   - `/api/jobs/*` routes currently accept `CRON_SECRET` as either a bearer token header or a `secret` query parameter.
-   - Query-param secrets appear in server logs, reverse-proxy access logs, and browser history. This is a log-leak risk.
-   - Action: remove the query-parameter path; require the `Authorization: Bearer <secret>` header only. Update Supabase Vault job definitions to pass the secret as a header. Low effort.
+   - **Closed 2026-06-17:** `/api/jobs/*` cron authentication now requires the `Authorization: Bearer <CRON_SECRET>` header only.
+   - The `?secret=` query-parameter path was removed from `src/server/jobs/cronAuth.ts`.
+   - Supabase Cron and manual fallback scripts already send the Bearer header, so no database migration was required.
 
 4. Assistant table/cost schema
    - Confirm exact assistant tables and cost formulas.

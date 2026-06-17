@@ -1,4 +1,43 @@
-﻿## 2026-06-17 - Add GitHub Actions CI Workflow
+﻿## 2026-06-17 - CRON_SECRET Header-Only Authentication
+
+### Source
+Claude Code
+
+### Objective
+Remove the `?secret=` query-parameter path from cron authentication and require `Authorization: Bearer <CRON_SECRET>` header only.
+
+### Files Changed
+- `src/server/jobs/cronAuth.ts`
+- `tests/cronAuth.test.ts`
+- `package.json`
+- `docs/JOBS_AND_OPERATIONS.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Removed `request.nextUrl.searchParams.get("secret")` from `assertCronAuthorized`.
+- Cron authorization now validates only the `Authorization: Bearer` header value.
+- Added unit coverage for valid Bearer auth, invalid Bearer auth, missing Authorization header, query-param-only rejection, and missing configured `CRON_SECRET`.
+- Added the new cron auth test to the explicit `npm run test` command.
+- Documented bearer-only cron authentication and closed the CRON_SECRET query-param documentation gap.
+- No database migration was required because Supabase Cron and manual fallback scripts already send the Bearer header.
+
+### Tests Run
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run test` - PASS (268/268).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- `package.json` was updated because the project test script enumerates compiled test files explicitly; without that change, the new `tests/cronAuth.test.ts` would compile but not run under `npm run test`.
+- Build route list was unchanged apart from prior tasks; all existing `/api/jobs/*` routes still build, and no `/api/jobs/price-refresh` route reappeared.
+
+---
+## 2026-06-17 - Add GitHub Actions CI Workflow
 
 ### Source
 Codex

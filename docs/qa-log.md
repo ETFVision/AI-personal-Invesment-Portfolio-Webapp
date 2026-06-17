@@ -2,6 +2,31 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-17 SGT - Task 7: CRON_SECRET Header-Only Authentication
+
+Scope:
+- Verify protected cron job endpoints no longer accept `?secret=` query-parameter authentication and require `Authorization: Bearer <CRON_SECRET>`.
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `cronAuth.ts` no longer reads `request.nextUrl.searchParams.get("secret")` | PASS |
+| Valid `Authorization: Bearer <CRON_SECRET>` returns authorized `null` | PASS |
+| Invalid Bearer header returns `401` | PASS |
+| Missing Authorization header returns `401` | PASS |
+| Query-param-only `?secret=<validToken>` returns `401` | PASS |
+| Missing configured `CRON_SECRET` returns `503` | PASS |
+| `scripts/call-job-endpoint.sh` already uses Bearer header | PASS |
+| Supabase migration `057` already sends Bearer header | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run test` (268/268) | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None. No database migration required because production Supabase Cron already sends the Bearer header.
+
 ## 2026-06-17 SGT - Task 5: CI Pipeline Browser QA
 
 Scope:
