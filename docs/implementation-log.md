@@ -1,3 +1,38 @@
+## 2026-06-17 - Phase 2B: Business Quality and Valuation labels on Insights page
+
+### Source
+Codex
+
+### Objective
+Surface Business Quality and Valuation assessment labels as colour-coded chips in the Insights page table for stock instruments. ETF, Bond ETF, Gold ETF, and Crypto rows show a dash. One numeric score (Characteristics Score) is shown per row. Column renames: Assessment -> Characteristics, Characteristics score -> Characteristics Score, Characteristics (drivers text) -> Signals.
+
+### Files Changed
+- `src/app/(dashboard)/recommendations/page.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Added render-only helpers to derive Business Quality and Valuation chip labels from `scoringBreakdown`.
+- Stock rows use `row.instrumentType === "Stock"` and show colour-coded Business Quality and Valuation chips when scores are available.
+- Non-stock rows show `-` in the Business Quality and Valuation columns.
+- Renamed the table headers to Characteristics, Characteristics Score, and Signals while preserving the existing overall assessment, numeric score, confidence, risk, signal text, and guardrail rendering logic.
+- No backend, service, scoring, database, or type files were changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run test` - PASS (272/272).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Business Quality and Valuation chips are derived from `scoringBreakdown` at render time; no new stored fields or backend changes.
+- Stock detection uses `row.instrumentType === "Stock"`.
+- Phase 2C (`SCORE_METHODOLOGY.md` and methodology page update) is still pending.
+- Browser verification of `/recommendations` was attempted but blocked by the in-app browser automation permission error (`CreateProcessAsUserW failed: 5`). Build output confirms `/recommendations` compiles successfully.
+
+---
 ## 2026-06-17 - Phase 2A stock scoring: Business Quality and Valuation separation
 
 ### Source
