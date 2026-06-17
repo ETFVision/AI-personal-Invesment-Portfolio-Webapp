@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createContainer } from "@/server/container";
 import { runCronJob } from "@/server/jobs/runCronJob";
 
@@ -7,7 +8,7 @@ export async function POST(request: NextRequest) {
   const maxBatches = Number(request.nextUrl.searchParams.get("maxBatches") ?? 3);
   const lockTtlSeconds = Number(request.nextUrl.searchParams.get("lockTtlSeconds") ?? 8 * 60);
 
-  return runCronJob(request, { jobName: "instrument-return-anchors-refresh", lockTtlSeconds }, () =>
+  return runCronJob(request, { jobName: "instrument-return-anchors-refresh", lockTtlSeconds, onSuccess: () => revalidateTag("market-data") }, () =>
     createContainer().instrumentMarketService.refreshInstrumentReturnAnchorsInBatches({
       batchSize,
       maxBatches

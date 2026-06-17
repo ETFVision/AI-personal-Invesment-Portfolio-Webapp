@@ -1,4 +1,59 @@
-﻿## 2026-06-17 - Page Rendering Query Path Optimization
+## 2026-06-17 - Shared-data page caching with tag-based invalidation
+
+### Source
+Claude Code
+
+### Objective
+Add `unstable_cache` wrappers for shared non-personalized data pages and invalidate those cache tags after successful scheduled data refresh jobs.
+
+### Files Changed
+- `src/server/jobs/runCronJob.ts`
+- `src/app/api/jobs/instrument-price-refresh/route.ts`
+- `src/app/api/jobs/instrument-daily-returns-refresh/route.ts`
+- `src/app/api/jobs/instrument-return-anchors-refresh/route.ts`
+- `src/app/api/jobs/instrument-market-metrics-refresh/route.ts`
+- `src/app/api/jobs/instrument-risk-refresh/route.ts`
+- `src/app/api/jobs/instrument-metadata-refresh/route.ts`
+- `src/app/api/jobs/benchmark-refresh/route.ts`
+- `src/app/api/jobs/etf-lookthrough-refresh/route.ts`
+- `src/app/api/jobs/fred-macro-ingestion/route.ts`
+- `src/app/api/jobs/daily-news-ingestion/route.ts`
+- `src/app/api/jobs/newsdata-news-ingestion/route.ts`
+- `src/app/api/jobs/weekly-news-reconciliation/route.ts`
+- `src/app/api/jobs/weekly-market-vision/route.ts`
+- `src/app/api/jobs/fundamentals-refresh/route.ts`
+- `src/app/api/admin/revalidate/route.ts`
+- `src/app/(dashboard)/macro/page.tsx`
+- `src/app/(dashboard)/fundamentals/page.tsx`
+- `src/app/(dashboard)/instruments/universe/page.tsx`
+- `src/app/(dashboard)/news/page.tsx`
+- `src/app/(dashboard)/market-vision/page.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Added optional `onSuccess` support to `runCronJob`, invoked only after `success` or `partial_success` job logging and isolated from the HTTP response if invalidation fails.
+- Wired `revalidateTag` into 14 scheduled job endpoints while preserving existing job names, query parameters, lock TTLs, and job bodies.
+- Added module-level `unstable_cache` fetchers for shared default views on `/macro`, `/fundamentals`, `/instruments/universe`, `/news`, and `/market-vision`.
+- Cached News theme intelligence and Market Vision macro/world-news support data with `news-data` tag invalidation.
+- Added `POST /api/admin/revalidate` protected by `x-admin-secret` and `ADMIN_SECRET` for manual cache flushes across market, macro, news, Market Vision, and fundamentals tags.
+- Preserved auth checks outside cache boundaries and did not cache personalized portfolio, risk, bonds, recommendations, portfolio-review, telemetry, assistant, holdings, transactions, or watchlist pages.
+
+### Tests Run
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run test` - PASS (268/268).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Universe caching applies only to the default active/no-search view. Text search, inactive status, and all-status views bypass cache to preserve existing filter behavior.
+- Cache safety revalidate is 24 hours for daily shared pages and 7 days for the default Market Vision dashboard; job-driven tag invalidation is expected to refresh data earlier.
+- No compliance wording, scoring, methodology, feature flags, PRODUCT_MODE logic, or personalized page data paths were changed.
+
+---
+## 2026-06-17 - Page Rendering Query Path Optimization
 
 ### Source
 Claude Code
