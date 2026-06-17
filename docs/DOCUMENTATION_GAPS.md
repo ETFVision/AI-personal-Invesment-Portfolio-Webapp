@@ -6,6 +6,46 @@ This document records areas where the handover pack intentionally avoids guessin
 
 An independent deep architecture audit with live read-only database verification was completed on 2026-06-16; see `docs/ARCHITECTURE_AUDIT_2026-06-16.md`. Several items below now carry confirmed live evidence from that pass and are marked accordingly.
 
+## Status Summary
+
+| Priority | Total items | Open | Closed |
+|---|---|---|---|
+| High | 10 | 8 | 2 |
+| Medium | 35 | 20 | 15 |
+| Low | 13 | 13 | 0 |
+| **Total** | **58** | **41** | **17** |
+
+**Open blockers — before public alpha:**
+
+| Item | Description |
+|---|---|
+| High 2 | Alpha feature gate — formal route access matrix and alpha git branch audit |
+| High 4 | Job failure alerting not yet implemented |
+| High 7 | Migration tracking — no schema ledger, duplicate-numbered files remain |
+| Medium 24 | Data provider full-universe coverage matrix not produced |
+| Medium 26 | Calculation golden regression suite and manual validation pack |
+| Medium 27 | AI output regression tests not yet written |
+| Medium 32 | Alpha UX walkthrough not yet conducted |
+
+**Open blockers — before first paying user:**
+
+| Item | Description |
+|---|---|
+| High 8 | Legal and compliance — qualified legal review required |
+| High 9 | Data licensing — provider licensing confirmation required |
+| High 10 | User privacy — data retention, export and deletion capability |
+| Medium 31 | Database — formal index audit, backup policy, restore process |
+| Medium 34 | Cost control — provider quota register and budget alerting |
+| Medium 35 | Error handling and empty state full inventory |
+
+**Pre-alpha configuration pending:**
+
+| Item | Description |
+|---|---|
+| High 5 | Set `ALLOWED_SIGNUP_EMAILS` and `ASSISTANT_DAILY_LIMIT` in Vercel before alpha invites |
+
+---
+
 ## High Priority
 
 1. RLS policy audit
@@ -18,6 +58,7 @@ An independent deep architecture audit with live read-only database verification
    - **Updated 2026-06-16:** `ingestion_events` is confirmed unused by current `src/` code and remains intentionally blocked with no policy.
    - **Updated 2026-06-16:** the zero-write-policy service-role model is formally documented in `SECURITY_AND_ACCESS_ARCHITECTURE.md`.
    - **Closed 2026-06-16:** `instrument_directory_summary` confirmed as an orphaned experimental table from page-rendering performance work; implementation reverted per `docs/PAGE_RENDERING_AUDIT.md`. Not present in any migration or source file. No policy added; no policy needed. No further action required.
+   - **Remaining open items:** confirm no service-role key is used in client components; confirm job endpoints reject unauthenticated requests in production; external penetration test before 100+ users.
 
 2. Alpha branch feature gate audit
    - Validate on `alpha` branch, not only `development`.
@@ -28,6 +69,7 @@ An independent deep architecture audit with live read-only database verification
    - Remaining gap: there is still no DB-backed `users.is_admin` role.
    - **QA passed 2026-06-16:** admin nav visible for admin users, hidden for non-admins; direct `/admin/*` requests return 404 for non-admins. Confirmed in Vercel preview deployment.
    - **QA passed 2026-06-16:** `PRODUCT_MODE=alpha` correctly hides nav items, blocks routes, suppresses Assistant drawer, and restricts Market Vision to published reports. `PRODUCT_MODE=full` restores full surface. Logo issue in alpha mode resolved (middleware asset exclusion fix — see implementation log). All checks passed; platform cleared for alpha invites.
+   - **Remaining open items:** produce a formal route access matrix document; conduct alpha git branch audit to confirm the branch can receive main updates without patchwork drift.
 
 3. Price-refresh route reconciliation (closed 2026-06-17)
    - **Confirmed live 2026-06-16:** `/api/jobs/price-refresh` is not present in `cron.job`. The active daily chain uses `instrument-price-refresh` ×5 + `portfolio-valuation-refresh`.
@@ -54,6 +96,23 @@ An independent deep architecture audit with live read-only database verification
 7. Migration tracking and numbering
    - **Confirmed live 2026-06-16:** `supabase_migrations.schema_migrations` does not exist, so applied migration state cannot be verified from a ledger.
    - Duplicate-numbered files exist (`052`, `061`, `062`). Adopt tracked/timestamped migrations and generate a consolidated schema snapshot before commercial launch.
+
+8. Legal and compliance — qualified legal review
+   - The product compliance framework is implemented: first-login disclaimer acknowledgement modal, persistent footer disclaimer, full-disclaimer modal, export/report disclaimer helper, public `/methodology` page, and `/legal/disclosures` placeholder.
+   - Public wording states that scores are deterministic analytical classifications for informational purposes only and not investment advice, securities ratings, or buy/sell/hold recommendations.
+   - Remaining: the current implementation is product positioning, not a legal opinion. A qualified legal review of Terms of Service, Privacy Policy, disclaimers, data licensing obligations, and PDPA obligations is required before first paying users.
+   - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 15.
+
+9. Data licensing — provider licensing confirmation
+   - FMP, FRED, NewsData.io, and GDELT data is used for portfolio analytics, market data, fundamentals, macro context, and news intelligence.
+   - Remaining: confirm commercial use rights, redistribution restrictions, attribution requirements, API plan limits, caching and storage rights, and user-facing display rights for each provider before charging users. This audit has not been meaningfully performed.
+   - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 16.
+
+10. User privacy audit — data retention, export and deletion
+    - User portfolios, transactions, holdings snapshots, assistant conversations, assistant messages, and telemetry snapshots are stored in Supabase.
+    - RLS hardening (migration 109) addresses per-user read isolation, but data lifecycle management is not yet implemented.
+    - Remaining: define and implement data retention policy; build user data export capability; build account deletion or data removal capability; document third-party data sharing disclosure. Required before first paying users and ideally before broad alpha.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 19.
 
 ## Medium Priority
 
@@ -149,6 +208,66 @@ An independent deep architecture audit with live read-only database verification
 23. Portfolio Review page map
    - **Closed 2026-06-17:** Portfolio Review page lineage, gap-analysis dependencies, and refresh dependencies documented in `docs/PAGE_DATA_MAP.md`.
 
+24. Data provider full-universe coverage matrix
+    - FMP coverage has been tested ad hoc for active instruments. A formal matrix covering all 306 active instruments across each data type (prices, fundamentals, ETF holdings, metadata) has not been produced.
+    - Remaining: produce a coverage matrix classifying each instrument as `SUPPORTED`, `PARTIAL_SUPPORT`, `UNSUPPORTED`, or `UNKNOWN` per data type. Identify instruments requiring fallback data or development-only demotion.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 2.
+
+25. ETF holdings provider plan expansion monitoring
+    - Top holdings are limited under the current FMP plan for many ETFs. Portfolio indirect-holding overlap is partial.
+    - Remaining: evaluate FMP plan expansion for richer top-holdings data; monitor ETF-to-security mapping coverage after any plan change. Document which ETFs have complete versus partial top-holdings coverage.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 5.
+
+26. Calculation golden regression suite and manual validation pack
+    - Core calculation methodology is documented in `docs/CALCULATION_METHODOLOGY.md` and `docs/SCORE_METHODOLOGY.md`.
+    - Remaining: build a golden portfolio regression suite with at least one worked example (TWR, volatility, sector allocation, portfolio score, ETF look-through) validated manually or against a spreadsheet. This is required before first paying users to confirm calculations are correct end-to-end.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 6.
+
+27. AI output regression tests
+    - Assistant and Market Vision prompts are hardened. No formal regression test suite exists.
+    - Remaining: add question-based regression tests for Portfolio Assistant (hallucination check, no-advice check, missing-data behavior), Market Vision narrative (no allocation language, evidence attribution), and Insights explanations (neutral characteristics framing only). These tests should be repeatable after prompt or model changes.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 8.
+
+28. Market Vision evidence traceability audit
+    - Market Vision v3 calibration is complete as of 2026-06-17. A formal evidence traceability audit — verifying that regime scorecard scores link back to stored `macro_observations` and `news_classifications` rows — has not been conducted.
+    - Remaining: for at least one published report, trace each evidence confidence score back to its source data rows in the database. Document the evidence-to-report traceability chain.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 9.
+
+29. Recommendation calibration QA after weekly refresh
+    - User-facing Insights labels now use neutral characteristics language. Calibration QA has not been run on a full production weekly cycle.
+    - Remaining: after at least one complete `app-weekly-recommendation-run` on production data, rerun the calibration QA to confirm no drift in label distribution, scoring, or compliance wording.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 10.
+
+30. Observability and reproducibility matrix
+    - Refresh logs, job logs, AI call logs, portfolio snapshots, and holdings snapshots exist.
+    - Remaining: produce a reproducibility matrix proving that each major user-facing result (portfolio score, recommendation label, Market Vision report, portfolio review output) can be traced back to its source data, calculation version, and timestamp. Follow up in `docs/TELEMETRY_ARCHITECTURE.md`.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 14.
+
+31. Database index audit, backup policy, and restore process
+    - Schema is documented and RLS is hardened through migration 109.
+    - Remaining: formal index audit to confirm key query paths are covered (portfolio, holdings, instrument metrics, telemetry); confirm Supabase backup policy is enabled; test restore process on a development database before first paying users.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 18.
+
+32. Alpha UX walkthrough
+    - Alpha feature-gate is implemented and browser QA passed 2026-06-16 for route blocking and admin gating.
+    - Remaining: end-to-end walkthrough of the alpha product as a new user, covering: no broken navigation or empty states from hidden features, no internal or admin language exposed, known limitations cleanly disclosed, and feature labels consistent with alpha positioning.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 23.
+
+33. Data freshness UX product audit
+    - Freshness diagnostics exist in Admin/Data Sources and job run logs.
+    - Remaining: audit each user-facing page to verify that stale, partial, or provider-limited data states are communicated clearly rather than silently driving high-confidence outputs. Confirm stale summary states are surfaced rather than shown as current data.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 24.
+
+34. Cost control — provider quota register and budget alerting
+    - Per-user `ASSISTANT_DAILY_LIMIT`, `estimateTokenCost()`, and env-based cost constants are implemented.
+    - Remaining: FMP call volume tracking and quota monitoring; provider quota register covering OpenAI, FMP, NewsData.io, and Vercel; define alerting or budget limits before scaling. Required before first paying users to avoid unexpected cost spikes.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 25.
+
+35. Error handling and empty state full inventory
+    - Some provider error states and empty states have been improved.
+    - Remaining: systematic audit of every user-facing page for provider failure states, empty-table explanations, stale-refresh states, and missing-data fallbacks. Confirm no raw technical errors reach users on any page.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 26.
+
 ## Low Priority
 
 1. Provider endpoint inventory
@@ -173,6 +292,44 @@ An independent deep architecture audit with live read-only database verification
    - Seed only after deciding whether alpha mode should expose the expanded categories.
    - After seeding: run Seed Universe, instrument metadata refresh, market history backfill, ETF look-through refresh, daily returns, return anchors, market metrics, risk metrics, and summary refresh QA.
    - Source: `docs/qa-log.md` — "2026-06-12 22:20 SGT - Future ETF Universe Completion Candidate".
+
+6. Branch and deployment governance formal policy
+   - Runtime `PRODUCT_MODE=alpha|full` reduces alpha branch drift risk, and the development → main → alpha merge workflow is in practice.
+   - Remaining: formal written policy documenting merge direction, Vercel deployment targets per branch, environment variable governance, and rollback process.
+   - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 21.
+
+7. Migration safety formal review
+   - Migrations are active and frequently added; duplicate-numbered files (`052`, `061`, `062`) exist.
+   - Remaining: formal production migration checklist; rollback plan for irreversible migrations; adopt timestamped migration naming before commercial launch. Extends High Priority item 7.
+   - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 22.
+
+8. Model and prompt governance policy
+   - Prompt versions and AI costs are stored and tracked in generation logs and usage tables.
+   - Remaining: formal prompt change QA process; rollback process for AI model or prompt changes; prompt regression suite covering unsafe-wording and cost-impact checks.
+   - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 32.
+
+9. Incident response playbook
+   - No formal incident playbook exists.
+   - Remaining: define incident severity levels, data-correction process, user notification policy, rollback process, provider-outage playbook, and unsafe AI output handling before first paying users.
+   - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 28.
+
+10. Accessibility audit
+    - Remaining: color contrast, keyboard navigation, focus states, screen-reader semantics, and chart accessibility labels review before broader launch.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 29.
+
+11. Browser and device compatibility audit
+    - Remaining: cross-browser test (Chrome, Edge, Safari) and viewport test (mobile, tablet, desktop) before broader launch. Auth flow, chart rendering, tables and scrolling should be verified.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 30.
+
+12. Support operations readiness
+    - No support workflow exists.
+    - Remaining: support contact, bug report process, data-issue escalation path, calculation dispute process, and internal triage categories before first paying users.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 31.
+
+13. Commercial readiness — pricing, payments, subscription flows
+    - Not started. Pricing page, payment flow, subscription enforcement, onboarding, and refund/cancellation process are not yet productized.
+    - Not required for private alpha. Required before paid launch.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 20.
 
 ## Recently Closed Documentation Gaps
 
