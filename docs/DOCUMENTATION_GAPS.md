@@ -61,7 +61,7 @@ An independent deep architecture audit with live read-only database verification
    - Verify whether scheduled jobs should publish or create drafts.
    - Follow up in `MarketVisionGenerationService.ts`.
    - Note: the scheduled portfolio-context regression was fixed on 2026-06-14; scheduled generation still creates drafts unless a separate publish policy is approved.
-   - **QA follow-up (2026-06-14):** the 2026-06-08 to 2026-06-14 report was deleted for regeneration after the v3 calibration pass. Regenerate from Admin/Data Sources and compare against the 2026-06-07 report to confirm calibration is complete before marking Market Vision v3 closed.
+   - **Closed 2026-06-17:** the 2026-06-08 to 2026-06-14 report was regenerated using `market-vision-v3` prompt with `gpt-5.4-mini`, published, confidence 78%, cost $0.053669. All regime scorecard, transition tracker, evidence scores, narrative sections, themes, and portfolio context sections are populated. No recommendation language. Market Vision v3 calibration is closed.
 
 2. CI pipeline enforcement
    - No CI pipeline exists. Tests, typecheck, and build run manually only. Nothing enforces them on PRs or branch merges.
