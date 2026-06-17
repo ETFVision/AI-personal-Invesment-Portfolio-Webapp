@@ -11,9 +11,9 @@ An independent deep architecture audit with live read-only database verification
 | Priority | Total items | Open | Closed |
 |---|---|---|---|
 | High | 10 | 8 | 2 |
-| Medium | 35 | 20 | 15 |
+| Medium | 39 | 24 | 15 |
 | Low | 13 | 13 | 0 |
-| **Total** | **58** | **41** | **17** |
+| **Total** | **62** | **45** | **17** |
 
 **Open blockers — before public alpha:**
 
@@ -26,6 +26,10 @@ An independent deep architecture audit with live read-only database verification
 | Medium 26 | Calculation golden regression suite and manual validation pack |
 | Medium 27 | AI output regression tests not yet written |
 | Medium 32 | Alpha UX walkthrough not yet conducted |
+| Medium 36 | Service-role key client component check — confirm no service-role key in browser |
+| Medium 37 | Email deliverability — verify Supabase auth emails reach alpha users |
+| Medium 38 | Runtime error monitoring — no error tracking currently in place |
+| Medium 39 | New user onboarding — first-login empty state has no guidance today |
 
 **Open blockers — before first paying user:**
 
@@ -43,6 +47,7 @@ An independent deep architecture audit with live read-only database verification
 | Item | Description |
 |---|---|
 | High 5 | Set `ALLOWED_SIGNUP_EMAILS` and `ASSISTANT_DAILY_LIMIT` in Vercel before alpha invites |
+| Medium 37 | Test Supabase auth email delivery end-to-end before first invite is sent |
 
 ---
 
@@ -267,6 +272,27 @@ An independent deep architecture audit with live read-only database verification
     - Some provider error states and empty states have been improved.
     - Remaining: systematic audit of every user-facing page for provider failure states, empty-table explanations, stale-refresh states, and missing-data fallbacks. Confirm no raw technical errors reach users on any page.
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 26.
+
+36. Service-role key client component audit
+    - Migration 109 user-scoped RLS policies assume the service-role key is only used server-side. If it appears in any client component or is exposed via a public env var, all RLS is bypassed for those users and migration 109 is rendered ineffective.
+    - Remaining: grep `src/` for `SUPABASE_SERVICE_ROLE_KEY` and `createSupabaseAdminClient` usage; confirm every call site is a server component, server action, or API route — never a client component or any `NEXT_PUBLIC_` variable. Verify this before alpha invites.
+    - Related: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 11 remaining items.
+
+37. Email deliverability and Supabase auth email configuration
+    - Supabase sends signup confirmation and password reset emails. Neither the codebase nor the docs verify whether a custom SMTP sender is configured, whether the sender domain is authenticated (SPF/DKIM), or whether auth emails will reach users rather than spam.
+    - If email confirmation is broken or goes to spam, alpha users cannot complete signup regardless of the invite gating.
+    - Remaining: confirm Supabase auth email settings (custom SMTP or Supabase default sender); verify sender domain authentication; send a test signup confirmation email end-to-end before the first alpha invite goes out.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 33.
+
+38. Runtime error monitoring
+    - No error monitoring service (Sentry, Vercel error alerts, or equivalent) is configured. When alpha users hit unhandled server errors, React rendering crashes, or API 500s, there is currently no mechanism to detect these without users reporting them manually.
+    - Remaining: integrate an error monitoring service (Sentry is the standard choice for Next.js); configure source maps for readable stack traces; set up alerting for error spikes before alpha users are onboarded.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 34.
+
+39. New user onboarding and empty state
+    - The alpha product assumes users arrive with an existing portfolio. A brand-new alpha user landing on `/portfolio` with no holdings, no transactions, and no cash balance will see an empty state with no guidance on how to get started.
+    - Remaining: define and implement a first-login empty state on the portfolio dashboard (e.g. a "get started" prompt or guide explaining how to add holdings and transactions); verify the empty state is informative and does not surface errors or broken UI.
+    - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 35.
 
 ## Low Priority
 
