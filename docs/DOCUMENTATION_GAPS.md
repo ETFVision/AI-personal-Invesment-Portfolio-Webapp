@@ -80,7 +80,7 @@ An independent deep architecture audit with live read-only database verification
    - Summarize deterministic rules, confidence scoring, source quality weighting, and review queue conditions.
 
 6. Active universe verification
-   - Confirm live Supabase active count equals intended 201 ETFs and 105 stocks, with raw crypto inactive.
+   - **Closed 2026-06-17:** live Supabase counts confirmed: 196 active `etf` + 5 active `crypto_etf` = 201 ETFs, 105 active `stock` rows. BTC, ETH, SOL raw crypto references are inactive. See `docs/qa-log.md` — Task 12.
 
 7. Security Master provider observation automation
    - Phase 6/7 tables exist for corporate actions and provider reconciliation.
