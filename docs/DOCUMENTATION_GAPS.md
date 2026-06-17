@@ -64,9 +64,9 @@ An independent deep architecture audit with live read-only database verification
    - **Closed 2026-06-17:** the 2026-06-08 to 2026-06-14 report was regenerated using `market-vision-v3` prompt with `gpt-5.4-mini`, published, confidence 78%, cost $0.053669. All regime scorecard, transition tracker, evidence scores, narrative sections, themes, and portfolio context sections are populated. No recommendation language. Market Vision v3 calibration is closed.
 
 2. CI pipeline enforcement
-   - No CI pipeline exists. Tests, typecheck, and build run manually only. Nothing enforces them on PRs or branch merges.
-   - Risk: regressions can be merged into `development` or `main` without detection. Test suite is now 248/248 green — the right time to lock this in.
-   - Action: add a GitHub Actions workflow running `npm run typecheck && npm run test && npm run build` on pull requests to `development` and `main`. Low effort.
+   - **Implemented 2026-06-17:** `.github/workflows/ci.yml` added for pull requests and pushes targeting `development` and `main`.
+   - The workflow runs `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build`.
+   - Branch protection rules still need to be enabled in GitHub repository settings to enforce the CI status check as a hard merge gate.
 
 3. CRON_SECRET accepted as URL query parameter
    - `/api/jobs/*` routes currently accept `CRON_SECRET` as either a bearer token header or a `secret` query parameter.
