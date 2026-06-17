@@ -2,6 +2,50 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-17 SGT - Task 14: Full Pre-Commercial RLS Hardening
+
+Scope:
+- Replace broad authenticated-read policies on assistant and telemetry tables with user-scoped SELECT policies before multi-user alpha invites.
+
+Risk groups:
+- Critical: Assistant conversations, messages, and usage logs.
+- High: Portfolio telemetry snapshots.
+- Low: Telemetry outcome rows scoped through parent snapshots.
+
+Migration applied:
+- `supabase/migrations/109_rls_hardening.sql`
+
+`pg_policies` verification:
+
+| Table | Policy | Result |
+|---|---|---|
+| `assistant_conversations` | `users can read own assistant conversations` | PASS |
+| `assistant_messages` | `users can read own assistant messages` | PASS |
+| `assistant_usage_logs` | `users can read own assistant usage logs` | PASS |
+| `telemetry_recommendation_snapshots` | `users can read own telemetry recommendation snapshots` | PASS |
+| `telemetry_portfolio_review_snapshots` | `users can read own telemetry portfolio review snapshots` | PASS |
+| `telemetry_recommendation_outcomes` | `users can read own telemetry recommendation outcomes` | PASS |
+| `telemetry_portfolio_review_outcomes` | `users can read own telemetry portfolio review outcomes` | PASS |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration 109 applied in Supabase | PASS |
+| `pg_policies` verification returned exactly 7 rows for the targeted tables | PASS |
+| All 7 policy names contain `own` | PASS |
+| Assistant tables scoped through direct `user_id` or parent conversation ownership | PASS |
+| Telemetry snapshot tables scoped through authenticated user's portfolio ownership | PASS |
+| Telemetry outcome tables scoped through parent snapshot portfolio ownership | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run test` | PASS (268/268) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None for the seven targeted assistant and telemetry RLS policies.
+- `instrument_directory_summary` remains closed as an orphaned experimental table per prior documentation; no policy is needed for that table.
+
 ## 2026-06-17 SGT - Task 7: CRON_SECRET Header-Only Authentication
 
 Scope:

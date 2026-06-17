@@ -1,4 +1,44 @@
-﻿## 2026-06-17 - CRON_SECRET Header-Only Authentication
+﻿## 2026-06-17 - Full Pre-Commercial RLS Hardening
+
+### Source
+Claude Code
+
+### Objective
+Replace broad-authenticated-read policies on assistant and telemetry tables with user-scoped SELECT policies before multi-user alpha invites.
+
+### Files Changed
+- `supabase/migrations/109_rls_hardening.sql`
+- `src/server/jobs/cronAuth.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+- `docs/DOCUMENTATION_GAPS.md`
+
+### Summary
+- Added and applied migration `109_rls_hardening.sql`.
+- Replaced broad `auth.role() = 'authenticated'` read policies for three assistant tables and four telemetry tables.
+- Assistant conversations and usage logs are scoped through direct `user_id`; assistant messages are scoped through parent conversation ownership.
+- Telemetry snapshots are scoped through authenticated user's portfolio ownership; telemetry outcomes are scoped through parent snapshot portfolio ownership.
+- Live `pg_policies` verification returned exactly 7 targeted rows, all with `users can read own ...` policy names.
+- No user-facing content, scoring, methodology, feature flags, or advisory language changed.
+- Fixed `src/server/jobs/cronAuth.ts` to use an equivalent relative import for `isCronSecretValid`; this was needed because the existing compiled Node test runner cannot resolve the `@/` alias at runtime.
+
+### Tests Run
+- Applied migration with `psql` - PASS.
+- `pg_policies` verification query - PASS (7/7 targeted policies updated).
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run test` - PASS (268/268).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- `instrument_directory_summary` was not changed; it remains documented as a closed orphaned experimental table with no policy needed.
+- Service-role application writes and scheduled jobs continue to bypass RLS; this migration hardens direct authenticated PostgREST reads only.
+
+---
+## 2026-06-17 - CRON_SECRET Header-Only Authentication
 
 ### Source
 Claude Code

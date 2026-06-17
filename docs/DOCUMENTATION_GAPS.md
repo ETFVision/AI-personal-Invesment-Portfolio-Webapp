@@ -9,9 +9,9 @@ An independent deep architecture audit with live read-only database verification
 ## High Priority
 
 1. RLS policy audit
-   - Verify every user-specific table is scoped correctly.
-   - Check assistant conversations, recommendation history, telemetry, portfolio review, and summary tables.
-   - `qa-log.md` contains scattered RLS fixes, but there is not yet a full table-by-table RLS audit.
+   - **Closed 2026-06-17:** pre-commercial read-policy hardening completed for the identified broad authenticated-read policies on assistant and telemetry tables.
+   - Migration `109_rls_hardening.sql` replaces broad `auth.role() = 'authenticated'` SELECT policies with user-scoped policies on `assistant_conversations`, `assistant_messages`, `assistant_usage_logs`, `telemetry_recommendation_snapshots`, `telemetry_portfolio_review_snapshots`, `telemetry_recommendation_outcomes`, and `telemetry_portfolio_review_outcomes`.
+   - Live `pg_policies` verification returned 7 rows with `users can read own ...` policy names for all seven tables.
    - **Confirmed live 2026-06-16 (see `ARCHITECTURE_AUDIT_2026-06-16.md` section 1A):** every public table currently has exactly one `SELECT`-only policy and **zero INSERT/UPDATE/DELETE policies**; user-table writes rely entirely on the service role plus application-layer `userId` scoping. Add owner-scoped write policies where needed, or formally document and test the service-role-only write model.
    - **Updated 2026-06-16:** `assets` now has migration `106_assets_rls.sql`, which enables RLS and adds one authenticated SELECT policy. No write policies were added, preserving default-deny writes for non-service-role callers. This closes the specific `assets` RLS-disabled gap.
    - **Updated 2026-06-16:** `portfolio_dashboard_summary` and `portfolio_performance_summary` now have migration `107_portfolio_summary_rls_policies.sql`, which adds user-scoped SELECT policies through `portfolio_id` -> `portfolios.user_id = auth.uid()`.

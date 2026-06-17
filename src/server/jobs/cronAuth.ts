@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "../../infrastructure/config/env";
-import { isCronSecretValid } from "@/application/services/news/cronSecret";
+import { isCronSecretValid } from "../../application/services/news/cronSecret";
 
 export function assertCronAuthorized(request: NextRequest) {
   if (!env.CRON_SECRET) {
