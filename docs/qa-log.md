@@ -2,6 +2,75 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-17 SGT - Task 14: Full Pre-Commercial RLS Hardening
+
+Scope:
+- Replace broad authenticated-read policies on assistant and telemetry tables with user-scoped SELECT policies before multi-user alpha invites.
+
+Risk groups:
+- Critical: Assistant conversations, messages, and usage logs.
+- High: Portfolio telemetry snapshots.
+- Low: Telemetry outcome rows scoped through parent snapshots.
+
+Migration applied:
+- `supabase/migrations/109_rls_hardening.sql`
+
+`pg_policies` verification:
+
+| Table | Policy | Result |
+|---|---|---|
+| `assistant_conversations` | `users can read own assistant conversations` | PASS |
+| `assistant_messages` | `users can read own assistant messages` | PASS |
+| `assistant_usage_logs` | `users can read own assistant usage logs` | PASS |
+| `telemetry_recommendation_snapshots` | `users can read own telemetry recommendation snapshots` | PASS |
+| `telemetry_portfolio_review_snapshots` | `users can read own telemetry portfolio review snapshots` | PASS |
+| `telemetry_recommendation_outcomes` | `users can read own telemetry recommendation outcomes` | PASS |
+| `telemetry_portfolio_review_outcomes` | `users can read own telemetry portfolio review outcomes` | PASS |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration 109 applied in Supabase | PASS |
+| `pg_policies` verification returned exactly 7 rows for the targeted tables | PASS |
+| All 7 policy names contain `own` | PASS |
+| Assistant tables scoped through direct `user_id` or parent conversation ownership | PASS |
+| Telemetry snapshot tables scoped through authenticated user's portfolio ownership | PASS |
+| Telemetry outcome tables scoped through parent snapshot portfolio ownership | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run test` | PASS (268/268) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None for the seven targeted assistant and telemetry RLS policies.
+- `instrument_directory_summary` remains closed as an orphaned experimental table per prior documentation; no policy is needed for that table.
+
+## 2026-06-17 SGT - Task 7: CRON_SECRET Header-Only Authentication
+
+Scope:
+- Verify protected cron job endpoints no longer accept `?secret=` query-parameter authentication and require `Authorization: Bearer <CRON_SECRET>`.
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `cronAuth.ts` no longer reads `request.nextUrl.searchParams.get("secret")` | PASS |
+| Valid `Authorization: Bearer <CRON_SECRET>` returns authorized `null` | PASS |
+| Invalid Bearer header returns `401` | PASS |
+| Missing Authorization header returns `401` | PASS |
+| Query-param-only `?secret=<validToken>` returns `401` | PASS |
+| Missing configured `CRON_SECRET` returns `503` | PASS |
+| `scripts/call-job-endpoint.sh` already uses Bearer header | PASS |
+| Supabase migration `057` already sends Bearer header | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run test` (268/268) | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None. No database migration required because production Supabase Cron already sends the Bearer header.
+
 ## 2026-06-17 SGT - Task 5: CI Pipeline Browser QA
 
 Scope:
@@ -4113,6 +4182,52 @@ Validation:
 - PASS: `npm.cmd run typecheck`
 - PASS: `npm.cmd run lint`
 - PASS: `npm.cmd run build`
+
+## 2026-06-17 - Task 12 Active Universe Count Verification
+
+Scope:
+- Confirmed active instrument counts against expected alpha universe targets.
+- Confirmed raw crypto references remain inactive.
+
+Verification queries run in Supabase SQL Editor:
+
+```sql
+SELECT instrument_type, COUNT(*) AS active_count
+FROM instruments
+WHERE is_active = true
+GROUP BY instrument_type
+ORDER BY instrument_type;
+
+SELECT COUNT(*) AS total_active_etfs
+FROM instruments
+WHERE is_active = true
+  AND instrument_type IN ('etf', 'crypto_etf');
+
+SELECT symbol, instrument_type, is_active
+FROM instruments
+WHERE instrument_type = 'crypto'
+ORDER BY symbol;
+```
+
+Results:
+
+| instrument_type | active_count |
+|---|---|
+| crypto_etf | 5 |
+| etf | 196 |
+| stock | 105 |
+
+- Total active ETFs (etf + crypto_etf): 201
+- BTC, ETH, SOL: instrument_type = crypto, is_active = false
+
+Findings:
+- PASS: 196 active `etf` rows + 5 active `crypto_etf` rows = 201 ETFs.
+- PASS: 105 active `stock` rows.
+- PASS: Total active ETFs = 201.
+- PASS: BTC, ETH, SOL raw crypto references are inactive.
+- No instrument universe changes detected since prior verification on 2026-06-12.
+
+---
 
 ## 2026-06-15 20:15 SGT - Compliance Disclaimer And Public Methodology Updates
 

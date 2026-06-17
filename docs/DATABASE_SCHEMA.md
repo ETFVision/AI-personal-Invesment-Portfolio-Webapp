@@ -269,4 +269,4 @@ Database triggers fill recommendation and telemetry identity fields from `instru
 
 Most tables enable RLS in migrations. Many reference tables allow authenticated read access broadly, while user/portfolio tables are scoped to the authenticated user. Server jobs use `SUPABASE_SERVICE_ROLE_KEY` through `createSupabaseAdminClient`.
 
-Documentation gap: a full RLS policy audit should be performed before commercialization because this document summarizes intent rather than proving every policy.
+Pre-commercial RLS hardening completed 2026-06-17 (migration `109_rls_hardening.sql`): assistant and telemetry tables that previously used broad `auth.role() = 'authenticated'` SELECT policies are now user-scoped via the established portfolio → users join pattern. See `docs/qa-log.md` — Task 14.
