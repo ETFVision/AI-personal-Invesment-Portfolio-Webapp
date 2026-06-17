@@ -135,6 +135,20 @@ Inputs:
 
 Cash flow score is the average of available scored inputs.
 
+### Financial Sector Methodology
+
+Financial-sector instruments use adjusted business-quality benchmarks because bank, insurance, and diversified financial balance sheets are structurally different from industrial company balance sheets.
+
+- Gross margin is excluded from profitability inputs for financial-sector instruments because it is not a meaningful operating measure for banks and many financial businesses.
+- ROA uses financial-sector thresholds: `scoreReturn(roa, 0.005, 0.02)`, where 0.5% is weak and 2.0% is excellent.
+- Cash flow score is excluded for financial-sector instruments because free cash flow is not directly comparable to operating companies and is not applicable to bank balance sheets in the same way.
+- Balance sheet score is computed from capital-quality proxies:
+  - ROE: `scoreReturn(roe, 0.06, 0.18)`
+  - ROA: `scoreReturn(roa, 0.004, 0.015)`
+  - Price/book: `scoreLowerBetter(priceToBook, 1.0, 3.5)`
+- Debt/equity and net debt/EBITDA are excluded for financial-sector balance sheet scoring because structural banking leverage is not the same as industrial financial risk.
+- CET1 ratio is not included because it is not available from the standard Financial Modeling Prep ratios endpoint currently used by ETFVision.
+
 ### Quality Score
 
 Average of:

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { FundamentalScoringService } from "../src/application/services/fundamentals/FundamentalScoringService";
+import { FundamentalScoringService, fundamentalScoringInternals } from "../src/application/services/fundamentals/FundamentalScoringService";
 import { FundamentalTrendCalculationService } from "../src/application/services/fundamentals/FundamentalTrendCalculationService";
 import { FundamentalsRefreshService, fundamentalsRefreshInternals } from "../src/application/services/fundamentals/FundamentalsRefreshService";
 import type { FundamentalsProvider, FundamentalsProviderResult } from "../src/application/ports/providers/FundamentalsProvider";
@@ -354,6 +354,100 @@ test("fundamental scoring gives quality growth stocks a bounded valuation adjust
   assert.ok((score.valuationScore ?? 0) >= 28);
   assert.ok((score.inputsSnapshot.rawValuationScore as number) < score.valuationScore!);
   assert.ok((score.inputsSnapshot.valuationAdjustment as number) > 0);
+});
+
+test("financial sector detection matches only bank and capital markets industries", () => {
+  const profile = (sector: string, industry: string): CompanyProfile => ({
+    instrumentId: `inst-${industry}`,
+    symbol: "TEST",
+    companyName: "Test Company",
+    sector,
+    industry,
+    country: "US",
+    exchange: "NYSE",
+    currency: "USD",
+    marketCap: null,
+    beta: null,
+    description: null,
+    website: null,
+    ceo: null,
+    ipoDate: null,
+    employees: null,
+    lastRefreshedAt: null,
+    provider: "test",
+    providerMetadata: {}
+  });
+
+  assert.equal(fundamentalScoringInternals.isFinancialSector(profile("Financial Services", "Banks - Diversified")), true);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(profile("Financial Services", "Financial - Capital Markets")), true);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(profile("Financial Services", "Financial - Credit Services")), false);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(profile("Financial Services", "Asset Management")), false);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(null), false);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(profile("Financial Services", "")), false);
+});
+
+test("financial sector scoring excludes cash flow and avoids industrial leverage penalty", () => {
+  const service = new FundamentalScoringService();
+  const score = service.calculateScore({
+    instrumentId: "inst-jpm",
+    symbol: "JPM",
+    profile: {
+      instrumentId: "inst-jpm",
+      symbol: "JPM",
+      companyName: "JPMorgan Chase & Co.",
+      sector: "Financial Services",
+      industry: "Banks-Diversified",
+      country: "US",
+      exchange: "NYSE",
+      currency: "USD",
+      marketCap: 600_000_000_000,
+      beta: null,
+      description: null,
+      website: null,
+      ceo: null,
+      ipoDate: null,
+      employees: null,
+      lastRefreshedAt: null,
+      provider: "test",
+      providerMetadata: {}
+    },
+    ratios: [{
+      instrumentId: "inst-jpm",
+      symbol: "JPM",
+      period: "annual",
+      fiscalYear: 2025,
+      fiscalQuarter: 0,
+      reportDate: "2025-12-31",
+      peRatio: 12,
+      forwardPe: 11,
+      priceToSales: 3,
+      priceToBook: 1.3,
+      evToEbitda: null,
+      evToSales: null,
+      grossMargin: null,
+      operatingMargin: 0.28,
+      netMargin: 0.24,
+      roe: 0.14,
+      roic: null,
+      roa: 0.013,
+      debtToEquity: 10,
+      netDebtToEbitda: null,
+      currentRatio: null,
+      quickRatio: null,
+      freeCashFlowYield: null,
+      revenueGrowth: 0.08,
+      epsGrowth: 0.1,
+      netIncomeGrowth: 0.09,
+      freeCashFlowGrowth: null,
+      provider: "test",
+      providerMetadata: {}
+    }],
+    statements: []
+  });
+
+  assert.equal(score.cashFlowScore, null);
+  assert.ok((score.balanceSheetScore ?? 0) > 60);
+  assert.ok((score.profitabilityScore ?? 0) > 60);
 });
 
 test("fundamentals refresh derives missing ratios from financial statements", () => {

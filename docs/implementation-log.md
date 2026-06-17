@@ -1,3 +1,49 @@
+## 2026-06-18 - Financial sector BQ scoring fix
+
+### Source
+Codex
+
+### Objective
+Correct financial-sector fundamentals scoring so bank and financial company Business Quality is assessed with sector-appropriate profitability, balance sheet, and cash-flow treatment.
+
+### Problem
+Financial-sector stocks were being scored using industrial-company balance sheet and cash-flow assumptions. This could penalize banks for structurally high debt/equity and could include free-cash-flow metrics that are not directly comparable to operating companies.
+
+### Fix
+- Added financial-sector detection based on profile sector and industry text.
+- Excluded gross margin from financial-sector profitability scoring.
+- Applied financial-sector ROA profitability thresholds.
+- Excluded cash flow score for financial-sector instruments.
+- Replaced industrial leverage/liquidity balance sheet inputs with ROE, ROA, and price/book capital-quality proxies.
+- Left recommendation scoring, valuation adjustment logic, weights, schema, and user-facing copy unchanged.
+
+### Files Changed
+- `src/application/services/fundamentals/FundamentalScoringService.ts`
+- `tests/fundamentals.test.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Financial-sector instruments now avoid industrial debt/equity and net debt/EBITDA penalties in balance sheet scoring.
+- Financial-sector `cashFlowScore` is now `null`, allowing quality averages to exclude that non-comparable component.
+- Methodology documentation now explains the financial-sector scoring treatment and why CET1 is not included.
+- Added tests covering financial-sector detection, non-financial exclusion, and high-leverage bank scoring behavior.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run test` - PASS (275/275).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Post-deploy, rerun fundamentals refresh for JPM, BAC, GS, MA, V, and any other financial-sector instruments so stored `fundamental_scores` reflect the corrected methodology.
+- Correction: isFinancialSector() tightened to match on profile.industry only using "banks" and "capital markets". Previous implementation incorrectly matched Credit Services (MA, V, PYPL) and Asset Management (BLK) via sector-level keyword matching.
+- No recommendation labels, scoring weights, valuation logic, database schema, or user-facing compliance copy were changed.
+
+---
 ## 2026-06-18 - Characteristics label threshold calibration and valuation label wording
 
 ### Source

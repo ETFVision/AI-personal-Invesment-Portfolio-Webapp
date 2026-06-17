@@ -60,6 +60,11 @@ function isQualityGrowthSector(profile: CompanyProfile | null) {
   ].some((term) => text.includes(term));
 }
 
+function isFinancialSector(profile: CompanyProfile | null): boolean {
+  const industry = (profile?.industry ?? "").toLowerCase();
+  return ["banks", "capital markets"].some((term) => industry.includes(term));
+}
+
 function qualityAdjustedValuationScore(input: {
   rawValuationScore: number | null;
   growthScore: number | null;
@@ -111,6 +116,7 @@ export class FundamentalScoringService {
     const income = latestStatement(input.statements, "income_statement");
     const cashFlow = latestStatement(input.statements, "cash_flow");
     const balanceSheet = latestStatement(input.statements, "balance_sheet");
+    const isFinancial = isFinancialSector(input.profile);
 
     const growthInputs = [
       latestRatio?.revenueGrowth,
@@ -118,14 +124,22 @@ export class FundamentalScoringService {
       latestRatio?.netIncomeGrowth,
       latestRatio?.freeCashFlowGrowth
     ];
-    const profitabilityInputs = [
-      scoreMargin(latestRatio?.grossMargin ?? null, 0.15, 0.65),
-      scoreMargin(latestRatio?.operatingMargin ?? null, 0.05, 0.35),
-      scoreMargin(latestRatio?.netMargin ?? null, 0.03, 0.25),
-      scoreReturn(latestRatio?.roe ?? null),
-      scoreReturn(latestRatio?.roic ?? null),
-      scoreReturn(latestRatio?.roa ?? null, 0.02, 0.15)
-    ];
+    const profitabilityInputs = isFinancial
+      ? [
+          scoreMargin(latestRatio?.operatingMargin ?? null, 0.05, 0.35),
+          scoreMargin(latestRatio?.netMargin ?? null, 0.03, 0.25),
+          scoreReturn(latestRatio?.roe ?? null),
+          scoreReturn(latestRatio?.roic ?? null),
+          scoreReturn(latestRatio?.roa ?? null, 0.005, 0.02)
+        ]
+      : [
+          scoreMargin(latestRatio?.grossMargin ?? null, 0.15, 0.65),
+          scoreMargin(latestRatio?.operatingMargin ?? null, 0.05, 0.35),
+          scoreMargin(latestRatio?.netMargin ?? null, 0.03, 0.25),
+          scoreReturn(latestRatio?.roe ?? null),
+          scoreReturn(latestRatio?.roic ?? null),
+          scoreReturn(latestRatio?.roa ?? null, 0.02, 0.15)
+        ];
     const valuationInputs = [
       scoreLowerBetter(latestRatio?.peRatio ?? null, 12, 60),
       scoreLowerBetter(latestRatio?.forwardPe ?? null, 12, 55),
@@ -134,13 +148,19 @@ export class FundamentalScoringService {
       scoreLowerBetter(latestRatio?.evToEbitda ?? null, 8, 35),
       scoreHigherBetter(latestRatio?.freeCashFlowYield ?? null, 0, 0.08)
     ];
-    const balanceInputs = [
-      scoreLowerBetter(latestRatio?.debtToEquity ?? null, 0.2, 3),
-      scoreLowerBetter(latestRatio?.netDebtToEbitda ?? null, 0.5, 5),
-      scoreHigherBetter(latestRatio?.currentRatio ?? null, 0.7, 2.5),
-      scoreHigherBetter(latestRatio?.quickRatio ?? null, 0.5, 2),
-      scoreHigherBetter(balanceSheet?.cashAndEquivalents && balanceSheet?.totalDebt ? balanceSheet.cashAndEquivalents / Math.max(balanceSheet.totalDebt, 1) : null, 0.05, 1)
-    ];
+    const balanceInputs = isFinancial
+      ? [
+          scoreReturn(latestRatio?.roe ?? null, 0.06, 0.18),
+          scoreReturn(latestRatio?.roa ?? null, 0.004, 0.015),
+          scoreLowerBetter(latestRatio?.priceToBook ?? null, 1.0, 3.5)
+        ]
+      : [
+          scoreLowerBetter(latestRatio?.debtToEquity ?? null, 0.2, 3),
+          scoreLowerBetter(latestRatio?.netDebtToEbitda ?? null, 0.5, 5),
+          scoreHigherBetter(latestRatio?.currentRatio ?? null, 0.7, 2.5),
+          scoreHigherBetter(latestRatio?.quickRatio ?? null, 0.5, 2),
+          scoreHigherBetter(balanceSheet?.cashAndEquivalents && balanceSheet?.totalDebt ? balanceSheet.cashAndEquivalents / Math.max(balanceSheet.totalDebt, 1) : null, 0.05, 1)
+        ];
     const freeCashFlowMargin =
       cashFlow?.freeCashFlow != null && income?.revenue ? cashFlow.freeCashFlow / income.revenue : null;
     const cashFlowInputs = [
@@ -154,7 +174,7 @@ export class FundamentalScoringService {
     const profitabilityScore = average(profitabilityInputs);
     const rawValuationScore = average(valuationInputs);
     const balanceSheetScore = average(balanceInputs);
-    const cashFlowScore = average(cashFlowInputs);
+    const cashFlowScore = isFinancial ? null : average(cashFlowInputs);
     const qualityScore = average([
       profitabilityScore,
       cashFlowScore,
@@ -238,6 +258,7 @@ export const fundamentalScoringInternals = {
   scoreLowerBetter,
   scoreHigherBetter,
   scoreMargin,
+  isFinancialSector,
   qualityAdjustedValuationScore,
   FUNDAMENTAL_SCORE_WEIGHTS
 };
