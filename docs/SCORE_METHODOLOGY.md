@@ -1,6 +1,6 @@
 # ETFVision Score Methodology
 
-Last updated: 2026-06-15 20:15:00 +08:00
+Last updated: 2026-06-17 22:30:00 +08:00
 
 Authoritative status: formula-level handover snapshot based on current code and migrations. This document explains how the main derived scores are calculated. If a score is later recalibrated, update this file in the same commit.
 
@@ -657,6 +657,8 @@ Primary code:
 - `src/application/services/recommendations/recommendationScoring.ts`
 - Type-specific recommendation services.
 
+Recommendation scores are universal instrument Characteristics Scores. They use instrument quality, market metrics, risk analytics, macro context, Market Vision alignment, fundamentals, themes, and bond profile data where applicable. They do not use a user's current holdings, portfolio concentration, duplicate exposure, allocation fit, or portfolio-fit score.
+
 ### Generic Weighted Score
 
 `overallScore = weighted average of available finite component scores`
@@ -712,6 +714,7 @@ Current presentation rules:
 - The page shows Characteristics Score assessment ranges using user-facing labels only.
 - Internal labels such as Strong Buy, Buy, Hold, Watch, Reduce, and Sell remain internal compatibility labels and should not appear in public assessment tables.
 - Formula-level details for Characteristics components, fundamentals normalization, fundamentals sub-scores, confidence, Portfolio Review formulas, and macro/Market Vision inputs remain available for transparency.
+- Characteristics Score methodology is presented as universal instrument methodology, separate from the personalized Portfolio Review methodology.
 - Dense formula tables are collapsed behind formula-detail accordions by default so non-technical users can skim the page before opening technical detail.
 - The page includes compliance positioning that scores are deterministic analytical outputs, not investment advice, trade instructions, securities ratings, or predictions of future performance.
 
@@ -774,12 +777,9 @@ Market Vision alignment:
 
 Portfolio fit:
 
-- Starts at 65.
-- +10 if not already directly held.
-- +5 if sector allocation is below 15%.
-- -25 if sector allocation is above 35%.
-- -20 if existing direct concentration is above 15%.
-- Duplicate exposure is true if directly held or sector allocation is above 35%.
+- Portfolio fit is retained as a standalone diagnostic service outside the stored recommendation scoring pipeline.
+- It is not included in Characteristics Score weights, stored recommendation inputs, score snapshots, or current recommendation run calculations.
+- Portfolio-specific analysis belongs in Portfolio Review scores, gap analysis, and exposure diagnostics, not in universal instrument Characteristics Scores.
 
 ### Type-Specific Recommendation Weights
 
@@ -787,41 +787,37 @@ Portfolio fit:
 
 | Component | Weight |
 |---|---:|
-| Fundamentals | 30% |
-| Fundamental trends | 20% |
-| Valuation | 10% |
+| Fundamentals | 32% |
+| Fundamental trends | 21% |
+| Valuation | 11% |
+| Risk analytics | 11% |
 | Market Vision alignment | 10% |
 | Theme alignment | 10% |
-| Risk analytics | 10% |
-| Portfolio fit | 5% |
 | Momentum | 5% |
 
 #### ETFs
 
 | Component | Weight |
 |---|---:|
-| Allocation fit | 25% |
-| Diversification benefit | 20% |
-| Risk analytics | 15% |
-| Macro fit | 10% |
-| Market Vision alignment | 5% |
-| Momentum | 10% |
-| Benchmark relative | 10% |
+| Risk analytics | 30% |
+| Momentum | 20% |
+| Macro fit | 18% |
+| Benchmark relative | 18% |
+| Market Vision alignment | 9% |
 | Theme fit | 5% |
 
-ETF diversification benefit is currently 72 unless duplicate exposure is true, then 40. Benchmark relative is `50 + oneYearReturn * 50`, clamped to 0-100.
+Benchmark relative is `50 + oneYearReturn * 50`, clamped to 0-100.
 
 #### Bond ETFs
 
 | Component | Weight |
 |---|---:|
-| Duration fit | 20% |
-| Rate regime | 20% |
-| Inflation regime | 15% |
-| Yield curve | 12% |
-| Credit risk | 10% |
-| Portfolio stability | 10% |
-| Diversification | 8% |
+| Duration fit | 22% |
+| Rate regime | 22% |
+| Inflation regime | 16% |
+| Yield curve | 13% |
+| Credit risk | 11% |
+| Portfolio stability | 11% |
 | Market Vision alignment | 5% |
 
 Duration fit:
@@ -845,13 +841,11 @@ Stability:
 
 | Component | Weight |
 |---|---:|
-| Inflation hedge | 25% |
-| Geopolitical hedge | 20% |
-| Diversification | 20% |
-| Rates context | 10% |
-| Market Vision alignment | 5% |
-| Portfolio fit | 10% |
-| Momentum | 10% |
+| Inflation hedge | 36% |
+| Geopolitical hedge | 29% |
+| Rates context | 14% |
+| Momentum | 14% |
+| Market Vision alignment | 7% |
 
 Inflation hedge is 78 when inflation regime includes elevated/rising, otherwise 55. Geopolitical hedge is 72 when liquidity regime includes stress/tight, otherwise 55.
 
@@ -859,17 +853,12 @@ Inflation hedge is 78 when inflation regime includes elevated/rising, otherwise 
 
 | Component | Weight |
 |---|---:|
-| Risk | 30% |
-| Portfolio concentration | 25% |
-| Momentum | 15% |
-| Liquidity regime | 15% |
-| Macro risk appetite | 7% |
-| Market Vision alignment | 3% |
-| Theme score | 5% |
-
-Crypto concentration score:
-
-`max(0, min(100, 70 - concentrationPercent * 500))`
+| Risk | 40% |
+| Momentum | 20% |
+| Liquidity regime | 20% |
+| Macro risk appetite | 9% |
+| Theme score | 7% |
+| Market Vision alignment | 4% |
 
 Liquidity score:
 
@@ -886,10 +875,9 @@ Liquidity score:
 | Valuation below 25 and fundamentals below 70 | Watch |
 | Valuation below 25 and fundamentals at least 70 | Hold |
 | Risk score above 75 | Watch unless already lower |
-| Portfolio concentration above 25% | Hold |
-| Duplicate exposure | Hold |
-| Crypto concentration above 5% | Watch |
 | Long-duration bond mismatch with restrictive/rising/high rates | Hold |
+
+The guardrail service still accepts optional concentration and duplicate-exposure inputs for backward compatibility and direct tests. The current stored recommendation scoring pipeline does not pass those portfolio-dependent inputs.
 
 ## Portfolio Review Scores
 

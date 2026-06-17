@@ -4,7 +4,6 @@ import type { MarketVisionReport } from "@/domain/marketVision/types";
 import type { RecommendationLabel, RecommendationTimeHorizon } from "@/domain/recommendations/types";
 import type { BondProfile, Instrument, InstrumentMarketMetric, InstrumentRiskMetric } from "@/domain/universe/types";
 import { instrumentTypeLabel, resolveInstrumentType } from "../instruments/InstrumentTypeResolver";
-import type { PortfolioFitResult } from "./portfolioFitService";
 import type { RecommendationRulesService, ScoreComponent } from "./RecommendationRulesService";
 import { assessmentLabel } from "./recommendationPresentation";
 
@@ -16,7 +15,6 @@ export type RecommendationInput = {
   bondProfile: BondProfile | null;
   macroRegime: MacroRegimeSnapshot | null;
   marketVisionReport: MarketVisionReport | null;
-  portfolioFit: PortfolioFitResult;
 };
 
 export type RecommendationEvaluation = {
@@ -181,8 +179,6 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
     fundamentalScore: extras.fundamentalScore,
     valuationScore: extras.valuationScore,
     riskScore: input.riskMetric?.riskScore,
-    concentrationPercent: input.portfolioFit.concentrationPercent,
-    duplicateExposure: input.portfolioFit.duplicateExposure,
     isCrypto: input.instrument.assetClass === "crypto",
     durationMismatch: durationMismatch(input.bondProfile, input.macroRegime),
     instrumentType: input.instrument.instrumentType
@@ -190,17 +186,14 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
   const instrumentType = instrumentTypeLabel(resolveInstrumentType(input.instrument));
   const dataLimitations = [
     ...components.filter((component) => component.score == null).map((component) => `${component.label} unavailable`),
-    ...input.portfolioFit.dataLimitations,
     ...(extras.dataLimitations ?? [])
   ];
   const positiveDrivers = [
     ...components.filter((component) => (component.score ?? 0) >= 70).map((component) => component.reason),
-    ...input.portfolioFit.positiveDrivers,
     ...(extras.positiveDrivers ?? [])
   ].filter(Boolean);
   const negativeDrivers = [
     ...components.filter((component) => component.score != null && (component.score ?? 0) < 45).map(componentReasonForScore),
-    ...input.portfolioFit.negativeDrivers,
     ...(extras.negativeDrivers ?? [])
   ].filter(Boolean);
   const assessment = assessmentLabel(guardrail.label);
@@ -211,7 +204,6 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
   const recommendationChangeTriggers = {
     upgrade: Array.from(new Set([
       ...weakComponents.slice(0, 4).map((component) => `${component.label} improves`),
-      ...(input.portfolioFit.concentrationPercent != null && input.portfolioFit.concentrationPercent > 0.15 ? ["Portfolio concentration falls"] : []),
       ...(guardrail.guardrails.some((item) => item.toLowerCase().includes("valuation")) ? ["Valuation improves"] : []),
       ...(extras.changeTriggers?.upgrade ?? [])
     ])).slice(0, 8),
@@ -253,7 +245,6 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
       } : null,
       marketMetric: input.marketMetric,
       riskMetric: input.riskMetric,
-      portfolioFit: input.portfolioFit,
       fundamentalScore: input.fundamentals?.latestScore ?? null,
       trendSummary: input.fundamentals?.latestTrendSummary ?? null,
       bondProfile: input.bondProfile

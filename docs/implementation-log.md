@@ -1,3 +1,79 @@
+## 2026-06-17 - Update methodology page for universal Characteristics Score model
+
+### Source
+Codex
+
+### Objective
+Remove portfolio-dependent component rows and update instrument weight tables and guardrail rows on the static methodology page to match the universal scoring model introduced in the same-day scoring update.
+
+### Files Changed
+- `src/app/methodology/page.tsx`
+- `src/app/methodology/constants.ts`
+- `docs/implementation-log.md`
+
+### Summary
+- Removed portfolio fit/allocation fit, ETF diversification benefit, and crypto portfolio concentration rows from component calculation details.
+- Updated stock, ETF, bond ETF, gold ETF, and crypto Characteristics Score weight tables to the universal scoring weights.
+- Removed portfolio concentration, duplicate exposure, and crypto allocation guardrail rows from the public methodology page.
+- Updated `METHODOLOGY_LAST_UPDATED` to `2026-06-17`.
+- Updated the Market Vision weight sentence to match the current instrument-type weights.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run test` - PASS (268/268).
+- `npm.cmd run build` - PASS (`/methodology` generated as a static route).
+
+### Result
+Completed.
+
+---
+## 2026-06-17 - Remove Portfolio-Dependent Recommendation Scoring Components
+
+### Source
+Claude Code
+
+### Objective
+Remove portfolio-dependent score components from the stored recommendation scoring pipeline so instrument Characteristics Scores are universal and based on instrument, macro, Market Vision, fundamentals, risk, market, theme, and bond-profile inputs only.
+
+### Files Changed
+- `src/application/services/recommendations/recommendationScoring.ts`
+- `src/application/services/recommendations/RecommendationService.ts`
+- `src/application/services/recommendations/StockRecommendationService.ts`
+- `src/application/services/recommendations/EtfRecommendationService.ts`
+- `src/application/services/recommendations/BondEtfRecommendationService.ts`
+- `src/application/services/recommendations/GoldRecommendationService.ts`
+- `src/application/services/recommendations/CryptoRecommendationService.ts`
+- `tests/recommendations.test.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Removed `portfolioFit` from `RecommendationInput`, `buildEvaluation()`, stored input snapshots, data limitations, positive/negative drivers, and change triggers.
+- Removed portfolio-dashboard and portfolio-review lookups from recommendation runs while preserving telemetry `portfolioId` capture.
+- Reweighted stock, ETF, bond ETF, gold, and crypto scorer components to use only universal instrument and market/macro signals.
+- Removed ETF allocation/diversification, stock portfolio fit, bond diversification, gold diversification/portfolio fit, and crypto portfolio concentration components.
+- Left `portfolioFitService.ts` unchanged as a standalone diagnostic service and kept `RecommendationRulesService.applyGuardrails()` signature unchanged.
+- Updated recommendation methodology docs to state that stored instrument Characteristics Scores no longer use portfolio fit, allocation fit, duplicate exposure, or portfolio concentration.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run test` - PASS (268/268).
+- `npm.cmd run build` - PASS.
+- Manual compiled scorer check - PASS: stock, ETF, bond ETF, gold, and crypto all returned non-null `overallScore` with `macroRegime: null` and `marketVisionReport: null` when other instrument data was present.
+
+### Result
+Completed.
+
+### Notes for Claude
+- `portfolioFitService.ts` remains on disk unchanged and is still covered by its direct test.
+- `RecommendationRulesService.applyGuardrails()` still accepts optional concentration and duplicate-exposure inputs for backward compatibility, but `buildEvaluation()` no longer passes those portfolio-dependent fields.
+- Existing stored recommendation rows will retain historical snapshots until the next recommendation run rewrites current instrument scores under the universal weighting.
+- With macro and Market Vision missing, some services can still produce a numeric `overallScore` but may receive `Insufficient Data` labels because confidence is reduced by unavailable components.
+
+---
 ## 2026-06-17 - Cache MacroContextSection FRED data on market-vision page
 
 ### Source

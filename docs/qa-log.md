@@ -901,6 +901,7 @@ Post-migration QA:
 - Confirm top underlying and top indirect exposure show issuer-level names such as `Alphabet Inc`.
 - Confirm security drill-down still shows underlying securities/source ETFs such as `GOOG`, `GOOGL`, `VOO`, `QQQ`, and `VT` where present.
 - Re-run recommendation refresh only after Portfolio Review has refreshed so portfolio-fit can consume issuer-level look-through context.
+  - **Superseded 2026-06-17:** portfolio-fit is no longer called in the recommendation scoring pipeline. Recommendation runs are now portfolio-independent and can be triggered in any order relative to Portfolio Review.
 
 Residual risks:
 - Existing saved Portfolio Review reports need a refresh before issuer IDs and security breakdown appear.

@@ -37,8 +37,6 @@ const componentCalculationRows = [
   ["Theme alignment / Theme fit / Theme score", "Starts at 55 + 5 per canonical or thematic tag, capped at +20. Adds +5 for AI / Automation, Quality, or Global Diversification. Subtracts 5 for High Beta. Clamped to 0-100."],
   ["Macro fit", "Starts at 55. Gold gains +20 when inflation is elevated/rising/sticky or liquidity is stress/tight. Crypto loses 25 under stress/tight liquidity. Long-duration bonds lose 20 in restrictive/rising/high rates. Treasuries gain 15 when growth is weak/slowing/recessionary. Technology loses 8 in restrictive rates. Consumer Staples gains 8 when growth is weak."],
   ["Market Vision alignment", "Starts at 55. Adds +8 if Market Vision text mentions the instrument sector, +8 for theme mentions, +5 for supportive/tailwind language, and subtracts 5 for risk/headwind/stress/caution language. Adds asset-specific term bonuses for bonds (+3), gold (+5), and crypto (+3)."],
-  ["Portfolio fit / Allocation fit", "Starts at 65. Adds +10 if the instrument is not already directly held and no issuer-level look-through exposure is present. Adds +5 if sector allocation is below 15%. Subtracts 25 if sector allocation is above 35%. Subtracts 20 if direct or issuer-level concentration is above 15%. Duplicate exposure is true when the instrument is directly held, issuer look-through exposure is above 5%, or sector allocation is above 35%."],
-  ["ETF diversification benefit", "Score is 72 when duplicate exposure is false and 40 when duplicate exposure is true."],
   ["ETF benchmark relative", "Score = 50 + one-year return x 50, clamped to 0-100. Missing one-year return means this component is excluded."],
   ["Bond duration fit", "Ultra-short or short duration = 72. Intermediate duration = 62. Long duration = 48."],
   ["Bond rate regime", "Long duration in high/restrictive/rising rates = 35. Ultra-short or short duration in restrictive rates = 75. Other available bond/rate combinations = 58."],
@@ -47,7 +45,6 @@ const componentCalculationRows = [
   ["Bond portfolio stability", "Cash-like liquidity role or Treasury classification = 75. Other bond profiles = 55."],
   ["Gold inflation hedge", "Elevated or rising inflation regime = 78. Other available inflation regimes = 55."],
   ["Gold geopolitical hedge", "Stress or tight liquidity regime = 72. Other available liquidity regimes = 55."],
-  ["Crypto portfolio concentration", "Score = clamp(70 - concentrationPercent x 500, 0, 100). Higher crypto concentration lowers the score."],
   ["Crypto liquidity regime", "Tight liquidity regime = 35. Macro regime available and not tight = 58. Missing macro regime is excluded."]
 ];
 
@@ -55,39 +52,35 @@ const instrumentPanels = [
   {
     title: "Stocks",
     rows: [
-      ["Fundamentals", "30%"],
-      ["Fundamental trends", "20%"],
-      ["Valuation", "10%"],
+      ["Fundamentals", "32%"],
+      ["Fundamental trends", "21%"],
+      ["Valuation", "11%"],
+      ["Risk analytics", "11%"],
       ["Market Vision alignment", "10%"],
       ["Theme alignment", "10%"],
-      ["Risk analytics", "10%"],
-      ["Portfolio fit", "5%"],
       ["Momentum", "5%"]
     ]
   },
   {
     title: "ETFs",
     rows: [
-      ["Allocation fit", "25%"],
-      ["Diversification benefit", "20%"],
-      ["Risk analytics", "15%"],
-      ["Macro fit", "10%"],
-      ["Momentum", "10%"],
-      ["Benchmark relative", "10%"],
-      ["Market Vision alignment", "5%"],
+      ["Risk analytics", "30%"],
+      ["Momentum", "20%"],
+      ["Macro fit", "18%"],
+      ["Benchmark relative", "18%"],
+      ["Market Vision alignment", "9%"],
       ["Theme fit", "5%"]
     ]
   },
   {
     title: "Bond ETFs",
     rows: [
-      ["Duration fit", "20%"],
-      ["Rate regime", "20%"],
-      ["Inflation regime", "15%"],
-      ["Yield curve", "12%"],
-      ["Credit risk", "10%"],
-      ["Portfolio stability", "10%"],
-      ["Diversification", "8%"],
+      ["Duration fit", "22%"],
+      ["Rate regime", "22%"],
+      ["Inflation regime", "16%"],
+      ["Yield curve", "13%"],
+      ["Credit risk", "11%"],
+      ["Portfolio stability", "11%"],
       ["Market Vision alignment", "5%"]
     ],
     note: "Duration fit scores are ultra-short/short = 72, intermediate = 62, and long = 48. Rate and inflation regimes can further affect the bond ETF score through deterministic macro rules."
@@ -95,27 +88,24 @@ const instrumentPanels = [
   {
     title: "Gold ETFs",
     rows: [
-      ["Inflation hedge", "25%"],
-      ["Geopolitical hedge", "20%"],
-      ["Diversification", "20%"],
-      ["Portfolio fit", "10%"],
-      ["Momentum", "10%"],
-      ["Rates context", "10%"],
-      ["Market Vision alignment", "5%"]
+      ["Inflation hedge", "36%"],
+      ["Geopolitical hedge", "29%"],
+      ["Rates context", "14%"],
+      ["Momentum", "14%"],
+      ["Market Vision alignment", "7%"]
     ]
   },
   {
     title: "Crypto",
     rows: [
-      ["Risk", "30%"],
-      ["Portfolio concentration", "25%"],
-      ["Momentum", "15%"],
-      ["Liquidity regime", "15%"],
-      ["Theme score", "5%"],
-      ["Macro risk appetite", "7%"],
-      ["Market Vision alignment", "3%"]
+      ["Risk", "40%"],
+      ["Momentum", "20%"],
+      ["Liquidity regime", "20%"],
+      ["Macro risk appetite", "9%"],
+      ["Theme score", "7%"],
+      ["Market Vision alignment", "4%"]
     ],
-    note: "Crypto scores weight risk and concentration heavily to reflect the elevated volatility profile of digital assets."
+    note: "Crypto scores weight risk and liquidity heavily to reflect the elevated volatility profile of digital assets."
   }
 ];
 
@@ -181,9 +171,6 @@ const guardrailRows = [
   ["Poor valuation cap", "Valuation below 25 and fundamentals below 70 or missing", "Capped at Weak"],
   ["Quality valuation cap", "Valuation below 25 and fundamentals at least 70", "Capped at Neutral"],
   ["Excessive instrument risk cap", "Instrument risk score above 75", "Capped at Weak unless already Poor or Significant Concerns"],
-  ["Portfolio concentration cap", "Direct holding concentration above 25%", "Capped at Neutral"],
-  ["Duplicate exposure cap", "Duplicate direct holding or exposure detected by portfolio-fit logic", "Capped at Neutral"],
-  ["Crypto allocation cap", "Crypto portfolio concentration above 5%", "Capped at Weak"],
   ["Bond duration and rate regime mismatch cap", "Long-duration bond profile in restrictive, rising, or high-rate regime", "Capped at Neutral"]
 ];
 
@@ -600,7 +587,7 @@ export default function MethodologyPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <Paragraph>
-                    Market Vision alignment uses weekly macro and market-context text as scoring input. Its component weight is 10% for stocks, 5% for ETFs, bond ETFs, and gold ETFs, and 3% for crypto.
+                    Market Vision alignment uses weekly macro and market-context text as scoring input. Its component weight is 10% for stocks, 9% for ETFs, 5% for bond ETFs, 7% for gold ETFs, and 4% for crypto.
                   </Paragraph>
                   <FormulaAccordion title="Show macro and Market Vision formula detail">
                     <MethodologyTable columns={["Macro / Market Vision element", "Calculation detail"]} rows={macroRows} />

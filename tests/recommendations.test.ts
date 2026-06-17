@@ -249,14 +249,6 @@ function input(overrides: Partial<RecommendationInput> = {}): RecommendationInpu
       updatedAt: ""
     },
     marketVisionReport: marketVisionReport(),
-    portfolioFit: {
-      score: 70,
-      concentrationPercent: 0.02,
-      duplicateExposure: false,
-      positiveDrivers: ["Adds a new sleeve"],
-      negativeDrivers: [],
-      dataLimitations: []
-    },
     ...overrides
   };
 }
@@ -353,7 +345,7 @@ test("portfolio fit uses issuer-level look-through exposure for duplicate exposu
   assert.ok(result.negativeDrivers.some((driver) => /issuer-level exposure/i.test(driver)));
 });
 
-test("stock recommendation uses fundamentals, trends, risk and portfolio fit", () => {
+test("stock recommendation uses fundamentals, trends, risk and market signals", () => {
   const result = new StockRecommendationService(rules).evaluate(input());
   assert.ok((result.overallScore ?? 0) >= 70);
   assert.match(result.recommendationReasoningSummary, /deterministic score/i);
@@ -369,15 +361,7 @@ test("stock recommendation caps poor valuation", () => {
   const result = new StockRecommendationService(rules).evaluate(input({
     fundamentals: highQualityExpensiveFundamentals(),
     riskMetric: { ...riskMetric, riskScore: 5 },
-    marketMetric: { ...marketMetric, dailyReturn: 0.04, ytdReturn: 0.5, oneYearReturn: 0.8 },
-    portfolioFit: {
-      score: 95,
-      concentrationPercent: 0.02,
-      duplicateExposure: false,
-      positiveDrivers: ["Adds a new sleeve"],
-      negativeDrivers: [],
-      dataLimitations: []
-    }
+    marketMetric: { ...marketMetric, dailyReturn: 0.04, ytdReturn: 0.5, oneYearReturn: 0.8 }
   }));
   assert.equal(result.recommendationLabel, "Hold");
   assert.ok(result.guardrailsApplied.includes("Poor valuation quality-aware cap"));
@@ -406,14 +390,6 @@ test("Market Vision cannot override hard guardrails", () => {
     fundamentals: highQualityExpensiveFundamentals(),
     riskMetric: { ...riskMetric, riskScore: 5 },
     marketMetric: { ...marketMetric, dailyReturn: 0.04, ytdReturn: 0.5, oneYearReturn: 0.8 },
-    portfolioFit: {
-      score: 95,
-      concentrationPercent: 0.02,
-      duplicateExposure: false,
-      positiveDrivers: ["Adds a new sleeve"],
-      negativeDrivers: [],
-      dataLimitations: []
-    },
     marketVisionReport: marketVisionReport({
       executiveSummary: "Technology and AI / Automation have a powerful opportunity and supportive tailwind."
     })

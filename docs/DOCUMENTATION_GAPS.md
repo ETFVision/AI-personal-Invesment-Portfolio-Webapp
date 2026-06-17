@@ -155,6 +155,7 @@ An independent deep architecture audit with live read-only database verification
    - Formula-level score documentation now exists in `docs/SCORE_METHODOLOGY.md`.
    - Public `/methodology` now presents the formula-level methodology with neutral labels and collapsible technical sections.
    - Future scoring changes must update that document in the same commit.
+   - **Updated 2026-06-17:** Universal scoring model change (remove portfolio-dependent components) updated `docs/SCORE_METHODOLOGY.md`, `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`, and `src/app/methodology/page.tsx` in the same session. All five instrument type weight tables, the portfolio-fit formula section, and the three portfolio-dependent guardrail rows were corrected. The methodology page `METHODOLOGY_LAST_UPDATED` constant was set to `2026-06-17`.
 
 9. FX conversion not implemented
    - All multi-currency portfolio calculations return native-currency estimates when FX conversion is not performed.

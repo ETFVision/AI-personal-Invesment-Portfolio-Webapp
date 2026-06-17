@@ -10,7 +10,6 @@ import type { Instrument } from "@/domain/universe/types";
 import { PortfolioService } from "@/application/services/PortfolioService";
 import { resolveInstrumentType } from "@/application/services/instruments/InstrumentTypeResolver";
 import { RecommendationRulesService } from "./RecommendationRulesService";
-import { PortfolioFitService } from "./portfolioFitService";
 import { StockRecommendationService } from "./StockRecommendationService";
 import { EtfRecommendationService } from "./EtfRecommendationService";
 import { BondEtfRecommendationService } from "./BondEtfRecommendationService";
@@ -18,7 +17,6 @@ import { GoldRecommendationService } from "./GoldRecommendationService";
 import { CryptoRecommendationService } from "./CryptoRecommendationService";
 import type { RecommendationEvaluation } from "./recommendationScoring";
 import type { TelemetrySnapshotService } from "@/application/services/telemetry/TelemetrySnapshotService";
-import { buildPortfolioExposureContext } from "../portfolio/PortfolioExposureContextService";
 
 type RecommendationServiceOptions = {
   maxInstrumentsPerRun?: number;
@@ -52,7 +50,6 @@ function mapToInput(item: RecommendationEvaluation, runId: string | null): Upser
 
 export class RecommendationService {
   private readonly rules = new RecommendationRulesService();
-  private readonly portfolioFitService = new PortfolioFitService();
   private readonly stockService = new StockRecommendationService(this.rules);
   private readonly etfService = new EtfRecommendationService(this.rules);
   private readonly bondEtfService = new BondEtfRecommendationService(this.rules);
@@ -126,7 +123,7 @@ export class RecommendationService {
     const runDate = today();
     try {
       const instruments = await this.selectInstruments(input.symbol);
-      const evaluations = await this.evaluateInstruments(instruments, input.portfolioId ?? null);
+      const evaluations = await this.evaluateInstruments(instruments);
       const run = await this.recommendationRepository.createRun({
         runDate,
         runType: input.symbol ? "single_instrument" : input.runType ?? "manual",
@@ -174,23 +171,20 @@ export class RecommendationService {
     return ["stock", "etf", "bond_etf", "gold_etf", "crypto"].includes(type);
   }
 
-  private async evaluateInstruments(instruments: Instrument[], portfolioId: string | null) {
+  private async evaluateInstruments(instruments: Instrument[]) {
     const ids = instruments.map((instrument) => instrument.id);
-    const [marketMetrics, riskMetrics, fundamentalRows, bondProfiles, macroRegime, marketVisionReport, dashboard, latestPortfolioReview] = await Promise.all([
+    const [marketMetrics, riskMetrics, fundamentalRows, bondProfiles, macroRegime, marketVisionReport] = await Promise.all([
       this.universeRepository.listInstrumentMarketMetrics(ids),
       this.universeRepository.listInstrumentRiskMetrics(ids),
       this.fundamentalsRepository.listSummaryRows(),
       this.universeRepository.listBondProfiles(),
       this.macroIndicatorRepository.getLatestRegimeSnapshot(),
-      this.marketVisionRepository ? this.marketVisionRepository.getLatestPublishedReport() : Promise.resolve(null),
-      this.getPortfolioDashboard(portfolioId),
-      portfolioId && this.portfolioReviewRepository ? this.portfolioReviewRepository.getLatestReportSummary(portfolioId) : Promise.resolve(null)
+      this.marketVisionRepository ? this.marketVisionRepository.getLatestPublishedReport() : Promise.resolve(null)
     ]);
     const marketById = new Map(marketMetrics.map((item) => [item.instrumentId, item]));
     const riskById = new Map(riskMetrics.map((item) => [item.instrumentId, item]));
     const fundamentalsById = new Map(fundamentalRows.map((item) => [item.instrument.id, item]));
     const bondById = new Map(bondProfiles.map((item) => [item.instrumentId, item]));
-    const exposureContext = dashboard ? buildPortfolioExposureContext(dashboard, latestPortfolioReview) : null;
 
     return instruments.map((instrument) => {
       const recommendationInput = {
@@ -200,8 +194,7 @@ export class RecommendationService {
         fundamentals: fundamentalsById.get(instrument.id) ?? null,
         bondProfile: bondById.get(instrument.id) ?? null,
         macroRegime,
-        marketVisionReport,
-        portfolioFit: this.portfolioFitService.assess(instrument, dashboard, exposureContext)
+        marketVisionReport
       };
       const type = resolveInstrumentType(instrument);
       if (type === "stock") return this.stockService.evaluate(recommendationInput);
@@ -212,8 +205,4 @@ export class RecommendationService {
     });
   }
 
-  private async getPortfolioDashboard(portfolioId: string | null) {
-    if (!portfolioId || !this.portfolioService) return null;
-    return this.portfolioService.getDashboard(portfolioId);
-  }
 }
