@@ -21,10 +21,10 @@ const toc = [
 ];
 
 const assessmentRows = [
-  ["85-100", "Excellent"],
-  ["70-84", "Good"],
-  ["50-69", "Neutral"],
-  ["35-49", "Weak"],
+  ["80-100", "Excellent"],
+  ["65-79", "Good"],
+  ["48-64", "Neutral"],
+  ["35-47", "Weak"],
   ["20-34", "Poor"],
   ["Below 20", "Significant Concerns"],
   ["Missing", "Insufficient Data"]

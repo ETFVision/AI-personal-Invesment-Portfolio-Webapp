@@ -34,8 +34,8 @@ function valuationLabel(valScore: number | null): { label: string; tone: string 
   if (valScore == null) return null;
   if (valScore >= 65) return { label: "Attractive", tone: "positive" };
   if (valScore >= 45) return { label: "Fair", tone: "info" };
-  if (valScore >= 30) return { label: "Stretched", tone: "warning" };
-  return { label: "Expensive", tone: "danger" };
+  if (valScore >= 30) return { label: "Premium", tone: "warning" };
+  return { label: "Elevated", tone: "danger" };
 }
 
 function extractBusinessQualityScore(breakdown: Record<string, unknown>): number | null {

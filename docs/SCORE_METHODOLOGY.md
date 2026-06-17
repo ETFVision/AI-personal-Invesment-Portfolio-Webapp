@@ -1,6 +1,6 @@
 # ETFVision Score Methodology
 
-Last updated: 2026-06-17 22:30:00 +08:00
+Last updated: 2026-06-18 00:00:00 +08:00
 
 Authoritative status: formula-level handover snapshot based on current code and migrations. This document explains how the main derived scores are calculated. If a score is later recalibrated, update this file in the same commit.
 
@@ -671,10 +671,10 @@ Internal labels are kept for scoring, guardrails, telemetry, and historical comp
 
 | Score | Internal label |
 |---:|---|
-| 85+ | Strong Buy |
-| 70-84.99 | Buy |
-| 50-69.99 | Hold |
-| 35-49.99 | Watch |
+| 80+ | Strong Buy |
+| 65-79.99 | Buy |
+| 48-64.99 | Hold |
+| 35-47.99 | Watch |
 | 20-34.99 | Reduce |
 | Below 20 | Sell |
 | Missing | Insufficient Data |

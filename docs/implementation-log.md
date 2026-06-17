@@ -1,3 +1,44 @@
+## 2026-06-18 - Characteristics label threshold calibration and valuation label wording
+
+### Source
+Codex
+
+### Objective
+Recalibrate Characteristics label thresholds from 85/70/50/35/20 to 80/65/48/35/20 to better reflect the Phase 2 score distribution. Replace valuation labels "Stretched" with "Premium" and "Expensive" with "Elevated" for institutional-grade UX wording. No scoring weights, guardrail thresholds, or database schema changes.
+
+### Files Changed
+- `src/application/services/recommendations/RecommendationRulesService.ts`
+- `src/app/(dashboard)/recommendations/page.tsx`
+- `src/app/methodology/page.tsx`
+- `src/app/methodology/constants.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `tests/recommendations.test.ts`
+- `docs/implementation-log.md`
+
+### Summary
+- `labelFromScore()` updated: 85 -> 80 (Excellent), 70 -> 65 (Good), 50 -> 48 (Neutral). Weak (35), Poor (20), Significant Concerns (<20) unchanged.
+- `valuationLabel()` updated: "Stretched" -> "Premium", "Expensive" -> "Elevated". "Fair" and "Attractive" unchanged.
+- `assessmentRows` in the public methodology page updated to 80-100, 65-79, 48-64, 35-47, 20-34.
+- `SCORE_METHODOLOGY.md` threshold table updated to match the calibrated label bands.
+- Six boundary assertions added to the existing recommendation threshold test.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run test` - PASS (272/272).
+- `npm.cmd run build` - PASS.
+- Manual compiled boundary check - PASS: 80 -> Strong Buy, 79 -> Buy, 65 -> Buy, 64 -> Hold, 48 -> Hold, 47 -> Watch.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Historical stored `recommendationLabel` values update only on the next insights run. Run insights manually after deployment to see new labels live.
+- Portfolio Review Insight Alignment scores will increase for portfolios holding AAPL, COST, MA and similar stocks that move from Watch to Hold. This is expected.
+- Phase 2C (methodology page stock weight table update from Phase 1 to Phase 2 weights) is still pending and was not touched in this task.
+- The test count remains 272 because the six new boundary checks were added as assertions inside the existing threshold test, not as separate test cases.
+
+---
 ## 2026-06-17 - Phase 2B: Business Quality and Valuation labels on Insights page
 
 ### Source

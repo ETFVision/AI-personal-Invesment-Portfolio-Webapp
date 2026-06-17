@@ -302,6 +302,12 @@ test("recommendation thresholds map scores deterministically", () => {
   assert.equal(rules.labelFromScore(40), "Watch");
   assert.equal(rules.labelFromScore(25), "Reduce");
   assert.equal(rules.labelFromScore(10), "Sell");
+  assert.equal(rules.labelFromScore(80), "Strong Buy");
+  assert.equal(rules.labelFromScore(79), "Buy");
+  assert.equal(rules.labelFromScore(65), "Buy");
+  assert.equal(rules.labelFromScore(64), "Hold");
+  assert.equal(rules.labelFromScore(48), "Hold");
+  assert.equal(rules.labelFromScore(47), "Watch");
 });
 
 test("guardrails cap weak fundamentals and low confidence", () => {

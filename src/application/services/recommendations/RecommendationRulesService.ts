@@ -62,9 +62,9 @@ export class RecommendationRulesService {
 
   labelFromScore(score: number | null): RecommendationLabel {
     if (score == null) return "Insufficient Data";
-    if (score >= 85) return "Strong Buy";
-    if (score >= 70) return "Buy";
-    if (score >= 50) return "Hold";
+    if (score >= 80) return "Strong Buy";
+    if (score >= 65) return "Buy";
+    if (score >= 48) return "Hold";
     if (score >= 35) return "Watch";
     if (score >= 20) return "Reduce";
     return "Sell";
