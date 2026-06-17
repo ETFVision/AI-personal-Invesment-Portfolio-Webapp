@@ -964,13 +964,15 @@ export class SupabaseFundamentalsRepository implements FundamentalsRepository {
 
   private async listStatementCounts(instrumentIds: string[]) {
     if (instrumentIds.length === 0) return new Map<string, number>();
-    const { data, error } = await this.db.from("financial_statements").select("instrument_id").in("instrument_id", instrumentIds);
+    const { data, error } = await this.db.rpc("get_statement_counts", {
+      p_instrument_ids: instrumentIds
+    });
     if (error) return new Map<string, number>();
     const counts = new Map<string, number>();
-    for (const row of data ?? []) {
+    for (const row of (data ?? []) as { instrument_id: string; statement_count: number }[]) {
       const instrumentId = String(row.instrument_id ?? "");
       if (!instrumentId) continue;
-      counts.set(instrumentId, (counts.get(instrumentId) ?? 0) + 1);
+      counts.set(instrumentId, row.statement_count);
     }
     return counts;
   }

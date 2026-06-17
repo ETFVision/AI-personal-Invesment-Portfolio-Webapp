@@ -1,3 +1,35 @@
+## 2026-06-18 - Fix fundamentals statement counts RPC
+
+### Source
+Codex
+
+### Objective
+Fix Admin fundamentals coverage counts by replacing the raw `financial_statements` row scan with an aggregate RPC that is not affected by PostgREST row limits.
+
+### Files Changed
+- `supabase/migrations/111_fix_statement_counts_rpc.sql`
+- `src/infrastructure/repositories/supabase/SupabaseFundamentalsRepository.ts`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `get_statement_counts(p_instrument_ids uuid[])` SQL function returning one count row per instrument.
+- Updated `listStatementCounts()` to call the RPC instead of selecting every `financial_statements.instrument_id` row and counting in JavaScript.
+- Root cause: PostgREST `db-max-rows` silently truncated the raw row scan, so later instruments could appear to have zero statements in Admin Data Sources despite complete data.
+- Applied the migration to Supabase and verified the RPC returns 105 instruments with statement counts.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run test` - PASS (274/274).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- RPC with `GROUP BY` returns at most one row per requested instrument, so it avoids the statement-table row cap that caused 20 complete / 85 incomplete in Vercel.
+
+---
 ## 2026-06-18 - Force Admin Data Sources live rendering
 
 ### Source
