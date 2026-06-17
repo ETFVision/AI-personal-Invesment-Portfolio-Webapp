@@ -50,7 +50,7 @@ export class RecommendationRulesService {
     const completenessBonus = availableRatio >= 0.95 ? 8 : availableRatio >= 0.8 ? 4 : 0;
     const agreementBonus = dispersion > 0 && dispersion < 12 ? 5 : 0;
     const strategicAgreementBonus =
-      (available.find((component) => component.key === "fundamentals")?.score ?? 0) >= 70 &&
+      (available.find((component) => component.key === "fundamentals" || component.key === "business_quality")?.score ?? 0) >= 70 &&
       (available.find((component) => component.key === "market_vision_alignment")?.score ?? 0) >= 70 &&
       (available.find((component) => component.key === "theme_alignment")?.score ?? 0) >= 70
         ? 5
@@ -75,6 +75,7 @@ export class RecommendationRulesService {
     confidenceScore: number;
     fundamentalScore?: number | null;
     valuationScore?: number | null;
+    businessQualityScore?: number | null;
     riskScore?: number | null;
     concentrationPercent?: number | null;
     duplicateExposure?: boolean;
@@ -84,6 +85,7 @@ export class RecommendationRulesService {
   }): GuardrailResult {
     const guardrails: string[] = [];
     let label = input.label;
+    const phase2Enabled = process.env.ENABLE_STOCK_PHASE2_SCORES === "true" && !input.isCrypto;
     const applyCap = (cap: RecommendationLabel, reason: string) => {
       const capped = capLabel(label, cap);
       if (capped !== label) {
@@ -95,12 +97,22 @@ export class RecommendationRulesService {
     if (input.confidenceScore < 50) {
       return { label: "Insufficient Data", guardrails: ["Data confidence below 50"] };
     }
-    if (input.fundamentalScore != null && input.fundamentalScore < 35) {
-      applyCap("Watch", "Weak fundamentals cap");
-    }
-    if (input.valuationScore != null && input.valuationScore < 25) {
-      const qualityAwareCap = input.fundamentalScore != null && input.fundamentalScore >= 70 ? "Hold" : "Watch";
-      applyCap(qualityAwareCap, qualityAwareCap === "Hold" ? "Poor valuation quality-aware cap" : "Poor valuation cap");
+    if (phase2Enabled) {
+      const qualityScore = input.businessQualityScore ?? input.fundamentalScore;
+      if (qualityScore != null && qualityScore < 35) {
+        applyCap("Watch", input.businessQualityScore != null ? "Weak business quality cap" : "Weak fundamentals cap");
+      }
+      if (input.valuationScore != null && input.valuationScore < 15) {
+        applyCap("Hold", "Severely stretched valuation characteristics cap");
+      }
+    } else {
+      if (input.fundamentalScore != null && input.fundamentalScore < 35) {
+        applyCap("Watch", "Weak fundamentals cap");
+      }
+      if (input.valuationScore != null && input.valuationScore < 25) {
+        const qualityAwareCap = input.fundamentalScore != null && input.fundamentalScore >= 70 ? "Hold" : "Watch";
+        applyCap(qualityAwareCap, qualityAwareCap === "Hold" ? "Poor valuation quality-aware cap" : "Poor valuation cap");
+      }
     }
     if (input.riskScore != null && input.riskScore > 75) {
       applyCap(input.label === "Sell" || input.label === "Reduce" ? input.label : "Watch", "Excessive instrument risk cap");

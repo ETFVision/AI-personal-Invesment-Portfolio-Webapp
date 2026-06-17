@@ -8,12 +8,30 @@ import { GoldRecommendationService } from "../src/application/services/recommend
 import { CryptoRecommendationService } from "../src/application/services/recommendations/CryptoRecommendationService";
 import { PortfolioFitService } from "../src/application/services/recommendations/portfolioFitService";
 import { emptyMarketVisionMetadata } from "../src/application/services/marketVision/MarketVisionGenerationService";
-import type { RecommendationInput } from "../src/application/services/recommendations/recommendationScoring";
+import { scoreBusinessQuality, type RecommendationInput } from "../src/application/services/recommendations/recommendationScoring";
 import type { Instrument, InstrumentMarketMetric, InstrumentRiskMetric } from "../src/domain/universe/types";
-import type { FundamentalsSummaryRow } from "../src/domain/fundamentals/types";
+import type { FundamentalScore, FundamentalsSummaryRow } from "../src/domain/fundamentals/types";
 import type { MarketVisionReport } from "../src/domain/marketVision/types";
 
 const rules = new RecommendationRulesService();
+
+function withStockPhase2Flag<T>(enabled: boolean, callback: () => T): T {
+  const previous = process.env.ENABLE_STOCK_PHASE2_SCORES;
+  if (enabled) {
+    process.env.ENABLE_STOCK_PHASE2_SCORES = "true";
+  } else {
+    delete process.env.ENABLE_STOCK_PHASE2_SCORES;
+  }
+  try {
+    return callback();
+  } finally {
+    if (previous == null) {
+      delete process.env.ENABLE_STOCK_PHASE2_SCORES;
+    } else {
+      process.env.ENABLE_STOCK_PHASE2_SCORES = previous;
+    }
+  }
+}
 
 function instrument(overrides: Partial<Instrument> = {}): Instrument {
   return {
@@ -253,6 +271,30 @@ function input(overrides: Partial<RecommendationInput> = {}): RecommendationInpu
   };
 }
 
+function phase2QualityFundamentals(overrides: Partial<FundamentalScore> = {}): FundamentalsSummaryRow {
+  const row = fundamentals(62, 20);
+  return {
+    ...row,
+    latestScore: row.latestScore ? {
+      ...row.latestScore,
+      growthScore: 90,
+      profitabilityScore: 92,
+      balanceSheetScore: 86,
+      cashFlowScore: 88,
+      qualityScore: 90,
+      overallFundamentalScore: 62,
+      valuationScore: 20,
+      ...overrides
+    } : null,
+    latestTrendSummary: row.latestTrendSummary ? {
+      ...row.latestTrendSummary,
+      overallTrendScore: 90,
+      overallConfidenceScore: 90,
+      overallTrendDirection: "improving"
+    } : null
+  };
+}
+
 test("recommendation thresholds map scores deterministically", () => {
   assert.equal(rules.labelFromScore(90), "Strong Buy");
   assert.equal(rules.labelFromScore(74), "Buy");
@@ -345,6 +387,38 @@ test("portfolio fit uses issuer-level look-through exposure for duplicate exposu
   assert.ok(result.negativeDrivers.some((driver) => /issuer-level exposure/i.test(driver)));
 });
 
+test("scoreBusinessQuality returns weighted average of non-valuation fundamentals", () => {
+  const score: FundamentalScore = {
+    instrumentId: "instrument-1",
+    symbol: "TEST",
+    asOfDate: "2026-06-01",
+    growthScore: 80,
+    profitabilityScore: 75,
+    valuationScore: 20,
+    balanceSheetScore: 65,
+    cashFlowScore: 70,
+    qualityScore: 72,
+    overallFundamentalScore: 62,
+    scoreConfidence: 88,
+    explanation: "Test score.",
+    inputsSnapshot: {}
+  };
+
+  const businessQuality = scoreBusinessQuality(score);
+  assert.ok(businessQuality != null);
+  assert.ok(Math.abs(businessQuality - 73.3) < 0.0001);
+  assert.notEqual(businessQuality, score.overallFundamentalScore);
+  assert.equal(scoreBusinessQuality({
+    ...score,
+    growthScore: null,
+    profitabilityScore: null,
+    balanceSheetScore: null,
+    cashFlowScore: null,
+    qualityScore: null,
+    valuationScore: 95
+  }), null);
+});
+
 test("stock recommendation uses fundamentals, trends, risk and market signals", () => {
   const result = new StockRecommendationService(rules).evaluate(input());
   assert.ok((result.overallScore ?? 0) >= 70);
@@ -355,6 +429,56 @@ test("stock recommendation uses fundamentals, trends, risk and market signals", 
   assert.ok(result.recommendationChangeTriggers.upgrade.length > 0);
   assert.ok(result.recommendationChangeTriggers.downgrade.length > 0);
   assert.ok((result.scoringBreakdown.components as Array<{ key: string }>).some((component) => component.key === "market_vision_alignment"));
+  assert.equal((result.scoringBreakdown as { businessQualityScore?: number | null }).businessQualityScore != null, true);
+});
+
+test("stock Phase 2 scoring uses business quality not overall fundamentals", () => {
+  const testInput = input({
+    fundamentals: phase2QualityFundamentals(),
+    riskMetric: { ...riskMetric, riskScore: 12 },
+    marketMetric: { ...marketMetric, dailyReturn: 0.02, ytdReturn: 0.2, oneYearReturn: 0.3 },
+    marketVisionReport: marketVisionReport({
+      executiveSummary: "Technology and AI / Automation have supportive tailwind and constructive opportunity."
+    })
+  });
+
+  const phase1 = withStockPhase2Flag(false, () => new StockRecommendationService(rules).evaluate(testInput));
+  const phase2 = withStockPhase2Flag(true, () => new StockRecommendationService(rules).evaluate(testInput));
+  const components = phase2.scoringBreakdown.components as Array<{ key: string }>;
+
+  assert.ok(components.some((component) => component.key === "business_quality"));
+  assert.ok(!components.some((component) => component.key === "fundamentals"));
+  assert.ok((phase2.overallScore ?? 0) > (phase1.overallScore ?? 0));
+  assert.equal((phase2.scoringBreakdown as { businessQualityScore?: number | null }).businessQualityScore != null, true);
+});
+
+test("stock Phase 2 valuation guardrail only caps at valuation below 15", () => {
+  const result = withStockPhase2Flag(true, () => new StockRecommendationService(rules).evaluate(input({
+    fundamentals: phase2QualityFundamentals({ valuationScore: 22, overallFundamentalScore: 62 }),
+    riskMetric: { ...riskMetric, riskScore: 12 },
+    marketMetric: { ...marketMetric, dailyReturn: 0.02, ytdReturn: 0.2, oneYearReturn: 0.3 },
+    marketVisionReport: marketVisionReport({
+      executiveSummary: "Technology and AI / Automation have supportive tailwind and constructive opportunity."
+    })
+  })));
+
+  assert.notEqual(result.recommendationLabel, "Watch");
+  assert.ok(!result.guardrailsApplied.includes("Poor valuation cap"));
+  assert.ok(!result.guardrailsApplied.includes("Poor valuation quality-aware cap"));
+});
+
+test("stock Phase 2 valuation below 15 caps at Hold", () => {
+  const result = withStockPhase2Flag(true, () => new StockRecommendationService(rules).evaluate(input({
+    fundamentals: phase2QualityFundamentals({ valuationScore: 10, overallFundamentalScore: 95 }),
+    riskMetric: { ...riskMetric, riskScore: 5 },
+    marketMetric: { ...marketMetric, dailyReturn: 0.04, ytdReturn: 0.5, oneYearReturn: 0.8 },
+    marketVisionReport: marketVisionReport({
+      executiveSummary: "Technology and AI / Automation have supportive tailwind and constructive opportunity."
+    })
+  })));
+
+  assert.equal(result.recommendationLabel, "Hold");
+  assert.ok(result.guardrailsApplied.includes("Severely stretched valuation characteristics cap"));
 });
 
 test("stock recommendation caps poor valuation", () => {

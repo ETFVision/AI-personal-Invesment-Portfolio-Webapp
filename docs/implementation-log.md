@@ -1,3 +1,45 @@
+## 2026-06-17 - Phase 2A stock scoring: Business Quality and Valuation separation
+
+### Source
+Codex
+
+### Objective
+Eliminate double-counting of valuation in stock Characteristics Score by introducing a separate Business Quality Score that excludes valuation. Feature-flagged behind `ENABLE_STOCK_PHASE2_SCORES`. Phase 1 behavior is unchanged when the flag is off.
+
+### Files Changed
+- `src/application/services/recommendations/recommendationScoring.ts`
+- `src/application/services/recommendations/StockRecommendationService.ts`
+- `src/application/services/recommendations/RecommendationRulesService.ts`
+- `tests/recommendations.test.ts`
+- `.env.example`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `scoreBusinessQuality()` using growth 25%, profitability 25%, cash flow 20%, balance sheet 15%, and quality 15%; valuation is excluded and missing sub-scores are excluded from the denominator.
+- Added the `ENABLE_STOCK_PHASE2_SCORES` flag. When absent or not `true`, the stock scorer keeps the Phase 1 component weights and valuation guardrail behavior.
+- Added Phase 2 stock component weights: Business Quality 40%, Valuation 20%, Fundamental Trends 15%, Risk Analytics 10%, Market Vision Alignment 7%, Theme Alignment 5%, Momentum 3%.
+- Added optional `businessQualityScore` passthrough to guardrails and scoring breakdown so telemetry can compare Phase 1 and Phase 2 behavior.
+- Added Phase 2-only guardrail behavior: weak business quality can cap at Watch, valuation below 15 caps at Hold, and valuation between 15 and 25 no longer triggers the old valuation cap when business quality is intact.
+- Documented the feature flag in `.env.example`.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run test` - PASS (272/272).
+- `npm.cmd run build` - PASS.
+- Manual compiled stock scorer check - PASS: with `ENABLE_STOCK_PHASE2_SCORES=true`, the component breakdown uses `business_quality` and omits `fundamentals`; a high-quality expensive stock fixture produced a higher Phase 2 overall score than Phase 1 in tests.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Phase 2B (UI display of Business Quality and Valuation as separate score cards) is a separate task and was not implemented here.
+- SCORE_METHODOLOGY.md and methodology page Phase 2C updates are a separate task and were not changed here.
+- Valuation guardrail is softened under Phase 2: below 15 caps at Hold only; between 15 and 25 no longer triggers a cap when Business Quality is intact.
+- `businessQualityScore` is stored in `scoringBreakdown` for telemetry comparison regardless of flag state.
+- 2026-06-17 Claude fix: `confidenceScore()` `strategicAgreementBonus` updated to recognise `"business_quality"` key alongside `"fundamentals"` so Phase 2 stocks with high Business Quality and Market Vision alignment correctly receive the +5 confidence bonus. Tests: 272/272.
+
+---
 ## 2026-06-17 - Update methodology page for universal Characteristics Score model
 
 ### Source

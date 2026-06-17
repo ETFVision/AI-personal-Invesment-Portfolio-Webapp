@@ -1,4 +1,4 @@
-import type { FundamentalsSummaryRow } from "@/domain/fundamentals/types";
+import type { FundamentalScore, FundamentalsSummaryRow } from "@/domain/fundamentals/types";
 import type { MacroRegimeSnapshot } from "@/domain/macro/types";
 import type { MarketVisionReport } from "@/domain/marketVision/types";
 import type { RecommendationLabel, RecommendationTimeHorizon } from "@/domain/recommendations/types";
@@ -64,6 +64,20 @@ export function scoreThemeFit(instrument: Instrument) {
   if (themes.has("AI / Automation") || themes.has("Quality") || themes.has("Global Diversification")) score += 5;
   if (themes.has("High Beta")) score -= 5;
   return Math.max(0, Math.min(100, score));
+}
+
+export function scoreBusinessQuality(score: FundamentalScore | null): number | null {
+  const components = [
+    { value: score?.growthScore ?? null, weight: 0.25 },
+    { value: score?.profitabilityScore ?? null, weight: 0.25 },
+    { value: score?.cashFlowScore ?? null, weight: 0.20 },
+    { value: score?.balanceSheetScore ?? null, weight: 0.15 },
+    { value: score?.qualityScore ?? null, weight: 0.15 }
+  ].filter((component) => component.value != null && Number.isFinite(component.value));
+  if (components.length === 0) return null;
+  const totalWeight = components.reduce((sum, component) => sum + component.weight, 0);
+  const weighted = components.reduce((sum, component) => sum + (component.value as number) * component.weight, 0);
+  return Math.max(0, Math.min(100, weighted / totalWeight));
 }
 
 export function scoreMacroFit(instrument: Instrument, regime: MacroRegimeSnapshot | null, bondProfile?: BondProfile | null) {
@@ -165,6 +179,7 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
   dataLimitations?: string[];
   fundamentalScore?: number | null;
   valuationScore?: number | null;
+  businessQualityScore?: number | null;
   changeTriggers?: {
     upgrade?: string[];
     downgrade?: string[];
@@ -178,6 +193,7 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
     confidenceScore: confidence,
     fundamentalScore: extras.fundamentalScore,
     valuationScore: extras.valuationScore,
+    businessQualityScore: extras.businessQualityScore,
     riskScore: input.riskMetric?.riskScore,
     isCrypto: input.instrument.assetClass === "crypto",
     durationMismatch: durationMismatch(input.bondProfile, input.macroRegime),
@@ -258,7 +274,8 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
         reason: componentReasonForScore(component)
       })),
       baseLabel,
-      finalLabel: guardrail.label
+      finalLabel: guardrail.label,
+      businessQualityScore: extras.businessQualityScore ?? null
     }
   } satisfies RecommendationEvaluation;
 }
