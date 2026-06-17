@@ -1,4 +1,41 @@
-﻿## 2026-06-17 - Remove Orphaned price-refresh HTTP Route
+﻿## 2026-06-17 - Add GitHub Actions CI Workflow
+
+### Source
+Codex
+
+### Objective
+Add a GitHub Actions CI workflow for pull requests and pushes targeting `development` and `main`.
+
+### Files Changed
+- `.github/workflows/ci.yml` (new)
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added CI workflow triggered by `pull_request` and `push` events for `development` and `main`.
+- Workflow installs dependencies with `npm ci` and runs lint, typecheck, test, and build.
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are sourced from GitHub secrets.
+- Server-only runtime values use CI placeholder values where real credentials are not needed.
+- No source files, package scripts, existing workflows, scoring, methodology, or user-facing wording changed.
+
+### Tests Run
+- Workflow YAML created and inspected for valid structure.
+- PowerShell workflow structure check - PASS.
+- `git diff --check` - PASS.
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run test` - PASS (263/263).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Branch protection rules must be enabled in GitHub repository settings to enforce the status check as a merge gate.
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` must be added as repository secrets before the build step will pass.
+
+---
+## 2026-06-17 - Remove Orphaned price-refresh HTTP Route
 
 ### Source
 Codex
