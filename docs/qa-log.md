@@ -2,6 +2,46 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-17 SGT - Task 8: Market Vision v3 Regeneration QA
+
+Scope:
+- Verify the 2026-06-08 to 2026-06-14 Market Vision report was regenerated using the v3 prompt and is published correctly.
+- Close the Market Vision v3 calibration item opened after the prior report was deleted for regeneration.
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Report generated using `market-vision-v3` prompt | PASS |
+| Model: `gpt-5.4-mini` | PASS |
+| Status: `published` | PASS |
+| Cost logged: $0.053669 | PASS |
+| Duration logged: 51970ms | PASS |
+| Overall confidence: 78% | PASS |
+| All regime scorecard sections populated (Growth, Inflation, Rates, Yield curve, Liquidity, USD, Commodities, Overall) | PASS |
+| Regime transition tracker populated (prior → current comparison) | PASS |
+| Cross-currents section populated | PASS |
+| Evidence confidence scores populated for all sections | PASS |
+| Portfolio macro impact matrix populated | PASS |
+| FRED macro context populated | PASS |
+| All narrative sections present (Executive Summary through Geopolitical Risks) | PASS |
+| Structural and tactical themes populated with evidence tags | PASS |
+| Portfolio context section populated | PASS |
+| Evidence gaps section populated | PASS |
+| No allocation recommendation language present | PASS |
+
+Key regime findings (2026-06-08 to 2026-06-14):
+- Growth: Expanding (High confidence).
+- Inflation: High and sticky (High confidence).
+- Rates: Falling rate support (High confidence).
+- Yield curve: Mixed / normal with conflicting slope signals (High confidence).
+- USD: Strengthening (Medium confidence) — regime shift from prior report (Weakening → Strengthening).
+- Liquidity: Neutral (Medium confidence) — regime shift from prior report (Tightening → Neutral).
+- Overall market: Mixed constructive with caution (Medium confidence).
+
+Residual items:
+- None. Market Vision v3 calibration is closed.
+
 ## 2026-06-16 SGT - Task 3 + Task 10 Browser QA (Product Mode + Admin Authorization)
 
 Scope:
