@@ -1,4 +1,116 @@
-﻿## 2026-06-17 - Add GitHub Actions CI Workflow
+﻿## 2026-06-17 - Page Data Map Documentation
+
+### Source
+Claude Code
+
+### Objective
+Create `docs/PAGE_DATA_MAP.md` covering all 25 product routes.
+
+### Files Changed
+- `docs/PAGE_DATA_MAP.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added a canonical page data map covering Portfolio, Instruments, Research, Admin, Public, and Legacy route groups.
+- Documented alpha visibility, UI sections, route files/actions, services, repositories, tables/views, refresh jobs, cache/summary layers, and performance notes for each primary product route.
+- Closed `docs/DOCUMENTATION_GAPS.md` items 13-23 with 2026-06-17 closure notes pointing to `docs/PAGE_DATA_MAP.md`.
+- No TypeScript, SQL, migration, methodology, or QA-log changes were made for this documentation-only task.
+
+### Tests Run
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run test` - PASS (268/268).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- `docs/PAGE_DATA_MAP.md` contains explicit `* - inferred from architecture docs` markers where direct page-to-service-to-repository inspection did not prove the full data chain.
+- Legacy redirect routes `/universe`, `/watchlists`, and `/taxonomy` are noted but not mapped as primary entries.
+
+---
+## 2026-06-17 - Full Pre-Commercial RLS Hardening
+
+### Source
+Claude Code
+
+### Objective
+Replace broad-authenticated-read policies on assistant and telemetry tables with user-scoped SELECT policies before multi-user alpha invites.
+
+### Files Changed
+- `supabase/migrations/109_rls_hardening.sql`
+- `src/server/jobs/cronAuth.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+- `docs/DOCUMENTATION_GAPS.md`
+
+### Summary
+- Added and applied migration `109_rls_hardening.sql`.
+- Replaced broad `auth.role() = 'authenticated'` read policies for three assistant tables and four telemetry tables.
+- Assistant conversations and usage logs are scoped through direct `user_id`; assistant messages are scoped through parent conversation ownership.
+- Telemetry snapshots are scoped through authenticated user's portfolio ownership; telemetry outcomes are scoped through parent snapshot portfolio ownership.
+- Live `pg_policies` verification returned exactly 7 targeted rows, all with `users can read own ...` policy names.
+- No user-facing content, scoring, methodology, feature flags, or advisory language changed.
+- Fixed `src/server/jobs/cronAuth.ts` to use an equivalent relative import for `isCronSecretValid`; this was needed because the existing compiled Node test runner cannot resolve the `@/` alias at runtime.
+
+### Tests Run
+- Applied migration with `psql` - PASS.
+- `pg_policies` verification query - PASS (7/7 targeted policies updated).
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run test` - PASS (268/268).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- `instrument_directory_summary` was not changed; it remains documented as a closed orphaned experimental table with no policy needed.
+- Service-role application writes and scheduled jobs continue to bypass RLS; this migration hardens direct authenticated PostgREST reads only.
+
+---
+## 2026-06-17 - CRON_SECRET Header-Only Authentication
+
+### Source
+Claude Code
+
+### Objective
+Remove the `?secret=` query-parameter path from cron authentication and require `Authorization: Bearer <CRON_SECRET>` header only.
+
+### Files Changed
+- `src/server/jobs/cronAuth.ts`
+- `tests/cronAuth.test.ts`
+- `package.json`
+- `docs/JOBS_AND_OPERATIONS.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Removed `request.nextUrl.searchParams.get("secret")` from `assertCronAuthorized`.
+- Cron authorization now validates only the `Authorization: Bearer` header value.
+- Added unit coverage for valid Bearer auth, invalid Bearer auth, missing Authorization header, query-param-only rejection, and missing configured `CRON_SECRET`.
+- Added the new cron auth test to the explicit `npm run test` command.
+- Documented bearer-only cron authentication and closed the CRON_SECRET query-param documentation gap.
+- No database migration was required because Supabase Cron and manual fallback scripts already send the Bearer header.
+
+### Tests Run
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run test` - PASS (268/268).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- `package.json` was updated because the project test script enumerates compiled test files explicitly; without that change, the new `tests/cronAuth.test.ts` would compile but not run under `npm run test`.
+- Build route list was unchanged apart from prior tasks; all existing `/api/jobs/*` routes still build, and no `/api/jobs/price-refresh` route reappeared.
+
+---
+## 2026-06-17 - Add GitHub Actions CI Workflow
 
 ### Source
 Codex
