@@ -48,7 +48,7 @@ The codebase follows a mostly clean architecture layout:
 
 Protected job endpoints live under `src/app/api/jobs`. They are wrapped by `src/server/jobs/runCronJob.ts`, which handles:
 
-- `CRON_SECRET` authorization.
+- `CRON_SECRET` authorization via `Authorization: Bearer` header only (query-parameter path removed 2026-06-17).
 - Supabase `job_locks` overlap prevention.
 - Supabase `job_runs` logging.
 - Structured JSON status with `success`, `partial_success`, `failed`, or `skipped`.
