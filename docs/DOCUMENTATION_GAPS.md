@@ -310,7 +310,7 @@ An independent deep architecture audit with live read-only database verification
    - Older lowercase docs remain useful, but some overlap with this handover pack.
    - Do not delete until the user approves an archive/cleanup pass.
 
-5. Future ETF universe additions — Factor Investing and Option Income
+5. Future ETF universe additions
    - Nine candidate ETFs confirmed with FMP profile metadata, EOD prices, and historical price data.
    - Factor Investing: `QUAL`, `SPHQ`, `JQUA`, `MTUM`, `USMV`, `SPLV`.
    - Option Income: `JEPI`, `JEPQ`, `SPYI`.
@@ -318,6 +318,16 @@ An independent deep architecture audit with live read-only database verification
    - Seed only after deciding whether alpha mode should expose the expanded categories.
    - After seeding: run Seed Universe, instrument metadata refresh, market history backfill, ETF look-through refresh, daily returns, return anchors, market metrics, risk metrics, and summary refresh QA.
    - Source: `docs/qa-log.md` — "2026-06-12 22:20 SGT - Future ETF Universe Completion Candidate".
+
+   Additional candidate categories identified in universe comprehensiveness review (2026-06-17), in priority order:
+
+   - **Priority 1 — Mid-cap ETFs** (`MID_CAP`): MDY, IJH, VO. Most impactful single addition after the 9 confirmed ETFs. Mid-cap is a common holding in a diversified US equity portfolio alongside large-cap and small-cap. Many three-fund US equity allocations would have a mid-cap ETF outside the current universe. FMP coverage TBD.
+   - **Priority 2 — International bond ETFs** (`INTERNATIONAL_BOND`): BNDX, IAGG, BWX. Investors with a global bond allocation will not find these in the current `BOND` category, which is primarily US-focused. FMP coverage TBD.
+   - **Priority 2 — TIPS / inflation-protected ETFs** (`TIPS_INFLATION_PROTECTED`): TIP, SCHP, STIP. Common inflation hedge and fixed-income portfolio diversifier. FMP coverage TBD.
+   - **Priority 3 — ESG / socially responsible ETFs** (`ESG_SOCIALLY_RESPONSIBLE`): ESGU, ESGD, ESGE, SUSA. Growing investor segment but niche for most current ETF portfolios. FMP coverage TBD.
+   - **Priority 3 — Multi-asset / balanced ETFs** (`MULTI_ASSET_BALANCED`): AOR, AOM, AOA. Some investors use a single balanced ETF as their entire holding. Lower priority since the platform is better suited to multi-holding portfolios. FMP coverage TBD.
+
+   Source: instrument comprehensiveness review — `docs/INSTRUMENT_TAXONOMY_AUDIT.md`.
 
 6. Branch and deployment governance formal policy
    - Runtime `PRODUCT_MODE=alpha|full` reduces alpha branch drift risk, and the development → main → alpha merge workflow is in practice.
