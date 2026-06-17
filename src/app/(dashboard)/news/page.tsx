@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { duplicateOverrideAction } from "@/server/actions/newsActions";
 import { createContainer } from "@/server/container";
 import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
@@ -17,6 +18,27 @@ type NewsPageProps = {
     error?: string;
   }>;
 };
+
+const getCachedNewsDashboard = unstable_cache(
+  async () => {
+    const container = createContainer();
+    return container.newsDashboardService.getArticleDashboard({
+      includeDuplicates: true,
+      limit: 60
+    });
+  },
+  ["news-article-dashboard"],
+  { tags: ["news-data"], revalidate: 86400 }
+);
+
+const getCachedNewsThemeDashboard = unstable_cache(
+  async () => {
+    const container = createContainer();
+    return container.newsDashboardService.getThemeDashboard();
+  },
+  ["news-theme-intelligence"],
+  { tags: ["news-data"], revalidate: 86400 }
+);
 
 function formatDate(value: string | null) {
   if (!value) return "-";
@@ -99,10 +121,7 @@ function NewsIntelligenceFallback() {
 }
 
 async function NewsIntelligenceSection() {
-  const container = createContainer();
-  const dashboard = await measureRenderStep("news:theme-intelligence-data", () =>
-    container.newsDashboardService.getThemeDashboard()
-  );
+  const dashboard = await measureRenderStep("news:theme-intelligence-data", () => getCachedNewsThemeDashboard());
   const latestWeekly = dashboard.latestWeeklyReconciliation;
 
   return (
@@ -237,15 +256,18 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
   const params = await searchParams;
   const container = createContainer();
   await container.authProvider.requireUser();
+  const hasFilters = Boolean(params?.q || params?.classification || params?.sentiment || params?.source);
   const dashboard = await measureRenderStep("news:article-dashboard-data", () =>
-    container.newsDashboardService.getArticleDashboard({
-      query: params?.q || undefined,
-      classification: params?.classification || undefined,
-      sentiment: params?.sentiment || undefined,
-      sourceProvider: params?.source || undefined,
-      includeDuplicates: true,
-      limit: 60
-    })
+    hasFilters
+      ? container.newsDashboardService.getArticleDashboard({
+          query: params?.q || undefined,
+          classification: params?.classification || undefined,
+          sentiment: params?.sentiment || undefined,
+          sourceProvider: params?.source || undefined,
+          includeDuplicates: true,
+          limit: 60
+        })
+      : getCachedNewsDashboard()
   );
 
   const latestNewsDate = latestSourceDate(dashboard.latestNews);

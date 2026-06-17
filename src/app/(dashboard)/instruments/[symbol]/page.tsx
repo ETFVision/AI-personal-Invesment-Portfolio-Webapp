@@ -435,10 +435,9 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
   const container = createContainer();
   await container.authProvider.requireUser();
 
-  const instruments = await measureRenderStep(`instrument-detail:${decodedSymbol}:instrument-lookup`, () =>
-    container.instrumentService.listInstruments({ query: decodedSymbol, limit: 10 })
+  const instrument = await measureRenderStep(`instrument-detail:${decodedSymbol}:instrument-lookup`, () =>
+    container.instrumentService.getBySymbol(decodedSymbol)
   );
-  const instrument = instruments.find((item) => item.symbol?.toUpperCase() === decodedSymbol);
   if (!instrument) notFound();
 
   const type = resolveInstrumentType(instrument);

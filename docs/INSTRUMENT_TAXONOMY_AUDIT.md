@@ -186,14 +186,20 @@ VOO is categorized as `US_BROAD_MARKET` as an ETF product, but portfolio sector 
 
 ## Future Taxonomy Completion Items
 
-Candidate ETF categories tested but not yet seeded:
+Candidate ETF categories tested but not yet seeded, in priority order:
 
-| Future category | Symbols | FMP coverage note |
-|---|---|---|
-| `FACTOR_INVESTING` | QUAL, SPHQ, JQUA, MTUM, USMV, SPLV | Profile, EOD price/history, sector and country exposure available. Top holdings unavailable under current FMP plan. |
-| `OPTION_INCOME` | JEPI, JEPQ, SPYI | Profile, EOD price/history, sector and country exposure available. Top holdings unavailable under current FMP plan. |
+| Priority | Future category | Candidate symbols | FMP coverage note |
+|---|---|---|---|
+| 1 | `FACTOR_INVESTING` | QUAL, SPHQ, JQUA, MTUM, USMV, SPLV | Profile, EOD price/history, sector and country exposure available. Top holdings unavailable under current FMP plan. |
+| 1 | `OPTION_INCOME` | JEPI, JEPQ, SPYI | Profile, EOD price/history, sector and country exposure available. Top holdings unavailable under current FMP plan. |
+| 2 | `MID_CAP` | MDY, IJH, VO | TBD — confirm FMP profile, EOD price, and historical price availability before seeding. Most impactful gap for diversified US equity portfolios. |
+| 3 | `ESG_SOCIALLY_RESPONSIBLE` | ESGU, ESGD, ESGE, SUSA | TBD — confirm FMP coverage. Growing segment; lower priority since most current ETF portfolios are not ESG-screened. |
+| 3 | `MULTI_ASSET_BALANCED` | AOR, AOM, AOA | TBD — confirm FMP coverage. Niche use case; some investors use a single balanced ETF as their entire holding. |
 
-These should be added in a future taxonomy expansion only after confirming alpha visibility and refreshing all dependent data layers.
+Priority 1 categories (Factor Investing, Option Income) should be added in the next planned taxonomy expansion after confirming alpha visibility. Priority 2–3 categories should be confirmed for FMP coverage before committing to seeding.
+
+**2026-06-17 correction — International Bond and TIPS removed from this table.**
+Cross-check against the live active universe confirmed that BNDX and BNDW (international bond) and TIP and STIP (inflation-protected) are already present in the `BOND` category. A separate `INTERNATIONAL_BOND` or `TIPS_INFLATION_PROTECTED` category is not needed. The Bond category already covers: US aggregate (AGG, BND), US Treasury duration ladder (SHY, IEI, IEF, TLT, VGIT, GOVT), TIPS (TIP, STIP), international (BNDX, BNDW), investment grade corporate (LQD, VCIT), and high yield (HYG, JNK).
 
 ## Remaining Follow-Ups
 

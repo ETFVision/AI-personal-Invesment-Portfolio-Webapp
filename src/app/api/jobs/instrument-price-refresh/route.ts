@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createContainer } from "@/server/container";
 import { runCronJob } from "@/server/jobs/runCronJob";
 
@@ -11,7 +12,7 @@ export async function POST(request: NextRequest) {
   const skipDerivedMetrics = request.nextUrl.searchParams.get("skipDerivedMetrics") === "true";
   const lockTtlSeconds = Number(request.nextUrl.searchParams.get("lockTtlSeconds") ?? 8 * 60);
 
-  return runCronJob(request, { jobName: "instrument-price-refresh", lockTtlSeconds }, () =>
+  return runCronJob(request, { jobName: "instrument-price-refresh", lockTtlSeconds, onSuccess: () => revalidateTag("market-data") }, () =>
     createContainer().instrumentMarketService.refreshInstrumentPricesInBatches({
       lookbackDays,
       batchSize,

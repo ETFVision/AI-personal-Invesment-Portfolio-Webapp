@@ -24,6 +24,10 @@ ETFVision is positioned as a portfolio analytics and intelligence platform — n
 | 2 | Custom blended benchmark | Not started |
 | 2 | Tax lot tracking and unrealised gain/loss | Not started |
 | 2 | Factor exposure analysis | Not started |
+| 2 | Risk-return scatter chart | Not started |
+| 2 | Portfolio correlation matrix | Not started |
+| 2 | Portfolio volatility decomposition | Not started |
+| 2 | Rolling risk metrics | Not started |
 | 2 | News-to-portfolio linking | Not started |
 | 2 | ETF overlap and hidden concentration tool | Not started |
 | 2 | In-app alerts and notifications | Not started |
@@ -332,9 +336,100 @@ ETFVision is positioned as a portfolio analytics and intelligence platform — n
 
 ---
 
+### 15. Risk-Return Scatter Chart
+
+**Goal:** Plot each portfolio holding and the portfolio overall as a dot on a two-dimensional chart showing annualised volatility (x-axis) against annualised return (y-axis), alongside a selection of reference benchmarks.
+
+**User value:** Gives investors an immediate visual sense of whether each holding and the portfolio as a whole are delivering returns commensurate with the risk they carry. Provides the conceptual intuition of quantitative risk analysis without any optimization or implied action.
+
+**Data sources:** Existing `instrument_risk_metrics` (annualised volatility), `instrument_market_metrics` (1Y, 3Y return), `holding_market_metrics` (portfolio-level risk and return already computed).
+
+**Technical approach:**
+- Chart component: scatter plot with volatility on x-axis, annualised return on y-axis.
+- Data points: each held instrument as a labelled dot; portfolio aggregate as a highlighted dot; optional overlay of reference instruments (e.g., MSCI World ETF, AGG bonds ETF) for context.
+- Colour-code by asset class (equity, fixed income, alternatives, cash).
+- Period selector: 1Y, 3Y (only instruments with sufficient history shown for 3Y).
+- No efficient frontier curve — the chart shows where instruments sit historically, not where they theoretically should be. Adding a frontier curve would require expected return estimation and quadratic optimization and would imply the portfolio is "suboptimal."
+- New section on the `/risk` route or a tab on `/portfolio`.
+
+**Compliance framing:** "Historical risk and return of your holdings over the selected period." No efficient frontier line, no labelling of holdings as "efficient" or "inefficient," no suggestion of reallocation. Tooltip: "Based on trailing [period] data. Past risk and return patterns are not indicative of future outcomes."
+
+**Effort:** 1 day (Codex)
+
+**Dependencies:** Existing `instrument_risk_metrics` and `instrument_market_metrics` must be populated for held instruments — already in place.
+
+---
+
+### 16. Portfolio Correlation Matrix
+
+**Goal:** Display the pairwise correlation between every pair of holdings as a colour-coded heat map, showing how closely holdings move together over the trailing period.
+
+**User value:** Many investors believe they are diversified because they hold multiple ETFs but unknowingly hold highly correlated instruments. The correlation matrix makes diversification quality visible and concrete — a 0.95 correlation between two equity ETFs tells a clearer story than "both are large-cap equity."
+
+**Data sources:** Existing `instrument_daily_returns` table — correlations calculated from the daily return series.
+
+**Technical approach:**
+- New table: `portfolio_holding_correlations` (portfolio_id, as_of_date, instrument_id_a, instrument_id_b, correlation_60d, correlation_252d).
+- New job extension: added to `app-daily-portfolio-summary-refresh`. For each portfolio, computes the pairwise Pearson correlation matrix from `instrument_daily_returns` for the trailing 60 and 252 calendar days.
+- UI: Heat map grid where cell colour represents correlation strength (red = high positive, blue = negative, white = uncorrelated). Instrument tickers on both axes. Toggle between 60-day and 252-day window.
+- New section on `/risk` page.
+
+**Compliance framing:** "How your holdings have moved relative to each other based on trailing returns. Correlation is based on historical data and may not reflect future relationships." No suggestions about which holdings to add or remove.
+
+**Effort:** 1–2 days (Codex)
+
+**Dependencies:** `instrument_daily_returns` must be populated for all held instruments. Minimum 60 trading days of history required per instrument for the 60-day window to be meaningful.
+
+---
+
+### 17. Portfolio Volatility Decomposition
+
+**Goal:** Break total portfolio volatility into the contribution from each individual holding — showing which positions are the largest sources of portfolio-level risk.
+
+**User value:** Knowing that a portfolio has 14% annualised volatility is less informative than knowing that 40% of that volatility comes from a single 8% holding. Risk contribution analysis reveals hidden concentration in risk terms, which is different from concentration in weight terms.
+
+**Data sources:** Existing `instrument_risk_metrics` (individual volatility, beta), `holding_market_metrics` (weights), correlation data from Feature 16.
+
+**Technical approach:**
+- Risk contribution per holding = (weight × covariance of holding with portfolio) / portfolio variance. Covariance derived from individual volatility and beta using a single-factor approximation: cov(i, P) ≈ β_i × σ_P².
+- Percentage risk contribution = risk contribution / sum of all risk contributions.
+- New stored result: `portfolio_risk_decomposition` (portfolio_id, as_of_date, instrument_id, weight_pct, risk_contribution_pct, marginal_risk_contribution).
+- Refresh: extended from existing `app-daily-portfolio-summary-refresh` job.
+- UI: Bar chart showing % risk contribution per holding alongside % weight. Holdings where risk contribution significantly exceeds weight are highlighted. New section on `/risk`.
+
+**Compliance framing:** "Each holding's estimated contribution to total portfolio volatility, based on historical return data." No suggestion to reduce any specific position.
+
+**Effort:** 1–2 days (Codex)
+
+**Dependencies:** Feature 16 correlation data improves accuracy but is not strictly required — the single-factor beta approximation is sufficient for the initial implementation.
+
+---
+
+### 18. Rolling Risk Metrics
+
+**Goal:** Show how key portfolio risk metrics — annualised volatility, Sharpe ratio, maximum drawdown, and beta — have changed over time using a rolling trailing window.
+
+**User value:** A single point-in-time Sharpe ratio of 0.8 conceals whether the portfolio has been consistently generating risk-adjusted returns or whether that number is the result of one unusually good period masking recent deterioration. Rolling metrics reveal the stability and trend of the risk profile over time.
+
+**Data sources:** Existing `instrument_daily_returns`, portfolio daily return series.
+
+**Technical approach:**
+- New table: `instrument_rolling_metrics` (instrument_id, as_of_date, window_months [3, 6, 12], sharpe_ratio, annualised_volatility, max_drawdown, beta_to_market).
+- New table: `portfolio_rolling_metrics` (portfolio_id, as_of_date, window_months [3, 6, 12], sharpe_ratio, annualised_volatility, max_drawdown, beta_to_market).
+- New job: `app-weekly-rolling-metrics-refresh` — runs weekly (full lookback recalculation makes daily runs wasteful).
+- UI: Line chart per metric over time. Window selector: 3-month, 6-month, 12-month rolling. Chart displayed on `/risk` for the portfolio and on `/instruments/[symbol]` for individual holdings.
+
+**Compliance framing:** "Historical rolling risk metrics. Past patterns do not predict future risk or return. Chart stops at today's date — no forward projection." No trend extrapolation displayed.
+
+**Effort:** 1–2 days (Codex)
+
+**Dependencies:** Minimum 12 months of daily return history required for the 12-month rolling window to be meaningful. Uses the same `instrument_daily_returns` feed already powering existing risk calculations.
+
+---
+
 ## Tier 3 — Future Direction, More Complex
 
-### 15. Scenario and Stress Test Analysis
+### 19. Scenario and Stress Test Analysis
 
 **Goal:** Show how the current portfolio would have performed during specific historical market scenarios — the 2008 GFC, the 2020 COVID crash, the 2022 rate hike cycle.
 
@@ -354,7 +449,7 @@ ETFVision is positioned as a portfolio analytics and intelligence platform — n
 
 ---
 
-### 16. Earnings and Macro Calendar
+### 20. Earnings and Macro Calendar
 
 **Goal:** Show upcoming earnings dates for stock holdings and key macro economic events (FOMC, CPI, NFP) relevant to the portfolio.
 
@@ -372,7 +467,7 @@ ETFVision is positioned as a portfolio analytics and intelligence platform — n
 
 ---
 
-### 17. Watchlist Price and Metric Alerts
+### 21. Watchlist Price and Metric Alerts
 
 **Goal:** Alert users when a watchlisted instrument crosses a user-defined price threshold or when a key metric changes materially.
 
@@ -389,7 +484,7 @@ ETFVision is positioned as a portfolio analytics and intelligence platform — n
 
 ---
 
-### 18. Mobile-Optimised Experience
+### 22. Mobile-Optimised Experience
 
 **Goal:** Ensure the core portfolio views are usable on a mobile device without requiring a native app.
 
@@ -432,12 +527,16 @@ Phase D — Depth features (post-launch)
  12. Tax Lot Tracking
  13. Factor Exposure Analysis
  14. News-to-Portfolio Linking (requires News module enabled)
- 15. Scenario and Stress Test Analysis
- 16. Earnings and Macro Calendar
+ 15. Risk-Return Scatter Chart
+ 16. Portfolio Correlation Matrix
+ 17. Portfolio Volatility Decomposition
+ 18. Rolling Risk Metrics
+ 19. Scenario and Stress Test Analysis
+ 20. Earnings and Macro Calendar
 
 Phase E — Platform maturity
- 17. Watchlist Alerts
- 18. Mobile-Optimised Experience
+ 21. Watchlist Alerts
+ 22. Mobile-Optimised Experience
 ```
 
 ---
@@ -455,6 +554,10 @@ Every feature must conform to the ETFVision product positioning as a portfolio a
 | Scenario analysis | "How this portfolio would have performed in [period]" | Forward projections or risk forecasts |
 | ETF comparison | Neutral characteristics metrics side by side | "ETF A is better than ETF B" |
 | Factor exposure | "Your portfolio has a tilt toward quality and low volatility" | "You should increase momentum exposure" |
+| Risk-return scatter | "Historical risk and return position of your holdings over the selected period" | Drawing an efficient frontier curve; labelling holdings as "inefficient" or "suboptimal" |
+| Correlation matrix | "How your holdings have moved relative to each other based on trailing returns" | "Your holdings are too correlated — you should sell X" |
+| Volatility decomposition | "Holding X contributes an estimated Y% of your total portfolio volatility" | "Reduce your allocation to X to lower portfolio risk" |
+| Rolling metrics | "How your portfolio's risk profile has evolved over the trailing period" | Forward projections; implying a recent trend will continue |
 
 See `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md` and `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 10 for full guidance.
 
@@ -471,3 +574,4 @@ The following capabilities are outside the current product positioning and shoul
 - **Crypto trading or DeFi** — raw crypto references are intentionally inactive. Crypto ETF proxies (BTC ETFs, ETH ETFs) remain in scope as ETF products.
 - **White-label / multi-tenant adviser platform** — possible future product tier, not current scope.
 - **Real-time pricing** — the platform is designed around scheduled daily refresh, not real-time market data feeds.
+- **Efficient Frontier / mean-variance optimisation** — displays a theoretically "optimal" portfolio allocation, which is functionally a personalized portfolio recommendation and is based on expected return estimates that are inherently unreliable for ETFs. The risk-return scatter chart (Feature 15) provides the visual context of risk versus return without any optimization curve or implied action.

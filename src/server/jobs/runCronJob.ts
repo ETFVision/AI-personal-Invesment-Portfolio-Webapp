@@ -19,6 +19,7 @@ type RunCronJobOptions = {
   jobName: string;
   lockTtlSeconds?: number;
   runSource?: "github_actions" | "manual_ui" | "vercel_cron" | "supabase_cron" | "local";
+  onSuccess?: () => void | Promise<void>;
 };
 
 const allowedRunSources = new Set(["github_actions", "manual_ui", "vercel_cron", "supabase_cron", "local"]);
@@ -156,6 +157,13 @@ export async function runCronJob(
       error_message: errors[0] ?? null,
       metadata: isRecord(data) ? data : { data }
     });
+    if ((status === "success" || status === "partial_success") && options.onSuccess) {
+      try {
+        await options.onSuccess();
+      } catch {
+        // Cache invalidation failure must not affect the job response.
+      }
+    }
     return NextResponse.json(response, { status: status === "failed" ? 500 : 200 });
   } catch (error) {
     const completedAt = new Date();
