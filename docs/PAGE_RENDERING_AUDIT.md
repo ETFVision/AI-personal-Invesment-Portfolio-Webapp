@@ -1,6 +1,6 @@
 # ETFVision Page Rendering Performance Audit
 
-Date: 2026-06-11  
+Date: 2026-06-17  
 Branch: `development`  
 Scope: Page-rendering audit and implementation checkpoint. This document now records the original audit, the implemented optimization phases, deferred phases, QA notes, and recommended next actions.
 
@@ -87,9 +87,9 @@ Current bottleneck hypothesis:
 
 | Route | Page File | Current Data Path | Freshness | Alpha Behavior | Load Risk | Recommendation |
 |---|---|---|---|---|---|---|
-| `/instruments/universe` | `src/app/(dashboard)/instruments/universe/page.tsx` | `instrumentService.listInstruments`, `instrumentService.listMarketViews`, `fundamentalsRepository.listSummaryRows` | `DAILY` + `WEEKLY` | limited | medium/high | Already uses market metrics views. Add pagination/lazy categories before adding a table. Alpha should filter visible universe. |
+| `/instruments/universe` | `src/app/(dashboard)/instruments/universe/page.tsx` | `instrumentService.listInstruments`, `instrumentService.listMarketViews`, `fundamentalsRepository.listSummaryRows` | `DAILY` + `WEEKLY` | limited | medium/high | **Resolved (2026-06-17):** Default active/no-search view cached under `market-data` tag with 24h TTL; invalidated by instrument refresh jobs. Text search, inactive, and all-status filter views bypass cache. Warm timing: 40–80ms. |
 | `/instruments/watchlist` | `src/app/(dashboard)/instruments/watchlist/page.tsx` | watchlists, watchlist items, instruments, market views, fundamentals summary rows | `DAILY` + `WEEKLY` | limited | medium | Similar to universe; avoid full fundamentals summary load if only watchlist subset is needed. |
-| `/instruments/[symbol]` | `src/app/(dashboard)/instruments/[symbol]/page.tsx` | symbol lookup, all market views, all bond profiles, fundamentals detail, risk metric, recommendation, recommendation history | `DAILY` + `WEEKLY` | limited | high | Strong candidate for `instrument_page_summary` or narrower per-symbol repository methods. Avoid loading all market views and all bond profiles for one symbol. |
+| `/instruments/[symbol]` | `src/app/(dashboard)/instruments/[symbol]/page.tsx` | symbol lookup, all market views, all bond profiles, fundamentals detail, risk metric, recommendation, recommendation history | `DAILY` + `WEEKLY` | limited | high | **Partially resolved (2026-06-17):** Broad `listInstruments({ query })` + JS filter replaced with `getBySymbol(symbol)` direct exact-match lookup. Remaining candidate for `instrument_page_summary` to eliminate per-symbol bond profile and market views scatter-fetch. |
 | `/fundamentals/[symbol]` | `src/app/(dashboard)/fundamentals/[symbol]/page.tsx` | redirect to `/instruments/[symbol]#fundamentals` | n/a | limited | low | Do nothing. |
 | `/universe` | `src/app/(dashboard)/universe/page.tsx` | redirect to `/instruments/universe` | n/a | limited | low | Do nothing. |
 | `/watchlists` | `src/app/(dashboard)/watchlists/page.tsx` | redirect to `/instruments/watchlist` | n/a | limited | low | Do nothing. |
@@ -106,10 +106,10 @@ Current bottleneck hypothesis:
 | `/portfolio-review` | `src/app/(dashboard)/portfolio-review/page.tsx` | `portfolioReviewService.getDashboard(portfolio.id)`, latest ETF exposure log | `WEEKLY` + `ON_CHANGE` | limited | medium | Should read stored review report; do not regenerate on render. Add alpha-filtered section rendering later. |
 | `/risk` | `src/app/(dashboard)/risk/page.tsx` | `portfolioService.getDashboard`, macro dashboard, cached risk report, bond report/report build | `DAILY` | show/limited | high | Candidate for `portfolio_risk_summary`; page should avoid building risk report if latest cached report is fresh. |
 | `/bonds` | `src/app/(dashboard)/bonds/page.tsx` | `portfolioService.getDashboard`, macro dashboard, bond analytics on dashboard | `DAILY` + `WEEKLY` | hide initially | medium | If hidden in alpha, optimize later. In full mode, reuse portfolio dashboard summary and macro dashboard summary. |
-| `/macro` | `src/app/(dashboard)/macro/page.tsx` | `macroDashboardService.getDashboard` | `DAILY` | hide initially | medium | Existing macro dashboard repository already centralizes data. Add summary only if measured slow. |
-| `/market-vision` | `src/app/(dashboard)/market-vision/page.tsx` | market vision dashboard, 40 NewsData articles, 40 GDELT articles, macro dashboard | `WEEKLY` | limited/basic or hide | high | Use latest published report for initial render; move raw global news input below/lazy-load or admin-only. |
-| `/news` | `src/app/(dashboard)/news/page.tsx` | `newsDashboardService.getDashboard(filters)` | `DAILY` + `WEEKLY` | hide or limited | high | Ensure latest articles are limited/paginated; candidate for `news_theme_summary` if theme summary is recalculated on render. |
-| `/fundamentals` | `src/app/(dashboard)/fundamentals/page.tsx` | `fundamentalsRepository.listSummaryRows`, refresh logs | `WEEKLY` | hide or limited | medium | Add pagination/filtering for large stock universe; no new summary table needed initially because summary rows exist. |
+| `/macro` | `src/app/(dashboard)/macro/page.tsx` | `macroDashboardService.getDashboard` | `DAILY` | hide initially | medium | **Resolved (2026-06-17):** Cached under `macro-data` tag with 24h TTL; invalidated by `fred-macro-ingestion` on job success. Warm timing: 7–14ms. |
+| `/market-vision` | `src/app/(dashboard)/market-vision/page.tsx` | market vision dashboard, 40 NewsData articles, 40 GDELT articles, macro dashboard | `WEEKLY` | limited/basic or hide | high | **Resolved (2026-06-17):** Main report and theme intelligence cached under `market-vision-data`/`news-data` tags; world-news support data limited to 8 NewsData rows + composite index; MacroContextSection cached under `macro-data` tag (separate fix). Warm timing: 17–31ms. |
+| `/news` | `src/app/(dashboard)/news/page.tsx` | `newsDashboardService.getDashboard(filters)` | `DAILY` + `WEEKLY` | hide or limited | high | **Resolved (2026-06-17):** Cached under `news-data` tag with 24h TTL; invalidated by `daily-news-ingestion`, `newsdata-news-ingestion`, and `weekly-news-reconciliation` on job success. Warm timing: 7–8ms. |
+| `/fundamentals` | `src/app/(dashboard)/fundamentals/page.tsx` | `fundamentalsRepository.listSummaryRows`, refresh logs | `WEEKLY` | hide or limited | medium | **Resolved (2026-06-17):** Cached under `fundamentals-data` tag with 24h TTL; invalidated by `fundamentals-refresh` on job success. Warm timing: 11–12ms. |
 | `/recommendations` | `src/app/(dashboard)/recommendations/page.tsx` | `recommendationService.getDashboard(portfolioId)` | `WEEKLY` | hide initially | medium | Reads latest recommendations; add pagination and alpha guard rather than precompute. |
 | `/telemetry` | `src/app/(dashboard)/telemetry/page.tsx` | `telemetryDashboardService.getDashboard` | `WEEKLY` | hide | high | Candidate for telemetry dashboard summary because repository currently aggregates many snapshot/outcome rows. |
 
@@ -205,11 +205,35 @@ Job endpoint optimization priority:
 | Telemetry | Aggregates snapshots/outcomes across multiple horizons | repository dashboard builds from recommendation, Market Vision, portfolio review snapshots/outcomes |
 | Assistant API | Wide context per message | context builder loads dashboard, review, recommendations, Market Vision, telemetry, messages |
 
-## 8. Candidate Summary Tables
+## 8. Achieved Optimization Results (2026-06-17)
+
+### 8.1 Next.js Cache Layer
+
+All shared non-personalized pages now use `unstable_cache` with tag-based invalidation. See `docs/PERFORMANCE_ARCHITECTURE.md` for the full cache strategy.
+
+Achieved warm render timings:
+
+| Route | Optimization | Warm Timing Before | Warm Timing After |
+|---|---|---|---|
+| `/macro` | `unstable_cache` under `macro-data` tag | ~350–600ms | 7–14ms |
+| `/fundamentals` | `unstable_cache` under `fundamentals-data` tag | ~300–500ms | 11–12ms |
+| `/news` | `unstable_cache` under `news-data` tag | ~400–700ms | 7–8ms |
+| `/market-vision` | `unstable_cache` under `market-vision-data`/`news-data`/`macro-data` tags | ~800ms+ | 17–31ms |
+| `/market-vision` MacroContextSection | `unstable_cache` under `macro-data` tag | 700–760ms (isolated) | ~12ms |
+| `/instruments/universe` (default) | `unstable_cache` under `market-data` tag | ~200–400ms | 40–80ms |
+
+### 8.2 Query Path Optimizations
+
+| Route | Optimization | Before | After |
+|---|---|---|---|
+| `/instruments/[symbol]` | `getBySymbol()` direct exact-match replaces `listInstruments({ query })` + JS filter | ~200–400ms lookup | ~20–40ms lookup |
+| `/market-vision` | NewsData classification fetch reduced from 12 → 8 rows; `idx_news_items_provider_published` index added | N/A (correctness fix) | Reduced network transfer |
+
+## 9. Candidate Summary Tables
 
 These are candidates, not approved implementation items.
 
-### 8.1 High-Priority Candidates
+### 9.1 High-Priority Candidates
 
 #### `portfolio_dashboard_summary`
 
@@ -291,7 +315,7 @@ Rollback:
 
 - Use existing repositories section-by-section if summary absent.
 
-### 8.2 Medium-Priority Candidates
+### 9.2 Medium-Priority Candidates
 
 #### `news_theme_summary`
 
@@ -308,7 +332,7 @@ Rollback:
 - Useful for Admin/Data Sources only.
 - Refresh after jobs or on admin open if missing.
 
-### 8.3 Lower-Priority / Do Not Start Here
+### 9.3 Lower-Priority / Do Not Start Here
 
 | Candidate | Reason |
 |---|---|
@@ -317,7 +341,7 @@ Rollback:
 | `admin_job_summary` | Current `/admin/jobs` only loads recent 30 rows. |
 | `portfolio_review_summary` | Portfolio review report table already stores output. |
 
-## 9. Index Audit Targets
+## 10. Index Audit Targets
 
 Phase 1 did not add indexes. These should be checked in Phase 2 against actual query plans:
 
@@ -338,7 +362,7 @@ Phase 1 did not add indexes. These should be checked in Phase 2 against actual q
 
 Avoid over-indexing until slow query evidence exists.
 
-## 10. Alpha Feature Flag Considerations
+## 11. Alpha Feature Flag Considerations
 
 Feature-flag-aware performance strategy:
 
@@ -362,7 +386,7 @@ Suggested alpha route behavior:
 | News, macro, fundamentals, recommendations, telemetry, assistant | hide initially unless explicitly enabled |
 | Admin/setup/taxonomy | internal-only |
 
-## 11. Phase 2 Measurement Plan
+## 12. Phase 2 Measurement Plan
 
 Add lightweight timing guarded by an environment variable, not noisy production logs.
 
@@ -394,7 +418,7 @@ Initial targets:
 
 Do not persist timings to a database in Phase 2 unless logs are insufficient.
 
-## 12. Recommended Implementation Stages
+## 13. Recommended Implementation Stages
 
 ### Stage 1: Low-Risk Rendering Improvements
 
@@ -426,7 +450,7 @@ Choose based on Stage 1 timing.
 - Add `data_source_health_summary` if Admin/Data Sources remains slow.
 - Add `telemetry_summary` if telemetry dashboard remains slow.
 
-## 13. Quick Wins To Consider First
+## 14. Quick Wins To Consider First
 
 1. `/instruments/[symbol]`: replace broad `listMarketViews` and `listBondProfiles` with symbol/id-specific repository calls.
 2. `/market-vision`: lazy-load or collapse raw NewsData/GDELT article inputs.
@@ -434,14 +458,14 @@ Choose based on Stage 1 timing.
 4. `/instruments/watchlist`: avoid fetching all fundamentals summary rows if a subset query can serve the displayed instruments.
 5. `/risk`: never rebuild heavy risk analytics during render if cached report is fresh.
 
-## 14. Open Questions Before Implementation
+## 15. Open Questions Before Implementation
 
 - Which page currently feels slowest in real use: portfolio, risk, instrument detail, Market Vision, or Admin/Data Sources?
 - Should alpha include basic Market Vision or keep it hidden until pro/internal?
 - Is Supabase query-plan access available for `EXPLAIN ANALYZE`, or should timing be app-level first?
 - Do we want summary freshness badges visible on user pages immediately, or only after summaries exist?
 
-## 15. Recommended Next Task
+## 16. Recommended Next Task
 
 Implement Phase 2 timing instrumentation and one low-risk route optimization, not new summary tables yet.
 
@@ -458,7 +482,7 @@ Recommended first slice:
 4. Re-run lint/typecheck/build.
 5. Use the timing output to choose the first summary table.
 
-## 16. Phase 2 Initial Implementation
+## 17. Phase 2 Initial Implementation
 
 Completed on `development`:
 
@@ -484,11 +508,11 @@ Next recommended measurement:
 
 Set `ENABLE_RENDER_TIMING=true` in a development or preview environment, open the slowest pages, and compare `[render-timing]` server logs. Use those timings to decide whether the first summary target should be `portfolio_dashboard_summary`, `instrument_page_summary`, or an Admin/Data Sources health summary.
 
-## 17. 2026-06-11 Rendering Optimization Execution Update
+## 18. 2026-06-11 Rendering Optimization Execution Update
 
 This section supersedes the earlier phase-order notes where later testing changed the plan.
 
-### 17.1 What Has Been Implemented
+### 18.1 What Has Been Implemented
 
 #### Render Timing Instrumentation
 
@@ -628,7 +652,7 @@ Result:
 - Future main-to-alpha updates should be simpler.
 - Alpha can keep consumer-facing limitations without missing core performance fixes.
 
-### 17.2 Corrected 10-Phase Status
+### 18.2 Corrected 10-Phase Status
 
 | Phase | Area | Status | Current Notes |
 |---|---|---|---|
@@ -643,7 +667,7 @@ Result:
 | 9 | Telemetry Summary | Not started | `/telemetry` is instrumented and still showed slow build-time data in one production build log. Candidate for future summary/read model. |
 | 10 | Admin Data Sources Health Summary | Not started | Admin page has more timing and summary controls, but no `data_source_health_summary` table. Internal-only; lower user-facing priority. |
 
-### 17.3 Development Branch QA Findings
+### 18.3 Development Branch QA Findings
 
 Current development branch state:
 
@@ -670,7 +694,7 @@ Documentation-only update note:
 
 - This checkpoint updates documentation and does not change executable application code.
 
-### 17.4 Remaining Work And Recommendations
+### 18.4 Remaining Work And Recommendations
 
 High priority:
 
@@ -720,7 +744,7 @@ Lower priority:
    - Not part of the page-rendering implementation yet.
    - Later assistant performance can improve by reading compact portfolio/review/insight/Market Vision/telemetry summaries instead of broad context every chat turn.
 
-### 17.5 Operational Checklist
+### 18.5 Operational Checklist
 
 After deploying a branch containing summary-read changes:
 

@@ -1,3 +1,30 @@
+## 2026-06-17 - Cache MacroContextSection FRED data on market-vision page
+
+### Source
+Claude Code
+
+### Objective
+Cache the `getDashboardSummary()` call that was the last uncached DB hit on the market-vision page (~700–760ms on every warm request).
+
+### Files Changed
+- `src/app/(dashboard)/market-vision/page.tsx`
+
+### Summary
+- Added a module-level `getCachedMacroDashboardSummary` wrapper using `unstable_cache` around `macroDashboardService.getDashboardSummary()`.
+- Tagged with `macro-data` so the `fred-macro-ingestion` job invalidates it on success via its `onSuccess` callback.
+- `revalidate: 86400` safety TTL matches other shared-data pages.
+- `MacroContextSection` now receives the pre-fetched cached summary instead of issuing a live DB call on each render.
+
+### Tests Run
+- `npm.cmd run lint` — PASS.
+- `npm.cmd run typecheck` — PASS.
+- `npm.cmd run test` — PASS (268/268).
+- `npm.cmd run build` — PASS.
+
+### Result
+Completed. Market-vision macro-context-data warm timing: 700–760ms → ~12ms.
+
+---
 ## 2026-06-17 - Shared-data page caching with tag-based invalidation
 
 ### Source
