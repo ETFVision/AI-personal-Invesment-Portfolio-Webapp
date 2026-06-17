@@ -2,6 +2,28 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-17 SGT - Task 5: CI Pipeline Browser QA
+
+Scope:
+- Verify the GitHub Actions CI workflow runs end-to-end after secrets and branch protection rules are configured.
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `.github/workflows/ci.yml` triggers on push to `development` | PASS |
+| Lint step passes | PASS |
+| Typecheck step passes | PASS |
+| Test step passes (263/263) | PASS |
+| Build step passes | PASS |
+| `NEXT_PUBLIC_SUPABASE_URL` secret configured in GitHub | PASS |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` secret configured in GitHub | PASS |
+| Branch protection rules enabled on `development` and `main` | PASS |
+| GitHub Team account upgraded to support branch protection on private repo | PASS |
+
+Residual items:
+- None. CI pipeline is fully operational and enforced.
+
 ## 2026-06-17 SGT - Task 6: Price-Refresh Route Reconciliation
 
 Scope:
