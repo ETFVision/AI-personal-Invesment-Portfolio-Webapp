@@ -4139,6 +4139,52 @@ Validation:
 - PASS: `npm.cmd run lint`
 - PASS: `npm.cmd run build`
 
+## 2026-06-17 - Task 12 Active Universe Count Verification
+
+Scope:
+- Confirmed active instrument counts against expected alpha universe targets.
+- Confirmed raw crypto references remain inactive.
+
+Verification queries run in Supabase SQL Editor:
+
+```sql
+SELECT instrument_type, COUNT(*) AS active_count
+FROM instruments
+WHERE is_active = true
+GROUP BY instrument_type
+ORDER BY instrument_type;
+
+SELECT COUNT(*) AS total_active_etfs
+FROM instruments
+WHERE is_active = true
+  AND instrument_type IN ('etf', 'crypto_etf');
+
+SELECT symbol, instrument_type, is_active
+FROM instruments
+WHERE instrument_type = 'crypto'
+ORDER BY symbol;
+```
+
+Results:
+
+| instrument_type | active_count |
+|---|---|
+| crypto_etf | 5 |
+| etf | 196 |
+| stock | 105 |
+
+- Total active ETFs (etf + crypto_etf): 201
+- BTC, ETH, SOL: instrument_type = crypto, is_active = false
+
+Findings:
+- PASS: 196 active `etf` rows + 5 active `crypto_etf` rows = 201 ETFs.
+- PASS: 105 active `stock` rows.
+- PASS: Total active ETFs = 201.
+- PASS: BTC, ETH, SOL raw crypto references are inactive.
+- No instrument universe changes detected since prior verification on 2026-06-12.
+
+---
+
 ## 2026-06-15 20:15 SGT - Compliance Disclaimer And Public Methodology Updates
 
 Scope:
