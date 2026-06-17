@@ -1,4 +1,36 @@
-﻿## 2026-06-16 - Middleware Alpha Mode Asset Blocking Fix (QA Residuals)
+﻿## 2026-06-17 - Remove Orphaned price-refresh HTTP Route
+
+### Source
+Codex
+
+### Objective
+Remove the orphaned `/api/jobs/price-refresh` HTTP route while preserving the live `instrument-price-refresh` route and user-triggered portfolio price refresh job wiring.
+
+### Files Changed
+- `src/app/api/jobs/price-refresh/route.ts` (deleted)
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Deleted the orphaned `/api/jobs/price-refresh` route.
+- Preserved `RefreshPortfolioPricesJob`, `jobs.refreshPortfolioPrices` container wiring, `dataRefreshActions.ts`, `portfolioActions.ts`, and `/api/jobs/instrument-price-refresh`.
+- Closed the DOCUMENTATION_GAPS.md High Priority item 3 price-refresh route reconciliation entry.
+- Direct local SQL rerun was unavailable because this sandbox has no `psql`, Supabase CLI, or Postgres driver installed. Cron cleanliness is based on the existing live database confirmation in `docs/ARCHITECTURE_AUDIT_2026-06-16.md`, which records 31 active `cron.job` rows and confirms `price-refresh` is absent from `cron.job`.
+
+### Tests Run
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS after removing stale generated `.next/types/app/api/jobs/price-refresh` route type folder.
+- `npm.cmd run test` - PASS (263/263).
+- `npm.cmd run build` - PASS. Build route list no longer includes `/api/jobs/price-refresh`.
+
+### Result
+Completed.
+
+### Notes for Claude
+- If a live Supabase SQL console is available, re-run: `SELECT jobname, command FROM cron.job WHERE command LIKE '%price-refresh%';` Expected result should include only `instrument-price-refresh` rows and no `/api/jobs/price-refresh` row.
+
+---
+## 2026-06-16 - Middleware Alpha Mode Asset Blocking Fix (QA Residuals)
 
 ### Source
 Claude Code (QA session)

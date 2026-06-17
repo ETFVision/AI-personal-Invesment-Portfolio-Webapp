@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-16 SGT
+Last updated: 2026-06-17 SGT
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -29,9 +29,9 @@ An independent deep architecture audit with live read-only database verification
    - **QA passed 2026-06-16:** admin nav visible for admin users, hidden for non-admins; direct `/admin/*` requests return 404 for non-admins. Confirmed in Vercel preview deployment.
    - **QA passed 2026-06-16:** `PRODUCT_MODE=alpha` correctly hides nav items, blocks routes, suppresses Assistant drawer, and restricts Market Vision to published reports. `PRODUCT_MODE=full` restores full surface. Logo issue in alpha mode resolved (middleware asset exclusion fix — see implementation log). All checks passed; platform cleared for alpha invites.
 
-3. Price-refresh route reconciliation (confirmed drift)
+3. Price-refresh route reconciliation (closed 2026-06-17)
    - **Confirmed live 2026-06-16:** `/api/jobs/price-refresh` is not present in `cron.job`. The active daily chain uses `instrument-price-refresh` ×5 + `portfolio-valuation-refresh`.
-   - `chatgpt-handover.md` "Unified Price Refresh" describes `price-refresh` as the daily path; this is stale. Either remove the orphan route or repoint docs to the real chain, and assert one canonical price path.
+   - **Closed 2026-06-17:** orphaned `/api/jobs/price-refresh` HTTP route deleted. `RefreshPortfolioPricesJob`, user-triggered server actions, and `/api/jobs/instrument-price-refresh` are preserved. Live cron confirmation remains the 2026-06-16 architecture audit result: `price-refresh` absent from `cron.job`; active daily chain uses `instrument-price-refresh` ×5. `docs/chatgpt-handover.md` (which contained the stale unified-price-refresh description) was removed separately on 2026-06-17.
 
 4. Daily derived-metrics chain reliability and job monitoring
    - **Confirmed live 2026-06-16 (`job_runs`, 7-day window):** `instrument-daily-returns-refresh` (3 failed), `instrument-return-anchors-refresh` (2 failed), and `instrument-market-metrics-refresh` (1 failed) intermittently fail; `refresh_instrument_risk_metrics` is mostly skipped (68 skipped / 39 success); `newsdata-news-ingestion` is chronically `partial_success` (7/7).
