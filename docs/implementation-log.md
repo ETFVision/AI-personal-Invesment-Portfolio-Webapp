@@ -1,4 +1,37 @@
-﻿## 2026-06-17 - Full Pre-Commercial RLS Hardening
+﻿## 2026-06-17 - Page Data Map Documentation
+
+### Source
+Claude Code
+
+### Objective
+Create `docs/PAGE_DATA_MAP.md` covering all 25 product routes.
+
+### Files Changed
+- `docs/PAGE_DATA_MAP.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added a canonical page data map covering Portfolio, Instruments, Research, Admin, Public, and Legacy route groups.
+- Documented alpha visibility, UI sections, route files/actions, services, repositories, tables/views, refresh jobs, cache/summary layers, and performance notes for each primary product route.
+- Closed `docs/DOCUMENTATION_GAPS.md` items 13-23 with 2026-06-17 closure notes pointing to `docs/PAGE_DATA_MAP.md`.
+- No TypeScript, SQL, migration, methodology, or QA-log changes were made for this documentation-only task.
+
+### Tests Run
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run test` - PASS (268/268).
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- `docs/PAGE_DATA_MAP.md` contains explicit `* - inferred from architecture docs` markers where direct page-to-service-to-repository inspection did not prove the full data chain.
+- Legacy redirect routes `/universe`, `/watchlists`, and `/taxonomy` are noted but not mapped as primary entries.
+
+---
+## 2026-06-17 - Full Pre-Commercial RLS Hardening
 
 ### Source
 Claude Code

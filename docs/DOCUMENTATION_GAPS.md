@@ -117,59 +117,37 @@ An independent deep architecture audit with live read-only database verification
     - Resolution: implement XIRR calculation in `PortfolioPerformanceService` using the existing transaction and cash-flow data, and surface it alongside TWR on the Portfolio dashboard.
 
 13. Page data map documentation
-   - Create a canonical `docs/PAGE_DATA_MAP.md`.
-   - For each product route, document UI section, server component/action, service, repository, table/view, refresh job dependency, formula reference, cache/summary table, and known performance notes.
-   - Minimum routes to cover: `/portfolio`, `/holdings`, `/transactions`, `/cash`, `/instruments/universe`, `/instruments/watchlist`, `/instruments/[symbol]`, `/market-vision`, `/news`, `/macro`, `/fundamentals`, `/risk`, `/bonds`, `/recommendations`, `/portfolio-review`, `/telemetry`, `/assistant`, and Admin pages.
+   - **Closed 2026-06-17:** canonical route-to-data lineage map created in `docs/PAGE_DATA_MAP.md`.
 
 14. Portfolio dashboard page map
-   - Map each `/portfolio`, `/holdings`, `/transactions`, and `/cash` section to source services and summary tables.
-   - Document which cards use `portfolio_dashboard_summary`, `portfolio_performance_summary`, `portfolio_current_metrics`, `holding_market_metrics`, cash balances, transactions, and live portfolio dashboard services.
-   - Clarify the dependency chain between holdings, cash, transactions, portfolio valuation, snapshots, and summary refresh jobs.
+   - **Closed 2026-06-17:** Portfolio Group page lineage documented in `docs/PAGE_DATA_MAP.md`.
 
 15. Universe and watchlist page map
-   - Document exact grouping/filter logic by asset category, instrument type, ETF product category, stock sector, and active status.
-   - Document row-level freshness derivation for price, market metrics, risk metrics, metadata, fundamentals, and watchlist membership.
-   - Map page fields to `instruments`, `instrument_market_metrics`, `instrument_risk_metrics`, fundamentals overview/detail views, and watchlist tables.
+   - **Closed 2026-06-17:** Instruments Group page lineage documented in `docs/PAGE_DATA_MAP.md`.
 
 16. Market Vision UI and lifecycle map
-   - Document each Market Vision page section, including report body, structured metadata, macro inputs, world-news inputs, portfolio implications, and generation logs.
-   - Confirm and document scheduled generation status behavior: draft versus published.
-   - Document source/citation display rules and which stored report fields drive UI rendering.
+   - **Closed 2026-06-17:** Market Vision page lineage and lifecycle dependencies documented in `docs/PAGE_DATA_MAP.md`.
 
 17. News and themes page map
-   - Expand deterministic classification documentation with threshold details, source-quality effects, review queue conditions, and manual/fallback behavior.
-   - Document NewsData query group display, FMP/general article display, GDELT manual role, article URL linking, weekly reconciliation placement, and theme summary data sources.
-   - Clarify that NewsData is the preferred scheduled macro/world-news source and GDELT is manual/fallback due to rate-limit instability.
+   - **Closed 2026-06-17:** News and Themes page lineage documented in `docs/PAGE_DATA_MAP.md`.
 
 18. Macro page map and integration lineage
-   - Document macro dashboard UI sections and their source tables.
-   - Expand the indicator-to-theme mapping table for FRED macro signals.
-   - Document how macro regimes/signals flow into Market Vision, Insights, Portfolio Review, Risk, Fixed Income, Theme Intelligence, and Assistant context.
+   - **Closed 2026-06-17:** Macro page lineage and downstream integration dependencies documented in `docs/PAGE_DATA_MAP.md`.
 
 19. Fundamentals page map
-   - Document which fields appear on the fundamentals overview versus each instrument detail fundamentals tab.
-   - Map UI fields to `company_profiles`, `financial_statements`, `financial_ratios`, `fundamental_scores`, `fundamental_trends`, and `fundamental_trend_summaries`.
-   - Mark sector-relative scoring and financial-sector-specific scoring as future hardening unless implemented later.
+   - **Closed 2026-06-17:** Fundamentals overview and detail routing documented in `docs/PAGE_DATA_MAP.md`.
 
 20. Risk page map
-   - Map each `/risk` panel to risk analytics service outputs, stored risk metrics, portfolio snapshots, holding snapshots, benchmark snapshots, and look-through exposure tables.
-   - Tie covariance/proxy risk contribution eligibility to the UI panels that show risk contributors.
-   - Document benchmark comparison display logic separately from portfolio TWR risk logic.
+   - **Closed 2026-06-17:** Risk page lineage and cache dependencies documented in `docs/PAGE_DATA_MAP.md`.
 
 21. Fixed income page map
-   - Add a fixed-income coverage table showing seeded fallback bond profiles versus provider/manual profile rows.
-   - Document bond profile refresh/source quality and manual override behavior.
-   - Clearly mark older `bond-intelligence.md` future design items that are not yet built, such as future bond score tables or advanced bond macro snapshots.
+   - **Closed 2026-06-17:** Fixed Income page lineage, bond profile source, and manual override dependencies documented in `docs/PAGE_DATA_MAP.md`.
 
 22. Insights page map
-   - Document public language mapping from internal recommendation records to consumer-facing Insights, Assessments, and Characteristics.
-   - Map all Insights page and instrument detail recommendation/insight panels to recommendation service outputs, telemetry snapshots, and stored history.
-   - Clarify how recommendation history and telemetry relate to current insight labels.
+   - **Closed 2026-06-17:** Insights page and instrument detail insight dependencies documented in `docs/PAGE_DATA_MAP.md`.
 
 23. Portfolio Review page map
-   - Expand gap-finding ranking and explanation rules, especially diversification, healthcare/defensive, fixed-income, and inflation/geopolitical hedge candidates.
-   - Map each Portfolio Review section to the underlying service, score formula, portfolio exposure source, and refresh dependency.
-   - Document the difference between diversification gap findings, defensive/healthcare gap findings, fixed-income candidates, and issue-specific analytical diagnostics.
+   - **Closed 2026-06-17:** Portfolio Review page lineage, gap-analysis dependencies, and refresh dependencies documented in `docs/PAGE_DATA_MAP.md`.
 
 ## Low Priority
 
