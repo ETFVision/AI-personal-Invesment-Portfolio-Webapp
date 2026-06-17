@@ -9,3 +9,6 @@ coverage/
 *.log
 *.tsbuildinfo
 vercel.json.local
+
+# Codex agent working files
+Agents.md

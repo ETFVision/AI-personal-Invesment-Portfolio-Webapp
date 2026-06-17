@@ -37,6 +37,9 @@ import type { Instrument } from "@/domain/universe/types";
 import type { JobRun } from "@/domain/jobs/types";
 import type { ReactNode } from "react";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function statusLabel(enabled: boolean, configured = true) {
   if (!configured) return { label: "Missing key", className: "text-destructive" };
   if (!enabled) return { label: "Disabled", className: "text-amber-600" };

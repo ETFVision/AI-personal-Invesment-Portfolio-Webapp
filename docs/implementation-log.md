@@ -1,3 +1,32 @@
+## 2026-06-18 - Force Admin Data Sources live rendering
+
+### Source
+Codex
+
+### Objective
+Prevent the Admin Data Sources page from serving stale fundamentals coverage counts on Vercel.
+
+### Files Changed
+- `src/app/(dashboard)/admin/data-sources/page.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Verified live Supabase fundamentals coverage is complete: 105 eligible, 105 complete, 0 incomplete, 0 stale.
+- Added explicit `dynamic = "force-dynamic"` and `revalidate = 0` route settings to `/admin/data-sources`.
+- This ensures operational diagnostics, including fundamentals coverage, are rendered from live server data instead of any cached deployment snapshot.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run build` - PASS.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Vercel was still displaying 20 complete / 85 incomplete even though source tables showed full coverage. This change targets route-level caching rather than fundamentals data.
+
+---
 ## 2026-06-18 - Financial sector BQ scoring fix
 
 ### Source
