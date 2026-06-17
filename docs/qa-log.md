@@ -2,6 +2,33 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-17 SGT - Task 6: Price-Refresh Route Reconciliation
+
+Scope:
+- Claude review of Codex implementation deleting the orphaned `/api/jobs/price-refresh` HTTP route.
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `src/app/api/jobs/price-refresh/route.ts` deleted | PASS |
+| `src/application/jobs/RefreshPortfolioPricesJob.ts` unchanged | PASS |
+| `src/server/actions/dataRefreshActions.ts` unchanged | PASS |
+| `src/server/actions/portfolioActions.ts` unchanged | PASS |
+| `src/server/container.ts` unchanged | PASS |
+| `src/app/api/jobs/instrument-price-refresh/route.ts` unchanged | PASS |
+| No unrelated files modified | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run test` (263/263) | PASS |
+| `npm.cmd run build` (route no longer in build output) | PASS |
+| `docs/implementation-log.md` updated with correct entry | PASS |
+| `docs/DOCUMENTATION_GAPS.md` High Priority item 3 closed | PASS |
+| Stale `chatgpt-handover.md` reference removed from gap item | PASS |
+
+Residual items:
+- None. Cron cleanliness is based on the 2026-06-16 architecture audit (`price-refresh` confirmed absent from `cron.job`). If a live Supabase SQL console is available, re-run: `SELECT jobname, command FROM cron.job WHERE command LIKE '%price-refresh%';` — expected: only `instrument-price-refresh` rows.
+
 ## 2026-06-17 SGT - Task 8: Market Vision v3 Regeneration QA
 
 Scope:
