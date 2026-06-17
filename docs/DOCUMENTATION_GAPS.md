@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-17 SGT
+Last updated: 2026-06-18 SGT
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -367,6 +367,147 @@ An independent deep architecture audit with live read-only database verification
     - Not started. Pricing page, payment flow, subscription enforcement, onboarding, and refund/cancellation process are not yet productized.
     - Not required for private alpha. Required before paid launch.
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 20.
+
+## Pending Implementation Tasks
+
+These tasks have been fully scoped and are ready to execute. They are not documentation gaps — they are the next development items in the backlog, recorded here so the session can be resumed without re-deriving context.
+
+---
+
+### Task B — ETF Holdings Integration into Portfolio Review
+
+**Status:** Codex prompt prepared 2026-06-18. Ready to execute immediately.
+
+**Why this is needed:**
+The Gap Analysis section in Portfolio Review currently uses a sector/ticker-level proxy (overlapPenalty) to detect candidate overlap with the user's existing holdings. It cannot see what companies are inside each ETF. For example, if the user holds VOO (which contains JNJ, ABT, UNH indirectly) and the gap analysis suggests VHT as a healthcare candidate (which also holds JNJ, UNH, ABT as top positions), the current system has no idea those funds share companies. It treats VHT as if it has zero company overlap. This task wires the existing etf_top_holdings data into the portfolio review computation so overlap is based on real company-level data.
+
+**Architecture note:**
+- The etf_top_holdings table already exists in the database.
+- SupabaseEtfExposureRepository.listLatestTopHoldings() already exists.
+- The FMP provider already calls the etf/holdings endpoint and stores results. The only fix needed there is sorting by holdingWeight and capping at 100 before storage.
+- No new migrations, no new jobs, no new tables required.
+- PortfolioReviewService currently does NOT fetch etf_top_holdings in buildContext(). That is the missing link.
+
+**Files to change (7 files):**
+
+1. `src/infrastructure/providers/etf/FmpEtfExposureProvider.ts`
+   - After the flatMap that builds topHoldings from the FMP holdings payload, sort by holdingWeight descending and slice to 100.
+   - Apply the cap to both the live FMP path and the seeded fallback path so behavior is consistent regardless of data source.
+
+2. `src/application/services/portfolioReview/portfolioReviewScoring.ts`
+   - Add `etfTopHoldings: EtfTopHolding[]` to the PortfolioReviewInputContext type.
+   - Add `import type { EtfTopHolding } from "@/domain/etfLookthrough/types"`.
+
+3. `src/application/services/portfolioReview/PortfolioReviewService.ts`
+   - Add `private readonly etfExposureRepository: EtfExposureRepository` as a constructor parameter immediately after `portfolioLookthroughExposureService` (line 93), before the defaulted service parameters.
+   - In buildContext(), add `this.etfExposureRepository.listLatestTopHoldings(instruments.map(i => i.id))` to the existing Promise.all.
+   - Add etfTopHoldings to the returned context object.
+
+4. `src/domain/portfolioReview/types.ts`
+   - Add to PortfolioReviewCandidate: `sharedCompanyCount: number | null`, `sharedCompanyWeight: number | null`, `topSharedSymbols: string[]`.
+
+5. `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+   - In the candidate() function, before calling diversificationBenefitService.evaluate(), compute company overlap:
+     - Filter context.etfTopHoldings by instrument.id to get this candidate's holdings.
+     - Build a Set of the user's company symbols from context.lookthroughReport.holdingExposures.
+     - Intersect: sum holdingWeight of candidate holdings whose holdingSymbol is in the user's company set → companyOverlapWeight.
+     - Collect top 3 shared symbols by weight for topSharedSymbols.
+     - Pass companyOverlapWeight into the DiversificationBenefitService call.
+     - Populate sharedCompanyCount, sharedCompanyWeight, topSharedSymbols on the returned candidate object.
+   - When etfTopHoldings is empty (before backfill), companyOverlapWeight is 0 and behavior is identical to today.
+
+6. `src/application/services/portfolioReview/DiversificationBenefitService.ts`
+   - Add `companyOverlapWeight?: number` to the DiversificationBenefitContext input type.
+   - After the existing overlapPenalty calculations, add: if companyOverlapWeight >= 0.35 add 20 to overlapPenalty; else if companyOverlapWeight >= 0.15 add 10.
+   - Extend the overlapWarning string when companyOverlapWeight >= 0.15 to include "including top company holding overlap via ETF look-through".
+
+7. `src/server/container.ts`
+   - etfExposureRepository is already instantiated at line 122. Add it as a constructor argument to PortfolioReviewService at line 311, immediately after portfolioLookthroughExposureService.
+
+**What does NOT change:**
+- No migrations.
+- portfolioFitService.ts — not touched.
+- DiversificationReviewService, ConcentrationReviewService, and all other portfolio review section services — unchanged.
+- Recommendation labels, guardrails, compliance wording, telemetry — unchanged.
+- Portfolio Review score weights — unchanged.
+- Gap Analysis UI (portfolio-review/page.tsx) — NOT changed in this task. UI redesign is the separate task below.
+
+**Tests:** npm.cmd run typecheck, lint, build, test must all pass. The known pre-existing Portfolio Review wording failure (improvement suggestions map concentration issues to diversifying candidates) is unrelated.
+
+**After deployment — required manual steps before new overlap logic produces output:**
+
+Step 1: Run `POST /api/jobs/etf-lookthrough-refresh?force=true` from Admin > Jobs.
+- This bypasses the stale cutoff and re-fetches top 100 holdings per ETF.
+- Each pass covers up to maxEtfsPerRun ETFs. Check job log topHoldingRows to monitor progress.
+- Repeat until etfsRefreshed = 0 (all ETFs are now fresh). Expect 3–5 passes for the full 201-ETF universe.
+
+Step 2: Run `POST /api/jobs/portfolio-review-run` from Admin > Jobs.
+- This regenerates the stored portfolio review report using real company overlap data.
+- Until step 1 is complete, etfTopHoldings is an empty array, companyOverlapWeight is 0, and behavior is identical to today.
+
+**Implementation log:** Add entry titled "ETF Holdings Integration into Portfolio Review Gap Analysis" covering objective, files changed, summary of each change, test results, and the backfill steps required post-deployment.
+
+---
+
+### Task C — Gap Analysis UI Redesign
+
+**Status:** Blocked on Task B deployment + backfill completion. Do not start until etf_top_holdings is populated and portfolio-review-run has been re-run with real company overlap data.
+
+**Why this is needed:**
+The current Gap Analysis card layout ranks candidates using a composite score that blends portfolio-specific signals (sector overlap, ticker match) with quality signals. This composite produces a #1/#2/#3 ranked list that reads as "ETFVision is telling the user which instrument is best for their portfolio" — which is the robo-advice compliance risk.
+
+The redesign separates the two concerns:
+- Candidates are ordered by universal Characteristics Score (recommendationScore) only — the same score whether the user holds 0 or 50 instruments. This is analytically defensible as instrument classification, not a portfolio recommendation.
+- Portfolio-specific signals (exposure impact, holdings overlap) are presented as factual observations about the portfolio — descriptive, not prescriptive.
+- The user sees the facts and draws their own conclusion. The platform does not synthesise a recommendation.
+
+**Reference:** A mockup of the target output was reviewed on 2026-06-18 and confirmed as the target design. The mockup shows:
+- Category title + "Underweighted category" badge.
+- Disclaimer: "Instruments below pass all guardrail filters and belong to an underweighted category. Ordered by instrument quality score only. Portfolio impact indicators are factual observations — not a recommendation to buy, sell, or hold."
+- Column indicator strip: "Ordered by: Instrument quality — universal · not portfolio-specific" (left), "Impact indicators: Exposure | Overlap — factual · your portfolio" (right).
+- Per-candidate card: rank badge (#N) + quality score + ticker + name + characteristics label chip + Exposure impact bar and text (left) + Holdings overlap label and shared company count (right).
+- Overlap label: Low / Moderate / High with green / amber / red colour coding, sourced from sharedCompanyWeight thresholds after Task B.
+
+**File to change:** `src/app/(dashboard)/portfolio-review/page.tsx` only. No backend changes.
+
+**Specific changes to the Suggestions component (around lines 345–435):**
+
+1. **Sort candidates by recommendationScore descending** before rendering, not by candidateRankScore. The internal candidateRankScore computation remains in the service — this is a display-only sort change.
+
+2. **Replace the existing candidate card layout** with a two-column card:
+   - Left column: "Exposure impact" — an issueFitScore bar (0–100 mapped to bar width %) and primaryReason text below it.
+   - Right column: "Holdings overlap" — a Low/Moderate/High label chip coloured green/amber/red based on sharedCompanyWeight thresholds (< 0.15 = Low green, 0.15–0.35 = Moderate amber, > 0.35 = High red), and detail text:
+     - If sharedCompanyCount > 0: "N shared companies via [topSharedSymbols joined] look-through".
+     - If sharedCompanyCount is null or 0: overlapWarning text or "No material company overlap detected".
+
+3. **Update the card header area:**
+   - Keep the rank badge (#N) and quality score number.
+   - Keep the characteristics label chip (mapped through assessmentLabel — already done).
+   - Keep the "Shown because category is underweighted — not a buy recommendation" disclaimer chip.
+
+4. **Add a column indicator strip** above the candidate list (inside the card, below the category title and disclaimer paragraph):
+   - Left: "Ordered by" label + "Instrument quality" in a highlighted style + "universal · not portfolio-specific" in muted text.
+   - Right: "Impact indicators" label + "Exposure" and "Overlap" chips + "factual · your portfolio" in muted text.
+
+5. **Update the card description text** (CardDescription in the Suggestions component, line 351):
+   - Current: "Instruments below belong to categories where look-through exposure is below median in the approved universe and have passed all guardrail filters. This is a deterministic filter output only. Not a recommendation to buy, sell, or hold any instrument."
+   - New: "Instruments below pass all guardrail filters and belong to an underweighted category. Ordered by instrument quality score only. Portfolio impact indicators are factual observations — not a recommendation to buy, sell, or hold."
+
+6. **Remove** the following fields from the candidate card that are no longer shown in the redesign:
+   - relevanceScore ("Rel XX")
+   - diversificationBenefitScore ("Diversification XX")
+   - overlapPenalty ("Overlap penalty XX")
+   - diversificationType text
+   - secondaryBenefit / expectedPortfolioBenefit "Context:" line
+   Keep: assessmentLabel, recommendationScore, confidenceScore (optional small chip), primaryReason (now the exposure text).
+
+7. **Keep unchanged:** sanitizeGapText on all rendered text, the suggestion-level title and rationale section, the "Analytical context" and "Trade-off" panels on the suggestion card (above the candidate list), and all other compliance language and disclaimer chips.
+
+**Tests:** npm.cmd run typecheck, lint, build, test must all pass.
+
+**Implementation log:** Add entry titled "Gap Analysis UI Redesign — instrument quality ordering and impact indicators" covering objective, files changed, summary of each UI change, test results, and a note that this completes the compliance improvement cycle for the Gap Analysis section.
+
+---
 
 ## Recently Closed Documentation Gaps
 
