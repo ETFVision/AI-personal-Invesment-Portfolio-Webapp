@@ -36,6 +36,15 @@ const getCachedMarketVisionDashboard = unstable_cache(
   { tags: ["market-vision-data", "news-data"], revalidate: 86400 * 7 }
 );
 
+const getCachedMacroDashboardSummary = unstable_cache(
+  async () => {
+    const container = createContainer();
+    return container.macroDashboardService.getDashboardSummary();
+  },
+  ["market-vision-macro-context"],
+  { tags: ["macro-data"], revalidate: 86400 }
+);
+
 const reportSections: Array<{ key: keyof MarketVisionReport; title: string; description: string }> = [
   { key: "executiveSummary", title: "Executive Summary", description: "Top-level CIO-style readout." },
   { key: "globalMarketSummary", title: "Global Market Summary", description: "Cross-asset and regional backdrop." },
@@ -570,7 +579,7 @@ function MarketVisionSupportFallback({ title, description }: { title: string; de
 async function MacroContextSection() {
   const container = createContainer();
   const macroDashboard = await measureRenderStep("market-vision:macro-context-data", () =>
-    container.macroDashboardService.getDashboardSummary()
+    getCachedMacroDashboardSummary()
   );
   const macroContext = container.macroContextService.buildContext(macroDashboard);
 
