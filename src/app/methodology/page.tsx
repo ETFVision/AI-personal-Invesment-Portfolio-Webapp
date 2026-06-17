@@ -52,13 +52,13 @@ const instrumentPanels = [
   {
     title: "Stocks",
     rows: [
-      ["Fundamentals", "32%"],
-      ["Fundamental trends", "21%"],
-      ["Valuation", "11%"],
-      ["Risk analytics", "11%"],
-      ["Market Vision alignment", "10%"],
-      ["Theme alignment", "10%"],
-      ["Momentum", "5%"]
+      ["Business Quality", "40%"],
+      ["Valuation", "20%"],
+      ["Fundamental Trends", "15%"],
+      ["Risk Analytics", "10%"],
+      ["Market Vision alignment", "7%"],
+      ["Theme alignment", "5%"],
+      ["Momentum", "3%"]
     ]
   },
   {
@@ -118,6 +118,14 @@ const fundamentalRows = [
   ["Quality", "10%"]
 ];
 
+const businessQualityRows = [
+  ["Growth", "25%"],
+  ["Profitability", "25%"],
+  ["Cash Flow", "20%"],
+  ["Balance Sheet", "15%"],
+  ["Quality", "15%"]
+];
+
 const fundamentalHelperRows = [
   ["Positive percent metrics", "scorePositivePercent(value): value <= -10% gives 10; values up to neutral produce 35-50; values from neutral to excellent produce 50-100; final result is clamped to 0-100. Defaults: neutral 5%, excellent 30%."],
   ["Margin metrics", "scoreMargin(value, weak, strong) = ((value - weak) / (strong - weak)) x 70 + 25, clamped to 0-100."],
@@ -167,9 +175,8 @@ const characteristicsConfidenceRows = [
 
 const guardrailRows = [
   ["Low confidence cap", "Confidence below 50", "Insufficient Data"],
-  ["Weak fundamentals cap", "Fundamentals score below 35", "Capped at Weak"],
-  ["Poor valuation cap", "Valuation below 25 and fundamentals below 70 or missing", "Capped at Weak"],
-  ["Quality valuation cap", "Valuation below 25 and fundamentals at least 70", "Capped at Neutral"],
+  ["Weak business quality cap", "Business Quality score below 35 (stocks)", "Capped at Weak"],
+  ["Severely stretched valuation cap", "Valuation score below 15 (stocks)", "Capped at Neutral"],
   ["Excessive instrument risk cap", "Instrument risk score above 75", "Capped at Weak unless already Poor or Significant Concerns"],
   ["Bond duration and rate regime mismatch cap", "Long-duration bond profile in restrictive, rising, or high-rate regime", "Capped at Neutral"]
 ];
@@ -439,6 +446,13 @@ export default function MethodologyPage() {
                   <Paragraph>
                     The Fundamentals Score measures the financial health and quality of a company across six dimensions. A higher score means stronger reported financials across growth, profitability, valuation, balance sheet, cash flow, and quality metrics. It does not predict future performance.
                   </Paragraph>
+                  <div className="space-y-3">
+                    <h3 className="text-base font-semibold text-slate-950">Business Quality Score</h3>
+                    <Paragraph>
+                      Business Quality is the 40% weighted component for stocks. It excludes Valuation to prevent double-counting valuation as both a sub-score input and a separate top-level component. Sub-scores use the same calculation inputs as the Overall Fundamental Score.
+                    </Paragraph>
+                    <MethodologyTable columns={["Component", "Weight"]} rows={businessQualityRows} />
+                  </div>
                   <MethodologyTable columns={["Component", "Weight"]} rows={fundamentalRows} />
                   <Paragraph>
                     Only available component scores contribute to the weighted average. Missing components are excluded from the denominator, so a missing input does not become a zero score.
@@ -587,7 +601,7 @@ export default function MethodologyPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <Paragraph>
-                    Market Vision alignment uses weekly macro and market-context text as scoring input. Its component weight is 10% for stocks, 9% for ETFs, 5% for bond ETFs, 7% for gold ETFs, and 4% for crypto.
+                    Market Vision alignment uses weekly macro and market-context text as scoring input. Its component weight is 7% for stocks, 9% for ETFs, 5% for bond ETFs, 7% for gold ETFs, and 4% for crypto.
                   </Paragraph>
                   <FormulaAccordion title="Show macro and Market Vision formula detail">
                     <MethodologyTable columns={["Macro / Market Vision element", "Calculation detail"]} rows={macroRows} />

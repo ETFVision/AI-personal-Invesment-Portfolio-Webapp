@@ -1,3 +1,37 @@
+## 2026-06-18 - Phase 2C: Methodology page and SCORE_METHODOLOGY.md weight update
+
+### Source
+Codex
+
+### Objective
+Update the public methodology page and score methodology document to reflect Phase 2 stock Characteristics Score weights, Business Quality composition, and stock guardrails.
+
+### Files Changed
+- `docs/SCORE_METHODOLOGY.md`
+- `src/app/methodology/page.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Updated stock Characteristics Score weights to Business Quality 40%, Valuation 20%, Fundamental Trends 15%, Risk Analytics 10%, Market Vision alignment 7%, Theme alignment 5%, and Momentum 3%.
+- Added Business Quality composition: Growth 25%, Profitability 25%, Cash Flow 20%, Balance Sheet 15%, and Quality 15%, with Valuation intentionally excluded.
+- Updated stock Market Vision component wording from 10% to 7%.
+- Updated stock guardrail wording to Phase 2 behavior: Business Quality below 35 caps at Weak, and Valuation below 15 caps at Neutral.
+- Left ETF, Bond ETF, Gold ETF, Crypto weights, Overall Fundamental Score sub-weights, and assessment range thresholds unchanged.
+- `METHODOLOGY_LAST_UPDATED` was already `2026-06-18` and was not changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run build` - PASS.
+- `npm.cmd run test` - PASS (274/274).
+
+### Result
+Completed.
+
+### Notes for Claude
+- This is documentation/UI methodology catch-up only. No scoring service code, feature flags, or database schema were changed.
+
+---
 ## 2026-06-18 - Fix fundamentals statement counts RPC
 
 ### Source

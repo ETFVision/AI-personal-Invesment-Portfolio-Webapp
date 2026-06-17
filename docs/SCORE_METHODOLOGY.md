@@ -801,13 +801,15 @@ Portfolio fit:
 
 | Component | Weight |
 |---|---:|
-| Fundamentals | 32% |
-| Fundamental trends | 21% |
-| Valuation | 11% |
-| Risk analytics | 11% |
-| Market Vision alignment | 10% |
-| Theme alignment | 10% |
-| Momentum | 5% |
+| Business Quality | 40% |
+| Valuation | 20% |
+| Fundamental Trends | 15% |
+| Risk Analytics | 10% |
+| Market Vision alignment | 7% |
+| Theme alignment | 5% |
+| Momentum | 3% |
+
+Business Quality is a composite of the fundamental sub-scores: Growth (25%), Profitability (25%), Cash Flow (20%), Balance Sheet (15%), and Quality (15%). Valuation is intentionally excluded to prevent double-counting valuation as both a Business Quality input and a separate top-level component. Missing sub-scores are excluded from both numerator and denominator.
 
 #### ETFs
 
@@ -885,9 +887,8 @@ Liquidity score:
 | Condition | Cap |
 |---|---|
 | Confidence below 50 | Insufficient Data |
-| Fundamentals below 35 | Watch |
-| Valuation below 25 and fundamentals below 70 | Watch |
-| Valuation below 25 and fundamentals at least 70 | Hold |
+| Business Quality below 35 for stocks | Watch |
+| Valuation below 15 for stocks | Hold |
 | Risk score above 75 | Watch unless already lower |
 | Long-duration bond mismatch with restrictive/rising/high rates | Hold |
 
