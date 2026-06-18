@@ -35,6 +35,7 @@ export interface EtfExposureRepository {
   listPortfolioLookthroughHoldings(portfolioId: string, asOfDate?: string): Promise<PortfolioLookthroughHolding[]>;
   listIssuerLinksForSecurityIds(securityIds: string[]): Promise<SecurityIssuerLink[]>;
   getLatestExposureDateForEtf(instrumentId: string): Promise<string | null>;
+  clearAllExposures(): Promise<void>;
   insertRefreshLog(input: InsertEtfExposureRefreshLogInput): Promise<void>;
   listRefreshLogs(limit?: number): Promise<EtfExposureRefreshLog[]>;
 }

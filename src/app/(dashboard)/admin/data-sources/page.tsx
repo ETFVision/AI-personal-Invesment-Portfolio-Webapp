@@ -9,7 +9,7 @@ import {
 } from "@/server/actions/newsActions";
 import { backfillMacroIndicatorsAction, refreshMacroIndicatorsAction } from "@/server/actions/macroActions";
 import { refreshFundamentalsAction } from "@/server/actions/fundamentalsActions";
-import { refreshEtfLookthroughExposureAction } from "@/server/actions/portfolioReviewActions";
+import { clearEtfLookthroughExposureAction, refreshEtfLookthroughExposureAction } from "@/server/actions/portfolioReviewActions";
 import {
   backfillUniverseHistoryAction,
   refreshInstrumentDailyReturnsAction,
@@ -768,6 +768,10 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
               <input type="hidden" name="force" value="true" />
               <SubmitButton variant="secondary" pendingLabel="Refreshing ETF exposure...">Refresh ETF exposure</SubmitButton>
+            </form>
+            <form action={clearEtfLookthroughExposureAction}>
+              <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <SubmitButton variant="destructive" pendingLabel="Clearing ETF exposure...">Clear ETF exposure data</SubmitButton>
             </form>
           </>
         }

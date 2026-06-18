@@ -342,6 +342,15 @@ export class SupabaseEtfExposureRepository implements EtfExposureRepository {
     });
   }
 
+  async clearAllExposures() {
+    const tables = ["etf_sector_exposures", "etf_country_exposures", "etf_top_holdings", "etf_theme_exposures"] as const;
+    for (const table of tables) {
+      const { error } = await this.db.from(table).delete().gte("as_of_date", "2000-01-01");
+      if (error?.code === "42P01") continue;
+      if (error) throw new Error(`Failed to clear ${table}: ${error.message}`);
+    }
+  }
+
   async getLatestExposureDateForEtf(instrumentId: string) {
     const { data, error } = await this.db
       .from("etf_sector_exposures")
