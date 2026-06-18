@@ -1,3 +1,34 @@
+## 2026-06-18 - Fix portfolio lookthrough duplicate holding symbol conflict
+
+### Source
+Codex
+
+### Objective
+Fix "ON CONFLICT DO UPDATE command cannot affect row a second time" during portfolio review run. Root cause: direct positions and ETF holding stubs for the same ticker can link to separate issuer records, producing two holdingExposures entries with the same holdingSymbol. Both entries then collide in upsertPortfolioLookthroughHoldings.
+
+### Files Changed
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `deduplicateHoldingsBySymbol` and `deduplicateExposuresByName` helpers.
+- Applied holding deduplication before `upsertPortfolioLookthroughHoldings`.
+- Applied top-holding exposure deduplication before adding `top_holding` rows to the batch passed to `upsertPortfolioLookthroughExposures`.
+- Merging logic sums direct, indirect and total weights, merges source ETF weights, and prefers richer non-null identity data.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (275/275)
+
+### Result
+Completed.
+
+### Notes for Claude
+- Upstream root cause (stub issuerId not shared with universe instrument issuerId) remains a Security Master data quality gap (Medium 40 / Medium 41 in `docs/DOCUMENTATION_GAPS.md`). This fix is a defensive deduplication in the service layer.
+
+---
 ## 2026-06-18 - Fix Gap Analysis quality score display fallback
 
 ### Source
