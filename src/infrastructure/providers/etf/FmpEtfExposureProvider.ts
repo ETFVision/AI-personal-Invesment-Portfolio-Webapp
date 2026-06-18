@@ -65,7 +65,7 @@ export class FmpEtfExposureProvider implements EtfExposureProvider {
       todayIsoDate();
 
     const rawTopHoldings = holdingsPayload.flatMap((item) => {
-      const holdingSymbol = textField(item, ["symbol", "holdingSymbol", "asset", "ticker"]);
+      const holdingSymbol = textField(item, ["asset", "ticker", "holdingSymbol", "symbol"]);
       const holdingName = textField(item, ["name", "holdingName", "securityName"]);
       const holdingWeight = normalizeWeight(numberField(item, ["weightPercentage", "weight", "percentage", "assetPercentage", "value"]));
       if (!holdingSymbol || holdingWeight == null) return [];
