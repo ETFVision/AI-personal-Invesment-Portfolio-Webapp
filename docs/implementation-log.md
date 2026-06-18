@@ -1,3 +1,32 @@
+## 2026-06-18 - Fix Gap Analysis quality score display fallback
+
+### Source
+Codex
+
+### Objective
+Restore the legacy `candidate.score` fallback for Gap Analysis candidate quality display when historical reports do not have `recommendationScore`.
+
+### Files Changed
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Updated the Quality badge expression from `candidate.recommendationScore ?? 0` to `candidate.recommendationScore ?? candidate.score ?? 0`.
+- Preserves Task C quality ordering while preventing legacy candidates from displaying as `Quality 0` when only `candidate.score` is available.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (275/275)
+
+### Result
+Completed.
+
+### Notes for Claude
+- No scoring, methodology, labels, backend, or data model changes.
+
+---
 ## 2026-06-18 - Gap Analysis UI Redesign - instrument quality ordering and impact indicators
 
 ### Source

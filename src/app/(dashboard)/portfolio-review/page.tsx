@@ -426,7 +426,7 @@ function Suggestions({ suggestions, lookthrough }: { suggestions: PortfolioImpro
                   >
                     <div className="flex flex-wrap items-start gap-2">
                       <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px]">#{candidateIndex + 1}</span>
-                      <span className="text-xs font-medium">Quality {Math.round(candidate.recommendationScore ?? 0)}</span>
+                      <span className="text-xs font-medium">Quality {Math.round(candidate.recommendationScore ?? candidate.score ?? 0)}</span>
                       <div className="min-w-0 shrink-0">
                         <Link
                           href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
