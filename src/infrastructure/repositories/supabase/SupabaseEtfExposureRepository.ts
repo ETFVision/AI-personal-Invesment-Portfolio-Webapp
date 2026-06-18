@@ -143,40 +143,39 @@ function log(row: any): EtfExposureRefreshLog {
 export class SupabaseEtfExposureRepository implements EtfExposureRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
+  private async fetchAllExposureRows(table: string, instrumentIds?: string[]): Promise<Record<string, unknown>[]> {
+    const PAGE = 1000;
+    const all: Record<string, unknown>[] = [];
+    for (let from = 0; ; from += PAGE) {
+      let query = this.db.from(table).select("*").order("as_of_date", { ascending: false }).range(from, from + PAGE - 1);
+      if (instrumentIds?.length) query = query.in("etf_instrument_id", instrumentIds);
+      const { data, error } = await query;
+      if (error?.code === "42P01") return [];
+      if (error) throw new Error(error.message);
+      all.push(...((data ?? []) as Record<string, unknown>[]));
+      if (!data || data.length < PAGE) break;
+    }
+    return all;
+  }
+
   async listLatestSectorExposures(instrumentIds?: string[]) {
-    let query = this.db.from("etf_sector_exposures").select("*").order("as_of_date", { ascending: false }).limit(5000);
-    if (instrumentIds?.length) query = query.in("etf_instrument_id", instrumentIds);
-    const { data, error } = await query;
-    if (error?.code === "42P01") return [];
-    if (error) throw new Error(error.message);
-    return latestByInstrument((data ?? []).map(sector));
+    const rows = await this.fetchAllExposureRows("etf_sector_exposures", instrumentIds);
+    return latestByInstrument(rows.map(sector));
   }
 
   async listLatestCountryExposures(instrumentIds?: string[]) {
-    let query = this.db.from("etf_country_exposures").select("*").order("as_of_date", { ascending: false }).limit(5000);
-    if (instrumentIds?.length) query = query.in("etf_instrument_id", instrumentIds);
-    const { data, error } = await query;
-    if (error?.code === "42P01") return [];
-    if (error) throw new Error(error.message);
-    return latestByInstrument((data ?? []).map(country));
+    const rows = await this.fetchAllExposureRows("etf_country_exposures", instrumentIds);
+    return latestByInstrument(rows.map(country));
   }
 
   async listLatestTopHoldings(instrumentIds?: string[]) {
-    let query = this.db.from("etf_top_holdings").select("*").order("as_of_date", { ascending: false }).limit(5000);
-    if (instrumentIds?.length) query = query.in("etf_instrument_id", instrumentIds);
-    const { data, error } = await query;
-    if (error?.code === "42P01") return [];
-    if (error) throw new Error(error.message);
-    return latestByInstrument((data ?? []).map(holding));
+    const rows = await this.fetchAllExposureRows("etf_top_holdings", instrumentIds);
+    return latestByInstrument(rows.map(holding));
   }
 
   async listLatestThemeExposures(instrumentIds?: string[]) {
-    let query = this.db.from("etf_theme_exposures").select("*").order("as_of_date", { ascending: false }).limit(5000);
-    if (instrumentIds?.length) query = query.in("etf_instrument_id", instrumentIds);
-    const { data, error } = await query;
-    if (error?.code === "42P01") return [];
-    if (error) throw new Error(error.message);
-    return latestByInstrument((data ?? []).map(theme));
+    const rows = await this.fetchAllExposureRows("etf_theme_exposures", instrumentIds);
+    return latestByInstrument(rows.map(theme));
   }
 
   async upsertSectorExposures(input: EtfSectorExposure[]) {
