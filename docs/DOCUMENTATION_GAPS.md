@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-18 SGT
+Last updated: 2026-06-18 SGT (Medium 40 added)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -11,9 +11,9 @@ An independent deep architecture audit with live read-only database verification
 | Priority | Total items | Open | Closed |
 |---|---|---|---|
 | High | 10 | 8 | 2 |
-| Medium | 39 | 24 | 15 |
+| Medium | 40 | 25 | 15 |
 | Low | 13 | 13 | 0 |
-| **Total** | **62** | **45** | **17** |
+| **Total** | **63** | **46** | **17** |
 
 **Open blockers — before public alpha:**
 
@@ -150,6 +150,14 @@ An independent deep architecture audit with live read-only database verification
    - Phase 6/7 tables exist for corporate actions and provider reconciliation.
    - Future metadata refresh should write provider observations and conflict rows once provider-priority rules are approved.
    - Do not auto-resolve identifier conflicts until the review queue has been validated.
+
+40. Security Master — `is_internal_only` stub promotion when a symbol enters the universe
+   - When a holding symbol that exists only as an `is_internal_only` stub in `securities_master` is later added as a user-selectable instrument, two active `securities_master` entries exist for the same symbol: the original stub (UUID_A) and the new instrument-linked security (UUID_B).
+   - `sync_etf_holding_security_ids()` sees two candidate security IDs and flags all matching `etf_top_holdings` rows as `ambiguous` rather than `mapped`. ETF holdings mapping breaks for that symbol until resolved.
+   - Migration 092 (`repair_security_master_links`) runs once at deployment and does not re-run when new instruments are added, so the new instrument gets `security_id = UUID_B` rather than reusing UUID_A.
+   - Resolution requires a manual one-off operation: deactivate the stub (`UPDATE securities_master SET is_active = false WHERE id = UUID_A`), then re-run `sync_etf_holding_security_ids()` and `sync_security_issuer_links()`. This clears the ambiguity and re-maps holdings to the user-selectable security.
+   - Long-term resolution: implement an admin "promote instrument" workflow that automates stub deactivation and re-sync when a new instrument is added. The Phase 6 corporate-action lifecycle tables (`104_security_master_phase6_corporate_actions.sql`) are the designed home for this — a `UNIVERSE_PROMOTION` lifecycle link from UUID_A → UUID_B.
+   - Priority: low for current universe size; becomes operational debt if ETFVision regularly adds instruments that previously appeared only as ETF holdings.
 
 8. Score methodology maintenance
    - Formula-level score documentation now exists in `docs/SCORE_METHODOLOGY.md`.
