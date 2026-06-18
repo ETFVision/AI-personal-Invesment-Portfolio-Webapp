@@ -40,12 +40,18 @@ export class EtfLookthroughRefreshService {
       .filter((instrument) => !["Bonds / Fixed Income", "Commodities / Gold", "Crypto", "Cash / Money Market"].includes(instrument.canonicalSector ?? ""))
       .filter((instrument) => requestedSymbols.size === 0 || requestedSymbols.has(instrument.symbol?.toUpperCase() ?? ""));
     const staleCutoff = daysAgo(input.force ? 0 : this.options.staleAfterDays);
-    const selected = [];
+    const eligible: { instrument: (typeof instruments)[0]; latest: string | null }[] = [];
     for (const instrument of instruments) {
-      if (selected.length >= this.options.maxEtfsPerRun) break;
       const latest = await this.repository.getLatestExposureDateForEtf(instrument.id);
-      if (input.force || !latest || latest < staleCutoff) selected.push(instrument);
+      if (input.force || !latest || latest < staleCutoff) eligible.push({ instrument, latest });
     }
+    eligible.sort((a, b) => {
+      if (!a.latest && !b.latest) return 0;
+      if (!a.latest) return -1;
+      if (!b.latest) return 1;
+      return a.latest < b.latest ? -1 : 1;
+    });
+    const selected = eligible.slice(0, this.options.maxEtfsPerRun).map(({ instrument }) => instrument);
 
     let etfsRefreshed = 0;
     let sectorRows = 0;
