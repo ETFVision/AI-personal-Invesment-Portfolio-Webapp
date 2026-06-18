@@ -1,6 +1,6 @@
 # Portfolio Review Methodology
 
-Last updated: 2026-06-15 20:15:00 +08:00
+Last updated: 2026-06-18
 
 ## Purpose
 
@@ -117,6 +117,170 @@ The Portfolio Review page should use the following public language:
 
 The page should not present these outputs as recommendations to buy, sell, hold, review, or trade an instrument. Explanatory tooltips can show why an instrument appeared, using existing look-through exposure data and guardrail-pass status.
 
+### Gap Trigger Conditions
+
+Primary code: `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+
+Seven triggers are active in `PortfolioImprovementSuggestionService.build()`. Triggers fire independently; multiple findings can appear in the same review run. All rationale strings include the disclaimer "Analytical observation only — not a position sizing recommendation."
+
+| Issue Category | Firing Condition | Priority Rule |
+|---|---|---|
+| `insufficient_fixed_income` | `bondAllocation < 0.05` | medium |
+| `insufficient_international_exposure` | `usExposure > 0.7` OR `internationalExposure < 0.3` OR `topHolding > 0.25` OR `diversificationScore < 55` | high if usExposure > 0.85; medium if usExposure > 0.7; low otherwise |
+| `insufficient_defensive_exposure` | `dominantSectorWeight > 0.35` OR `technologyWeight > 0.3` OR (`healthcareWeight < 0.08` AND `technologyWeight > 0.25`) | low |
+| `excessive_crypto_risk` | `cryptoAllocation > 0.05` | high if cryptoAllocation > 0.1; medium otherwise |
+| `concentration_risk` | `concentratedLookthroughHoldings.length > 0` (any non-ETF look-through holding above 5%) | high if top look-through holding > 8%; medium otherwise |
+| `macro_vulnerability` | `growthRegime` includes "contraction" or "slowdown" AND `recessionHedgeAllocation < 0.25` | medium |
+| `insufficient_inflation_hedge` | `goldAllocation < 0.03` AND `inflationRegime` includes "elevated" | low |
+
+Instruments with recommendation labels `"Reduce"`, `"Sell"`, `"Insufficient Data"`, or `"Not Applicable"` are blocked from all candidate pools.
+
+### SuggestionContext
+
+`SuggestionContext` is assembled in `build()` from the portfolio review input and passed to all trigger and candidate evaluation logic. Fields:
+
+| Field | Source | Notes |
+|---|---|---|
+| `dominantSector` | Top sector from look-through sectorExposures; falls back to dashboard allocationBySector | |
+| `dominantSectorWeight` | Weight of the dominant sector (0–1) | |
+| `technologyWeight` | Look-through technology sector weight (0–1) | |
+| `healthcareWeight` | Look-through healthcare sector weight (0–1) | |
+| `usExposure` | Look-through US country weight; 0 if unavailable | |
+| `internationalExposure` | `max(0, 1 − usExposure)` | |
+| `bondAllocation` | `bondReport.totalBondAllocation` | |
+| `goldAllocation` | Sum of `allocationByType` entries whose label includes "gold" | |
+| `cryptoAllocation` | Sum of `allocationByType` entries whose label includes "crypto" | |
+| `growthRegime` | `macroRegime.growthRegime` lowercased; null if unavailable | From FRED-derived macro regime |
+| `recessionHedgeAllocation` | `bondAllocation + goldAllocation` | Proxy for defensive ballast |
+| `concentratedLookthroughHoldings` | See below | Added 2026-06-18 |
+| `heldSymbols` | Set of ticker strings from current portfolio holdings | Used to block already-held instruments |
+| `etfTopHoldings` | `context.etfTopHoldings` | Used for company-level overlap scoring |
+| `lookthroughReport` | `context.lookthroughReport` | Full look-through report including holdingExposures |
+
+**`concentratedLookthroughHoldings` computation:**
+
+Built inline as an IIFE in `build()`:
+1. Build a map of `{ symbol → assetClass }` from all universe instruments.
+2. Filter `lookthroughReport.holdingExposures` to rows where `totalWeight > 0.05` AND the holding's asset class is NOT in `["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"]`.
+3. Sort descending by `totalWeight`, take top 3.
+4. Store as `Array<{ symbol: string; totalWeight: number }>`.
+
+This represents the top non-ETF look-through positions by combined direct + indirect weight. A non-empty array fires the `concentration_risk` trigger.
+
+### Candidate Role Assignments
+
+`candidateRole(instrument)` maps each instrument to a `CandidateRole` enum used for candidate pool filtering and role-based explanation text. Evaluation order is symbol override first, then sector/asset-class fallbacks:
+
+**Symbol overrides (highest priority):**
+
+| Symbol(s) | Role |
+|---|---|
+| VXUS | `international_equity` |
+| VEA | `developed_international_equity` |
+| VWO, IEMG | `emerging_market_equity` |
+| VT, ACWI | `global_equity` |
+| BNDX | `international_bond` |
+| BND, AGG | `core_us_bond` |
+| IEF | `intermediate_treasury` |
+| TLT | `long_duration_treasury` |
+| SHY, SGOV, BIL | `short_treasury_cash_like` |
+| TIP | `tips_inflation_linked` |
+| LQD | `investment_grade_credit` |
+| HYG | `high_yield_credit` |
+| GLD, IAU | `gold_hedge` |
+
+**Fallback rules (evaluated after symbol overrides):**
+
+| Condition | Role |
+|---|---|
+| `inflationLinked = true` OR theme includes "inflation hedge" | `tips_inflation_linked` |
+| `creditQuality` includes "investment" AND `treasuryClassification` includes "corporate" | `investment_grade_credit` |
+| `creditQuality` includes "high yield" | `high_yield_credit` |
+| `assetClass = "gold_etf"` | `gold_hedge` |
+| `canonicalSector = "healthcare"` | `healthcare_defensive` |
+| `canonicalSector = "utilities"` | `utilities_defensive` |
+| `canonicalSector = "consumer staples"` | `consumer_staples_defensive` |
+| `canonicalSector = "real estate"` | `real_estate` |
+| `canonicalSector = "energy"` | `energy_inflation_equity` |
+| `canonicalSector = "financials"` | `financials_cyclical` |
+| `canonicalSector = "industrials"` | `industrials_cyclical` |
+| `assetClass = "crypto"` | `crypto_alternative` |
+| `assetClass = "bond_etf"` AND `durationCategory = "long"` | `long_duration_treasury` |
+| `assetClass = "bond_etf"` AND `durationCategory` is ultra-short or short | `short_treasury_cash_like` |
+| `assetClass = "bond_etf"` (other duration) | `core_us_bond` |
+| Theme includes "global diversification" OR `instrumentIsInternationalDiversifier()` | `global_equity` |
+| `assetClass = "etf"` AND sector is "multi-asset / broad market" | `broad_market` |
+| All other | `other` |
+
+**Role labels** (used as `roleLabel` in DiversificationBenefitService and for display):
+
+| Role | Label |
+|---|---|
+| `international_equity` | International equity |
+| `developed_international_equity` | Developed international equity |
+| `emerging_market_equity` | Emerging-market equity |
+| `global_equity` | Global equity |
+| `healthcare_defensive` | Healthcare defensive sector |
+| `utilities_defensive` | Defensive utilities |
+| `consumer_staples_defensive` | Defensive consumer staples |
+| `core_us_bond` | Core US bond ballast |
+| `international_bond` | International fixed income |
+| `intermediate_treasury` | Intermediate Treasury ballast |
+| `long_duration_treasury` | Long-duration recession hedge |
+| `short_treasury_cash_like` | Short-duration / cash-like ballast |
+| `tips_inflation_linked` | Inflation-linked bonds |
+| `investment_grade_credit` | Investment-grade corporate credit |
+| `high_yield_credit` | High-yield credit |
+| `gold_hedge` | Gold / inflation hedge |
+| `real_estate` | Real estate |
+| `energy_inflation_equity` | Energy / inflation-sensitive equity |
+| `financials_cyclical` | Financial cyclicals |
+| `industrials_cyclical` | Industrial cyclicals |
+| `crypto_alternative` | Crypto / high-risk alternative |
+| `broad_market` | Broad-market equity |
+| `other` | Diversifying exposure |
+
+### Role Priority per Issue Category
+
+`rolePriority(issueCategory)` returns a ranked list of preferred candidate roles. Candidates whose `candidateRole` is earlier in the list receive higher `issueFitScore`. `roleFit` score = `max(16, 35 − index × 3)`.
+
+| Issue Category | Preferred Role Order |
+|---|---|
+| `insufficient_international_exposure` | international_equity → developed_international_equity → emerging_market_equity → global_equity → international_bond |
+| `insufficient_fixed_income` | core_us_bond → international_bond → intermediate_treasury → short_treasury_cash_like → tips_inflation_linked → long_duration_treasury → investment_grade_credit |
+| `insufficient_inflation_hedge` | gold_hedge → tips_inflation_linked → energy_inflation_equity |
+| `insufficient_defensive_exposure` | healthcare_defensive → utilities_defensive → consumer_staples_defensive → short_treasury_cash_like → core_us_bond |
+| `concentration_risk` | healthcare_defensive → utilities_defensive → consumer_staples_defensive → gold_hedge → international_bond → core_us_bond → international_equity → developed_international_equity → emerging_market_equity |
+| `excessive_crypto_risk` | short_treasury_cash_like → core_us_bond → gold_hedge |
+| `macro_vulnerability` | gold_hedge → tips_inflation_linked → intermediate_treasury → healthcare_defensive → utilities_defensive → consumer_staples_defensive |
+
+Additional `issueFit` blocking rules:
+- `concentration_risk`: instruments in the same dominant sector as the portfolio are blocked (`issueFit = 0`).
+- `excessive_crypto_risk`: instruments with `assetClass` in `["cash_proxy", "bond_etf", "gold_etf"]` receive a minimum fit of 24 even if not in the role priority list.
+- `macro_vulnerability`: instruments with themes "defensive", "inflation hedge", or "recession hedge" receive a minimum fit of 24 even if not in the role priority list.
+
+### Candidate Ranking Formula
+
+`candidateRankScore` combines multiple signals into a composite sort key:
+
+```
+rankScore =
+  issueFitScore    × 0.35
+  + diversificationBenefitScore × 0.30
+  + recommendationScore         × 0.15
+  + confidenceScore             × 0.10
+  + macroFitScore               × 0.05
+  − overlapPenalty              × 0.05
+```
+
+- `issueFitScore`: derived from `roleFit` via `relevanceScore(fit) = clamp(round((fit / 35) × 100))`.
+- `diversificationBenefitScore` and `overlapPenalty`: from `DiversificationBenefitService.evaluate()`, which applies role-label matching, portfolio exposure context, and company-level ETF overlap penalties.
+- `recommendationScore`: `recommendation.overallScore`; falls back to 55 if no recommendation exists.
+- `confidenceScore`: `recommendation.confidenceScore`; falls back to 50.
+- `macroFitScore`: from recommendation scoring breakdown components `["macro_fit", "market_vision_alignment", "theme_alignment"]`; falls back to 50.
+
+Up to 5 candidates are returned per gap finding, sorted by `rankScore` descending.
+
 ## ETF Company-Level Overlap Detection (Gap Analysis)
 
 Added 2026-06-18. Wires `etf_top_holdings` data into gap-analysis candidate scoring so overlap reflects real underlying company exposure rather than a sector/ticker proxy.
@@ -162,5 +326,6 @@ The `overlapWarning` string is extended to include "including top company holdin
 
 - Gap-finding explanations are deterministic templates and exposure-aware, but not a full optimizer.
 - Geography currently has 0% score weight in the overall portfolio score.
-- Exact issue-to-candidate scoring thresholds should be verified in the candidate services for any future recalibration.
+- `roleExplanation()` in `PortfolioImprovementSuggestionService.ts` contains well-crafted role-and-context-specific text but is currently dead code. The fallback `benefit.primaryReason || roleExplanation(...)` at line 340 never fires because `DiversificationBenefitService` always sets a non-empty `primaryReason`. Effective candidate explanation text is controlled entirely by `DiversificationBenefitService.evaluate()`.
+- `concentration_risk` rolePriority leads with `healthcare_defensive`, which overlaps with the candidate pool for `insufficient_defensive_exposure`. This causes the two gap findings to surface similar candidates. Pending fix: change `concentration_risk` rolePriority to lead with `utilities_defensive`, `consumer_staples_defensive`, and `gold_hedge`. See `docs/PORTFOLIO_REVIEW_UX_FIXES_WIP.md` P1.
 - Historical reports generated before Security Master Phase 4C/4D may not contain issuer IDs or `securityBreakdown`; refresh Portfolio Review before using issuer-level outputs for QA.
