@@ -351,6 +351,7 @@ export class PortfolioLookthroughExposureService {
     const asOfDate = dashboard.latestPriceDate ?? today();
     const instrumentBySymbol = buildInstrumentBySymbol(instruments);
     const etfIds = instruments.filter(hasEquityLookthrough).map((instrument) => instrument.id);
+    const equityEtfSymbols = new Set(instruments.filter(hasEquityLookthrough).map((i) => i.symbol?.toUpperCase()).filter(Boolean));
     const [sectorRows, countryRows, topHoldingRows, themeRows] = await Promise.all([
       this.repository.listLatestSectorExposures(etfIds),
       this.repository.listLatestCountryExposures(etfIds),
@@ -442,6 +443,7 @@ export class PortfolioLookthroughExposureService {
         if (etfHoldings.length) {
           etfsWithTopHoldings += 1;
           for (const holding of etfHoldings) {
+            if (equityEtfSymbols.has(holding.holdingSymbol?.toUpperCase())) continue;
             addHolding(
               holdings,
               holding.holdingSymbol,
