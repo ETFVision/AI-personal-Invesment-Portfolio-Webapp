@@ -220,8 +220,8 @@ An independent deep architecture audit with live read-only database verification
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 2.
 
 25. ETF holdings provider plan expansion monitoring
-    - Top holdings are limited under the current FMP plan for many ETFs. Portfolio indirect-holding overlap is partial.
-    - Remaining: evaluate FMP plan expansion for richer top-holdings data; monitor ETF-to-security mapping coverage after any plan change. Document which ETFs have complete versus partial top-holdings coverage.
+    - **Updated 2026-06-18:** Top holdings coverage is now 169/169 eligible equity ETFs. Portfolio indirect-holding company overlap is fully operational (Task B). Five ETFs (IYW, VCR, JXI, VOX, PXE) have no FMP sector data — confirmed as a FMP data gap, not a plan limitation; seeded single-sector fallback covers all five.
+    - Remaining: evaluate whether FMP plan expansion would increase the number of top holdings returned per ETF (currently capped at 100 by the provider service, but FMP may return fewer under the current plan for some ETFs); monitor ETF-to-security mapping coverage in the Security Master after any plan change.
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 5.
 
 26. Calculation golden regression suite and manual validation pack

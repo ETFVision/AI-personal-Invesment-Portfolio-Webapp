@@ -106,7 +106,8 @@ Current status: partly completed.
 Notes:
 - FMP coverage has been tested for many active instruments and candidate ETFs.
 - Formal full-universe provider coverage matrix is still needed.
-- Top holdings remain limited under the current FMP plan for many ETFs.
+- ETF look-through coverage confirmed 169/169 eligible equity ETFs as of 2026-06-18: sector 169/169, country 169/169, top holdings 169/169.
+- Five ETFs (IYW, VCR, JXI, VOX, PXE) return empty from FMP's `/etf/sector-weightings` endpoint — a data gap in FMP's database, not a plan limitation. All five are pure-play single-sector ETFs handled by a seeded sector fallback. Live FMP data takes priority if FMP adds sector data for them in future.
 
 ## 3. Data Normalization Audit
 
@@ -210,8 +211,10 @@ Output:
 Current status: partly completed.
 
 Notes:
-- Sector and country exposure are usable for many ETFs.
-- Top holdings are limited by current provider access, so portfolio indirect-holding overlap remains partial.
+- Sector, country, and top holdings are now fully populated: 169/169 eligible equity ETFs as of 2026-06-18.
+- ON CONFLICT duplicate-holdings bug fixed 2026-06-18: FMP occasionally returns duplicate `holdingSymbol` entries; deduplication by Map (keeping highest weight) now runs before upsert.
+- Portfolio indirect-holding company overlap is now fully operational via `sharedCompanyCount`, `sharedCompanyWeight`, and `topSharedSymbols` on each gap-analysis candidate (Task B, 2026-06-18).
+- Remaining formal audit items: holdings weight-sum validation, drift detection, and a full completeness report have not been produced.
 
 ## 6. Calculation And Logic Audit
 
