@@ -238,6 +238,7 @@ An independent deep architecture audit with live read-only database verification
 
 25. ETF holdings provider plan expansion monitoring
     - **Updated 2026-06-18:** Top holdings coverage is now 169/169 eligible equity ETFs. Portfolio indirect-holding company overlap is fully operational (Task B). Five ETFs (IYW, VCR, JXI, VOX, PXE) have no FMP sector data — confirmed as a FMP data gap, not a plan limitation; seeded single-sector fallback covers all five.
+    - **Updated 2026-06-18:** FMP `weightPercentage` normalisation bug fixed (100× overstatement for sub-1% holdings). All 169 ETFs re-refreshed after fix; security ID mappings and issuer links re-synced. Stored weights are now correct.
     - Remaining: evaluate whether FMP plan expansion would increase the number of top holdings returned per ETF (currently capped at 100 by the provider service, but FMP may return fewer under the current plan for some ETFs); monitor ETF-to-security mapping coverage in the Security Master after any plan change.
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 5.
 
@@ -468,7 +469,7 @@ Step 2: Run `POST /api/jobs/portfolio-review-run` from Admin > Jobs.
 
 ### Task C — Gap Analysis UI Redesign
 
-**Status:** Ready to execute. Task B is complete and ETF look-through backfill (169/169 top holdings, 169/169 sector, 169/169 country) has been confirmed as of 2026-06-18. Run Portfolio Review manually once before starting Task C so the stored report reflects real company overlap data.
+**Status:** Completed 2026-06-18. See implementation-log.md entry "Gap Analysis UI Redesign".
 
 **Why this is needed:**
 The current Gap Analysis card layout ranks candidates using a composite score that blends portfolio-specific signals (sector overlap, ticker match) with quality signals. This composite produces a #1/#2/#3 ranked list that reads as "ETFVision is telling the user which instrument is best for their portfolio" — which is the robo-advice compliance risk.

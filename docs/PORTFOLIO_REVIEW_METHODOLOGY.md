@@ -73,6 +73,20 @@ Important display rule:
 - Direct holdings win the direct-position display class. If an ETF indirect row creates an issuer/security row first as `Underlying Security`, a later direct MSFT/NVDA holding must still display as `Stock`.
 - Share-class variants such as `GOOG` and `GOOGL` can roll up under one issuer, such as `Alphabet Inc`, while `inputsSnapshot.securityBreakdown` preserves security-level detail.
 
+### ETF Self-Reference Exclusion (equityEtfSymbols Guard)
+
+During look-through accumulation in `PortfolioLookthroughExposureService`, a Set named `equityEtfSymbols` is built from all instruments in the universe whose `hasEquityLookthrough()` returns `true`. For each ETF's top holdings, any holding whose `holdingSymbol` is in `equityEtfSymbols` is skipped with a `continue` statement before accumulation.
+
+**Why this is necessary:**
+
+FMP's ETF holdings API can return rows that resolve to an ETF ticker for certain fund-of-funds structures and, historically, due to blank-asset rows resolving to the parent ETF symbol. Without this guard, an ETF like VT (which holds many other ETFs indirectly) or a malformed data row would cause ETF wrappers (VOO, VT, QQQ) to appear in "Top Underlying Company Exposure" with small but non-zero indirect weights.
+
+**Effect:**
+
+- ETF wrappers never appear in company-level look-through exposure, regardless of data source behaviour.
+- Only equity stocks and non-equity leaf instruments (bond names, commodity names) accumulate as underlying company exposure.
+- The guard is belt-and-suspenders: the FMP provider also drops blank-asset rows by excluding `"symbol"` from the holdingSymbol field priority list. See `docs/DATA_INGESTION_AND_PROVIDERS.md` → FMP ETF Holdings API Behaviour.
+
 Related files:
 
 - `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`

@@ -1,3 +1,292 @@
+## 2026-06-18 - Harden Portfolio Review Gap Analysis Tests
+
+### Source
+Claude Code
+
+### Objective
+Make the macro vulnerability test self-documenting and remove the dead `sector_concentration` candidate-priority branch after the duplicate gap trigger cleanup.
+
+### Files Changed
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/implementation-log.md`
+
+### Summary
+- Updated the macro vulnerability regression test to explicitly set allocation by type to 85% equity ETF, 10% bond ETF, and 2% gold ETF so recession-hedge allocation is fixed at 12%.
+- Removed the dead `sector_concentration`/`theme_concentration` branch from `rolePriority()`.
+- Left a comment noting `theme_concentration` is currently a reserved issue category with no active gap-analysis trigger.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (280/280)
+
+### Result
+Completed.
+
+### Notes for Claude
+- No scoring methodology, portfolio calculation logic, or user-facing compliance wording changed.
+
+---
+## 2026-06-18 - Fix Duplicate Portfolio Review Gap Findings
+
+### Source
+Claude Code
+
+### Objective
+Remove duplicate gap findings in `PortfolioImprovementSuggestionService` and add analytically distinct triggers for crypto ballast, single-name look-through concentration, and macro growth-regime vulnerability.
+
+### Files Changed
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/implementation-log.md`
+
+### Summary
+- Removed the legacy `sector_concentration` trigger and the duplicate `concentration_risk` trigger that repeated the international underweight message.
+- Expanded the international gap condition to absorb portfolio concentration/diversification signals without creating a duplicate concentration finding.
+- Broadened the defensive underweight trigger to use dominant-sector and technology exposure signals.
+- Added distinct factual triggers for crypto/alternative ballast, single-name look-through concentration, and slowing-growth macro vulnerability.
+- Updated concentration-risk candidate ordering to prioritize defensive, hedge, and fixed-income roles before international equity.
+- Added regression tests for duplicate removal, new trigger thresholds, macro gating, and concentration candidate ordering.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (280/280)
+
+### Result
+Completed.
+
+### Notes for Claude
+- New gap rationales are observational and include "Analytical observation only - not a position sizing recommendation." where the finding could otherwise sound action-oriented.
+- No scoring methodology, recommendation labels, user-facing investment advice language, or portfolio calculation logic was changed.
+
+---
+## 2026-06-18 - Drop 'symbol' from FMP holdingSymbol field fallback
+
+### Source
+Claude (direct)
+
+### Objective
+Prevent FMP cash, derivative, and money-market rows with a blank `asset` field from being stored as self-referential ETF holdings (e.g. VOO appearing as its own top holding).
+
+### Files Changed
+- `src/infrastructure/providers/etf/FmpEtfExposureProvider.ts`
+- `docs/implementation-log.md`
+
+### Summary
+Root cause investigation confirmed that FMP's `/stable/etf/holdings` response includes rows for cash positions, securities-lending collateral, and derivative instruments that have `asset: ""`. The `textField` helper fell through to the `"symbol"` key, which FMP always sets to the parent ETF ticker. This caused every blank-asset row to be stored as `holding_symbol = "VOO"` (or VT, QQQ etc.), making the ETF appear to hold itself.
+
+Removed `"symbol"` from the holdingSymbol field priority list:
+- Before: `["asset", "ticker", "holdingSymbol", "symbol"]`
+- After: `["asset", "ticker", "holdingSymbol"]`
+
+With `holdingSymbol = null` these rows now hit the existing `if (!holdingSymbol || holdingWeight == null) return []` guard and are dropped cleanly. Cash and non-ticker instruments should not be stored in `etf_top_holdings`.
+
+### Manual follow-up
+Run in Supabase SQL editor to remove existing self-referential rows from the database:
+```sql
+DELETE FROM etf_top_holdings WHERE holding_symbol = etf_symbol;
+```
+This removes rows such as VOO holding VOO (weight 0.18%), VT holding VT (0.82%), QQQ holding QQQ (0.11%), IVV holding IVV (0.19%), and SPY holding SPY (0.20%). These originated from the blank-asset FMP data bug and carry no analytical meaning. Re-refresh is not required — the fix prevents new self-referential rows on next ingestion.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (275/275)
+
+### Result
+Completed.
+
+### Notes for Claude
+- FMP returns blank-asset rows for: Vanguard market-liquidity instruments ("MKTLIQ 12/31/2049"), securities-lending collateral ("SLBBH1142"), cash ("US Dollar"), futures ("CME E-Mini NASDAQ 100"), and various currency positions. VT has 505 such rows due to its broad international mandate and many local cash instruments.
+- `"symbol"` must never be re-added to the holdingSymbol field list. In FMP's ETF holdings schema, `symbol` is always the parent ETF ticker, not the holding ticker.
+
+---
+## 2026-06-18 - Exclude equity ETF sub-holdings during portfolio look-through accumulation
+
+### Source
+Claude (direct)
+
+### Objective
+Prevent ETF wrappers (VOO, VT, QQQ, etc.) from appearing in "Top Underlying Company Exposure" and "Top Indirect Company Exposure" in Portfolio Review.
+
+### Files Changed
+- `src/application/services/etfLookthrough/PortfolioLookthroughExposureService.ts`
+- `docs/implementation-log.md`
+
+### Summary
+After the Security Master and issuer-link backfill, ETF wrappers appeared in company exposure with tiny indirect weights (VOO 0.05%, VT 0.06%, QQQ 0.01%). Root cause: some ETFs in the portfolio had blank-asset FMP rows that were stored as self-referential holdings (see entry above). These rows gave VOO/VT/QQQ a small holding weight inside other ETFs, which was then accumulated as indirect company exposure.
+
+Added a Set `equityEtfSymbols` containing the uppercased symbols of all equity ETFs in the universe. Added a `continue` guard at the start of the `for (const holding of etfHoldings)` loop to skip any holding whose `holdingSymbol` is in `equityEtfSymbols`.
+
+This serves as a belt-and-suspenders defence: even if a blank-asset FMP row slips through in future (or if a genuine fund-of-funds structure appears), equity ETF wrappers will never accumulate as indirect company exposure.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (275/275)
+
+### Result
+Completed.
+
+---
+## 2026-06-18 - Fix ETF holdings refresh batch ordering — sort by holdings date
+
+### Source
+Claude (direct)
+
+### Objective
+Fix the ETF look-through refresh job so each batch of 50 ETFs advances through the backlog rather than repeating the same first-50 alphabetically.
+
+### Files Changed
+- `src/application/ports/repositories/EtfExposureRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts`
+- `src/application/services/etfLookthrough/EtfLookthroughRefreshService.ts`
+- `docs/implementation-log.md`
+
+### Summary
+Root cause: `getLatestExposureDateForEtf()` queries `etf_sector_exposures`. After full sector backfill (169/169), every ETF had sector date = "2026-06-18". All 169 passed the stale cutoff check and the first 50 alphabetically were selected every pass — no progress on ETFs missing holdings data.
+
+Fix: added `getLatestHoldingsDateForEtf()` to `EtfExposureRepository` interface and `SupabaseEtfExposureRepository`, querying `etf_top_holdings` for the latest `as_of_date` per ETF. Changed `EtfLookthroughRefreshService.refresh()` to collect all eligible ETFs first, then sort by `holdingsLatest` ascending (nulls first — ETFs with no holdings data are prioritised), then slice to `maxEtfsPerRun`. Each pass now reliably covers the 50 ETFs furthest from holdings coverage.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (275/275)
+
+### Result
+Completed.
+
+### Notes for Claude
+- `getLatestExposureDateForEtf()` remains in place and is still used for the stale cutoff check. It is not replaced — the holdings date is only used for priority ordering within the eligible set.
+
+---
+## 2026-06-18 - Fix FMP weightPercentage normalisation (100x weight overstatement)
+
+### Source
+Claude (direct)
+
+### Objective
+Fix ETF holdings weights being stored at 100x their correct value for holdings below 1%.
+
+### Files Changed
+- `src/infrastructure/providers/etf/FmpEtfExposureProvider.ts`
+- `docs/implementation-log.md`
+
+### Summary
+Root cause: FMP's `weightPercentage` field is always on a 0–100 scale (e.g. 7.89 = 7.89%, 0.93 = 0.93%). The existing `normalizeWeight()` function uses a heuristic: `value > 1 ? value / 100 : value`. For holdings below 1%, `weightPercentage` is less than 1 (e.g. 0.93 for XOM at ~0.93%), so `normalizeWeight` treated it as an already-normalised fraction and stored 0.93 (93%) instead of 0.0093 (0.93%). This caused a 100x overstatement for all holdings below 1%.
+
+Fix: added a `normalizePercentage()` function that always divides by 100, bypassing the `> 1` heuristic. Used `normalizePercentage` specifically for the `weightPercentage` field across holdings, sector, and country exposure ingestion. The generic `normalizeWeight` heuristic is retained for other weight fields (`weight`, `percentage`, `assetPercentage`, `value`) as a fallback.
+
+```typescript
+function normalizePercentage(value: number | null) {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  return value / 100;
+}
+```
+
+### Manual follow-up
+After deploying this fix, all 169 ETFs were re-refreshed from the admin panel to replace incorrect weight data. `sync_etf_holding_security_ids()` was re-run to restore `holding_security_id` mappings on the fresh rows (upsert resets `holding_security_id` to null on conflict). Confirmed via cross-check: NVDA weight in VOO = 7.89% (raw from FMP), stored = 0.07899, portfolio review indirect = 30.62% × 7.89% = 2.42% — matches report.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (275/275)
+
+### Result
+Completed.
+
+### Notes for Claude
+- `normalizeWeight` must not be used for FMP `weightPercentage`. The `> 1` heuristic is only valid for weight fields that may be expressed in either 0–1 or 0–100 scale depending on the provider. FMP `weightPercentage` is always 0–100.
+- Sector and country exposure weights from FMP also use `weightPercentage` and are now correctly normalised.
+
+---
+## 2026-06-18 - Fix portfolio review 414 URL-too-large on issuer link fetch
+
+### Source
+Claude (direct)
+
+### Objective
+Fix HTTP 414 Request-URI Too Large error when running Portfolio Review, caused by Supabase `.in()` serialising thousands of security IDs as GET URL parameters.
+
+### Files Changed
+- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts`
+- `docs/implementation-log.md`
+
+### Summary
+`listIssuerLinksForSecurityIds()` fetched issuer links using a single `.in("security_id", ids)` query. After Security Master backfill created 3,724 issuer links, the query passed ~3,800 UUIDs as URL parameters, exceeding Cloudflare's URL length limit and returning HTTP 414.
+
+Fix: chunked the security ID array into batches of 150 and executed all chunks in parallel using `Promise.all`. Same pattern applied to the issuer ID lookup immediately after. Initial sequential implementation was corrected to parallel in the same session to avoid latency regression (~1.3s per sequential chunk).
+
+```typescript
+const CHUNK = 150;
+const chunks = <T>(arr: T[]) => Array.from({ length: Math.ceil(arr.length / CHUNK) }, (_, i) => arr.slice(i * CHUNK, (i + 1) * CHUNK));
+const linkResults = await Promise.all(chunks(ids).map(async (chunk) => { ... }));
+```
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (275/275)
+
+### Result
+Completed.
+
+### Notes for Claude
+- Supabase `.in()` uses GET requests with URL-encoded parameters. Any `.in()` query on UUIDs should be chunked if the ID list can exceed ~150 entries. The Cloudflare URL limit is ~8KB; a UUID is 36 characters, so 150 UUIDs ≈ 5.4KB including encoding.
+- The chunk size of 150 was chosen conservatively. It can be increased to 200 if needed, but 150 avoids the limit with margin.
+
+---
+## 2026-06-18 - Security Master backfill and issuer sync for ETF holdings
+
+### Source
+Claude (direct — SQL editor operations)
+
+### Objective
+Map `etf_top_holdings` symbols to `securities_master` entries and create issuer links for company-level portfolio look-through rollup.
+
+### Files Changed
+- Supabase database (SQL editor operations — no migration file)
+- `docs/implementation-log.md`
+
+### Summary
+After 169 ETF holdings refresh, 13,626 holding rows existed with `holding_security_id = null` (unmapped). The following operations were run in the Supabase SQL editor:
+
+**Step 1 — Create stubs for new holding symbols:**
+```sql
+SELECT * FROM public.backfill_etf_holding_stubs();
+```
+Created 3,810 `is_internal_only` stubs in `securities_master` for holding symbols not in the selectable universe. Stubs use `identifier_quality_score = 40` and `source_priority = ["etf_holding_stub"]`.
+
+**Step 2 — Stamp security IDs onto holding rows:**
+```sql
+SELECT * FROM public.sync_etf_holding_security_ids();
+```
+Result: 13,563 mapped, 63 unmapped, 16 ambiguous. Unmapped/ambiguous are non-material (obscure tickers, non-equity instruments).
+
+**Step 3 — Create issuers and issuer links:**
+```sql
+SELECT * FROM public.sync_security_issuer_links();
+```
+Result: 3,724 issuers created, 3,811 links created, 87 securities reused existing issuers via normalized name matching (e.g. share-class variants).
+
+### Result
+Completed. ETF holdings mapped: 13,563 / 13,626 (99.5%). Company-level look-through rollup operational for Portfolio Review.
+
+### Notes for Claude
+- 63 unmapped and 16 ambiguous holdings remain. These are mostly obscure tickers or non-equity instruments with no FMP profile. Not material for portfolio review accuracy.
+- `sync_security_issuer_links()` is idempotent — safe to re-run after any stub creation or canonical_name update.
+- `backfill_etf_holding_stubs()` is also idempotent via `ON CONFLICT DO NOTHING`.
+
+---
 ## 2026-06-18 - Fix portfolio lookthrough duplicate holding symbol conflict
 
 ### Source
