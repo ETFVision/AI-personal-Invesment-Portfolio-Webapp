@@ -1,3 +1,35 @@
+## 2026-06-18 - Gap Analysis UI Redesign - instrument quality ordering and impact indicators
+
+### Source
+Codex
+
+### Objective
+Compliance improvement separating universal quality ordering from portfolio-specific impact indicators in the Gap Analysis card.
+
+### Files Changed
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Updated the Gap Analysis card description to state that ordering is by instrument quality score only and portfolio impact indicators are factual observations.
+- Sorted candidate instruments by `recommendationScore` descending instead of rendering the existing candidate order.
+- Added a column indicator strip separating universal instrument-quality ordering from portfolio-specific exposure and overlap indicators.
+- Replaced the old flat score-chip candidate layout with a two-column card showing Exposure impact and Holdings overlap.
+- Removed relevance, diversification, overlap-penalty, diversification-type, candidate-level context, and candidate-level trade-off rows from candidate cards to reduce composite-ranking impression.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (275/275)
+
+### Result
+Completed.
+
+### Notes for Claude
+- This completes the compliance improvement cycle for the Gap Analysis section (Tasks A, B, C).
+
+---
 ## 2026-06-18 - Security Master internal-only and stub-collision counts in Admin QA panel
 
 ### Source
