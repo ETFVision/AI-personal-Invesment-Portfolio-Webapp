@@ -1,3 +1,41 @@
+## 2026-06-18 - ETF Look-through Operational Fixes and Coverage Completion
+
+### Source
+Claude (direct)
+
+### Objective
+Fix three operational bugs discovered during ETF look-through backfill and close the remaining coverage gap to 169/169 across all exposure types.
+
+### Files Changed
+- `src/infrastructure/providers/etf/FmpEtfExposureProvider.ts` — deduplicate holdings by symbol before sort/slice (ON CONFLICT fix)
+- `src/application/services/etfLookthrough/EtfLookthroughRefreshService.ts` — collect all eligible ETFs before slicing, sort nulls-first then oldest-date-first so refreshes always progress rather than repeating the same first-50 alphabetically
+- `src/app/(dashboard)/admin/data-sources/page.tsx` — add `force=true` hidden input to ETF refresh form; add "Clear ETF exposure data" destructive button
+- `src/application/ports/repositories/EtfExposureRepository.ts` — add `clearAllExposures(): Promise<void>` to interface
+- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts` — implement `clearAllExposures()` (deletes all 4 ETF exposure tables); fix PostgREST 1000-row cap in all four `listLatest*` methods by replacing single `limit(5000)` queries with paginated `fetchAllExposureRows` helper using `.range()`
+- `src/server/actions/portfolioReviewActions.ts` — add `clearEtfLookthroughExposureAction` server action
+- `src/infrastructure/providers/etf/seededEtfSectorFallback.ts` — new file: seeded single-sector fallback for IYW, VCR, JXI, VOX, PXE
+- `docs/implementation-log.md`
+
+### Summary
+- **ON CONFLICT fix:** FMP returns duplicate `holdingSymbol` entries for the same ETF in some cases. Deduplicated via Map (keep highest weight) before sort/slice to prevent upsert conflict errors.
+- **Refresh ordering fix:** With `force=true`, the old early-break loop always selected the first 50 alphabetically on every pass. Changed to collect all eligible, sort by `latest` date ascending (nulls first), then slice — each pass now processes the 50 ETFs furthest from coverage.
+- **Force=true button fix:** The ETF refresh admin button was missing the `force` hidden input, so it defaulted to false and skipped already-covered ETFs.
+- **Clear ETF exposure data button:** New destructive admin button triggers `clearAllExposures()` across all 4 ETF exposure tables for a clean backfill reset without affecting the refresh button's incremental behaviour.
+- **PostgREST 1000-row cap fix:** `etf_sector_exposures` grew to 1,253 rows. PostgREST's `db-max-rows` cap silently truncated `listLatestSectorExposures` to 1,000 rows, causing 33 ETFs to appear as "missing sector" in the coverage UI despite having data in the DB. Same bug class as `f447bde`. Fixed by paginating all four `listLatest*` methods using `.range()` in a loop until all rows are returned.
+- **Seeded sector fallback:** Direct FMP testing confirmed IYW, VCR, JXI, VOX, and PXE return `[]` from `/etf/sector-weightings` — a data gap in FMP's database (all five do have country and holdings data). All five are pure-play single-sector ETFs; added a seeded 100% weight fallback matching their known sector. Coverage reached 169/169 after backfill.
+
+### Tests Run
+- `npm run typecheck` - PASS
+- `npm test` - PASS (275/275)
+
+### Result
+Completed. ETF look-through coverage: 169/169 sector, 169/169 country, 169/169 top holdings.
+
+### Notes for Claude
+- The five seeded-sector ETFs (IYW=Technology, VCR=Consumer Discretionary, JXI=Utilities, VOX=Communication Services, PXE=Energy) should be re-tested against FMP periodically. If FMP adds sector data for them in future, the seeded fallback is bypassed automatically (live data takes priority when `sectorPayload.length > 0`).
+- The PostgREST row-cap pattern may affect other large tables as the universe grows. Any `listLatest*` or bulk-read query using `limit(N)` should be audited once row counts approach 1,000.
+
+---
 ## 2026-06-18 - ETF Holdings Integration into Portfolio Review Gap Analysis
 
 ### Source

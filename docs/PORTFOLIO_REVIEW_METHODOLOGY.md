@@ -103,6 +103,47 @@ The Portfolio Review page should use the following public language:
 
 The page should not present these outputs as recommendations to buy, sell, hold, review, or trade an instrument. Explanatory tooltips can show why an instrument appeared, using existing look-through exposure data and guardrail-pass status.
 
+## ETF Company-Level Overlap Detection (Gap Analysis)
+
+Added 2026-06-18. Wires `etf_top_holdings` data into gap-analysis candidate scoring so overlap reflects real underlying company exposure rather than a sector/ticker proxy.
+
+### Candidate Overlap Fields
+
+Each `PortfolioReviewCandidate` now carries:
+
+| Field | Type | Description |
+|---|---|---|
+| `sharedCompanyCount` | `number \| null` | Number of top-100 holdings symbols the candidate ETF shares with the user's portfolio look-through company symbols. Null when ETF top-holdings data is unavailable. |
+| `sharedCompanyWeight` | `number \| null` | Sum of the candidate ETF's holding weights for those shared companies (0–1 decimal). |
+| `topSharedSymbols` | `string[]` | Up to 3 highest-weight shared symbols, sorted descending by holding weight. |
+
+### Computation (PortfolioImprovementSuggestionService)
+
+1. Filter `context.etfTopHoldings` by `etfInstrumentId === candidate.instrument.id` to get the candidate's holdings.
+2. Build a `Set` of the user's company symbols from `context.lookthroughReport.holdingExposures` (uppercased).
+3. Intersect: accumulate `holdingWeight` for each candidate holding whose `holdingSymbol` is in the user's symbol set → `companyOverlapWeight`.
+4. Collect the top 3 shared symbols by weight → `topSharedSymbols`.
+5. Pass `companyOverlapWeight` into `DiversificationBenefitService.evaluate()`.
+
+When `etfTopHoldings` is empty (before backfill or if ETF has no holdings data), `companyOverlapWeight` is 0 and all overlap fields are null — behaviour is identical to the pre-Task-B baseline.
+
+### Penalty Scoring (DiversificationBenefitService)
+
+Company overlap adds to the existing `overlapPenalty` deducted from `diversificationBenefitScore`:
+
+| Threshold | Additional penalty |
+|---|---|
+| `companyOverlapWeight >= 0.35` | +20 |
+| `companyOverlapWeight >= 0.15` | +10 |
+
+The `overlapWarning` string is extended to include "including top company holding overlap via ETF look-through" when `companyOverlapWeight >= 0.15`.
+
+### Data Source
+
+- `etf_top_holdings` table — top 100 holdings per ETF by weight, populated by `EtfLookthroughRefreshService`.
+- Coverage: 169/169 eligible equity ETFs as of 2026-06-18.
+- Five ETFs (IYW, VCR, JXI, VOX, PXE) have no sector data from FMP but do have top-holdings data. A seeded single-sector fallback covers those for sector exposure.
+
 ## Current Limitations
 
 - Gap-finding explanations are deterministic templates and exposure-aware, but not a full optimizer.

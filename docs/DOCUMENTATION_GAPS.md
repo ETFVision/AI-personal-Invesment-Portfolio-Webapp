@@ -376,7 +376,7 @@ These tasks have been fully scoped and are ready to execute. They are not docume
 
 ### Task B — ETF Holdings Integration into Portfolio Review
 
-**Status:** Codex prompt prepared 2026-06-18. Ready to execute immediately.
+**Status:** Completed 2026-06-18. See implementation-log.md entry "ETF Holdings Integration into Portfolio Review Gap Analysis".
 
 **Why this is needed:**
 The Gap Analysis section in Portfolio Review currently uses a sector/ticker-level proxy (overlapPenalty) to detect candidate overlap with the user's existing holdings. It cannot see what companies are inside each ETF. For example, if the user holds VOO (which contains JNJ, ABT, UNH indirectly) and the gap analysis suggests VHT as a healthcare candidate (which also holds JNJ, UNH, ABT as top positions), the current system has no idea those funds share companies. It treats VHT as if it has zero company overlap. This task wires the existing etf_top_holdings data into the portfolio review computation so overlap is based on real company-level data.
@@ -451,7 +451,7 @@ Step 2: Run `POST /api/jobs/portfolio-review-run` from Admin > Jobs.
 
 ### Task C — Gap Analysis UI Redesign
 
-**Status:** Blocked on Task B deployment + backfill completion. Do not start until etf_top_holdings is populated and portfolio-review-run has been re-run with real company overlap data.
+**Status:** Ready to execute. Task B is complete and ETF look-through backfill (169/169 top holdings, 169/169 sector, 169/169 country) has been confirmed as of 2026-06-18. Run Portfolio Review manually once before starting Task C so the stored report reflects real company overlap data.
 
 **Why this is needed:**
 The current Gap Analysis card layout ranks candidates using a composite score that blends portfolio-specific signals (sector overlap, ticker match) with quality signals. This composite produces a #1/#2/#3 ranked list that reads as "ETFVision is telling the user which instrument is best for their portfolio" — which is the robo-advice compliance risk.
