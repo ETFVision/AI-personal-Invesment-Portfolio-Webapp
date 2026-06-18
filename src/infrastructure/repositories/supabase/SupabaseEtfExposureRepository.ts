@@ -308,25 +308,36 @@ export class SupabaseEtfExposureRepository implements EtfExposureRepository {
   async listIssuerLinksForSecurityIds(securityIds: string[]): Promise<SecurityIssuerLink[]> {
     const ids = Array.from(new Set(securityIds.filter(Boolean)));
     if (!ids.length) return [];
-    const { data: links, error } = await this.db
-      .from("security_issuer_links")
-      .select("security_id, issuer_id, normalized_issuer_name, share_class, link_source, confidence_score")
-      .in("security_id", ids)
-      .is("valid_to", null);
-    if (error?.code === "42P01") return [];
-    if (error) throw new Error(error.message);
 
-    const issuerIds = Array.from(new Set((links ?? []).map((row: any) => row.issuer_id).filter(Boolean)));
+    const CHUNK = 150;
+    const allLinks: any[] = [];
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const { data, error } = await this.db
+        .from("security_issuer_links")
+        .select("security_id, issuer_id, normalized_issuer_name, share_class, link_source, confidence_score")
+        .in("security_id", ids.slice(i, i + CHUNK))
+        .is("valid_to", null);
+      if (error?.code === "42P01") return [];
+      if (error) throw new Error(error.message);
+      allLinks.push(...(data ?? []));
+    }
+
+    const issuerIds = Array.from(new Set(allLinks.map((row: any) => row.issuer_id).filter(Boolean)));
     if (!issuerIds.length) return [];
-    const { data: issuers, error: issuerError } = await this.db
-      .from("issuers")
-      .select("id, issuer_name")
-      .in("id", issuerIds);
-    if (issuerError?.code === "42P01") return [];
-    if (issuerError) throw new Error(issuerError.message);
 
-    const issuerNameById = new Map((issuers ?? []).map((row: any) => [row.id, row.issuer_name]));
-    return (links ?? []).flatMap((row: any) => {
+    const allIssuers: any[] = [];
+    for (let i = 0; i < issuerIds.length; i += CHUNK) {
+      const { data, error } = await this.db
+        .from("issuers")
+        .select("id, issuer_name")
+        .in("id", issuerIds.slice(i, i + CHUNK));
+      if (error?.code === "42P01") return [];
+      if (error) throw new Error(error.message);
+      allIssuers.push(...(data ?? []));
+    }
+
+    const issuerNameById = new Map(allIssuers.map((row: any) => [row.id, row.issuer_name]));
+    return allLinks.flatMap((row: any) => {
       const issuerName = issuerNameById.get(row.issuer_id);
       if (!issuerName) return [];
       return [{
