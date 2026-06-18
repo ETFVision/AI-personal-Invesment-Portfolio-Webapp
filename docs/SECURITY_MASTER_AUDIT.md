@@ -1,6 +1,6 @@
 # ETFVision Security Master Audit
 
-Last updated: 2026-06-13 16:20 SGT
+Last updated: 2026-06-18 SGT
 
 Status: Completed for the current commercialization checkpoint. Phases A, 1, 2, 3, 4A, 4B, 4C, 4D, 5, 8, 6, and 7 are implemented and QA-reviewed. Security Master now has canonical securities, identifiers, aliases, internal ETF underlyings, issuer master links, issuer alias normalization, dual-run QA, issuer-level look-through rollups with security-level drill-down, stable identity propagation into recommendation and telemetry history, Admin QA monitoring, corporate-action readiness tables, and provider reconciliation review tables. Portfolio Review concentration, hidden overlap, Portfolio Assistant context, recommendation portfolio-fit, recommendation history, and telemetry snapshots can use stable security/issuer identity while preserving historical symbols for audit.
 
@@ -114,6 +114,29 @@ order by is_internal_only, is_user_selectable;
 ```
 
 ## Live Evidence Snapshot
+
+### 2026-06-18 checkpoint (after migration 112)
+
+ETF look-through backfill was cleared and re-run across all 169 eligible equity ETFs between the 2026-06-12 and 2026-06-18 checkpoints. Migration 112 re-synced all ETF holding mappings and expanded `normalize_issuer_name` with generic share-class patterns.
+
+| Check | Result |
+|---|---:|
+| ETF top holdings mapped in final health snapshot | 169 / 169 |
+| ETF top holdings unmapped / ambiguous | 0 / 0 |
+| Mapping gap rows in final health snapshot | 5 |
+| New `is_internal_only` stubs created by migration 112 | 0 |
+| New issuer links created by migration 112 | 0 |
+| ETF look-through sector coverage | 169 / 169 |
+| ETF look-through country coverage | 169 / 169 |
+| ETF look-through top holdings coverage | 169 / 169 |
+
+Important interpretation:
+
+- 0 new stubs and 0 new issuer links confirms the original 095/097 runs had already created entries for all holding symbols. The re-sync restored `mapping_status = 'mapped'` and `holding_security_id` for all rows without needing new securities or issuer links.
+- The 5 mapping gap rows remain the same pre-existing instrument identifier gaps (instruments without ISIN/CUSIP coverage) — not ETF holding failures.
+- `normalize_issuer_name` (migration 112) now generically strips `capital stock`, `series [x]`, `depositary receipts`, and `non-voting` suffixes in addition to the original patterns. Share-class issuer rollup (e.g. GOOG/GOOGL → Alphabet Inc) now works for any company with these FMP naming conventions, not just the four hardcoded tickers.
+
+### 2026-06-12 checkpoint (original Security Master build)
 
 Live Supabase/FMP/security-master checks performed during the 2026-06-12 checkpoint:
 

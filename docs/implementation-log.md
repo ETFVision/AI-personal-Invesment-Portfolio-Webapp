@@ -1,3 +1,41 @@
+## 2026-06-18 - Security Master ETF Holdings Re-sync (Migration 112)
+
+### Source
+Codex
+
+### Objective
+Re-map ETF top holdings to Security Master entries after clearAllExposures() reset all mapping_status values to `unmapped`. Expand normalize_issuer_name generically to improve share-class issuer rollup beyond the four hardcoded symbols.
+
+### Files Changed
+- `supabase/migrations/112_resync_etf_holding_security_ids.sql`
+- `docs/implementation-log.md`
+
+### Summary
+- Expanded normalize_issuer_name to strip capital stock, series, depositary receipt, and non-voting suffixes, improving issuer rollup for companies with these naming conventions rather than relying on hardcoded ticker lists.
+- Re-ran 095 backfill logic to create is_internal_only stubs for new holding symbols that entered etf_top_holdings after the expanded 169-ETF backfill.
+- Re-ran sync_etf_holding_security_ids() to restore holding_security_id and mapping_status = `mapped` across all etf_top_holdings rows.
+- Re-ran sync_security_issuer_links() to create issuer links for new stubs, enabling portfolio look-through to aggregate share-class variants at the company/issuer level.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (275/275)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+- ETF holdings mapped: 169 / 169
+- ETF holdings unmapped: 0
+- Mapping gap rows: 5
+- New is_internal_only stubs created: 0
+- New issuer links created: 0
+
+### Notes for Claude
+- Migration number is 112 because migrations 110 and 111 already existed locally.
+- normalize_issuer_name is now generic for class/series/ADR/capital-stock/non-voting patterns. If FMP introduces new name suffixes in future, extend this function rather than adding hardcoded ticker lists.
+- sync_security_issuer_links() can be re-run at any time; it is idempotent. Run it after any bulk stub creation or canonical_name update.
+
+---
 ## 2026-06-18 - ETF Look-through Operational Fixes and Coverage Completion
 
 ### Source
