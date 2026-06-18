@@ -3,6 +3,7 @@ import type { EtfExposureProviderSnapshot } from "@/domain/etfLookthrough/types"
 import { env } from "@/infrastructure/config/env";
 import { normalizeExposureName } from "../../../domain/etfLookthrough/exposureNormalization";
 import { seededEtfTopHoldings } from "./seededEtfHoldingsFallback";
+import { seededEtfSectorExposures } from "./seededEtfSectorFallback";
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
 
@@ -80,12 +81,17 @@ export class FmpEtfExposureProvider implements EtfExposureProvider {
     return {
       symbol: normalizedSymbol,
       asOfDate,
-      sectorExposures: sectorPayload.flatMap((item) => {
-        const sector = normalizeExposureName("sector", textField(item, ["sector", "sectorName", "name"]));
-        const exposureWeight = normalizeWeight(numberField(item, ["weightPercentage", "weight", "percentage", "assetPercentage", "value"]));
-        if (!sector || exposureWeight == null) return [];
-        return [{ etfSymbol: normalizedSymbol, sector, exposureWeight, asOfDate, providerMetadata: item }];
-      }),
+      sectorExposures: (() => {
+        const live = sectorPayload.flatMap((item) => {
+          const sector = normalizeExposureName("sector", textField(item, ["sector", "sectorName", "name"]));
+          const exposureWeight = normalizeWeight(numberField(item, ["weightPercentage", "weight", "percentage", "assetPercentage", "value"]));
+          if (!sector || exposureWeight == null) return [];
+          return [{ etfSymbol: normalizedSymbol, sector, exposureWeight, asOfDate, providerMetadata: item }];
+        });
+        return live.length > 0
+          ? live
+          : seededEtfSectorExposures(normalizedSymbol, asOfDate, "FMP ETF sector-weightings endpoint returned no data.");
+      })(),
       countryExposures: countryPayload.flatMap((item) => {
         const country = normalizeExposureName("country", textField(item, ["country", "countryName", "name"]));
         const exposureWeight = normalizeWeight(numberField(item, ["weightPercentage", "weight", "percentage", "assetPercentage", "value"]));
