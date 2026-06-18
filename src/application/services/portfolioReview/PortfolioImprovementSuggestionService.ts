@@ -49,6 +49,10 @@ type SuggestionContext = {
   internationalExposure: number;
   bondAllocation: number;
   goldAllocation: number;
+  cryptoAllocation: number;
+  growthRegime: string | null;
+  recessionHedgeAllocation: number;
+  concentratedLookthroughHoldings: Array<{ symbol: string; totalWeight: number }>;
   heldSymbols: Set<string>;
   etfTopHoldings: EtfTopHolding[];
   lookthroughReport: PortfolioLookthroughReport | null;
@@ -122,7 +126,7 @@ function candidateRole(instrument: Instrument): CandidateRole {
   return "other";
 }
 
-function rolePriority(issueCategory: PortfolioImprovementIssueCategory, context: SuggestionContext): CandidateRole[] {
+function rolePriority(issueCategory: PortfolioImprovementIssueCategory, _context: SuggestionContext): CandidateRole[] {
   if (issueCategory === "insufficient_international_exposure") {
     return ["international_equity", "developed_international_equity", "emerging_market_equity", "global_equity", "international_bond"];
   }
@@ -141,14 +145,9 @@ function rolePriority(issueCategory: PortfolioImprovementIssueCategory, context:
   if (issueCategory === "insufficient_defensive_exposure") {
     return ["healthcare_defensive", "utilities_defensive", "consumer_staples_defensive", "short_treasury_cash_like", "core_us_bond"];
   }
-  if (issueCategory === "sector_concentration" || issueCategory === "theme_concentration") {
-    if (context.technologyWeight > 0.25) {
-      return ["healthcare_defensive", "utilities_defensive", "consumer_staples_defensive", "international_equity", "developed_international_equity", "emerging_market_equity", "core_us_bond", "international_bond", "gold_hedge"];
-    }
-    return ["international_equity", "healthcare_defensive", "utilities_defensive", "consumer_staples_defensive", "core_us_bond", "gold_hedge", "real_estate"];
-  }
+  // theme_concentration is a reserved issue category with no active gap-analysis trigger.
   if (issueCategory === "concentration_risk") {
-    return ["international_equity", "developed_international_equity", "emerging_market_equity", "international_bond", "core_us_bond", "gold_hedge", "healthcare_defensive", "utilities_defensive", "consumer_staples_defensive"];
+    return ["healthcare_defensive", "utilities_defensive", "consumer_staples_defensive", "gold_hedge", "international_bond", "core_us_bond", "international_equity", "developed_international_equity", "emerging_market_equity"];
   }
   if (issueCategory === "excessive_crypto_risk") {
     return ["short_treasury_cash_like", "core_us_bond", "gold_hedge"];
@@ -428,6 +427,9 @@ export class PortfolioImprovementSuggestionService {
     const goldAllocation = context.dashboard.allocationByType
       .filter((item) => item.label.toLowerCase().includes("gold"))
       .reduce((sum, item) => sum + item.percent, 0);
+    const cryptoAllocation = context.dashboard.allocationByType
+      .filter((item) => item.label.toLowerCase().includes("crypto"))
+      .reduce((sum, item) => sum + item.percent, 0);
     const issueContext: SuggestionContext = {
       dominantSector: topSector?.exposureName ?? context.dashboard.allocationBySector[0]?.label ?? null,
       dominantSectorWeight: topSector?.exposureWeight ?? context.dashboard.allocationBySector[0]?.percent ?? 0,
@@ -437,6 +439,25 @@ export class PortfolioImprovementSuggestionService {
       internationalExposure,
       bondAllocation,
       goldAllocation,
+      cryptoAllocation,
+      growthRegime: context.macroRegime?.growthRegime?.toLowerCase() ?? null,
+      recessionHedgeAllocation: bondAllocation + goldAllocation,
+      concentratedLookthroughHoldings: (() => {
+        const etfAssetClasses = new Set(["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"]);
+        const instrumentAssetClassBySymbol = new Map(
+          context.instruments.map((i) => [i.symbol?.toUpperCase() ?? "", i.assetClass])
+        );
+        return (context.lookthroughReport?.holdingExposures ?? [])
+          .filter((h) => {
+            if (!h.holdingSymbol || h.totalWeight <= 0.05) return false;
+            const ac = instrumentAssetClassBySymbol.get(h.holdingSymbol.toUpperCase());
+            if (ac && etfAssetClasses.has(ac)) return false;
+            return true;
+          })
+          .sort((a, b) => b.totalWeight - a.totalWeight)
+          .slice(0, 3)
+          .map((h) => ({ symbol: h.holdingSymbol, totalWeight: h.totalWeight }));
+      })(),
       heldSymbols: new Set(context.dashboard.holdings.map((holding) => holding.ticker?.toUpperCase()).filter((symbol): symbol is string => Boolean(symbol))),
       etfTopHoldings: context.etfTopHoldings,
       lookthroughReport: context.lookthroughReport
@@ -455,55 +476,69 @@ export class PortfolioImprovementSuggestionService {
       }));
     }
 
-    if (issueContext.dominantSectorWeight > 0.35 || issueContext.technologyWeight > 0.3) {
-      suggestions.push(suggestion({
-        category: "theme_exposure",
-        issueCategory: "sector_concentration",
-        priority: issueContext.dominantSectorWeight > 0.45 ? "medium" : "low",
-        title: "Review sector concentration alternatives",
-        rationale: `${issueContext.dominantSector ?? "One sector"} is the largest look-through sector exposure; candidates are filtered for categories away from that sector.`,
-        candidates: rankedCandidates(context, issueContext, "sector_concentration", 5),
-        benefit: "Can reduce dependency on a single sector driver.",
-        tradeOff: "May dilute exposure to the portfolio's strongest current theme."
-      }));
-    }
-
-    if (usExposure > 0.7 || internationalExposure < 0.3) {
+    if (usExposure > 0.7 || internationalExposure < 0.3 || topHolding > 0.25 || diversificationScore < 55) {
       suggestions.push(suggestion({
         category: "diversification",
         issueCategory: "insufficient_international_exposure",
-        priority: usExposure > 0.8 ? "medium" : "low",
-        title: "Review international diversification",
-        rationale: "Look-through country exposure is US-oriented relative to a globally diversified baseline.",
+        priority: usExposure > 0.85 ? "high" : usExposure > 0.7 ? "medium" : "low",
+        title: "International Equity - Underweighted Category",
+        rationale: `Look-through country exposure is US-oriented relative to a globally diversified baseline. US look-through is ${(usExposure * 100).toFixed(1)}%.`,
         candidates: rankedCandidates(context, issueContext, "insufficient_international_exposure", 5),
         benefit: "Can reduce US home bias and add regional diversification.",
-        tradeOff: "Introduces currency and non-US market risks."
+        tradeOff: "Introduces currency and non-US market risks. Broad ETFs already held may continue to carry US look-through exposure."
       }));
     }
 
-    if (issueContext.healthcareWeight < 0.08 && issueContext.technologyWeight > 0.25) {
+    if (issueContext.dominantSectorWeight > 0.35 || issueContext.technologyWeight > 0.3 || (issueContext.healthcareWeight < 0.08 && issueContext.technologyWeight > 0.25)) {
       suggestions.push(suggestion({
         category: "diversification",
         issueCategory: "insufficient_defensive_exposure",
         priority: "low",
         title: "Healthcare & Defensive — Underweighted Category",
-        rationale: "Healthcare and defensive sectors are modest relative to technology exposure.",
+        rationale: `Technology is the largest look-through sector at ${(issueContext.technologyWeight * 100).toFixed(1)}%. Healthcare and defensive sectors are modest relative to technology exposure.`,
         candidates: rankedCandidates(context, issueContext, "insufficient_defensive_exposure", 5),
         benefit: "May relate to sector balance without relying only on broad-market ETFs.",
         tradeOff: "Defensive sectors may lag during high-beta technology-led rallies."
       }));
     }
 
-    if (topHolding > 0.25 || diversificationScore < 55) {
+    if (issueContext.cryptoAllocation > 0.05) {
       suggestions.push(suggestion({
-        category: "diversification",
+        category: "risk",
+        issueCategory: "excessive_crypto_risk",
+        priority: issueContext.cryptoAllocation > 0.1 ? "high" : "medium",
+        title: "Crypto / Alternative - Ballast Underweighted",
+        rationale: `Crypto and high-risk alternative exposure is ${(issueContext.cryptoAllocation * 100).toFixed(1)}%, while bond and gold ballast is ${(issueContext.recessionHedgeAllocation * 100).toFixed(1)}%. Analytical observation only - not a position sizing recommendation.`,
+        candidates: rankedCandidates(context, issueContext, "excessive_crypto_risk", 5),
+        benefit: "May add ballast characteristics around high-volatility alternative exposure.",
+        tradeOff: "Ballast assets can lag high-risk alternatives during strong risk-on markets."
+      }));
+    }
+
+    if (issueContext.concentratedLookthroughHoldings.length > 0) {
+      const topLookthroughHolding = issueContext.concentratedLookthroughHoldings[0];
+      suggestions.push(suggestion({
+        category: "concentration",
         issueCategory: "concentration_risk",
-        priority: topHolding > 0.3 ? "high" : "medium",
-        title: "International Equity — Underweighted Category",
-        rationale: "Concentration and diversification metrics indicate the portfolio has below-median exposure in the international equity category.",
+        priority: topLookthroughHolding.totalWeight > 0.08 ? "high" : "medium",
+        title: "Top Look-Through Positions - Single-Name Concentration Watch",
+        rationale: `Top look-through holding ${topLookthroughHolding.symbol} represents ${(topLookthroughHolding.totalWeight * 100).toFixed(1)}% of portfolio exposure after ETF holdings are included. Analytical observation only - not a position sizing recommendation.`,
         candidates: rankedCandidates(context, issueContext, "concentration_risk", 5),
-        benefit: "May affect direct or indirect concentration risk.",
-        tradeOff: "May add overlap with broad ETFs already held."
+        benefit: "May provide context for reviewing single-name concentration within ETF look-through exposure.",
+        tradeOff: "Alternative exposures may overlap with broad ETFs already held."
+      }));
+    }
+
+    if ((issueContext.growthRegime?.includes("contraction") || issueContext.growthRegime?.includes("slowdown")) && issueContext.recessionHedgeAllocation < 0.25) {
+      suggestions.push(suggestion({
+        category: "macro_fit",
+        issueCategory: "macro_vulnerability",
+        priority: "medium",
+        title: "Growth Regime Watch - Recession Hedge Underweighted",
+        rationale: `FRED-derived growth regime is ${issueContext.growthRegime}, while bond and gold recession-hedge exposure is ${(issueContext.recessionHedgeAllocation * 100).toFixed(1)}%. Analytical observation only - not a position sizing recommendation.`,
+        candidates: rankedCandidates(context, issueContext, "macro_vulnerability", 5),
+        benefit: "May provide context for macro-regime sensitivity review.",
+        tradeOff: "Recession-hedge assets may lag during renewed growth acceleration."
       }));
     }
 

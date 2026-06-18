@@ -315,9 +315,7 @@ test("improvement suggestions map concentration issues to diversifying candidate
   const fixedIncomeSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_fixed_income");
   const inflationHedgeSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_inflation_hedge");
 
-  assert.ok(sectorSuggestion);
-  assert.ok(!sectorSuggestion.candidateInstruments.some((candidate) => ["XLK", "VGT"].includes(candidate.symbol)));
-  assert.ok(sectorSuggestion.candidateInstruments.some((candidate) => ["VXUS", "XLV", "BND", "GLD"].includes(candidate.symbol)));
+  assert.equal(sectorSuggestion, undefined);
   assert.ok(internationalSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "VXUS"));
   assert.ok(defensiveSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "XLV"));
   assert.ok(defensiveSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "XLU"));
@@ -325,7 +323,7 @@ test("improvement suggestions map concentration issues to diversifying candidate
   assert.ok(fixedIncomeSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "BND"));
   assert.ok(fixedIncomeSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "BNDX"));
   assert.ok(inflationHedgeSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "GLD"));
-  assert.ok(sectorSuggestion.candidateInstruments.every((candidate) => typeof candidate.relevanceScore === "number" && typeof candidate.diversificationBenefitScore === "number"));
+  assert.ok(internationalSuggestion?.candidateInstruments.every((candidate) => typeof candidate.relevanceScore === "number" && typeof candidate.diversificationBenefitScore === "number"));
   assert.match(internationalSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "VXUS")?.whyThisCandidate ?? "", /US look-through exposure is 72\.9%/);
   assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.whyThisCandidate ?? "", /Technology at 30\.6%/);
   assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.secondaryBenefit ?? "", /pharma, services, devices and care delivery/);
@@ -336,8 +334,160 @@ test("improvement suggestions map concentration issues to diversifying candidate
   assert.match(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BNDX")?.secondaryBenefit ?? "", /rate, currency and issuer exposure/);
   assert.match(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BNDX")?.potentialTradeOff ?? "", /currency and non-US rate-cycle exposure/);
   assert.ok((defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.diversificationBenefitScore ?? 0) > 60);
-  assert.ok(sectorSuggestion.candidateInstruments.every((candidate) => typeof candidate.issueFitScore === "number" && typeof candidate.overlapPenalty === "number"));
-  assert.ok(new Set(sectorSuggestion.candidateInstruments.map((candidate) => candidate.diversificationBenefitScore)).size > 1);
+  assert.ok(defensiveSuggestion?.candidateInstruments.every((candidate) => typeof candidate.issueFitScore === "number" && typeof candidate.overlapPenalty === "number"));
+  assert.ok(new Set(defensiveSuggestion?.candidateInstruments.map((candidate) => candidate.diversificationBenefitScore)).size > 1);
+});
+
+test("improvement suggestions do not emit duplicate legacy gap categories", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationBySector: [
+        { label: "Technology", value: 40, percent: 0.4 },
+        { label: "Healthcare", value: 5, percent: 0.05 }
+      ],
+      allocationByGeography: [
+        { label: "United States", value: 75, percent: 0.75 },
+        { label: "International", value: 25, percent: 0.25 }
+      ]
+    },
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.4, directWeight: 0.4, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.05, directWeight: 0.05, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.75, directWeight: 0.75, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    }
+  }));
+
+  assert.equal(suggestions.filter((suggestion) => suggestion.issueCategory === "sector_concentration").length, 0);
+  assert.equal(suggestions.filter((suggestion) => suggestion.issueCategory === "insufficient_international_exposure").length, 1);
+  assert.equal(suggestions.filter((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure").length, 1);
+  assert.equal(suggestions.filter((suggestion) => suggestion.issueCategory === "concentration_risk").length, 0);
+});
+
+test("improvement suggestions emit crypto ballast observation above threshold only", () => {
+  const aboveThreshold = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "stock", value: 94, percent: 0.94 },
+        { label: "crypto_etf", value: 6, percent: 0.06 },
+        { label: "bond_etf", value: 0, percent: 0 }
+      ]
+    }
+  }));
+  const atThreshold = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "stock", value: 95, percent: 0.95 },
+        { label: "crypto_etf", value: 5, percent: 0.05 },
+        { label: "bond_etf", value: 0, percent: 0 }
+      ]
+    }
+  }));
+  const cryptoSuggestion = aboveThreshold.find((suggestion) => suggestion.issueCategory === "excessive_crypto_risk");
+
+  assert.ok(cryptoSuggestion);
+  assert.match(cryptoSuggestion.rationale, /Analytical observation only - not a position sizing recommendation\./);
+  assert.equal(atThreshold.some((suggestion) => suggestion.issueCategory === "excessive_crypto_risk"), false);
+});
+
+test("improvement suggestions emit single-name look-through concentration only above threshold", () => {
+  const report = (weight: number) => ({
+    asOfDate: "2026-06-01",
+    coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+    sectorExposures: [],
+    countryExposures: [],
+    topHoldingExposures: [],
+    holdingExposures: [
+      { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "MSFT", holdingName: "Microsoft", directWeight: 0.02, indirectWeight: weight - 0.02, totalWeight: weight, sourceEtfs: [{ symbol: "VOO", weight }], inputsSnapshot: {} }
+    ],
+    currencyExposures: [],
+    themeExposures: [],
+    diagnostics: []
+  });
+  const aboveThreshold = new PortfolioImprovementSuggestionService().build(context({ lookthroughReport: report(0.06) }));
+  const atThreshold = new PortfolioImprovementSuggestionService().build(context({ lookthroughReport: report(0.05) }));
+  const concentrationSuggestion = aboveThreshold.find((suggestion) => suggestion.issueCategory === "concentration_risk");
+
+  assert.ok(concentrationSuggestion);
+  assert.equal(concentrationSuggestion.category, "concentration");
+  assert.match(concentrationSuggestion.rationale, /MSFT represents 6\.0%/);
+  assert.match(concentrationSuggestion.rationale, /Analytical observation only - not a position sizing recommendation\./);
+  assert.equal(atThreshold.some((suggestion) => suggestion.issueCategory === "concentration_risk"), false);
+});
+
+test("improvement suggestions emit macro vulnerability only in slowing growth with limited hedges", () => {
+  const slowing = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "equity_etf", value: 85, percent: 0.85 },
+        { label: "bond_etf", value: 10, percent: 0.10 },
+        { label: "gold_etf", value: 2, percent: 0.02 }
+      ]
+    },
+    macroRegime: { ...context().macroRegime!, growthRegime: "slowdown" }
+  }));
+  const expanding = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "equity_etf", value: 85, percent: 0.85 },
+        { label: "bond_etf", value: 10, percent: 0.10 },
+        { label: "gold_etf", value: 2, percent: 0.02 }
+      ]
+    },
+    macroRegime: { ...context().macroRegime!, growthRegime: "expansion" }
+  }));
+  const macroSuggestion = slowing.find((suggestion) => suggestion.issueCategory === "macro_vulnerability");
+
+  assert.ok(macroSuggestion);
+  assert.match(macroSuggestion.rationale, /FRED-derived growth regime is slowdown/);
+  assert.match(macroSuggestion.rationale, /Analytical observation only - not a position sizing recommendation\./);
+  assert.equal(expanding.some((suggestion) => suggestion.issueCategory === "macro_vulnerability"), false);
+});
+
+test("concentration risk candidates prefer defensive roles before international equity", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [],
+      topHoldingExposures: [],
+      holdingExposures: [
+        { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "MSFT", holdingName: "Microsoft", directWeight: 0.02, indirectWeight: 0.07, totalWeight: 0.09, sourceEtfs: [{ symbol: "VOO", weight: 0.07 }], inputsSnapshot: {} }
+      ],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    instruments: [
+      instrument({ id: "vxus", symbol: "VXUS", name: "Vanguard Total International Stock ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification"], geography: "International", geoExposure: "International" }),
+      instrument({ id: "xlv", symbol: "XLV", name: "Health Care Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation", "Quality"] }),
+      instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] }),
+      instrument({ id: "gld", symbol: "GLD", name: "SPDR Gold Shares", assetClass: "gold_etf", instrumentType: "etf", canonicalSector: "Commodities / Gold", canonicalThemes: ["Inflation Hedge"] })
+    ],
+    recommendations: []
+  }));
+  const concentrationSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "concentration_risk");
+  const firstCandidate = concentrationSuggestion?.candidateInstruments[0]?.symbol;
+
+  assert.ok(concentrationSuggestion);
+  assert.ok(["XLV", "XLU", "GLD"].includes(firstCandidate ?? ""));
+  assert.ok((concentrationSuggestion.candidateInstruments.findIndex((candidate) => candidate.symbol === "VXUS") ?? -1) > 0);
 });
 
 test("improvement suggestions calculate ETF top-company overlap for candidates", () => {
