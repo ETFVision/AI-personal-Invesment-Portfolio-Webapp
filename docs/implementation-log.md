@@ -1,3 +1,36 @@
+## 2026-06-18 - Security Master internal-only and stub-collision counts in Admin QA panel
+
+### Source
+Codex
+
+### Objective
+Surface two new Security Master monitoring metrics in the Admin Data Sources QA panel: count of is_internal_only stubs (ETF holding symbols outside the selectable universe) and count of stub-collision cases where a stub symbol has been added as a universe instrument but not yet cleaned up (Medium 40, docs/DOCUMENTATION_GAPS.md).
+
+### Files Changed
+- `supabase/migrations/113_security_master_internal_only_count.sql`
+- `src/app/(dashboard)/admin/data-sources/page.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Added internalOnlySecurities field to get_security_master_health_snapshot(), counting active is_internal_only stubs. This should be stable at rest, drop by 1 per instrument promoted from stub to universe, and rise after an ETF re-backfill adds new holding symbols.
+- Added stubCollisionCount field, counting stubs whose canonical_symbol matches an active instrument symbol. Greater than zero means a promotion cleanup (Medium 40) was skipped and ETF holdings for that symbol are likely ambiguous.
+- Surfaced both fields in the Admin Data Sources Security Master QA panel, with Stub collisions shown in amber when greater than zero.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (275/275)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+- internalOnlySecurities: 51
+- stubCollisionCount: 0
+
+### Notes for Claude
+- Migration 113 was applied successfully. Stub collisions are currently zero, which is the expected clean state.
+
+---
 ## 2026-06-18 - Security Master ETF Holdings Re-sync (Migration 112)
 
 ### Source

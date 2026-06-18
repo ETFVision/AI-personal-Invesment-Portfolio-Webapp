@@ -652,6 +652,8 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
               <StatBox label="Active securities" value={healthNumber(securityMasterHealth, "securityMasterRecords")} />
               <StatBox label="Issuer records" value={healthNumber(securityMasterHealth, "issuerRecords")} />
               <StatBox label="Linked securities" value={healthNumber(securityMasterHealth, "linkedSecurities")} />
+              <StatBox label="Internal-only securities" value={healthNumber(securityMasterHealth, "internalOnlySecurities")} />
+              <StatBox label="Stub collisions" value={healthNumber(securityMasterHealth, "stubCollisionCount")} className={healthNumber(securityMasterHealth, "stubCollisionCount") > 0 ? "text-amber-600" : undefined} />
               <StatBox label="ISIN coverage" value={healthRatio(securityMasterHealth, "selectableWithIsin", "selectableInstruments")} />
               <StatBox label="CUSIP coverage" value={healthRatio(securityMasterHealth, "selectableWithCusip", "selectableInstruments")} />
               <StatBox label="ETF holdings mapped" value={healthRatio(securityMasterHealth, "etfTopHoldingsMapped", "etfTopHoldingRows")} />

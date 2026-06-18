@@ -129,6 +129,8 @@ ETF look-through backfill was cleared and re-run across all 169 eligible equity 
 | ETF look-through sector coverage | 169 / 169 |
 | ETF look-through country coverage | 169 / 169 |
 | ETF look-through top holdings coverage | 169 / 169 |
+| Internal-only securities (`internalOnlySecurities`) | 51 |
+| Stub collisions (`stubCollisionCount`) | 0 |
 
 Important interpretation:
 
@@ -903,6 +905,8 @@ Implemented before Phase 6/7 so the health layer exists before additional identi
   - selectable instrument mapping
   - ISIN/CUSIP coverage
   - ETF holding mapping coverage
+  - internal-only stub count (`internalOnlySecurities`) — non-universe companies tracked via ETF look-through
+  - stub collision count (`stubCollisionCount`) — stubs whose symbol matches an active universe instrument, indicating a Medium 40 promotion cleanup is needed; shown in amber when greater than zero
   - issuer duplicate candidate count
   - stale identifier count
   - recommendation/history/telemetry identity coverage
@@ -997,22 +1001,24 @@ Future work should be treated as operational expansion rather than audit-blockin
 3. Add Admin review workflows for provider conflicts if open conflicts start appearing.
 4. Keep `security_master_mapping_gap_report` and the Admin/Data Sources Security Master QA card as the ongoing monitoring surface after each universe, metadata, ETF-exposure, recommendation, telemetry, or portfolio-review change.
 
-## Final QA/QC Closeout - 2026-06-13
+## Final QA/QC Closeout - 2026-06-13 (updated 2026-06-18 for migrations 112 and 113)
 
-Live health snapshot reviewed:
+Live health snapshot as of 2026-06-18 (migrations 112 + 113 applied):
 
 ```json
 {
   "selectableInstruments": 306,
   "selectableWithSecurityId": 306,
   "securityMasterRecords": 357,
+  "internalOnlySecurities": 51,
+  "stubCollisionCount": 0,
   "issuerRecords": 357,
   "linkedSecurities": 357,
   "selectableWithIsin": 301,
   "selectableWithCusip": 301,
   "selectableWithFigi": 0,
-  "etfTopHoldingRows": 240,
-  "etfTopHoldingsMapped": 240,
+  "etfTopHoldingRows": 169,
+  "etfTopHoldingsMapped": 169,
   "etfTopHoldingsUnmapped": 0,
   "etfTopHoldingsAmbiguous": 0,
   "issuerDuplicateCandidatesOpen": 0,
@@ -1046,6 +1052,8 @@ QA verdict:
 - PASS: stale identifier refresh count is zero.
 - PASS: recommendations, recommendation history, telemetry recommendation snapshots and Portfolio Review reports have stable identity coverage.
 - PASS: Phase 6/7 readiness tables exist and are included in health monitoring.
+- PASS: stub collision count is zero — no is_internal_only stub shares a symbol with an active universe instrument (Medium 40 condition is clean).
+- ACCEPTED: 51 internal-only securities are non-universe companies tracked via ETF look-through; this is expected and correct.
 - ACCEPTED: 5 mapping-gap rows remain because 5 selectable instruments do not have ISIN/CUSIP coverage; this is not a security-mapping failure because all 306 selectable instruments have `security_id`.
 - ACCEPTED: FIGI coverage is zero because ETFVision has not connected a FIGI provider.
 - ACCEPTED: corporate-action/provider-observation row counts are zero because ingestion has not been automated and no second provider is connected.
