@@ -1,3 +1,46 @@
+## 2026-06-18 - ETF Holdings Integration into Portfolio Review Gap Analysis
+
+### Source
+Codex
+
+### Objective
+Use cached ETF top-holding data in Portfolio Review gap analysis so candidate overlap reflects real company-level ETF look-through holdings.
+
+### Files Changed
+- `src/infrastructure/providers/etf/FmpEtfExposureProvider.ts`
+- `src/application/services/portfolioReview/portfolioReviewScoring.ts`
+- `src/application/services/portfolioReview/PortfolioReviewService.ts`
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `src/application/services/portfolioReview/DiversificationBenefitService.ts`
+- `src/domain/portfolioReview/types.ts`
+- `src/server/container.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/implementation-log.md`
+
+### Summary
+- Capped FMP ETF top holdings, including seeded fallback holdings, to the top 100 by weight.
+- Added `etfTopHoldings` to the Portfolio Review input context and fetched latest ETF top holdings for all active instruments.
+- Added candidate metadata for shared company count, shared company weight, and top shared symbols.
+- Gap-analysis candidates now compute candidate ETF company overlap against the portfolio look-through holding symbols.
+- Diversification benefit scoring now adds overlap penalties when candidate ETF top-company overlap is 15%+ or 35%+.
+- Added a regression test for ETF top-company overlap metadata and warning text.
+- No Portfolio Review UI, scoring weights, recommendation labels, telemetry, migrations, jobs, or compliance wording changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS.
+- `npm.cmd run lint` - PASS.
+- `npm.cmd run build` - PASS.
+- `npm.cmd run test` - PASS (275/275).
+
+### Result
+Completed.
+
+### Notes for Claude
+- After deployment, run `POST /api/jobs/etf-lookthrough-refresh?force=true` from Admin > Jobs until job logs show `etfsRefreshed = 0`; expect 3-5 passes for the full universe.
+- Then run `POST /api/jobs/portfolio-review-run` from Admin > Jobs to regenerate the stored report with real company overlap data.
+- Until ETF top-holding backfill is complete, `etfTopHoldings` is an empty array and `companyOverlapWeight` is 0, so behavior is identical to the current state.
+
+---
 ## 2026-06-18 - Phase 2C: Methodology page and SCORE_METHODOLOGY.md weight update
 
 ### Source

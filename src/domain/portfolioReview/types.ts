@@ -46,6 +46,9 @@ export type PortfolioReviewCandidate = {
   diversificationType?: string | null;
   issueFitScore?: number | null;
   overlapPenalty?: number | null;
+  sharedCompanyCount: number | null;
+  sharedCompanyWeight: number | null;
+  topSharedSymbols: string[];
   primaryReason?: string;
   secondaryBenefit?: string;
   overlapWarning?: string | null;

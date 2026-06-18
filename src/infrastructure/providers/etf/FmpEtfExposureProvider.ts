@@ -86,9 +86,11 @@ export class FmpEtfExposureProvider implements EtfExposureProvider {
         if (!country || exposureWeight == null) return [];
         return [{ etfSymbol: normalizedSymbol, country, exposureWeight, asOfDate, providerMetadata: item }];
       }),
-      topHoldings: topHoldings.length
+      topHoldings: (topHoldings.length
         ? topHoldings
-        : seededEtfTopHoldings(normalizedSymbol, asOfDate, "FMP ETF holdings endpoint returned no usable rows.")
+        : seededEtfTopHoldings(normalizedSymbol, asOfDate, "FMP ETF holdings endpoint returned no usable rows."))
+        .sort((a, b) => b.holdingWeight - a.holdingWeight)
+        .slice(0, 100)
     };
   }
 }

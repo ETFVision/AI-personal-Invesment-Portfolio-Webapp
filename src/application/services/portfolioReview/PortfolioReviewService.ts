@@ -3,6 +3,7 @@ import type { MarketVisionRepository } from "@/application/ports/repositories/Ma
 import type { MacroIndicatorRepository } from "@/application/ports/repositories/MacroIndicatorRepository";
 import type { RecommendationRepository } from "@/application/ports/repositories/RecommendationRepository";
 import type { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
+import type { EtfExposureRepository } from "@/application/ports/repositories/EtfExposureRepository";
 import type { PortfolioService } from "@/application/services/PortfolioService";
 import type { BondService } from "@/application/services/bonds/BondService";
 import type { RiskAnalyticsDataService } from "@/application/services/risk/RiskAnalyticsDataService";
@@ -91,6 +92,7 @@ export class PortfolioReviewService {
     private readonly macroIndicatorRepository: MacroIndicatorRepository,
     private readonly themeIntelligenceService: ThemeIntelligenceService,
     private readonly portfolioLookthroughExposureService: PortfolioLookthroughExposureService,
+    private readonly etfExposureRepository: EtfExposureRepository,
     private readonly allocationReviewService = new AllocationReviewService(),
     private readonly concentrationReviewService = new ConcentrationReviewService(),
     private readonly diversificationReviewService = new DiversificationReviewService(),
@@ -208,8 +210,11 @@ export class PortfolioReviewService {
     const periodEnd = dashboard.latestPriceDate ?? today();
     const periodStartDate = new Date(`${periodEnd}T00:00:00.000Z`);
     periodStartDate.setUTCDate(periodStartDate.getUTCDate() - 6);
-    const themeIntelligence = await this.themeIntelligenceService.getThemeIntelligence(periodStartDate.toISOString().slice(0, 10), periodEnd);
-    const lookthroughReport = await this.portfolioLookthroughExposureService.calculateAndStore(portfolioId, dashboard, instruments);
+    const [themeIntelligence, lookthroughReport, etfTopHoldings] = await Promise.all([
+      this.themeIntelligenceService.getThemeIntelligence(periodStartDate.toISOString().slice(0, 10), periodEnd),
+      this.portfolioLookthroughExposureService.calculateAndStore(portfolioId, dashboard, instruments),
+      this.etfExposureRepository.listLatestTopHoldings(instruments.map((instrument) => instrument.id))
+    ]);
     return {
       dashboard,
       riskReport,
@@ -219,7 +224,8 @@ export class PortfolioReviewService {
       marketVisionReport,
       macroRegime,
       themeIntelligence,
-      lookthroughReport
+      lookthroughReport,
+      etfTopHoldings
     };
   }
 

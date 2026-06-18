@@ -1,6 +1,7 @@
 import type { PortfolioImprovementIssueCategory, PortfolioImprovementSuggestion, PortfolioReviewCandidate } from "@/domain/portfolioReview/types";
 import type { InstrumentRecommendation } from "@/domain/recommendations/types";
 import type { Instrument } from "@/domain/universe/types";
+import type { EtfTopHolding, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { DiversificationBenefitService } from "./DiversificationBenefitService";
 import { type PortfolioReviewInputContext } from "./portfolioReviewScoring";
 
@@ -49,6 +50,8 @@ type SuggestionContext = {
   bondAllocation: number;
   goldAllocation: number;
   heldSymbols: Set<string>;
+  etfTopHoldings: EtfTopHolding[];
+  lookthroughReport: PortfolioLookthroughReport | null;
 };
 
 function normalizedSector(instrument: Instrument) {
@@ -307,6 +310,17 @@ function candidate(
   const confidenceScore = recommendation?.confidenceScore ?? 50;
   const candidateRelevanceScore = relevanceScore(fit);
   const type = diversificationType(instrument);
+  const candidateHoldings = context.etfTopHoldings
+    .filter((holding) => holding.etfInstrumentId === instrument.id);
+  const userHoldingSymbols = new Set(
+    (context.lookthroughReport?.holdingExposures ?? [])
+      .map((holding) => holding.holdingSymbol?.toUpperCase())
+      .filter((symbol): symbol is string => Boolean(symbol))
+  );
+  const overlappingHoldings = candidateHoldings
+    .filter((holding) => userHoldingSymbols.has(holding.holdingSymbol?.toUpperCase() ?? ""));
+  const companyOverlapWeight = overlappingHoldings
+    .reduce((sum, holding) => sum + (holding.holdingWeight ?? 0), 0);
   const benefit = diversificationBenefitService.evaluate({
     roleLabel: type,
     issueCategory,
@@ -321,7 +335,8 @@ function candidate(
     bondAllocation: context.bondAllocation,
     goldAllocation: context.goldAllocation,
     heldSymbols: context.heldSymbols,
-    symbol: instrument.symbol
+    symbol: instrument.symbol,
+    companyOverlapWeight
   });
   const explanation = benefit.primaryReason || roleExplanation(instrument, issueCategory, context);
   const macroFitScore = recommendationComponentScore(recommendation, ["macro_fit", "market_vision_alignment", "theme_alignment"]);
@@ -339,6 +354,12 @@ function candidate(
     diversificationBenefitScore: benefit.score,
     macroFitScore,
     overlapPenalty: benefit.overlapPenalty,
+    sharedCompanyCount: overlappingHoldings.length,
+    sharedCompanyWeight: companyOverlapWeight,
+    topSharedSymbols: overlappingHoldings
+      .sort((a, b) => b.holdingWeight - a.holdingWeight)
+      .slice(0, 3)
+      .map((holding) => holding.holdingSymbol),
     primaryReason: benefit.primaryReason,
     secondaryBenefit: benefit.secondaryBenefit,
     overlapWarning: benefit.overlapWarning,
@@ -416,7 +437,9 @@ export class PortfolioImprovementSuggestionService {
       internationalExposure,
       bondAllocation,
       goldAllocation,
-      heldSymbols: new Set(context.dashboard.holdings.map((holding) => holding.ticker?.toUpperCase()).filter((symbol): symbol is string => Boolean(symbol)))
+      heldSymbols: new Set(context.dashboard.holdings.map((holding) => holding.ticker?.toUpperCase()).filter((symbol): symbol is string => Boolean(symbol))),
+      etfTopHoldings: context.etfTopHoldings,
+      lookthroughReport: context.lookthroughReport
     };
 
     if (bondAllocation < 0.05) {

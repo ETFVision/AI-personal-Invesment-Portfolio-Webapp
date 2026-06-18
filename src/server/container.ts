@@ -318,7 +318,8 @@ export function createContainer() {
     marketVisionRepository,
     macroIndicatorRepository,
     themeIntelligenceService,
-    portfolioLookthroughExposureService
+    portfolioLookthroughExposureService,
+    etfExposureRepository
   );
   const portfolioReviewRunService = new PortfolioReviewRunService(portfolioReviewRepository, portfolioReviewService, telemetrySnapshotService);
   const assistantQuestionRouter = new AssistantQuestionRouter();

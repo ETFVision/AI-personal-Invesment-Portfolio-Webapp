@@ -90,6 +90,7 @@ function context(overrides: Partial<PortfolioReviewInputContext> = {}): Portfoli
     macroRegime: { id: "macro-1", snapshotDate: "2026-06-01", ratesRegime: "stable", inflationRegime: "elevated", growthRegime: "stable", employmentRegime: "stable", yieldCurveRegime: "normal", liquidityRegime: "normal", dollarRegime: "stable", commoditiesRegime: "firm", overallMacroSummary: "", createdAt: "", updatedAt: "" },
     themeIntelligence: null,
     lookthroughReport: null,
+    etfTopHoldings: [],
     ...overrides
   };
 }
@@ -337,6 +338,61 @@ test("improvement suggestions map concentration issues to diversifying candidate
   assert.ok((defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.diversificationBenefitScore ?? 0) > 60);
   assert.ok(sectorSuggestion.candidateInstruments.every((candidate) => typeof candidate.issueFitScore === "number" && typeof candidate.overlapPenalty === "number"));
   assert.ok(new Set(sectorSuggestion.candidateInstruments.map((candidate) => candidate.diversificationBenefitScore)).size > 1);
+});
+
+test("improvement suggestions calculate ETF top-company overlap for candidates", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationBySector: [
+        { label: "Technology", value: 30.58, percent: 0.3058 },
+        { label: "Healthcare", value: 5.4, percent: 0.054 }
+      ],
+      allocationByGeography: [
+        { label: "United States", value: 90, percent: 0.9 },
+        { label: "International", value: 10, percent: 0.1 }
+      ]
+    },
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.3058, directWeight: 0.2, etfLookthroughWeight: 0.1058, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.054, directWeight: 0, etfLookthroughWeight: 0.054, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.9, directWeight: 0.6, etfLookthroughWeight: 0.3, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      holdingExposures: [
+        { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "JNJ", holdingName: "Johnson & Johnson", directWeight: 0, indirectWeight: 0.04, totalWeight: 0.04, sourceEtfs: [{ symbol: "VOO", weight: 0.04 }], inputsSnapshot: {} },
+        { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "UNH", holdingName: "UnitedHealth", directWeight: 0, indirectWeight: 0.03, totalWeight: 0.03, sourceEtfs: [{ symbol: "VOO", weight: 0.03 }], inputsSnapshot: {} }
+      ],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    instruments: [
+      instrument({ id: "vht", symbol: "VHT", name: "Vanguard Health Care ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Quality"] })
+    ],
+    recommendations: [
+      { id: "r-vht", recommendationRunId: "run-1", instrumentId: "vht", symbol: "VHT", instrumentType: "ETF", recommendationLabel: "Hold", overallScore: 62, confidenceScore: 70, riskLevel: "medium", timeHorizon: "medium_term", recommendationReasoningSummary: "", positiveDrivers: [], negativeDrivers: [], guardrailsApplied: [], dataLimitations: [], recommendationChangeTriggers: { upgrade: [], downgrade: [] }, inputsSnapshot: {}, scoringBreakdown: {}, createdAt: "", updatedAt: "" }
+    ],
+    etfTopHoldings: [
+      { etfInstrumentId: "vht", etfSymbol: "VHT", holdingSymbol: "JNJ", holdingName: "Johnson & Johnson", holdingWeight: 0.2, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} },
+      { etfInstrumentId: "vht", etfSymbol: "VHT", holdingSymbol: "UNH", holdingName: "UnitedHealth", holdingWeight: 0.16, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} },
+      { etfInstrumentId: "vht", etfSymbol: "VHT", holdingSymbol: "ABT", holdingName: "Abbott", holdingWeight: 0.05, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} }
+    ]
+  }));
+  const defensiveSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure");
+  const candidate = defensiveSuggestion?.candidateInstruments.find((item) => item.symbol === "VHT");
+
+  assert.ok(candidate);
+  assert.equal(candidate.sharedCompanyCount, 2);
+  assert.equal(candidate.sharedCompanyWeight, 0.36);
+  assert.deepEqual(candidate.topSharedSymbols, ["JNJ", "UNH"]);
+  assert.ok((candidate.overlapPenalty ?? 0) >= 20);
+  assert.match(candidate.overlapWarning ?? "", /top company holding overlap via ETF look-through/);
 });
 
 test("portfolio look-through combines direct stock and ETF underlying exposures", async () => {

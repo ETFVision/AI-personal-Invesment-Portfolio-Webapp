@@ -15,6 +15,7 @@ export type DiversificationBenefitContext = {
   goldAllocation: number;
   heldSymbols: Set<string>;
   symbol: string;
+  companyOverlapWeight?: number;
 };
 
 export type DiversificationBenefitResult = {
@@ -113,10 +114,16 @@ export class DiversificationBenefitService {
     if (input.heldSymbols.has(input.symbol.toUpperCase())) overlapPenalty += 12;
     if (input.candidateSector && input.dominantSector && input.candidateSector.toLowerCase() === input.dominantSector.toLowerCase()) overlapPenalty += 25;
     if (hasAny(role, ["broad-market equity", "global equity"])) overlapPenalty += 6;
+    const companyOverlapWeight = input.companyOverlapWeight ?? 0;
+    if (companyOverlapWeight >= 0.35) {
+      overlapPenalty += 20;
+    } else if (companyOverlapWeight >= 0.15) {
+      overlapPenalty += 10;
+    }
 
     const overlapWarning =
       overlapPenalty >= 45 ? "Material overlap with the current dominant exposure; review before treating as a diversifier." :
-      overlapPenalty >= 15 ? "Some overlap with existing holdings or broad-market ETF exposure." :
+      overlapPenalty >= 15 ? `Some overlap with existing holdings or broad-market ETF exposure${companyOverlapWeight >= 0.15 ? ", including top company holding overlap via ETF look-through" : ""}.` :
       null;
 
     score += gapScore + concentrationScore + correlationScore - overlapPenalty;

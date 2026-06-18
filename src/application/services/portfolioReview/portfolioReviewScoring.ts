@@ -12,7 +12,7 @@ import type { RiskAnalyticsReport } from "@/application/services/risk/RiskAnalyt
 import type { NewsThemeIntelligence } from "@/domain/news/types";
 import type { MarketVisionReport } from "@/domain/marketVision/types";
 import type { MacroRegimeSnapshot } from "@/domain/macro/types";
-import type { PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
+import type { EtfTopHolding, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 
 export const portfolioReviewWeights = {
   allocation: 0.15,
@@ -36,6 +36,7 @@ export type PortfolioReviewInputContext = {
   macroRegime: MacroRegimeSnapshot | null;
   themeIntelligence: NewsThemeIntelligence | null;
   lookthroughReport: PortfolioLookthroughReport | null;
+  etfTopHoldings: EtfTopHolding[];
 };
 
 export function clampScore(value: number) {
@@ -106,6 +107,9 @@ export function recommendationCandidate(
     recommendationScore: recommendation.overallScore,
     confidenceScore: recommendation.confidenceScore,
     candidateType: instrument.assetClass,
+    sharedCompanyCount: null,
+    sharedCompanyWeight: null,
+    topSharedSymbols: [],
     reason,
     whyThisCandidate: reason,
     source: "recommendation_engine"
