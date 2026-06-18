@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-18 SGT (Medium 40 added)
+Last updated: 2026-06-18 SGT (Medium 40, 41 added)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -11,9 +11,9 @@ An independent deep architecture audit with live read-only database verification
 | Priority | Total items | Open | Closed |
 |---|---|---|---|
 | High | 10 | 8 | 2 |
-| Medium | 40 | 25 | 15 |
+| Medium | 41 | 26 | 15 |
 | Low | 13 | 13 | 0 |
-| **Total** | **63** | **46** | **17** |
+| **Total** | **64** | **47** | **17** |
 
 **Open blockers — before public alpha:**
 
@@ -157,7 +157,16 @@ An independent deep architecture audit with live read-only database verification
    - Migration 092 (`repair_security_master_links`) runs once at deployment and does not re-run when new instruments are added, so the new instrument gets `security_id = UUID_B` rather than reusing UUID_A.
    - Resolution requires a manual one-off operation: deactivate the stub (`UPDATE securities_master SET is_active = false WHERE id = UUID_A`), then re-run `sync_etf_holding_security_ids()` and `sync_security_issuer_links()`. This clears the ambiguity and re-maps holdings to the user-selectable security.
    - Long-term resolution: implement an admin "promote instrument" workflow that automates stub deactivation and re-sync when a new instrument is added. The Phase 6 corporate-action lifecycle tables (`104_security_master_phase6_corporate_actions.sql`) are the designed home for this — a `UNIVERSE_PROMOTION` lifecycle link from UUID_A → UUID_B.
+   - The `stubCollisionCount` field proposed for the Security Master health snapshot (migration 113 scope) will surface this condition in the Admin QA panel as an amber warning when greater than zero.
    - Priority: low for current universe size; becomes operational debt if ETFVision regularly adds instruments that previously appeared only as ETF holdings.
+
+41. Security Master — no automatic setup when a new instrument is added to the universe
+   - Migrations 091 and 092 ran once against the full active universe at Security Master setup time. They are not re-run when new instruments are added via `seedUniverseAction` or any other mechanism.
+   - `UniverseManagementService` has no references to `securities_master`, `security_id`, or any sync function. A new instrument is inserted into `instruments` with `security_id = null` and receives no Security Master setup automatically.
+   - Impact: any instrument added after migrations 091/092 is invisible to all Security Master-dependent features until manually set up — issuer-level concentration rollup in Portfolio Review, top underlying company exposure, recommendation and telemetry stable identity, and the `selectableWithSecurityId` count in the Admin Security Master QA panel will all be incorrect for the new instrument.
+   - Resolution per instrument: (1) insert a `securities_master` row for the new instrument; (2) register identifiers in `security_identifiers`; (3) set `instruments.security_id`; (4) run `sync_security_issuer_links()`. This is the same logic as migrations 091/092 applied incrementally.
+   - Long-term resolution: extend `UniverseManagementService.ensureSeededUniverse()` (or the instrument-add path) to call an incremental Security Master upsert after inserting each new instrument, mirroring the one-time migration 091/092 backfill logic.
+   - Priority: medium — silent data quality gap that will surface as incorrect Security Master health metrics and missing issuer rollup the first time a new instrument is added to the universe post-launch.
 
 8. Score methodology maintenance
    - Formula-level score documentation now exists in `docs/SCORE_METHODOLOGY.md`.
