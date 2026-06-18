@@ -766,6 +766,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
             </form>
             <form action={refreshEtfLookthroughExposureAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <input type="hidden" name="force" value="true" />
               <SubmitButton variant="secondary" pendingLabel="Refreshing ETF exposure...">Refresh ETF exposure</SubmitButton>
             </form>
           </>
