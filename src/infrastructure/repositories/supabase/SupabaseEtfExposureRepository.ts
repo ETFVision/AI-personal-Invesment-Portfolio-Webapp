@@ -380,6 +380,19 @@ export class SupabaseEtfExposureRepository implements EtfExposureRepository {
     return data?.as_of_date ?? null;
   }
 
+  async getLatestHoldingsDateForEtf(instrumentId: string) {
+    const { data, error } = await this.db
+      .from("etf_top_holdings")
+      .select("as_of_date")
+      .eq("etf_instrument_id", instrumentId)
+      .order("as_of_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error?.code === "42P01") return null;
+    if (error) throw new Error(error.message);
+    return data?.as_of_date ?? null;
+  }
+
   async insertRefreshLog(input: InsertEtfExposureRefreshLogInput) {
     const { error } = await this.db.from("etf_exposure_refresh_logs").insert({
       job_name: input.jobName,
