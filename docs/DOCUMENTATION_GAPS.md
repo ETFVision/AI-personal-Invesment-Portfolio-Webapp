@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-18 SGT (Medium 40, 41 added)
+Last updated: 2026-06-19 SGT (Prioritized Execution Order added; Medium 36 verified — no service-role leak)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -48,6 +48,101 @@ An independent deep architecture audit with live read-only database verification
 |---|---|
 | High 5 | Set `ALLOWED_SIGNUP_EMAILS` and `ASSISTANT_DAILY_LIMIT` in Vercel before alpha invites |
 | Medium 37 | Test Supabase auth email delivery end-to-end before first invite is sent |
+
+---
+
+## Prioritized Execution Order (2026-06-19)
+
+Consolidated, deduplicated execution order across this document and `COMMERCIALIZATION_AUDIT_PLAN.md`,
+grouped by the milestone each item gates. Within each phase, items are in execution order (dependencies
+respected). Tags: **[ops]** = configuration/operations, not code; **[build]** = implementation task;
+**[external]** = legal/vendor/third-party; **[review]** = analysis/QA pass. IDs reference this document
+unless prefixed otherwise.
+
+### Phase A — Gate the first alpha invite
+1. Set Vercel env vars `ALLOWED_SIGNUP_EMAILS`, `ASSISTANT_DAILY_LIMIT` (High 5) **[ops]**
+2. Email deliverability test — signup/reset to Gmail+Outlook, SPF/DKIM (Med 37) **[ops]** — *hard gate*
+3. Sentry error monitoring + job-failure alerting + `server-only` guard on `supabaseAdmin.ts` (Med 38 + High 4 + Med 36) **[build]** — *highest-leverage build*
+4. New-user onboarding / empty state on `/portfolio` (Med 39) **[build]**
+5. Alpha UX walkthrough — fresh-account end-to-end (Med 32) **[review]** — depends on #4
+6. Route access matrix + alpha branch audit (High 2) **[review/doc]**
+
+### Phase B — During alpha (correctness confidence; finish before paid)
+7. Calculation golden regression suite + manual/Excel validation (Med 26) **[build]** — *existential for a calc product; start as soon as Phase A is in flight*
+8. AI output regression tests — hallucination / no-advice / missing-data (Med 27) **[build]**
+9. Data provider full-universe coverage matrix (Med 24) **[build/review]**
+10. Recommendation calibration QA after one full production weekly run (Med 29) **[review]**
+11. Market Vision evidence traceability audit (Med 28) **[review]**
+12. Observability / reproducibility matrix (Med 30) **[review/doc]**
+13. Data-freshness UX product audit (Med 33) **[review]**
+14. Security Master auto-setup on new-instrument add (Med 41) **[build]** — data-quality gap the first time the universe grows post-launch
+15. Migration tracking/numbering + safety review — ledger, dedupe `052/061/062`, timestamped naming (High 7 + Low 7) **[build/ops]**
+
+### Phase C — Before first paying user
+16. Legal & compliance review — ToS, privacy, disclaimers, PDPA (High 8) **[external]**
+17. Data licensing confirmation — FMP/FRED/NewsData/GDELT (High 9) **[external]**
+18. User privacy lifecycle — retention, export, account deletion (High 10) **[build]**
+19. DB index audit + backup policy + restore test (Med 31) **[review/ops]**
+20. Cost control — provider quota register + budget alerting (Med 34) **[build/ops]**
+21. Error-handling / empty-state full inventory (Med 35) **[review/build]**
+22. Support operations — contact, bug/triage, dispute path (Low 12) **[ops]**
+23. Incident response playbook (Low 9) **[ops/doc]**
+24. Commercial readiness — pricing, payments, subscription, refunds (Low 13) **[build]** — biggest net-new product surface
+
+### Phase D — Analytics correctness/quality (schedule by user impact)
+25. Benchmark total-return vs price-return labeling (Med 11) **[build]** — quick win, do early
+26. Portfolio volatility distorted by deposits/withdrawals — document or switch to cash-flow-adjusted returns (Med 10) **[build]**
+27. XIRR / money-weighted return (Med 12) **[build]**
+28. FX conversion for multi-currency portfolios (Med 9) **[build]** — largest of these
+
+### Phase E — Before scaling to 100+ users
+29. External code review, external calculation review, penetration test, PDPA review, incident drill (`COMMERCIALIZATION_AUDIT_PLAN.md` "100+" list) **[external]**
+30. Accessibility audit (Low 10) **[review]**
+31. Browser/device compatibility audit (Low 11) **[review]**
+
+### Phase F — Governance, docs, and lower backlog
+32. Branch/deployment governance policy (Low 6) **[doc]**
+33. Model/prompt governance policy + regression suite (Low 8) **[doc/build]**
+34. News classification formula doc (Med 5) **[doc]**
+35. Assistant table/cost schema confirmation (Med 4) **[review]**
+36. Security Master provider-observation automation (Med 7) **[build]** — future, after provider-priority rules approved
+37. Security Master stub-promotion workflow (Med 40) **[build]** — low until the universe grows often
+38. ETF holdings provider-plan expansion monitoring (Med 25 remaining) **[review]**
+39. Provider endpoint inventory completion — FMP market/news, FRED, NewsData, GDELT, OpenAI (Low 1) **[doc]**
+40. Render-timing baseline table (Low 2) **[review]**
+41. Job schedule drift check vs live `cron.job` (Low 3) **[review]**
+42. Old docs cleanup / archive pass (Low 4) **[doc]** — needs user approval
+43. Future ETF universe additions — mid-cap (MDY/IJH/VO), factor, option-income, ESG, balanced (Low 5) **[build]**
+44. Executive-summary count pluralization ("1 watch area") — cosmetic carry-along (Portfolio Review WIP) **[build]**
+
+### Cross-cutting — UI/UX improvement track (ongoing)
+General visual/interaction polish for commercial credibility — an **iterative track**, not a one-time audit
+(the same way the Portfolio Review balance-engine polish was run). Distinct from the *functional* UX items
+already in the phases above, which it complements and should not duplicate: onboarding/empty state (#4),
+alpha UX walkthrough (#5), data-freshness UX (#13), error/empty-state inventory (#21), accessibility (#30),
+browser/device compatibility (#31).
+
+Scope (run as small, reviewable batches):
+- Visual consistency — spacing, typography scale, color tokens, card/chip/badge styling across pages.
+- Responsive / mobile + tablet layout for the primary dashboard, portfolio, holdings, and review pages.
+- Chart readability — axis labels, legends, tooltips, empty/insufficient-data chart states.
+- Loading / skeleton states and perceived-performance polish on slower routes.
+- Table readability — column alignment, number formatting, pagination/overflow on dense tables.
+- Interaction affordances — focus/hover states, disabled states, consistent iconography.
+- Copy/microcopy consistency (e.g. observational, non-advisory tone already established in Portfolio Review).
+
+Timing: opportunistic during alpha for credibility; **substantially complete before first paying user**
+(Phase C gate). Accessibility (#30) and browser/device (#31) are the formal review counterparts and remain
+in their phases. Capture each batch as its own implementation-log entry.
+
+**Sequencing notes:**
+- Calculation golden regression (#7) is ranked #1 in `COMMERCIALIZATION_AUDIT_PLAN.md`'s generic audit
+  ranking, but it does **not** gate the alpha *invite* (methodology is already documented), so it sits in
+  Phase B. It is a hard gate before *paid*.
+- #25 (benchmark return labeling) and #44 (pluralization) are tiny; pull them forward opportunistically
+  whenever Portfolio/Risk pages are next touched.
+- The UI/UX improvement track (above) is cross-cutting and iterative; schedule its batches alongside the
+  phased items rather than as a single blocking task.
 
 ---
 
@@ -296,6 +391,8 @@ An independent deep architecture audit with live read-only database verification
 36. Service-role key client component audit
     - Migration 109 user-scoped RLS policies assume the service-role key is only used server-side. If it appears in any client component or is exposed via a public env var, all RLS is bypassed for those users and migration 109 is rendered ineffective.
     - Remaining: grep `src/` for `SUPABASE_SERVICE_ROLE_KEY` and `createSupabaseAdminClient` usage; confirm every call site is a server component, server action, or API route — never a client component or any `NEXT_PUBLIC_` variable. Verify this before alpha invites.
+    - **Verified 2026-06-19 — no leak found.** All 23 `service_role` / `createSupabaseAdminClient` references are server-side: the `infrastructure/repositories/*` data layer, `server/jobs/*`, API routes, and `admin/data-sources/page.tsx` (a **server** component — no `"use client"`; calls `createSupabaseAdminClient()` at server render). The key is `SUPABASE_SERVICE_ROLE_KEY` with **no `NEXT_PUBLIC_` prefix**, so Next.js does not ship it to the browser. RLS (migration 109) is not being bypassed.
+    - **Downgraded to a 1-line hardening:** `src/infrastructure/db/supabaseAdmin.ts` has no `import "server-only"` guard, so server-only usage is enforced by convention rather than at build time. Add `import "server-only";` to that module so any future client-component import fails the build. Folded into Phase A item 3 (Sentry/alerting infra bundle).
     - Related: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 11 remaining items.
 
 37. Email deliverability and Supabase auth email configuration
