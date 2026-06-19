@@ -1,3 +1,42 @@
+## 2026-06-19 - Portfolio Review ETF Sector Classification Fallback
+
+### Source
+Claude Code
+
+### Objective
+Fix systemic ETF sector mis-classification in Portfolio Review Gap Analysis so curated US sector ETFs do not fall through to broad/global roles because of stale or generic canonical sector metadata.
+
+### Files Changed
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added a curated `ALPHA_ETF_CATEGORIES` fallback inside `candidateRole()` for dedicated ETF sector categories: Healthcare, Utilities, Consumer Staples, Energy, Financials, Industrials, and Real Estate.
+- Preserved existing symbol overrides and correctly enriched canonical sector precedence before the curated ETF fallback.
+- Added a defensive finding consistency guard so international/global equity roles cannot enter `insufficient_defensive_exposure`.
+- Added regression coverage for an FXU-like Utilities ETF routing to `utilities_defensive` instead of `global_equity`, and for VXUS remaining an international candidate while being excluded from the defensive gap.
+- Updated Portfolio Review methodology documentation to describe the curated ETF fallback and defensive-gap role guard.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (300/300)
+
+### Result
+Completed.
+
+### Notes for Claude
+- FXU-like US sector ETFs now route to sector-specific defensive roles when their curated ETF category supports one, so defensive gap examples no longer show non-US/global-equity explanations for those instruments.
+- VXUS-style international ETFs remain international candidates and can still appear in the International Equity finding.
+- Gap triggers, ordering mechanics, section scores, penalties, and benefit scoring were not changed.
+- Part B remains outstanding: database enrichment/backfill still needs to correct stale `canonical_sector` values for other consumers outside this Portfolio Review candidate-role fallback.
+- Portfolio Review must be re-run from the Admin panel to regenerate stored report output.
+
+---
 ## 2026-06-19 - Defensive Gap Sleeve-Aware Role Priority
 
 ### Source

@@ -180,7 +180,7 @@ This represents the top non-ETF look-through positions by combined direct + indi
 
 ### Candidate Role Assignments
 
-`candidateRole(instrument)` maps each instrument to a `CandidateRole` enum used for candidate pool filtering and role-based explanation text. Evaluation order is symbol override first, then sector/asset-class fallbacks:
+`candidateRole(instrument)` maps each instrument to a `CandidateRole` enum used for candidate pool filtering and role-based explanation text. Evaluation order is symbol override first, then correctly enriched sector fallbacks, then curated ETF category fallback, then broader asset/theme fallbacks:
 
 **Symbol overrides (highest priority):**
 
@@ -215,6 +215,7 @@ This represents the top non-ETF look-through positions by combined direct + indi
 | `canonicalSector = "energy"` | `energy_inflation_equity` |
 | `canonicalSector = "financials"` | `financials_cyclical` |
 | `canonicalSector = "industrials"` | `industrials_cyclical` |
+| ETF symbol belongs to curated `ALPHA_ETF_CATEGORIES` sector groups `HEALTHCARE`, `UTILITIES`, `CONSUMER_STAPLES`, `ENERGY`, `FINANCIALS`, `INDUSTRIALS`, or `REAL_ESTATE` and no earlier rule matched | Matching sector role; used as authoritative fallback when provider `canonicalSector` is missing or incorrectly enriched to broad market |
 | `assetClass = "crypto"` | `crypto_alternative` |
 | `assetClass = "bond_etf"` AND `durationCategory = "long"` | `long_duration_treasury` |
 | `assetClass = "bond_etf"` AND `durationCategory` is ultra-short or short | `short_treasury_cash_like` |
@@ -268,6 +269,7 @@ This represents the top non-ETF look-through positions by combined direct + indi
 Additional `issueFit` blocking rules:
 - `insufficient_defensive_exposure`: single-stock instruments are blocked (`issueFit = 0`) so defensive examples come from diversified healthcare, utilities, consumer staples, bond, or cash-like instruments.
 - `insufficient_defensive_exposure`: the three defensive sector roles are sub-category-gap-aware. The role with the lowest current look-through sleeve weight receives the highest `issueFitScore`; this is observational sector-sleeve measurement, not a personalised security ranking.
+- `insufficient_defensive_exposure`: instruments classified to international/global equity roles are blocked (`issueFit = 0`) as a consistency guard, even if provider metadata carries a defensive theme.
 - `concentration_risk`: single-stock instruments and instruments in the same dominant sector as the portfolio are blocked (`issueFit = 0`).
 - `excessive_crypto_risk`: instruments with `assetClass` in `["cash_proxy", "bond_etf", "gold_etf"]` receive a minimum fit of 24 even if not in the role priority list.
 - `macro_vulnerability`: instruments with themes "defensive", "inflation hedge", or "recession hedge" receive a minimum fit of 24 even if not in the role priority list.

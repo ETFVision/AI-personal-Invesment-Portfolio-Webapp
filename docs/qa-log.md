@@ -2,6 +2,35 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Portfolio Review ETF Sector Classification Fallback QA
+
+Scope:
+- Verify Portfolio Review Gap Analysis uses curated alpha ETF categories to classify dedicated US sector ETFs when canonical sector metadata is stale or generic.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| FXU-like US sector ETFs with stale `Multi-Asset / Broad Market` metadata could fall through to `global_equity` because of broad diversification themes | Fixed; curated `ALPHA_ETF_CATEGORIES` now routes mapped sector ETFs such as Utilities to sector-specific roles |
+| Defensive gap candidate explanations could incorrectly reference non-US equity for a US sector ETF | Fixed; the FXU-like regression now routes to `utilities_defensive` and uses defensive-sector context |
+| International/global ETFs with defensive themes could enter the defensive gap through fallback scoring | Fixed; international/global candidate roles are blocked from `insufficient_defensive_exposure` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| FXU-like Utilities ETF routes to `utilities_defensive`, appears in the defensive gap, and does not use non-US equity explanation text | PASS |
+| VXUS remains `international_equity`, is excluded from the defensive gap, and remains eligible for the International Equity gap | PASS |
+| Existing defensive sleeve priority, gap candidate ordering, and Portfolio Review regressions still pass | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (300/300) |
+
+Residual items:
+- Part B remains outstanding: run the separate enrichment/backfill task to correct stale ETF `canonical_sector` values in the database for other consumers.
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports.
+
 ## 2026-06-19 SGT - Defensive Gap Sleeve-Aware Role Priority QA
 
 Scope:

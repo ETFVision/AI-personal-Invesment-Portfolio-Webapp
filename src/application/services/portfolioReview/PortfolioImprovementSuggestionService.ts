@@ -2,6 +2,7 @@ import type { PortfolioImprovementIssueCategory, PortfolioImprovementSuggestion,
 import type { InstrumentRecommendation } from "@/domain/recommendations/types";
 import type { Instrument } from "@/domain/universe/types";
 import type { EtfTopHolding, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
+import { alphaEtfCategoryForSymbol, type EtfCategory } from "../../../domain/universe/alphaUniverse";
 import { DiversificationBenefitService } from "./DiversificationBenefitService";
 import { type PortfolioReviewInputContext } from "./portfolioReviewScoring";
 
@@ -34,7 +35,24 @@ const roleLabels = {
   other: "Diversifying exposure"
 } as const;
 
-type CandidateRole = keyof typeof roleLabels;
+export type CandidateRole = keyof typeof roleLabels;
+
+const alphaEtfCategoryRoles: Partial<Record<EtfCategory, CandidateRole>> = {
+  HEALTHCARE: "healthcare_defensive",
+  UTILITIES: "utilities_defensive",
+  CONSUMER_STAPLES: "consumer_staples_defensive",
+  ENERGY: "energy_inflation_equity",
+  FINANCIALS: "financials_cyclical",
+  INDUSTRIALS: "industrials_cyclical",
+  REAL_ESTATE: "real_estate"
+};
+
+const internationalCandidateRoles = new Set<CandidateRole>([
+  "international_equity",
+  "developed_international_equity",
+  "emerging_market_equity",
+  "global_equity"
+]);
 
 function recommendationMap(recommendations: InstrumentRecommendation[]) {
   return new Map(recommendations.map((recommendation) => [recommendation.instrumentId, recommendation]));
@@ -89,7 +107,14 @@ function instrumentIsSameDominantSector(instrument: Instrument, context: Suggest
   return Boolean(dominantSector && normalizedSector(instrument) === dominantSector);
 }
 
-function candidateRole(instrument: Instrument): CandidateRole {
+function alphaEtfRole(instrument: Instrument): CandidateRole | null {
+  const isEtf = instrument.assetClass === "etf" || instrument.instrumentType.toLowerCase().includes("etf");
+  if (!isEtf) return null;
+  const category = alphaEtfCategoryForSymbol(instrument.symbol);
+  return category ? alphaEtfCategoryRoles[category] ?? null : null;
+}
+
+export function candidateRole(instrument: Instrument): CandidateRole {
   const symbol = instrument.symbol?.toUpperCase() ?? "";
   const sector = normalizedSector(instrument);
   const themes = instrument.canonicalThemes.map((theme) => theme.toLowerCase());
@@ -117,6 +142,8 @@ function candidateRole(instrument: Instrument): CandidateRole {
   if (sector === "energy") return "energy_inflation_equity";
   if (sector === "financials") return "financials_cyclical";
   if (sector === "industrials") return "industrials_cyclical";
+  const curatedEtfRole = alphaEtfRole(instrument);
+  if (curatedEtfRole) return curatedEtfRole;
   if (instrument.assetClass === "crypto") return "crypto_alternative";
   if (instrument.assetClass === "bond_etf") {
     if (duration === "long") return "long_duration_treasury";
@@ -186,6 +213,7 @@ function issueFit(instrument: Instrument, issueCategory: PortfolioImprovementIss
   if (issueCategory === "insufficient_international_exposure") return roleFit(role, issueCategory, context);
   if (issueCategory === "insufficient_defensive_exposure") {
     if (instrument.assetClass === "stock") return 0;
+    if (internationalCandidateRoles.has(role)) return 0;
     return roleFit(role, issueCategory, context) || (instrumentIsDefensiveDiversifier(instrument) ? 24 : 0);
   }
   if (issueCategory === "sector_concentration" || issueCategory === "theme_concentration") {

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildPortfolioImprovementSuggestionContext,
+  candidateRole,
   PortfolioImprovementSuggestionService,
   rolePriority
 } from "../src/application/services/portfolioReview/PortfolioImprovementSuggestionService";
@@ -541,6 +542,72 @@ test("defensive gap assigns higher issue fit to the most-underweight sleeve", ()
   assert.ok(healthcareCandidate);
   assert.ok((utilitiesCandidate.issueFitScore ?? 0) > (staplesCandidate.issueFitScore ?? 0));
   assert.ok((staplesCandidate.issueFitScore ?? 0) > (healthcareCandidate.issueFitScore ?? 0));
+});
+
+test("curated alpha ETF category prevents US sector ETFs from routing to global equity", () => {
+  const fxu = instrument({
+    id: "fxu",
+    symbol: "FXU",
+    name: "First Trust Utilities AlphaDEX Fund",
+    assetClass: "etf",
+    instrumentType: "etf",
+    canonicalSector: "Multi-Asset / Broad Market",
+    canonicalThemes: ["Global Diversification", "Defensive"]
+  });
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.4, directWeight: 0.4, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.08, directWeight: 0.08, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Utilities", exposureWeight: 0, directWeight: 0, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Consumer Staples", exposureWeight: 0.05, directWeight: 0.05, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    instruments: [fxu]
+  }));
+  const defensiveSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure");
+  const fxuCandidate = defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "FXU");
+
+  assert.equal(candidateRole(fxu), "utilities_defensive");
+  assert.ok(fxuCandidate);
+  assert.match(fxuCandidate.primaryReason ?? "", /defensive sector/i);
+  assert.doesNotMatch(fxuCandidate.primaryReason ?? "", /non-US equity/i);
+});
+
+test("international-role instruments cannot enter defensive gap candidates", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationBySector: [
+        { label: "Technology", value: 40, percent: 0.4 },
+        { label: "Healthcare", value: 5, percent: 0.05 }
+      ],
+      allocationByGeography: [
+        { label: "United States", value: 80, percent: 0.8 },
+        { label: "International", value: 20, percent: 0.2 }
+      ]
+    },
+    instruments: [
+      instrument({ id: "vxus", symbol: "VXUS", name: "Vanguard Total International Stock ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification", "Defensive"], geography: "International", geoExposure: "International" }),
+      instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] })
+    ]
+  }));
+  const defensiveSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure");
+  const internationalSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_international_exposure");
+
+  assert.equal(candidateRole(instrument({ id: "vxus", symbol: "VXUS", name: "Vanguard Total International Stock ETF", assetClass: "etf", instrumentType: "etf" })), "international_equity");
+  assert.equal(candidateRole(instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities" })), "utilities_defensive");
+  assert.ok(defensiveSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "XLU"));
+  assert.equal(defensiveSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "VXUS"), false);
+  assert.ok(internationalSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "VXUS"));
 });
 
 test("gap candidate display comparator orders by category fit before instrument quality", () => {
