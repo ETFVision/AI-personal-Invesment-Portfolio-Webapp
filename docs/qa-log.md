@@ -2,6 +2,37 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Portfolio Review Polish Items QA
+
+Scope:
+- Verify International Equity candidate variety, materiality-aware country labels, inflation hedge acknowledgement, and display polish.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| International Equity could show near-duplicate developed or emerging funds before a missing sub-role representative | Fixed; selection returns one core total/developed/emerging representative first |
+| Country Count label looked like a distinct-country total rather than a materiality-threshold count | Fixed; labels now read `Countries >=1%` and `Look-through countries >=3%` |
+| Macro inflation finding did not acknowledge held inflation-sensitive instruments such as TIP and GLD | Fixed; the finding lists existing detected hedge symbols before providing context |
+| Gap titles mixed hyphen and em-dash separators, and overlap text could show raw exchange tickers | Fixed; titles use em dash and overlap labels prefer issuer/company names with ticker cleanup fallback |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| International candidates lead with VXUS, VEA, and one emerging-market fund rather than VEA/SCHF or EEM/IEMG pairs | PASS |
+| Defensive broad-sleeve output remains unchanged | PASS |
+| Country-count labels show materiality thresholds | PASS |
+| Inflation finding acknowledges TIP/GLD when held and keeps original wording when not held | PASS |
+| Gap titles use em dash and overlap labels prefer names | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (311/311) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports reflect the polished candidate selection and display text.
+
 ## 2026-06-19 SGT - Portfolio Review Gap Trigger and Breadth Ordering QA
 
 Scope:

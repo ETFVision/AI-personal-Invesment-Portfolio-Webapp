@@ -26,13 +26,15 @@ Delete once the backlog is cleared.
 ### Also shipped (gap-analysis quality cluster, 2026-06-19)
 - **Per-sleeve defensive targeting (#2)** (`f0eb7ec`); **#ETF-TAXONOMY Part A** curated-category routing + role/finding guard (`ed8f4e6`); **defensive per-sleeve subsections** (`d5de677`); **rename to "Defensive Sectors" + broad-flagship preference + biotech/genomic exclusion + sleeve-aware tooltip** (`e0f6841`). All validated live.
 
-### In flight (prompt sent 2026-06-19)
-- **International broad-representative preference** — extend the defensive broad-flagship preference to the
-  `insufficient_international_exposure` finding so broad ex-US diversifiers (VXUS/VEA/VWO/IEMG, i.e.
-  `GLOBAL_EQUITY`/`DEVELOPED_MARKETS`/`EMERGING_MARKETS` categories) lead over single-country (`COUNTRY`:
-  DXJ/JPXN/EWJ/FXI) and international-dividend (`INTERNATIONAL_DIVIDEND`: SCHY/IDV/DWX) funds, in **both**
-  selection and the category-fit display order. Refactor into a shared broad-representative ranking helper
-  (not a second hand-curated set); defensive output must stay unchanged. *Codex prompt sent; awaiting output.*
+### Also shipped (gap-engine quality + trigger-semantics, 2026-06-19)
+- **International broad-representative preference** (`9503306`) — shared `categoryRepresentativeScore` so
+  broad ex-US diversifiers lead over single-country/dividend funds, in both selection and display. Validated
+  live (VXUS/VEA led; DXJ/SCHY/IDV/JPXN/EWJ removed from the lead).
+- **International breadth tiers + crypto-ballast trigger + T1** (`7795895`) — graded
+  `internationalRepresentativeScore` (core ex-US 100 / variant 60 / global-incl-US 30 / country-dividend 0)
+  so VXUS/VEA/VWO/IEMG lead over HEFA/EMXC and over IOO/VT/ACWI; `excessive_crypto_risk` made ballast-aware
+  (`recessionHedgeAllocation = bond+gold < crypto`) so it no longer fires when ballast already exceeds crypto;
+  T1 — dropped `topHolding>0.25 || diversificationScore<55` from the international trigger. *Awaiting live re-run.*
 
 ### Design convention — "broad representative" preference (category-remedy findings)
 Any gap finding that remedies a **missing category sleeve** (defensive sectors, international, and any future
@@ -44,30 +46,25 @@ proliferation of per-finding hand-curated lists. A Real Estate sleeve, if added,
 funds (VNQ/SCHH/IYR-style) over narrow specialty / mortgage / international-REIT variants via this mechanism.
 
 ### Remaining backlog (recommended sequence)
-1. **#ETF-TAXONOMY Part B (enrichment + backfill)** — fix `TaxonomyService` so `canonical_sector` is
-   curated-authoritative (ETFs via `ALPHA_ETF_CATEGORIES` + explicit category→sector map; stocks via
-   `ALPHA_STOCK_SECTORS`), de-blanket the `"Global Diversification"` theme (`TaxonomyService` maps
-   `etf`/`sector-etf`/`broad-market` → it), retire theme→sector inference, then backfill all instruments
-   via `MetadataRefreshService`. Fixes the data for every consumer (theme signals, sector views, etc.).
-   *Prompt ready. High — substantive data task; touches ingestion + backfill.*
-2. **Trigger-semantics cleanup (T1 + crypto-ballast)** — fix gap triggers whose firing/title doesn't
-   match what they detect:
-   - **T1 — international trigger:** remove `topHolding > 0.25 || diversificationScore < 55` from
-     `insufficient_international_exposure` so it can't emit a misleading "US-concentrated" finding for a
-     non-US-concentrated portfolio.
-   - **Crypto-ballast trigger:** `excessive_crypto_risk` fires purely on `cryptoAllocation > 0.05` but is
-     titled "Ballast Underweighted" — it fired on a portfolio with 22.1% bond+gold ballast (3.7× crypto).
-     Make it ballast-aware (only flag "underweighted" when ballast is actually low relative to crypto)
-     and/or reframe the title so it doesn't claim a gap that doesn't exist.
-   *Needs prompt. Medium — latent correctness/compliance (title-vs-trigger mismatches).*
-3. **D + E polish** — D: "Country Count: 1" is a ≥3% threshold count shown next to a 56-country table
-   (relabel/recount). E: macro inflation finding suggests inflation sleeves while portfolio already holds
-   TIP + GLD (acknowledge existing). *Needs prompt. Low.*
-4. **DRY cleanup** — extract the wrapper-exclusion helper (`isFundWrapper`/`isIssuerExposure`/`issuerKey`)
+1. **"Gap Analysis" → "Portfolio Balance Review" rename (user-facing strings only)** — rename the section
+   from "Gap Analysis" (the "gap" framing implies an action to take) to **"Portfolio Balance Review"**, and
+   soften the "Underweighted Category" subtitle. (Label decided 2026-06-19. "Balance" chosen because "Coverage"
+   collides with Data/Lookthrough/Recommendation/Profile Coverage and "Exposure" collides with Theme Exposure
+   Review + look-through tables.) Scope: section title, subtitles, exec-summary "N gap findings" wording,
+   "Analytical Gap Summary" block, methodology doc — UI strings only; keep internal code names
+   (`gapCandidateDisplay.ts`, `issueCategory`, etc.) unchanged. *Needs prompt. Compliance/UX.*
+2. **D + E polish** — shipped 2026-06-19. Country Count labels now state materiality thresholds, and the
+   macro inflation finding acknowledges held TIP/GLD-style hedges when present.
+3. **DRY cleanup** — extract the wrapper-exclusion helper (`isFundWrapper`/`isIssuerExposure`/`issuerKey`)
    duplicated in `ConcentrationReviewService` and `RiskAnalyticsDataService`; consider consolidating the
-   gap-engine curated symbol sets (`nonDefensiveSectorEtfs`/`broadDefensiveSectorEtfs`). *Needs prompt. Low.*
-5. **Display polish** — gap-title em-dash consistency; exchange-ticker format (`8306.T`, `7203.T`) in
-   overlap text. *Needs prompt. Lowest.*
+   gap-engine curated symbol sets (`nonDefensiveSectorEtfs`/`broadDefensiveSectorEtfs`/`coreInternationalEtfs`/
+   `globalIncludingUsEtfs`). *Needs prompt. Low.*
+4. **Display polish** — shipped 2026-06-19. Gap titles use em dashes, and overlap text prefers company
+   names with ticker cleanup fallback.
+5. *(optional)* **Real Estate / REIT sleeve trigger** — reuses the shared broad-representative mechanism
+   (broad REIT funds lead). *Needs prompt if pursued.*
+6. *(optional)* **Taxonomy verification test** — read-only test asserting every active instrument's stored
+   sector == `TaxonomyService.normalizeInstrument` output. *Needs prompt if pursued.*
 
 ### Diagnostic finding (2026-06-19) — systemic ETF sector mis-classification
 Surfaced by the post-#1 live re-run (FXU appeared in Healthcare & Defensive with "non-US equity" text).

@@ -21,6 +21,7 @@ import type { PortfolioLookthroughExposure, PortfolioLookthroughHolding, Portfol
 import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
 import { assessmentLabel } from "@/application/services/recommendations/recommendationPresentation";
 import { compareGapCandidatesByCategoryFit, defensiveGapTooltipCategory, groupDefensiveGapCandidates } from "@/application/services/portfolioReview/gapCandidateDisplay";
+import { portfolioReviewMetricLabel, sharedCompanyDisplayName } from "@/application/services/portfolioReview/portfolioReviewDisplay";
 
 type PortfolioReviewPageProps = {
   searchParams?: Promise<{
@@ -52,10 +53,7 @@ function severityTone(severity: PortfolioReviewFinding["severity"]) {
 }
 
 function metricLabel(value: string) {
-  return value
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return portfolioReviewMetricLabel(value);
 }
 
 function normalizeDisplayRatio(value: number) {
@@ -375,7 +373,7 @@ function Suggestions({ suggestions, lookthrough }: { suggestions: PortfolioImpro
                   : "bg-emerald-100 text-emerald-800";
             const sharedCompanyCount = candidate.sharedCompanyCount ?? 0;
             const etfList = candidate.topSharedSymbols?.length > 0
-              ? ` via ${candidate.topSharedSymbols.slice(0, 3).join(", ")} look-through`
+              ? ` via ${candidate.topSharedSymbols.slice(0, 3).map((symbol) => sharedCompanyDisplayName(symbol, lookthrough?.holdingExposures ?? [])).join(", ")} look-through`
               : "";
             const overlapDetail = sharedCompanyCount > 0
               ? `${sharedCompanyCount} shared ${sharedCompanyCount === 1 ? "company" : "companies"}${etfList}`

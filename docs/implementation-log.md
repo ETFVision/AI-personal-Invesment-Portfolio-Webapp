@@ -1,3 +1,42 @@
+## 2026-06-19 - Portfolio Review Polish Items
+
+### Source
+Claude Code
+
+### Objective
+Apply four low-risk Portfolio Review polish fixes covering International Equity candidate variety, country-count labels, inflation hedge acknowledgement, and display consistency.
+
+### Files Changed
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `src/application/services/portfolioReview/MacroFitReviewService.ts`
+- `src/application/services/portfolioReview/portfolioReviewDisplay.ts`
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/PORTFOLIO_REVIEW_UX_FIXES_WIP.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- International Equity gap selection now returns one core representative per ex-US sub-role first: total ex-US, developed international, and emerging-market.
+- Portfolio Review metric labels clarify materiality thresholds: `Countries >=1%` and `Look-through countries >=3%`.
+- Macro Fit inflation finding now acknowledges existing inflation-sensitive holdings such as TIP and GLD when present.
+- Gap titles now use a consistent em dash separator, and overlap display text prefers company names over exchange-suffixed tickers.
+- Defensive gap selection remains unchanged.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (311/311)
+
+### Result
+Completed.
+
+### Notes for Claude
+- No scoring-methodology formula, section score, trigger threshold, or compliance disclaimer changed.
+- Stored Portfolio Review reports must be regenerated from the Admin panel before the UI reflects these polish changes.
+
 ## 2026-06-19 - Portfolio Review Gap Trigger and Breadth Ordering Fixes
 
 ### Source

@@ -59,6 +59,12 @@ const internationalCandidateRoles = new Set<CandidateRole>([
   "global_equity"
 ]);
 
+const exUsInternationalCandidateRoles: CandidateRole[] = [
+  "international_equity",
+  "developed_international_equity",
+  "emerging_market_equity"
+];
+
 const defensiveEquitySleeveRoles = new Set<CandidateRole>([
   "healthcare_defensive",
   "utilities_defensive",
@@ -469,6 +475,24 @@ function rankedCandidates(context: PortfolioReviewInputContext, issueContext: Su
     .slice(0, limit);
 }
 
+function rankedInternationalCandidates(context: PortfolioReviewInputContext, issueContext: SuggestionContext) {
+  const recs = recommendationMap(context.recommendations);
+  const byRole = new Map<CandidateRole, PortfolioReviewCandidate[]>();
+  for (const instrument of context.instruments) {
+    const role = candidateRole(instrument);
+    if (!exUsInternationalCandidateRoles.includes(role)) continue;
+    const item = candidate(instrument, recs.get(instrument.id), "insufficient_international_exposure", issueContext);
+    if (!item || (item.categoryRepresentativeScore ?? 0) < 60) continue;
+    const candidates = byRole.get(role) ?? [];
+    candidates.push(item);
+    byRole.set(role, candidates);
+  }
+  return exUsInternationalCandidateRoles
+    .map((role) => (byRole.get(role) ?? [])
+      .sort((left, right) => categoryRemedyCandidateRankScore(right) - categoryRemedyCandidateRankScore(left))[0])
+    .filter((item): item is PortfolioReviewCandidate => Boolean(item));
+}
+
 function rankedDefensiveCandidates(context: PortfolioReviewInputContext, issueContext: SuggestionContext, perSleeveLimit = 2) {
   const recs = recommendationMap(context.recommendations);
   const byRole = new Map<CandidateRole, PortfolioReviewCandidate[]>();
@@ -595,9 +619,9 @@ export class PortfolioImprovementSuggestionService {
         category: "diversification",
         issueCategory: "insufficient_international_exposure",
         priority: issueContext.usExposure > 0.85 ? "high" : issueContext.usExposure > 0.7 ? "medium" : "low",
-        title: "International Equity - Underweighted Category",
+        title: "International Equity — Underweighted Category",
         rationale: `Look-through country exposure is US-oriented relative to a globally diversified baseline. US look-through is ${(issueContext.usExposure * 100).toFixed(1)}%.`,
-        candidates: rankedCandidates(context, issueContext, "insufficient_international_exposure", 5),
+        candidates: rankedInternationalCandidates(context, issueContext),
         benefit: "Can reduce US home bias and add regional diversification.",
         tradeOff: "Introduces currency and non-US market risks. Broad ETFs already held may continue to carry US look-through exposure."
       }));
@@ -621,7 +645,7 @@ export class PortfolioImprovementSuggestionService {
         category: "risk",
         issueCategory: "excessive_crypto_risk",
         priority: issueContext.cryptoAllocation > 0.1 ? "high" : "medium",
-        title: "Crypto / Alternative - Ballast Underweighted",
+        title: "Crypto / Alternative — Ballast Underweighted",
         rationale: `Crypto and high-risk alternative exposure is ${(issueContext.cryptoAllocation * 100).toFixed(1)}%, while bond and gold ballast is ${(issueContext.recessionHedgeAllocation * 100).toFixed(1)}%. Analytical observation only - not a position sizing recommendation.`,
         candidates: rankedCandidates(context, issueContext, "excessive_crypto_risk", 5),
         benefit: "May add ballast characteristics around high-volatility alternative exposure.",
@@ -635,7 +659,7 @@ export class PortfolioImprovementSuggestionService {
         category: "concentration",
         issueCategory: "concentration_risk",
         priority: topLookthroughHolding.totalWeight > 0.15 ? "high" : "medium",
-        title: "Top Look-Through Positions - Single-Name Concentration Watch",
+        title: "Top Look-Through Positions — Single-Name Concentration Watch",
         rationale: `Top look-through holding ${topLookthroughHolding.symbol} represents ${(topLookthroughHolding.totalWeight * 100).toFixed(1)}% of portfolio exposure after ETF holdings are included. Analytical observation only - not a position sizing recommendation.`,
         candidates: rankedCandidates(context, issueContext, "concentration_risk", 5),
         benefit: "May provide context for reviewing single-name concentration within ETF look-through exposure.",
@@ -648,7 +672,7 @@ export class PortfolioImprovementSuggestionService {
         category: "macro_fit",
         issueCategory: "macro_vulnerability",
         priority: "medium",
-        title: "Growth Regime Watch - Recession Hedge Underweighted",
+        title: "Growth Regime Watch — Recession Hedge Underweighted",
         rationale: `FRED-derived growth regime is ${issueContext.growthRegime}, while bond and gold recession-hedge exposure is ${(issueContext.recessionHedgeAllocation * 100).toFixed(1)}%. Analytical observation only - not a position sizing recommendation.`,
         candidates: rankedCandidates(context, issueContext, "macro_vulnerability", 5),
         benefit: "May provide context for macro-regime sensitivity review.",
