@@ -88,6 +88,7 @@ unless prefixed otherwise.
 22. Support operations — contact, bug/triage, dispute path (Low 12) **[ops]**
 23. Incident response playbook (Low 9) **[ops/doc]**
 24. Commercial readiness — pricing, payments, subscription, refunds (Low 13) **[build]** — biggest net-new product surface
+- **Performance & rendering audit** — slow-route identification, summary-table refresh correctness, over-fetch/pagination, lazy-loaded admin diagnostics (`COMMERCIALIZATION_AUDIT_PLAN.md` Section 13, *in progress*) **[review/build]**. Placed in Phase C to match the audit plan's before-paid timing; intentionally left unnumbered so the existing item references (#4, #5, #7, #13, #21, #25, #30, #31, #44) stay stable. The only DOCUMENTATION_GAPS item tracking it today is Low 2 (render-timing baseline).
 
 ### Phase D — Analytics correctness/quality (schedule by user impact)
 25. Benchmark total-return vs price-return labeling (Med 11) **[build]** — quick win, do early
@@ -143,6 +144,12 @@ in their phases. Capture each batch as its own implementation-log entry.
   whenever Portfolio/Risk pages are next touched.
 - The UI/UX improvement track (above) is cross-cutting and iterative; schedule its batches alongside the
   phased items rather than as a single blocking task.
+- **Relationship to `COMMERCIALIZATION_AUDIT_PLAN.md` timing:** that doc's "Before Public Alpha" bucket is
+  the set needed for a *complete* alpha and is broader than Phase A here. Phase A is deliberately the
+  narrower *invite-gating* subset; the remaining "before alpha" audit-plan items (Calculation #7, AI
+  regression #8, provider coverage matrix #9, observability matrix #12, data-freshness UX #13) are placed in
+  Phase B as "finish during alpha, before paid." Item content and source IDs are identical across both docs;
+  only the alpha boundary differs. The audit plan's before-paid / 100+ / 500+ buckets map to Phases C / E.
 
 ---
 
