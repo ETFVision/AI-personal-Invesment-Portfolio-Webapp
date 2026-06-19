@@ -1,8 +1,21 @@
 # Portfolio Review UX Fixes — Working Notes
 
-**Status:** Temporary working document tracking the Portfolio Review UX/compliance fix programme.
-Four items shipped (Task 1, P2, Task 2, P3); see "Current Status & Remaining Backlog" below for what's left.
-Delete once the backlog is cleared.
+**Status:** CLOSED (2026-06-19) — all planned candidate-quality, trigger-semantics, presentation,
+compliance-wording, and DRY items shipped, reviewed, and validated live. No open work items remain; the
+one cosmetic nit below is deferred to ride along with the next Portfolio Review prompt rather than its own
+change. Safe to delete this doc once that carry-along lands (or is waived).
+
+Final shipped sequence (commits): International broad-representative (`9503306`); breadth tiers +
+crypto-ballast + T1 (`7795895`); intl variety + labels + inflation ack + display names (`1ec41aa`);
+International subsections (`c86bbcb`); "Portfolio Balance Review" rename + shared issuer-exposure helper
+(`0c9fd30`); Real Estate sleeve + disclaimer capitalization (`ddbaf92`); REIT exposure-impact text +
+fallback guard test (`ee4ea78`). All validated against the live 2026-06-19 report (score 85; Concentration
+90, Risk 88 unchanged throughout).
+
+**Carry-along (fold into the next Portfolio Review prompt — do not spec standalone):**
+- Pluralize the executive-summary counts: "1 watch areas" → "1 watch area" (and "1 balance findings" /
+  "1 data limitations" — singular when the count is 1). Lives in `portfolioReviewExecutiveSummary`
+  (`PortfolioReviewService.ts`). Trivial; bundle it with whatever next touches this area.
 
 **Latest shipped note (2026-06-19):** Portfolio Balance Review backlog clearance shipped. User-facing "Gap
 Analysis" language is now "Portfolio Balance Review", "Analytical Gap Summary" is now "Portfolio Balance
