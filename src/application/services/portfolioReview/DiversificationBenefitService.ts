@@ -13,6 +13,7 @@ export type DiversificationBenefitContext = {
   internationalExposure: number;
   bondAllocation: number;
   goldAllocation: number;
+  realEstateWeight: number;
   heldSymbols: Set<string>;
   symbol: string;
   companyOverlapWeight?: number;
@@ -98,6 +99,13 @@ export class DiversificationBenefitService {
       correlationScore += 10;
       primaryReason = `${input.symbol} provides exposure to hedge characteristics where gold allocation is ${pct(input.goldAllocation)}.`;
       secondaryBenefit = "May relate to resilience to inflation, real-rate and geopolitical shocks.";
+    }
+
+    if (hasAny(role, ["real estate"])) {
+      gapScore += clampRange((0.03 - input.realEstateWeight) * 520, 0, 18);
+      correlationScore += 6;
+      primaryReason = `${input.symbol} provides exposure to real estate where real-estate look-through is ${pct(input.realEstateWeight)}.`;
+      secondaryBenefit = "May add property-income and real-asset sensitivity context to the portfolio balance review.";
     }
 
     if (input.issueCategory === "excessive_crypto_risk" && hasAny(role, ["bond", "treasury", "fixed income", "credit"])) {

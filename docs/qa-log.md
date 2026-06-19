@@ -2,6 +2,34 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Real Estate Exposure Impact Text QA
+
+Scope:
+- Verify Real Estate / REIT candidate Exposure impact text no longer leaks the generic fallback issue-category wording.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| REIT candidate cards showed broken text such as `{symbol} appears for insufficient real estate exposure with real estate.` | Fixed; REIT candidates now show clean observational text based on real-estate look-through exposure |
+| Raw internal issue-category wording could surface in user-facing candidate explanations | Fixed for the REIT branch and covered by a fallback-leak guard test across active Portfolio Balance Review candidate explanations |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| REIT candidate `primaryReason` matches `provides exposure to real estate where real-estate look-through is 1.0%` | PASS |
+| REIT candidate `primaryReason` does not contain `appears for` | PASS |
+| REIT candidate `primaryReason` does not contain `insufficient real estate exposure` | PASS |
+| Active Portfolio Balance Review candidate explanations do not contain the fallback phrase `appears for` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run test` | PASS (318/318) |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports pick up the corrected REIT Exposure impact text.
+
 ## 2026-06-19 SGT - Real Estate Portfolio Balance Finding QA
 
 Scope:

@@ -1037,6 +1037,10 @@ test("real estate balance finding leads with broad US REIT representatives", () 
   assert.equal((realEstateSuggestion?.candidateInstruments ?? []).length <= 4, true);
   assert.deepEqual(realEstateSuggestion?.candidateInstruments.map((candidate) => candidate.symbol), ["VNQ", "SCHH", "IYR", "USRT"]);
   assert.equal(realEstateSuggestion?.candidateInstruments.some((candidate) => ["REM", "VNQI", "REET"].includes(candidate.symbol)), false);
+  const vnqCandidate = realEstateSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "VNQ");
+  assert.match(vnqCandidate?.primaryReason ?? "", /provides exposure to real estate where real-estate look-through is 1\.0%/);
+  assert.doesNotMatch(vnqCandidate?.primaryReason ?? "", /appears for/);
+  assert.doesNotMatch(vnqCandidate?.primaryReason ?? "", /insufficient real estate exposure/);
   assert.equal(JSON.stringify({
     riskReport: baseContext.riskReport,
     bondReport: baseContext.bondReport,
@@ -1061,6 +1065,83 @@ test("real estate balance finding does not fire when sleeve is adequately repres
   }));
 
   assert.equal(suggestions.some((suggestion) => suggestion.issueCategory === "insufficient_real_estate_exposure"), false);
+});
+
+test("portfolio balance candidate primary reasons do not leak fallback issue text", () => {
+  const instruments = [
+    instrument({ id: "bnd", symbol: "BND", name: "Vanguard Total Bond Market ETF", assetClass: "bond_etf", instrumentType: "bond_etf", canonicalSector: "Bonds / Fixed Income", canonicalThemes: ["Treasury Bonds"], durationCategory: "intermediate", treasuryClassification: "aggregate" }),
+    instrument({ id: "gld", symbol: "GLD", name: "SPDR Gold Shares", assetClass: "gold_etf", instrumentType: "gold_etf", canonicalSector: "Gold / Commodities", canonicalThemes: ["Inflation Hedge"] }),
+    instrument({ id: "vxus", symbol: "VXUS", name: "Vanguard Total International Stock ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Broad Market", canonicalThemes: ["Global Diversification"], geography: "International", geoExposure: "International" }),
+    instrument({ id: "xlv", symbol: "XLV", name: "Health Care Select Sector SPDR Fund", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Defensive"] }),
+    instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR Fund", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] }),
+    instrument({ id: "xlp", symbol: "XLP", name: "Consumer Staples Select Sector SPDR Fund", assetClass: "etf", instrumentType: "etf", canonicalSector: "Consumer Staples", canonicalThemes: ["Defensive"] }),
+    instrument({ id: "vnq", symbol: "VNQ", name: "Vanguard Real Estate ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Real Estate", canonicalThemes: ["Real Estate / REITs"] })
+  ];
+  const recommendations: PortfolioReviewInputContext["recommendations"] = instruments.map((item) => ({
+    id: `r-${item.id}`,
+    recommendationRunId: "run-1",
+    instrumentId: item.id,
+    symbol: item.symbol ?? "",
+    instrumentType: item.instrumentType,
+    recommendationLabel: "Hold",
+    overallScore: 70,
+    confidenceScore: 80,
+    riskLevel: "medium",
+    timeHorizon: "medium_term",
+    recommendationReasoningSummary: "",
+    positiveDrivers: [],
+    negativeDrivers: [],
+    guardrailsApplied: [],
+    dataLimitations: [],
+    recommendationChangeTriggers: { upgrade: [], downgrade: [] },
+    inputsSnapshot: {},
+    scoringBreakdown: {},
+    createdAt: "",
+    updatedAt: ""
+  }));
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "stock", value: 84, percent: 0.84 },
+        { label: "crypto_etf", value: 8, percent: 0.08 },
+        { label: "bond_etf", value: 0, percent: 0 },
+        { label: "gold_etf", value: 0, percent: 0 }
+      ],
+      allocationBySector: [{ label: "Technology", value: 90, percent: 0.9 }]
+    },
+    bondReport: {
+      ...context().bondReport,
+      totalBondAllocation: 0,
+      recessionHedgeExposure: 0
+    } as any,
+    macroRegime: {
+      ...context().macroRegime!,
+      growthRegime: "slowdown",
+      inflationRegime: "elevated"
+    },
+    lookthroughReport: {
+      ...lookthroughReport([{ portfolioId: "portfolio-1", holdingSymbol: "MSFT", holdingName: "Microsoft", totalWeight: 0.16, directWeight: 0.16, indirectWeight: 0, sourceEtfs: [], inputsSnapshot: {}, asOfDate: "2026-06-01" }]),
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.42, directWeight: 0.42, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.01, directWeight: 0.01, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Utilities", exposureWeight: 0.01, directWeight: 0.01, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Consumer Staples", exposureWeight: 0.01, directWeight: 0.01, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Real Estate", exposureWeight: 0.01, directWeight: 0.01, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.9, directWeight: 0.9, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ]
+    },
+    instruments,
+    recommendations
+  }));
+
+  assert.ok(suggestions.length > 0);
+  assert.ok(suggestions.some((suggestion) => suggestion.issueCategory === "insufficient_real_estate_exposure"));
+  for (const candidate of suggestions.flatMap((suggestion) => suggestion.candidateInstruments)) {
+    assert.doesNotMatch(candidate.primaryReason ?? "", /appears for/);
+  }
 });
 
 test("improvement suggestions map concentration issues to diversifying candidates", () => {

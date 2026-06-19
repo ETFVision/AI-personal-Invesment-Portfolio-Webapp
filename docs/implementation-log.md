@@ -1,3 +1,39 @@
+## 2026-06-19 - Real Estate Exposure Impact Text Fix
+
+### Source
+Claude Code
+
+### Objective
+Fix the Real Estate / REIT candidate Exposure impact text so it uses clean observational wording instead of the generic fallback that exposed the raw issue category.
+
+### Files Changed
+- `src/application/services/portfolioReview/DiversificationBenefitService.ts`
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `realEstateWeight` to the diversification benefit context and threaded the existing Portfolio Balance Review real-estate look-through weight into candidate evaluation.
+- Added a dedicated `real_estate` benefit branch that renders: `{symbol} provides exposure to real estate where real-estate look-through is {pct}.`
+- Added an observational secondary benefit for REIT candidates.
+- Added regression coverage for the REIT primary reason and a guard test asserting active Portfolio Balance Review candidate explanations do not leak the generic `appears for` fallback.
+- Updated methodology notes to state REIT candidate explanations must reference real-estate look-through directly and must not expose internal issue-category slugs.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run test` - PASS (318/318)
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- No section score, scoring formula, trigger threshold, candidate selection rule, access control, or user-facing advisory label was changed.
+- Stored Portfolio Review reports must be regenerated from the Admin panel before the corrected REIT Exposure impact text appears in saved reports.
+
 ## 2026-06-19 - Real Estate Portfolio Balance Finding
 
 ### Source

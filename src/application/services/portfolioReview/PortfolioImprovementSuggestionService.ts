@@ -422,6 +422,7 @@ function candidate(
     internationalExposure: context.internationalExposure,
     bondAllocation: context.bondAllocation,
     goldAllocation: context.goldAllocation,
+    realEstateWeight: context.realEstateWeight,
     heldSymbols: context.heldSymbols,
     symbol: instrument.symbol,
     companyOverlapWeight
