@@ -12,7 +12,9 @@ export class RecommendationAlignmentReviewService {
       coverage < 0.7 ? finding("watch", "Insights coverage is incomplete", "Some holdings do not yet have deterministic insight output.") : null,
       weakHeld.length > 0 ? finding("attention", "Some holdings need review", "A subset of current holdings has Weak, Poor or Significant Concerns insight assessments.") : null
     ].filter((item): item is NonNullable<typeof item> => Boolean(item));
-    const score = 60 + constructiveHeld.length * 4 - weakHeld.length * 8 + coverage * 12;
+    const rawScore = 60 + constructiveHeld.length * 4 - weakHeld.length * 8 + coverage * 12;
+    const hasConcern = findings.some((item) => item.severity !== "info");
+    const score = hasConcern ? Math.min(rawScore, 94) : rawScore;
     return section(score, "Insight alignment checks whether current holdings agree with the deterministic characteristics engine.", findings, {
       recommendationCoverage: coverage,
       heldRecommendations: heldRecommendations.map((item) => ({

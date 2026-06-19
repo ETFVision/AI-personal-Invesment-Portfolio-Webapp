@@ -2,6 +2,35 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Insight Alignment Score Cap and Coverage Display QA
+
+Scope:
+- Verify Portfolio Review Insight Alignment cannot show a perfect or near-perfect score while displaying a watch/attention finding, and verify recommendation coverage displays as a percentage.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Insight Alignment could display 100/100 while also showing `Some holdings need review` | Fixed; any non-info finding caps the section score at 94 |
+| The same contradiction could occur for `Insights coverage is incomplete` | Fixed; the cap keys off any non-info finding, not only weak holdings |
+| `Recommendation Coverage` displayed the raw fraction `1` | Fixed; coverage is now treated as a ratio metric and formats as `100%` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Weak-held scenario with raw score above 100 caps at 94 and keeps `Some holdings need review` | PASS |
+| Incomplete-coverage-only scenario with raw score above 94 caps at 94 and keeps `Insights coverage is incomplete` | PASS |
+| Clean full-coverage scenario can still reach 100 with no findings | PASS |
+| `coverage` key is routed through the existing percent formatter | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (293/293) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports; the live reference Insight Alignment section should move from 100 to 94 when `Some holdings need review` is present.
+
 ## 2026-06-19 SGT - Wrapper-Excluded Diversification Penalty QA
 
 Scope:

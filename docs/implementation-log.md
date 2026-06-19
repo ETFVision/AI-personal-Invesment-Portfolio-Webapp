@@ -1,3 +1,43 @@
+## 2026-06-19 - Insight Alignment Score Cap and Coverage Display
+
+### Source
+Claude Code
+
+### Objective
+Fix Portfolio Review Insight Alignment so a watch/attention finding cannot display with a 95-100 section score, and format recommendation coverage as a percentage.
+
+### Files Changed
+- `src/application/services/portfolioReview/RecommendationAlignmentReviewService.ts`
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `src/app/methodology/page.tsx`
+- `tests/portfolio-review.test.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Preserved the Insight Alignment raw formula terms: `60 + constructiveHeldCount * 4 - weakHeldCount * 8 + coverage * 12`.
+- Added a presentation cap of 94 whenever the section has any non-info finding, covering both weak-holding and incomplete-coverage findings.
+- Added `coverage` to the Portfolio Review page ratio metric detector so `recommendationCoverage: 1` renders as `100%`.
+- Added tests for weak-holding cap, incomplete-coverage cap, and clean-section 100 score.
+- Updated methodology documentation and the public methodology page to describe the cap.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (293/293)
+
+### Result
+Completed.
+
+### Notes for Claude
+- Reference Portfolio Review Insight Alignment moves from 100 to 94 when the existing `Some holdings need review` finding is present.
+- `Recommendation Coverage` now renders as `100%` instead of `1`.
+- Portfolio Review must be re-run from the Admin panel to regenerate stored reports.
+
+---
 ## 2026-06-19 - Wrapper-Excluded Diversification Penalty Fix
 
 ### Source

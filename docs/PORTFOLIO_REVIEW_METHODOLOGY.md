@@ -50,6 +50,8 @@ Portfolio Review includes:
 - Gap analysis findings.
 - Analytical gap summary.
 
+Insight alignment uses `60 + constructiveHeldCount * 4 - weakHeldCount * 8 + coverage * 12`, capped at 94 when the section has any incomplete-coverage or weak-holding finding. Recommendation coverage is a 0-1 fraction and should be displayed as a percentage.
+
 ## Exposure Inputs
 
 Portfolio sector/geography/theme exposure should prefer ETF look-through data where available. ETF product category is not a portfolio sector allocation source.

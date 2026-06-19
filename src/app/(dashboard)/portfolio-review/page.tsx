@@ -138,7 +138,8 @@ function isRatioMetric(key: string) {
     "exposure",
     "volatility",
     "percent",
-    "correlation"
+    "correlation",
+    "coverage"
   ].some((term) => normalized.includes(term));
 }
 

@@ -6,6 +6,7 @@ import { AllocationReviewService } from "../src/application/services/portfolioRe
 import { ConcentrationReviewService } from "../src/application/services/portfolioReview/ConcentrationReviewService";
 import { PortfolioRiskReviewService } from "../src/application/services/portfolioReview/PortfolioRiskReviewService";
 import { MacroFitReviewService } from "../src/application/services/portfolioReview/MacroFitReviewService";
+import { RecommendationAlignmentReviewService } from "../src/application/services/portfolioReview/RecommendationAlignmentReviewService";
 import { portfolioReviewConfidenceScore } from "../src/application/services/portfolioReview/PortfolioReviewService";
 import { weightedPortfolioScore } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import type { PortfolioReviewInputContext } from "../src/application/services/portfolioReview/portfolioReviewScoring";
@@ -146,12 +147,104 @@ function lookthroughReport(holdingExposures: NonNullable<PortfolioReviewInputCon
   };
 }
 
+function insightAlignmentContext(input: { holdingCount: number; constructiveCount: number; weakCount: number }) {
+  const holdings = Array.from({ length: input.holdingCount }, (_, index) => {
+    const symbol = `H${index + 1}`;
+    return {
+      id: `holding-${index + 1}`,
+      portfolioId: "portfolio-1",
+      assetId: `asset-${index + 1}`,
+      assetType: "stock" as const,
+      ticker: symbol,
+      assetName: symbol,
+      accountName: null,
+      brokerName: null,
+      quantity: 1,
+      averageCost: 100,
+      costCurrency: "USD",
+      firstPurchaseDate: "2026-01-01",
+      notes: null,
+      sector: "Technology"
+    };
+  });
+  const recommendationFor = (index: number, recommendationLabel: "Buy" | "Reduce") => ({
+    id: `rec-${index + 1}`,
+    recommendationRunId: "run-1",
+    instrumentId: `instrument-${index + 1}`,
+    symbol: `H${index + 1}`,
+    instrumentType: "Stock",
+    recommendationLabel,
+    overallScore: recommendationLabel === "Buy" ? 76 : 32,
+    confidenceScore: 80,
+    riskLevel: "medium",
+    timeHorizon: "medium_term",
+    recommendationReasoningSummary: "",
+    positiveDrivers: [],
+    negativeDrivers: [],
+    guardrailsApplied: [],
+    dataLimitations: [],
+    recommendationChangeTriggers: { upgrade: [], downgrade: [] },
+    inputsSnapshot: {},
+    scoringBreakdown: {},
+    createdAt: "",
+    updatedAt: ""
+  });
+  const recommendations = [
+    ...Array.from({ length: input.constructiveCount }, (_, index) => recommendationFor(index, "Buy")),
+    ...Array.from({ length: input.weakCount }, (_, index) => recommendationFor(input.constructiveCount + index, "Reduce"))
+  ];
+
+  return context({
+    dashboard: {
+      ...context().dashboard,
+      holdings
+    },
+    recommendations
+  });
+}
+
 test("portfolio review weights calculate a deterministic overall score", () => {
   const score = weightedPortfolioScore([
     { key: "allocation", label: "Allocation", score: 80, weight: 0.5, reason: "" },
     { key: "risk", label: "Risk", score: 60, weight: 0.5, reason: "" }
   ]);
   assert.equal(score, 70);
+});
+
+test("insight alignment score is capped at 94 when weak holdings are present", () => {
+  const review = new RecommendationAlignmentReviewService().review(insightAlignmentContext({
+    holdingCount: 15,
+    constructiveCount: 13,
+    weakCount: 2
+  }));
+
+  assert.equal(review.score, 94);
+  assert.ok(review.findings.some((finding) => finding.title === "Some holdings need review"));
+  assert.equal(review.metrics?.weakHeldCount, 2);
+});
+
+test("insight alignment score is capped at 94 when coverage is incomplete", () => {
+  const review = new RecommendationAlignmentReviewService().review(insightAlignmentContext({
+    holdingCount: 20,
+    constructiveCount: 13,
+    weakCount: 0
+  }));
+
+  assert.equal(review.score, 94);
+  assert.ok(review.findings.some((finding) => finding.title === "Insights coverage is incomplete"));
+  assert.equal(review.metrics?.recommendationCoverage, 0.65);
+});
+
+test("insight alignment score can reach 100 without non-info findings", () => {
+  const review = new RecommendationAlignmentReviewService().review(insightAlignmentContext({
+    holdingCount: 10,
+    constructiveCount: 10,
+    weakCount: 0
+  }));
+
+  assert.equal(review.score, 100);
+  assert.equal(review.findings.length, 0);
+  assert.equal(review.metrics?.recommendationCoverage, 1);
 });
 
 test("allocation review flags equity-heavy and low fixed-income portfolios", () => {

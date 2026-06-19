@@ -943,6 +943,8 @@ Insight alignment:
 
 `60 + constructiveHeldCount * 4 - weakHeldCount * 8 + coverage * 12`
 
+The section score is capped at 94 when the section has any incomplete-coverage or weak-holding finding. The cap does not change the formula terms; it prevents a perfect section score from displaying alongside a watch or attention finding.
+
 Fixed income:
 
 `78 - max(0, 0.08 - totalBondAllocation) * 120 - max(0, longDurationExposure - 0.35) * 60 - max(0, highYieldExposure - 0.20) * 80 + min(8, recessionHedgeExposure * 10)`

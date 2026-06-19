@@ -211,7 +211,7 @@ const portfolioFormulaRows = [
   ["Diversification", "Starts from the Risk Analytics diversification score. If ETF look-through exists, adds min(8, sectorCount + countryCount)."],
   ["Risk", "88 - max(0, volatility - 0.18) x 120 - max(0, abs(maxDrawdown) - 0.15) x 100 - max(0, abs(currentDrawdown) - 0.08) x 70."],
   ["Macro Fit", "72 - 8 if rates are restrictive and equity allocation is above 75% - 10 if growth is weak and equity allocation is above 70% + 5 if inflation is elevated and the portfolio has gold exposure."],
-  ["Insight Alignment", "60 + constructiveHeldCount x 4 - weakHeldCount x 8 + coverage x 12."],
+  ["Insight Alignment", "60 + constructiveHeldCount x 4 - weakHeldCount x 8 + coverage x 12. Capped at 94 when the section has any incomplete-coverage or weak-holding finding."],
   ["Fixed Income", "78 - max(0, 0.08 - totalBondAllocation) x 120 - max(0, longDurationExposure - 0.35) x 60 - max(0, highYieldExposure - 0.20) x 80 + min(8, recessionHedgeExposure x 10)."],
   ["Theme Exposure", "64 + min(15, alignedThemeCount x 4) - max(0, largestSectorWeight - 0.45) x 50."],
   ["Geography", "86 - max(0, usWeight - 0.70) x 80 - max(0, 0.12 - internationalWeight) x 120. This is diagnostic only and currently has 0% overall weight."]
