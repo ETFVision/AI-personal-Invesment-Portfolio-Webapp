@@ -2,9 +2,31 @@
 
 **Status:** Temporary working document. Delete after all four fixes are implemented and verified.
 
-**Source:** UX review of Portfolio Review page output, 2026-06-18.
+**Source:** UX review of Portfolio Review page output, 2026-06-18. Trigger logic and new findings
+(T1, T2, A–E) confirmed against the live 2026-06-18 report (score 81).
 
-**Implementation order:** P1 → P2 (single Codex task) → P3 → P4 (separate Codex tasks).
+**Revised implementation order (supersedes the original P1→P4 sequence):**
+
+1. **Concentration coherence task** — merge **A + P4 + T2 + B** (decisions locked 2026-06-19:
+   Option B issuer-level + total-basis): measure concentration at the underlying-company level on a
+   total-value basis (this harmonizes top-1/top-5 and structurally removes the VOO false positive, so
+   P4 needs no separate fund-wrapper logic), recalibrate the section score for issuer level, raise the
+   gap trigger's single-name threshold to ≥10%, and stop suggesting individual stocks for single-name
+   concentration (surface broad diversifiers only). This is the worst correctness + compliance cluster.
+   Includes Change 7 (basis label on displays).
+2. **Issuer-level diversification score (Task 2)** — move `riskMath` `concentrationPenalty` to
+   issuer-level look-through; keep `holdingScore` on direct count as the single-product residual.
+   Sequenced right after Task 1 because it reuses the same issuer-level look-through plumbing. Touches
+   the Risk page too — separate blast radius, own validation.
+3. **Trigger semantics task** — **T1**: remove `topHolding > 0.25` and `diversificationScore < 55`
+   from the international trigger; route them to the concentration finding.
+4. **P1 + P2** — gap candidate differentiation and primary-reason text, using the revised role set
+   (lead concentration with diversifiers, not reordered defensive sectors).
+5. **P3** — insight alignment score cap (on any non-info finding, not just `weakHeld`) + coverage display.
+6. **C, D, E** — compliance framing of candidate lists, country-count label, macro-finding polish.
+
+The original standalone P1/P2/P3/P4 prompts below remain valid as drafts but should be reconciled
+with this merged sequence before handing to Codex — P4 in particular is now part of task 1.
 
 ---
 
@@ -152,6 +174,445 @@ The following targeted searches were run to confirm or rule out hypotheses:
 | P2 | High | Gap Analysis candidate text | Bond branch in DiversificationBenefitService fires for ALL issue categories — crypto ballast candidates get generic bond text | `DiversificationBenefitService.ts` |
 | P3 | High | Insight Alignment section | Score can reach 100/100 with a watch finding present; `recommendationCoverage: 1` displays as "1" not "100%" | `RecommendationAlignmentReviewService.ts`, `page.tsx` |
 | P4 | Medium | Concentration section | VOO at 30% fires "attention" single-name finding; `isFundWrapper()` exists but is not applied to concentration threshold | `ConcentrationReviewService.ts` |
+| T1 | High | Gap trigger semantics | `insufficient_international_exposure` fires on `topHolding > 0.25 \|\| diversificationScore < 55` — emits a "US-concentrated" finding for portfolios that are not US-concentrated | `PortfolioImprovementSuggestionService.ts:479` |
+| T2 | High | Concentration split-brain | `concentration_risk` gap finding flags single underlying names >5% (NVDA 7.9%) while the real concentration (VOO 30%+) is flagged only in Concentration Review. Two sections, two stories. | `PortfolioImprovementSuggestionService.ts:518`, `ConcentrationReviewService.ts` |
+| A | High | Concentration metrics | Top Holding (32.88%, ex-cash direct) vs Top Five (28%, total-basis issuer look-through) computed on different bases → top-five appears smaller than top-one | `ConcentrationReviewService.ts`, risk analytics |
+| B | High (compliance) | Concentration candidates | `concentration_risk` suggests individual stocks (ISRG, AMGN…) to address single-name concentration — logically backwards and the most advice-like output | `PortfolioImprovementSuggestionService.ts` |
+| C | Medium (compliance) | Gap candidate framing | Named securities ranked by quality badge under "underweighted category" reads as a curated shortlist of picks | `page.tsx` |
+| D | Low | Geography/diversification | `Country Count: 1` is a ≥3% threshold count shown next to a 56-country table; misleading label (no score impact here — sector count already maxes the +8 bonus) | `DiversificationReviewService.ts:8` |
+| E | Low | Macro fit finding | Inflation finding suggests inflation-linked/commodity sleeves "may be useful" while portfolio already holds TIP + GLD | `MacroFitReviewService.ts` (verify) |
+
+Findings P1–P5 were identified from the page output and code read. Findings T1, T2, A–E were
+confirmed against the live 2026-06-18 report (score 81) and verified in code.
+
+---
+
+## Trigger Logic Review (2026-06-18 live report)
+
+Verified all 7 documented gap triggers against code and against the live report's 4 fires
+(international, defensive, crypto, concentration). The trigger **conditions** match the methodology
+doc exactly and all 4 fires were correct. Two structural defects found:
+
+### T1 — International trigger fires on non-international clauses
+
+`PortfolioImprovementSuggestionService.ts:479`:
+```typescript
+if (usExposure > 0.7 || internationalExposure < 0.3 || topHolding > 0.25 || diversificationScore < 55) {
+  // emits "International Equity - Underweighted Category", rationale hardcoded to US look-through %
+```
+
+`topHolding > 0.25` and `diversificationScore < 55` are concentration/diversification signals, not
+international-exposure signals. The finding title and rationale are hardcoded around US look-through,
+so a globally-diversified portfolio (e.g. US 40%) carrying one ETF above 25% would fire this finding
+and **falsely state it is US-concentrated**. In the live report it fired legitimately on US 89.12%,
+so the defect is latent here but will emit misleading findings in other portfolios.
+
+This appears to be a refactor artifact: the old `sector_concentration`/`concentration_risk` clauses
+were folded into the international trigger. They belong in the concentration trigger.
+
+**Fix:** remove `topHolding > 0.25` and `diversificationScore < 55` from the international trigger.
+Route those signals to the concentration finding (see T2 / merged concentration task below).
+
+### T2 — Concentration is split-brain across two sections
+
+- **Concentration Review** (section) flags **VOO at 32.88%** — the real concentration (a single product
+  at ~1/3 of the book).
+- **`concentration_risk` gap finding** flags **NVDA at 7.9%** look-through — a single underlying name
+  that is not a genuine concentration problem.
+
+The gap trigger fires on `concentratedLookthroughHoldings.length > 0` where the filter is
+`totalWeight > 0.05`. A 5% trigger (8% "high") is too sensitive — no single underlying company below
+~8% look-through is a real concentration risk, and the finding ignores the actual concentrated
+position (the VOO wrapper) entirely. The user sees two different concentration narratives for one
+portfolio.
+
+**Fix:** unify the concentration story. The gap finding and the Concentration Review section should
+draw on the same concentration definition (same basis, same decomposition level), raise the
+single-name look-through threshold (≥10%), and — per finding B — surface broad diversifiers, not
+individual stocks.
+
+### Minor documentation gaps (PORTFOLIO_REVIEW_METHODOLOGY.md)
+
+- The trigger table omits the **`data_quality`** finding (fires when `recommendations.length === 0`).
+- `rolePriority` carries **dead branches** with no active trigger: `insufficient_cash_like_exposure`,
+  `insufficient_geopolitical_hedge`, `sector_concentration`, `theme_concentration`. Mark them
+  reserved/inactive so future readers don't assume they fire.
+
+---
+
+## Merged Task 1 — Concentration Coherence (A + P4 + T2 + B) — Codex Prompt
+
+**Decisions locked 2026-06-19: Decision 1 = Option B (underlying-issuer level for both top-1 and
+top-5); Decision 2 = Total value (incl. cash).**
+
+This is the highest-impact cluster. It supersedes the standalone **P4** prompt (P4 is structurally
+solved by issuer-level measurement) and the **concentration_risk** portion of **P1**.
+
+> **Behaviour change to expect:** measuring at issuer level, the largest *company* in the live
+> portfolio is NVDA at 7.87%. No single company exceeds ~8%, so the Concentration Review finding
+> stops firing and the section **score rises from 69 → ~90**. This is the honest reading at the
+> company level; the single-product risk of holding 30% in VOO is reflected in the Risk Review.
+> Re-run Portfolio Review after deploy and confirm the new score is acceptable before sign-off.
+
+> **Owner-tunable defaults:** the issuer-level finding thresholds (10% watch / 20% attention) and the
+> recalibrated score coefficients below are proposed defaults. They replace coefficients that were
+> calibrated for *direct-holding* concentration and are meaningless at issuer level. Adjust if the
+> resulting scores across sample portfolios are not acceptable.
+
+```
+## ETFVision — Portfolio Review: Issuer-Level Concentration Coherence
+
+### Context
+
+Concentration is currently incoherent across the report:
+
+1. Concentration Review reports top-1 at the WRAPPER level on an ex-cash basis (VOO = 32.88%) but
+   top-5 at the underlying-ISSUER level on a total-value basis (NVDA…LLY = 28%). top-1 therefore
+   appears larger than top-5, which is impossible for like-for-like measures. It also fires
+   "largest holding exceeds 25%" for VOO, a diversified S&P 500 wrapper. (Finding A + P4)
+2. The `concentration_risk` gap finding flags the largest underlying name (NVDA 7.9%) — not a
+   genuine single-name concentration — and suggests individual STOCKS (ISRG, AMGN, GILD, BMY, PFE)
+   to "address" it, which is logically backwards and the most advice-like output on the page. (T2 + B)
+
+Decision: measure concentration at the UNDERLYING-ISSUER level on a TOTAL-VALUE basis (incl. cash),
+consistently for top-1 and top-5. The look-through issuer exposures (`underlyingExposures`) are
+already issuer-level and total-basis, so this aligns top-1 with the existing top-5.
+
+### Files to Change
+
+1. `src/application/services/portfolioReview/ConcentrationReviewService.ts`
+2. `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+3. `src/app/methodology/page.tsx` (concentration score formula description)
+4. `tests/portfolio-review.test.ts`
+5. `docs/implementation-log.md`
+
+### Change 1 — Measure Concentration Review at issuer level (A + P4)
+
+In `ConcentrationReviewService.ts`:
+
+(a) Derive an issuer-level top-1 from the already-computed `underlyingExposures` (issuer-grouped,
+total-basis, sorted desc). Fall back to the direct `topHolding` only when no look-through exists:
+
+```typescript
+const topIssuerConcentration = underlyingExposures.length
+  ? (underlyingExposures[0]?.totalWeight ?? 0)
+  : topHolding;   // topHolding = riskReport direct concentration, used only as no-look-through fallback
+```
+
+(b) Replace the wrapper-level finding (line ~108) with issuer-level wording and thresholds. With this,
+a diversified wrapper like VOO never trips a single-company finding:
+
+```typescript
+topIssuerConcentration > 0.20
+  ? finding("attention", "Single-company concentration", "A single underlying company exceeds 20% of look-through exposure.")
+  : topIssuerConcentration > 0.10
+    ? finding("watch", "Single-company concentration", "A single underlying company exceeds 10% of look-through exposure.")
+    : null,
+```
+
+(c) The existing top-five finding (line ~109) currently fires `topCombinedFive > 0.65` "attention".
+Lower to a watch at issuer level for consistency:
+
+```typescript
+topCombinedFive > 0.50
+  ? finding("watch", "Top five company concentration", "The top five underlying companies account for a large share of look-through exposure.")
+  : null,
+```
+
+(d) Recalibrate the section score for issuer level (old coefficients assumed direct concentration):
+
+```typescript
+const score = 90
+  - Math.max(0, topIssuerConcentration - 0.10) * 150
+  - Math.max(0, topCombinedFive - 0.40) * 80
+  - Math.max(0, sectorTop - 0.40) * 60;
+```
+
+(e) Update the metadata so the displayed top-holding is the issuer-level figure, and keep the direct
+holding for transparency:
+
+```typescript
+topHoldingConcentration: topIssuerConcentration,   // was topHolding (wrapper/ex-cash)
+topFiveConcentration: topCombinedFive,
+largestDirectHolding: topDirectHolding,             // keep — shows VOO 30.62% as product-level context
+```
+
+Do NOT change `riskReport.concentration` or `riskMath` (the diversification score still uses
+direct-level concentration — that is a separate surface, flagged as a follow-on decision below).
+Do NOT modify `isFundWrapper()`.
+
+### Change 2 — Raise the single-name gap trigger threshold (T2)
+
+In `PortfolioImprovementSuggestionService.ts`, in the `concentratedLookthroughHoldings` IIFE, raise
+the filter threshold from `0.05` to `0.10`:
+
+```typescript
+if (!h.holdingSymbol || h.totalWeight <= 0.10) return false;   // was 0.05
+```
+
+Rationale: no single underlying company below ~10% look-through is a genuine concentration risk.
+With this change the gap finding only fires on real underlying concentration; the wrapper-level
+concentration (VOO) is handled solely by the Concentration Review section, eliminating the
+split-brain. Update the "high" priority threshold accordingly (e.g. `totalWeight > 0.15`).
+
+### Change 3 — Concentration candidates must be diversified funds, not single stocks (B)
+
+In `PortfolioImprovementSuggestionService.ts`:
+
+(a) Change `rolePriority("concentration_risk")` to a diversifier-only set (drop defensive *sectors*,
+which resolve to individual stocks and overlap with insufficient_defensive_exposure):
+
+```typescript
+if (issueCategory === "concentration_risk") {
+  return ["international_equity", "developed_international_equity", "core_us_bond",
+          "gold_hedge", "intermediate_treasury", "international_bond"];
+}
+```
+
+(b) In `issueFit()` for `concentration_risk`, exclude single-stock instruments so the finding never
+suggests individual equities to fix single-name concentration:
+
+```typescript
+if (issueCategory === "concentration_risk") {
+  if (instrument.assetClass === "stock") return 0;          // diversified products only
+  if (instrumentIsSameDominantSector(instrument, context)) return 0;
+  return roleFit(role, issueCategory, context);
+}
+```
+
+This supersedes the concentration_risk role change proposed under P1. P1's remaining scope is only
+the international-vs-defensive differentiation.
+
+### Change 4 — Methodology page (src/app/methodology/page.tsx)
+
+Update the Concentration row in the formula table to the recalibrated issuer-level formula:
+
+  "90 - max(0, topCompany - 0.10) x 150 - max(0, topFiveCompanies - 0.40) x 80 - max(0, sectorTop - 0.40) x 60.
+  Concentration is measured at the underlying-company (issuer look-through) level on a total-value basis."
+
+### Change 5 — Tests (tests/portfolio-review.test.ts)
+
+- "concentration review measures top-1 at issuer level" — look-through with largest company 0.07,
+  largest direct holding an ETF wrapper at 0.30 → `topHoldingConcentration` metadata ≈ 0.07 (NOT 0.30),
+  and no single-company finding fires.
+- "concentration review emits watch when a single company exceeds 10%" (largest company 0.12) →
+  severity "watch", title "Single-company concentration".
+- "concentration review emits attention when a single company exceeds 20%" (largest company 0.22) →
+  severity "attention".
+- "concentration review falls back to direct concentration when no look-through" (empty
+  underlyingExposures, riskReport topHoldingConcentration 0.30) → uses 0.30.
+- "concentration_risk gap finding does not fire when no underlying name exceeds 10%" (largest
+  underlying 0.08) → no concentration_risk suggestion emitted.
+- "concentration_risk candidates exclude single stocks" → every candidate has assetClass !== "stock".
+
+### Change 6 — Implementation Log
+
+Prepend an entry documenting: issuer-level concentration measurement (Decision B + total basis),
+the recalibrated score coefficients, the 10%/20% single-company finding thresholds, the 10% gap
+trigger threshold, and the diversifier-only concentration candidate set with the single-stock exclusion.
+
+### Constraints
+
+- Do NOT change `riskReport.concentration` or `riskMath` — the risk diversification score continues
+  to use direct-level concentration (separate surface; follow-on decision below).
+- Do NOT modify isFundWrapper().
+- Run `npx tsc --noEmit` and `npx vitest run tests/portfolio-review.test.ts`; all tests pass.
+- After deploy, re-run Portfolio Review from the Admin panel and confirm the new concentration score
+  (~90 for the reference portfolio) is acceptable.
+```
+
+### Follow-on decisions (resolved 2026-06-19)
+
+1. **Risk diversification score → issuer-level: YES.** An ETF is held to increase diversification, so
+   the score must not penalize it as a concentrated direct holding. Implemented as **Task 2** below
+   (touches `riskMath`, shared with the Risk page — separate blast radius from Task 1).
+2. **Add explicit basis label to displays: YES.** Folded into Task 1 as Change 7.
+
+---
+
+## Merged Task 1 — Change 7 — Basis label (Decision 2 follow-up)
+
+Add to Task 1's file list: `src/app/(dashboard)/portfolio-review/page.tsx`.
+
+On the **Direct Portfolio Positions** and **Look-Through** exposure blocks, add a short caption noting
+the denominator, e.g. "Weights shown as % of total portfolio value (including cash)." This pre-empts
+the 30.62% vs 32.88% style confusion now that concentration is reported on a total-value basis.
+Display-only; no calculation change.
+
+---
+
+## Task 2 — Issuer-Level Diversification Score
+
+**Decision (2026-06-19): the diversification score should honor look-through.** An ETF is added to
+increase diversification; the score must not penalize a diversified wrapper as a concentrated direct
+holding.
+
+### Root cause
+
+`riskMath.diversificationScore` (`src/application/services/risk/riskMath.ts:342`):
+
+```
+concentrationPenalty = topHoldingConcentration × 20 + max(0, topFiveConcentration − 0.5) × 30
+```
+
+Both inputs are **direct-holding** concentration computed in `RiskAnalyticsService.ts:101-102`
+(`concentrationRatio(holdingValues, n)`), i.e. VOO 32.88% and direct top-5 ≈ 63% (ex-cash). On the
+reference portfolio this is a ~10-point penalty purely for holding a diversified fund. Backwards.
+
+### Design (pure swap; `holdingScore` is the residual)
+
+- Feed `concentrationPenalty` with **issuer-level look-through** top-1 and top-5 (total basis) — the
+  same figures Task 1 surfaces in Concentration Review. Requires computing issuer-grouped look-through
+  concentration in the risk data layer, mirroring `issuerGroupedUnderlying` from
+  `ConcentrationReviewService`.
+- **Keep `holdingScore = min(meaningfulHoldings / 12, 1) × 20` on the DIRECT holding count.** This is
+  deliberate: it naturally retains a single-product/structural-risk penalty (a 100%-one-ETF portfolio
+  still scores near-zero on holdingScore), so moving `concentrationPenalty` to issuer level does NOT
+  erase product-concentration risk from the score. Single-product risk also remains visible in Risk
+  Review's risk-contribution finding. No artificial hybrid coefficient needed.
+- Fall back to direct concentration when look-through is unavailable.
+
+Expected effect on the reference portfolio: diversification ~79 → ~88.
+
+Self-consistency check across portfolio shapes:
+- 100% one ETF → holdingScore ~0 (single-product penalty), concentrationPenalty low (correctly not an
+  equity-concentration problem) → moderate diversification. Sensible.
+- 15-ETF portfolio (reference) → holdingScore maxed, concentrationPenalty low → high diversification. Sensible.
+- 100% one stock → holdingScore ~0, concentrationPenalty high (issuer 100%) → very low. Correct.
+
+### Verification (2026-06-19) — feasible, no new data plumbing
+
+Confirmed in code:
+
+- **Single chokepoint, shared by both surfaces.** The diversification score is computed once by
+  `RiskAnalyticsService.calculateRiskAnalytics` → `DiversificationService.score`
+  (`riskMath.diversificationScore`), stored via `upsertRiskReport`, and read by BOTH the Risk
+  Analytics page and Portfolio Review (`riskReport.diversification.score`). Changing it at the source
+  fixes both surfaces consistently — no divergence risk.
+- **Risk layer currently has NO look-through.** `calculateRiskAnalytics` receives only
+  `{ dashboard, portfolioSnapshots, holdingSnapshots, dailyPrices, transactions, benchmarkSnapshots }`;
+  both `topHoldingConcentration` and `topFiveConcentration` come from direct `holdingValues`
+  (`RiskAnalyticsService.ts:98-102`).
+- **Issuer-level look-through IS reachable in the data layer, already computed.**
+  `RiskAnalyticsDataService.buildReport` already fetches the latest review (`getLatestReportSummary`,
+  line 196) and calls `buildPortfolioExposureContext(canonicalDashboard, latestPortfolioReview)`
+  (line 277). That builder produces `issuerExposures: Array<{ issuerId, issuerName, symbols,
+  totalWeight, directWeight, indirectWeight }>`, **already sorted descending by `totalWeight`**
+  (`PortfolioExposureContextService.ts:34-60`). So issuer top-1 = `issuerExposures[0].totalWeight`,
+  top-5 = sum of `issuerExposures.slice(0,5)`. No new repository or fetch needed.
+
+### Files to Change
+
+1. `src/application/services/risk/RiskAnalyticsDataService.ts` — compute the exposure context once
+   (refactor the inline `buildPortfolioExposureContext` call into a variable), derive issuer top-1/top-5
+   from `issuerExposures`, and pass them into `calculateRiskAnalytics`.
+2. `src/application/services/risk/RiskAnalyticsService.ts` — accept optional issuer-level top-1/top-5
+   params; feed them to `DiversificationService.score`'s concentration inputs; fall back to direct
+   concentration when absent.
+3. `src/application/services/risk/riskMath.ts` — no formula change needed if inputs are swapped
+   upstream; confirm `concentrationPenalty` semantics still hold.
+4. `tests/` — riskMath, risk analytics, and portfolio-review diversification tests.
+5. `docs/SCORE_METHODOLOGY.md` + `src/app/methodology/page.tsx` — update the diversification description.
+
+### Caveats to document in the implementation
+
+- **Staleness / bootstrap dependency.** `issuerExposures` come from the LAST stored portfolio review's
+  `inputsSnapshot`, not the current run. So issuer-level diversification reflects the previous review's
+  look-through, and on first run / no prior review the array is empty → **fall back to direct
+  concentration**. This mirrors how sector/country exposure context already works in this service, so
+  it is an accepted pattern, but state it explicitly.
+- `holdingScore` stays on the DIRECT holding count — load-bearing residual (the 100%-one-ETF sanity
+  case depends on it). Do not change it.
+
+### Open sub-decisions (confirm when writing the prompt)
+
+1. Pure-swap (recommended — `holdingScore` is the residual) vs retaining a small reduced direct-level
+   concentration penalty. Recommendation: pure-swap.
+2. The Risk page's standalone concentration **warnings** (`RiskAnalyticsService.ts:176-177`, "Top
+   holding exceeds 25% of invested assets") still use direct concentration. Decide whether those move
+   to issuer-level too, or stay as an explicit direct/product-concentration warning. Recommendation:
+   leave as direct (they are honestly framed as direct "invested assets"), so the Risk page retains a
+   visible single-product signal while the diversification score honors look-through.
+
+### Validation before sign-off
+
+- Risk page diversification and PR diversification move together — confirm the Risk Analytics page
+  number change is acceptable.
+- Re-validate across sample portfolios (100% VOO, single stock, multi-ETF) for sensible ordering.
+
+---
+
+## Finding A — RESOLVED (folded into Merged Task 1)
+
+**Decision (2026-06-19): Option B (underlying-issuer level) + Total value (incl. cash).**
+Implementation now lives in Merged Task 1, Change 1. This section is retained for the root-cause
+analysis and the evidence that the 6.89% gap is cash.
+
+Root cause (refined from the live report): the Concentration Review reports `topHoldingConcentration`
+at the **wrapper/direct level on an ex-cash basis** (VOO = 32.88%) but `topFiveConcentration` at the
+**underlying-issuer level on a total-value basis** (NVDA…LLY = 28%). Two mismatches stacked:
+
+1. **Decomposition level** — wrapper (VOO) vs underlying issuers (NVDA…). VOO isn't in the issuer
+   list, so "top one" and "top five" measure different things; top-one can exceed top-five.
+2. **Cash basis** — risk analytics excludes cash from the denominator (`RiskAnalyticsService.ts:98–101`);
+   Portfolio Review look-through/direct displays use total value including cash.
+
+The score formula (`90 − max(0, topHolding−0.15)×120 − max(0, topCombinedFive−0.50)×80 − …`) also
+mixes the two levels, and `topHolding` feeds the risk diversification score via `riskMath`. So any
+re-basing has cross-section blast radius. This is why it is held for an explicit decision.
+
+### Evidence: the missing 6.89% is cash (not a data gap)
+
+Confirmed four ways:
+
+1. **Allocation Review states it:** Cash Allocation = 6.89% (Equity 65.11 + Bond 16.96 + Cash 6.89 +
+   Gold 5.16 + Crypto 5.89 = 100.01, rounding).
+2. **Sector/country tables total 93.11% = 100 − 6.89.** Crypto (5.89%) and Gold (5.16%) *are* listed
+   as sector rows, so they are inside the 93.11%. Only cash has no sector/country → it is the gap.
+3. **VOO reconciles exactly:** Direct Positions show VOO = 30.62% (of total); concentration metric =
+   32.88%. `30.62 ÷ 32.88 = 0.9311 = (1 − 0.0689)` — the concentration denominator removed the 6.89% cash.
+4. **Code:** `RiskAnalyticsService.ts:98-101` builds `investedValuations = holdingValuations.filter(value > 0)`
+   and divides by their sum. Cash is an allocation, not an instrument holding, so it never enters the denominator.
+
+### Decision 1 — Decomposition level (top-1 vs top-5)
+
+| Option | Pros | Cons |
+|---|---|---|
+| **A. Two separate views** (direct + underlying, never compared across levels) | Lowest blast radius (display-only; score can stay short-term); keeps both meaningful lenses — product risk AND company risk; the page already has both data blocks (Direct Portfolio Positions + Top Underlying Company Exposure), so this is mostly fixing the metrics panel that pairs a wrapper top-1 with an issuer top-5; honest — a wrapper and a company are different risks | No single headline "concentration" number; the score formula still mixes levels (deferred, not solved); marginally more UI |
+| **B. Underlying-issuer level for both** | Most economically meaningful — real issuer concentration drives risk; NVDA 7.87% is the true largest single company; top-1 ≤ top-5 holds naturally; aligns with the platform's look-through philosophy | Requires changing the score's `topHolding` input and re-validating the risk diversification score (`riskMath.ts:342`); a 30% VOO position stops showing as "concentrated" at the headline even though single-product/counterparty/liquidity risk is real; bigger, cross-section change |
+| **C. Direct/wrapper level for both** | Simple; matches Direct Positions exactly (VOO 30.62%, top-5 direct = VOO+BND+VT+QQQ+IEF = 58.4%); captures single-product risk; top-1 ≤ top-5 holds | Economically misleading — a diversified ETF dominates the metric and looks dangerous when its underlying is well spread (this is the P4 bug); penalizes sensible index investing; contradicts look-through |
+
+**Claude's recommendation: A now, B-direction later.** Option A stops the contradiction with minimal
+risk and preserves both lenses the platform already computes. Treat "should the *score* move to
+issuer-level concentration?" as a separate, deliberate methodology change (Option B) with its own validation.
+
+### Decision 2 — Cash basis (denominator)
+
+| Option | Pros | Cons |
+|---|---|---|
+| **Total value (incl. cash)** | Consistency with everything the user already sees (Direct Positions, look-through, allocation all total-basis); one denominator across the whole report; intuitive "% of my portfolio"; removes the 30.62 vs 32.88 confusion | Cash dilutes the concentration reading (a 50%-cash / 50%-one-stock book would show the stock at 50%, arguably understating invested-book concentration); slightly changes the risk concentration number and diversification score |
+| **Invested assets (ex-cash)** | More conservative/standard for concentration analysis; the finding text already says "of invested assets," so wording is correct as-is; cash genuinely isn't a concentration risk | Differs from the total-basis displays everywhere else → the exact cross-section confusion seen now; needs the display side re-based or clearly annotated; two denominators in one report unless fully harmonized |
+
+**Claude's recommendation: Total value (incl. cash), with an explicit basis label.** The whole report
+is total-basis; aligning concentration to it removes the confusion the user actually hit, and 6.89%
+cash dilution is immaterial here. Reserve ex-cash only if the conservative invested-book reading is
+specifically wanted — in which case the displays must be re-based too, not just the metric.
+
+### Net effect of the recommended pair (A + total-basis)
+
+Finding A becomes **low blast radius**: a display/labeling fix in `ConcentrationReviewService` metadata
+plus page rendering, with the score formula left for a separate, explicit methodology pass. Safe to
+bundle once decided. Two follow-on decisions to log separately:
+
+- Should the concentration **score** move to issuer-level (Option B direction)?
+- If ex-cash is ever chosen, re-base all display surfaces (Direct Positions, look-through), not just the metric.
+
+### Decision status
+
+- [x] Decision 1 (decomposition level): **B — underlying-issuer level** (decided 2026-06-19)
+- [x] Decision 2 (cash basis): **Total value (incl. cash)** (decided 2026-06-19)
+
+Resolved. Implementation folded into Merged Task 1, Change 1.
 
 ---
 
@@ -521,9 +982,14 @@ Two new tests in tests/portfolio-review.test.ts:
 
 ---
 
-## P4 — Medium: Concentration Review Fires Incorrect Warning for ETF Wrappers (VOO)
+## P4 — SUPERSEDED by Merged Task 1 (Option B)
 
-### Root Cause
+> **No longer a separate task.** Option B measures concentration at the issuer level, so a diversified
+> wrapper like VOO is never the "top holding" and the false "exceeds 25%" finding cannot fire — P4 is
+> structurally solved. The fund-wrapper-aware finding drafted below is **not** being implemented; it is
+> retained only as historical context. See Merged Task 1, Change 1.
+
+### Root Cause (historical)
 
 `ConcentrationReviewService.ts` line 108:
 ```typescript
