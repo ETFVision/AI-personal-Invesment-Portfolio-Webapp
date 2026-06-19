@@ -62,6 +62,7 @@ Portfolio Review now separates direct product holdings from underlying company e
 - **Top Underlying Company Exposure** shows issuer-level company exposure after ETF look-through. ETF wrappers are excluded from this chart.
 - **Top Indirect Company Exposure** shows ETF-derived underlying exposure only. Direct stock exposure is excluded from the bar value, while total-with-direct can be shown in the detail text.
 - Concentration Review measures top-one and top-five concentration at the underlying-company issuer level on a total-value basis, including cash in the denominator. Direct single-stock holdings are included in issuer exposure; diversified ETF wrappers are retained in `largestDirectHolding` metadata but do not trigger single-company concentration findings.
+- Risk Analytics diversification scoring uses the same wrapper-excluded underlying-company issuer top-one and top-five look-through concentration as its concentration-penalty inputs when issuer exposure is available, with a direct-concentration fallback when no underlying-company issuer look-through exists. Its holding-count component remains based on direct meaningful holdings.
 
 Identity priority for underlying concentration:
 

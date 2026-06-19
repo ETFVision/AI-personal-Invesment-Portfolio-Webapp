@@ -1,13 +1,14 @@
-import { AnalyticsRepository } from "@/application/ports/repositories/AnalyticsRepository";
-import { BenchmarkRepository } from "@/application/ports/repositories/BenchmarkRepository";
-import { MarketDataRepository } from "@/application/ports/repositories/MarketDataRepository";
+import type { AnalyticsRepository } from "@/application/ports/repositories/AnalyticsRepository";
+import type { BenchmarkRepository } from "@/application/ports/repositories/BenchmarkRepository";
+import type { MarketDataRepository } from "@/application/ports/repositories/MarketDataRepository";
 import type { PortfolioReviewRepository } from "@/application/ports/repositories/PortfolioReviewRepository";
-import { PortfolioRepository } from "@/application/ports/repositories/PortfolioRepository";
-import { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
-import { BenchmarkComparison, BenchmarkSnapshot, DailyPrice, HoldingSnapshot, PortfolioDashboard } from "@/domain/portfolio/types";
-import { Instrument, InstrumentPrice } from "@/domain/universe/types";
-import { RiskAnalyticsReport, RiskAnalyticsService } from "@/application/services/risk/RiskAnalyticsService";
+import type { PortfolioRepository } from "@/application/ports/repositories/PortfolioRepository";
+import type { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
+import type { BenchmarkComparison, BenchmarkSnapshot, DailyPrice, HoldingSnapshot, PortfolioDashboard } from "@/domain/portfolio/types";
+import type { Instrument, InstrumentPrice } from "@/domain/universe/types";
+import type { RiskAnalyticsReport, RiskAnalyticsService } from "@/application/services/risk/RiskAnalyticsService";
 import { buildPortfolioExposureContext, dashboardWithExposureContext } from "../portfolio/PortfolioExposureContextService";
+import type { PortfolioReviewReport } from "@/domain/portfolioReview/types";
 
 function yearsAgoIso(years: number) {
   const date = new Date();
@@ -55,6 +56,91 @@ function allocationItems(entries: Map<string, number>, denominator: number) {
       percent: denominator === 0 ? 0 : value / denominator
     }))
     .sort((a, b) => b.value - a.value);
+}
+
+function toObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function numberField(row: Record<string, unknown>, key: string) {
+  const value = Number(row[key]);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function holdingSnapshot(row: Record<string, unknown>) {
+  return toObject(row.inputsSnapshot);
+}
+
+function instrumentAssetClass(row: Record<string, unknown>) {
+  const value = holdingSnapshot(row).instrumentAssetClass;
+  return typeof value === "string" ? value : null;
+}
+
+function exposureRole(row: Record<string, unknown>) {
+  const value = holdingSnapshot(row).exposureRole;
+  return typeof value === "string" ? value : null;
+}
+
+function isFundWrapper(row: Record<string, unknown>) {
+  const directWeight = numberField(row, "directWeight");
+  const indirectWeight = numberField(row, "indirectWeight");
+  const assetClass = instrumentAssetClass(row);
+  return directWeight > 0 && indirectWeight === 0 && ["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"].includes(assetClass ?? "");
+}
+
+function isUnderlyingExposure(row: Record<string, unknown>) {
+  return numberField(row, "indirectWeight") > 0 || exposureRole(row) === "underlying_security";
+}
+
+function isIssuerExposure(row: Record<string, unknown>) {
+  return !isFundWrapper(row) && (isUnderlyingExposure(row) || numberField(row, "directWeight") > 0);
+}
+
+function normalizeIssuerName(name: string | null | undefined, fallback: string) {
+  return (name ?? fallback)
+    .replace(/\s+Class\s+[A-Z0-9]+$/i, "")
+    .replace(/\s+Ordinary\s+Shares?$/i, "")
+    .replace(/\s+Common\s+Stock$/i, "")
+    .replace(/\s+Sponsored\s+ADR$/i, "")
+    .replace(/\s+ADR$/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase() || fallback.toUpperCase();
+}
+
+function stringField(row: Record<string, unknown>, key: string) {
+  const value = row[key];
+  return typeof value === "string" ? value : null;
+}
+
+function issuerKey(row: Record<string, unknown>) {
+  const snapshot = holdingSnapshot(row);
+  const snapshotIssuerId = typeof snapshot.issuerId === "string" ? snapshot.issuerId : null;
+  return stringField(row, "holdingIssuerId")
+    ?? snapshotIssuerId
+    ?? normalizeIssuerName(stringField(row, "holdingName"), stringField(row, "holdingSymbol") ?? "UNKNOWN");
+}
+
+export function wrapperExcludedIssuerConcentration(
+  latestReview?: Pick<PortfolioReviewReport, "inputsSnapshot"> | null
+): { topHolding: number; topFive: number } | null {
+  const snapshot = toObject(latestReview?.inputsSnapshot);
+  const lookthrough = toObject(snapshot.lookthroughExposure);
+  const rows = Array.isArray(lookthrough.holdingExposures)
+    ? lookthrough.holdingExposures.map((row) => toObject(row))
+    : [];
+  const grouped = new Map<string, number>();
+  for (const row of rows) {
+    if (!isIssuerExposure(row)) continue;
+    const key = issuerKey(row);
+    grouped.set(key, (grouped.get(key) ?? 0) + numberField(row, "totalWeight"));
+  }
+  const weights = Array.from(grouped.values()).sort((a, b) => b - a);
+  if (weights.length === 0) return null;
+  return {
+    topHolding: weights[0] ?? 0,
+    topFive: weights.slice(0, 5).reduce((sum, weight) => sum + weight, 0)
+  };
 }
 
 function dashboardWithCanonicalSectors(dashboard: PortfolioDashboard, instruments: Instrument[]): PortfolioDashboard {
@@ -272,10 +358,9 @@ export class RiskAnalyticsDataService {
     const fallbackHoldingSnapshots = holdingSnapshots.filter((snapshot) => !holdingsWithUniverseHistory.has(snapshot.holdingId));
 
     const canonicalDashboard = dashboardWithCanonicalSectors(dashboard, matchedUniverseInstruments);
-    const exposureDashboard = dashboardWithExposureContext(
-      canonicalDashboard,
-      buildPortfolioExposureContext(canonicalDashboard, latestPortfolioReview)
-    );
+    const exposureContext = buildPortfolioExposureContext(canonicalDashboard, latestPortfolioReview);
+    const exposureDashboard = dashboardWithExposureContext(canonicalDashboard, exposureContext);
+    const issuerConcentration = wrapperExcludedIssuerConcentration(latestPortfolioReview);
 
     return this.riskAnalyticsService.calculateRiskAnalytics({
       dashboard: exposureDashboard,
@@ -283,7 +368,8 @@ export class RiskAnalyticsDataService {
       holdingSnapshots: [...fallbackHoldingSnapshots, ...universeHoldingSnapshots],
       dailyPrices: [...dailyPrices, ...universeDailyPrices],
       transactions,
-      benchmarkSnapshots: selectedBenchmarkSnapshots
+      benchmarkSnapshots: selectedBenchmarkSnapshots,
+      issuerConcentration
     });
   }
 }

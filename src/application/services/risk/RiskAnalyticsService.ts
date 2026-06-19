@@ -1,4 +1,4 @@
-import {
+import type {
   AllocationItem,
   BenchmarkSnapshot,
   DailyPrice,
@@ -8,11 +8,11 @@ import {
   PortfolioSnapshot,
   Transaction
 } from "@/domain/portfolio/types";
-import { calculateReturns, concentrationRatio, covarianceRiskContributions, syntheticPortfolioDrawdown } from "@/application/services/risk/riskMath";
-import { CorrelationService } from "@/application/services/risk/CorrelationService";
-import { DiversificationService } from "@/application/services/risk/DiversificationService";
-import { DrawdownService } from "@/application/services/risk/DrawdownService";
-import { VolatilityService } from "@/application/services/risk/VolatilityService";
+import { calculateReturns, concentrationRatio, covarianceRiskContributions, syntheticPortfolioDrawdown } from "./riskMath";
+import { CorrelationService } from "./CorrelationService";
+import { DiversificationService } from "./DiversificationService";
+import { DrawdownService } from "./DrawdownService";
+import { VolatilityService } from "./VolatilityService";
 
 export const RISK_TAXONOMY_VERSION = "canonical-taxonomy-v4-lookthrough-exposure";
 export type RiskAnalyticsReport = ReturnType<RiskAnalyticsService["calculateRiskAnalytics"]>;
@@ -93,6 +93,7 @@ export class RiskAnalyticsService {
     dailyPrices: DailyPrice[];
     transactions?: Transaction[];
     benchmarkSnapshots?: BenchmarkSnapshot[];
+    issuerConcentration?: { topHolding: number; topFive: number } | null;
   }) {
     const { dashboard } = input;
     const investedValuations = dashboard.holdingValuations.filter((valuation) => valuation.value > 0);
@@ -100,6 +101,8 @@ export class RiskAnalyticsService {
     const holdingValues = investedValuations.map((valuation) => valuation.value);
     const topHoldingConcentration = concentrationRatio(holdingValues, 1);
     const topFiveConcentration = concentrationRatio(holdingValues, 5);
+    const diversificationTopHoldingConcentration = input.issuerConcentration?.topHolding ?? topHoldingConcentration;
+    const diversificationTopFiveConcentration = input.issuerConcentration?.topFive ?? topFiveConcentration;
     const holdingsById = new Map(investedValuations.map((valuation) => [valuation.holding.id, valuation.holding.ticker ?? valuation.holding.assetName]));
     const assetClassByHoldingId = new Map(investedValuations.map((valuation) => [valuation.holding.id, valuation.holding.assetType]));
     const correlations = this.correlationService.calculateHoldingCorrelations({
@@ -116,8 +119,8 @@ export class RiskAnalyticsService {
       sectors: dashboard.allocationBySector,
       currencies: dashboard.currencyExposure,
       averageCorrelation: correlations.averageCorrelation,
-      topHoldingConcentration,
-      topFiveConcentration
+      topHoldingConcentration: diversificationTopHoldingConcentration,
+      topFiveConcentration: diversificationTopFiveConcentration
     });
     const volatility = this.volatilityService.calculatePortfolioVolatility(input.portfolioSnapshots, input.transactions);
     const drawdown = this.drawdownService.calculatePortfolioDrawdown(input.portfolioSnapshots, input.transactions);

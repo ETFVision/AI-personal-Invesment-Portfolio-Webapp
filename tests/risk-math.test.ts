@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { CorrelationService } from "../src/application/services/risk/CorrelationService";
 import { DrawdownService } from "../src/application/services/risk/DrawdownService";
+import { wrapperExcludedIssuerConcentration } from "../src/application/services/risk/RiskAnalyticsDataService";
+import { RiskAnalyticsService } from "../src/application/services/risk/RiskAnalyticsService";
 import { VolatilityService } from "../src/application/services/risk/VolatilityService";
 import {
   annualizedVolatility,
@@ -15,7 +17,7 @@ import {
   diversificationScore,
   syntheticPortfolioDrawdown
 } from "../src/application/services/risk/riskMath";
-import type { HoldingSnapshot, PortfolioSnapshot, Transaction } from "../src/domain/portfolio/types";
+import type { Holding, HoldingSnapshot, PortfolioDashboard, PortfolioSnapshot, Transaction } from "../src/domain/portfolio/types";
 
 function holdingSnapshot(input: Partial<HoldingSnapshot>): HoldingSnapshot {
   return {
@@ -65,6 +67,86 @@ function cashTransaction(date: string, amount: number, type: "deposit_cash" | "w
     transactionDate: date,
     notes: null
   };
+}
+
+function holding(input: { id: string; ticker: string; assetType?: Holding["assetType"] }): Holding {
+  return {
+    id: input.id,
+    portfolioId: "portfolio",
+    assetId: `asset-${input.id}`,
+    assetType: input.assetType ?? "etf",
+    ticker: input.ticker,
+    assetName: input.ticker,
+    accountName: null,
+    brokerName: null,
+    quantity: 1,
+    averageCost: 100,
+    costCurrency: "USD",
+    firstPurchaseDate: "2026-01-01",
+    notes: null,
+    sector: "Broad Market"
+  };
+}
+
+function riskDashboard(values: number[]): PortfolioDashboard {
+  const holdings = values.map((_, index) => holding({ id: `h${index + 1}`, ticker: `ETF${index + 1}` }));
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return {
+    portfolio: { id: "portfolio", userId: "user", name: "Risk Test", baseCurrency: "USD", isDefault: true },
+    cashBalances: [],
+    holdings,
+    holdingValuations: holdings.map((item, index) => ({
+      holding: item,
+      unitPrice: values[index],
+      value: values[index],
+      valueCurrency: "USD",
+      priceDate: "2026-06-01",
+      priceProvider: "test",
+      valuationSource: "market_price"
+    })),
+    totalCash: 0,
+    totalHoldingsCost: total,
+    totalHoldingsMarketValue: total,
+    totalValueEstimate: total,
+    investedAmount: total,
+    unrealizedGainLoss: 0,
+    unrealizedGainLossPercent: 0,
+    realizedGainLoss: 0,
+    allocationByType: [{ label: "etf", value: total, percent: 1 }],
+    allocationBySector: [
+      { label: "Technology", value: total * 0.2, percent: 0.2 },
+      { label: "Healthcare", value: total * 0.15, percent: 0.15 },
+      { label: "Financials", value: total * 0.15, percent: 0.15 },
+      { label: "Industrials", value: total * 0.12, percent: 0.12 },
+      { label: "Consumer", value: total * 0.11, percent: 0.11 },
+      { label: "Energy", value: total * 0.1, percent: 0.1 },
+      { label: "Utilities", value: total * 0.09, percent: 0.09 },
+      { label: "Materials", value: total * 0.08, percent: 0.08 }
+    ],
+    allocationByGeography: [{ label: "US", value: total, percent: 1 }],
+    currencyExposure: [{ label: "USD", currency: "USD", value: total, percent: 1 }],
+    topWinners: [],
+    topLosers: [],
+    performance: [],
+    productPerformance: [],
+    cashPerformance: [],
+    benchmarkComparisons: [],
+    cashPercent: 0,
+    investedPercent: 1,
+    latestPriceDate: "2026-06-01"
+  };
+}
+
+function calculateRisk(values: number[], issuerConcentration?: { topHolding: number; topFive: number } | null) {
+  return new RiskAnalyticsService().calculateRiskAnalytics({
+    dashboard: riskDashboard(values),
+    portfolioSnapshots: [],
+    holdingSnapshots: [],
+    dailyPrices: [],
+    transactions: [],
+    benchmarkSnapshots: [],
+    issuerConcentration
+  });
 }
 
 test("calculates portfolio returns from ordered positive values", () => {
@@ -215,6 +297,111 @@ test("diversification score rewards spread and penalizes concentration", () => {
   assert.ok(diversified > concentrated);
   assert.ok(diversified <= 100);
   assert.ok(concentrated >= 0);
+});
+
+test("risk analytics diversification score uses issuer concentration when supplied", () => {
+  const directWrapper = calculateRisk([60, 10, 10, 10, 10]);
+  const issuerLookthrough = calculateRisk([60, 10, 10, 10, 10], { topHolding: 0.08, topFive: 0.32 });
+
+  assert.ok(issuerLookthrough.diversification.score > directWrapper.diversification.score);
+  assert.equal(issuerLookthrough.concentration.topHoldingConcentration, directWrapper.concentration.topHoldingConcentration);
+  assert.equal(issuerLookthrough.concentration.topFiveConcentration, directWrapper.concentration.topFiveConcentration);
+  assert.ok(issuerLookthrough.warnings.includes("Top holding exceeds 25% of invested assets."));
+});
+
+test("risk analytics issuer concentration excludes ETF wrappers before diversification scoring", () => {
+  const issuerConcentration = wrapperExcludedIssuerConcentration({
+    inputsSnapshot: {
+      lookthroughExposure: {
+        holdingExposures: [
+          {
+            holdingSymbol: "VOO",
+            holdingName: "Vanguard S&P 500 ETF",
+            directWeight: 0.3,
+            indirectWeight: 0,
+            totalWeight: 0.3,
+            inputsSnapshot: { instrumentAssetClass: "etf" }
+          },
+          {
+            holdingSymbol: "BND",
+            holdingName: "Vanguard Total Bond Market ETF",
+            directWeight: 0.1,
+            indirectWeight: 0,
+            totalWeight: 0.1,
+            inputsSnapshot: { instrumentAssetClass: "bond_etf" }
+          },
+          {
+            holdingSymbol: "NVDA",
+            holdingName: "NVIDIA",
+            holdingIssuerId: "issuer-nvda",
+            holdingIssuerName: "NVIDIA Corporation",
+            directWeight: 0,
+            indirectWeight: 0.08,
+            totalWeight: 0.08,
+            inputsSnapshot: { exposureRole: "underlying_security", issuerId: "issuer-nvda", issuerName: "NVIDIA Corporation" }
+          },
+          {
+            holdingSymbol: "MSFT",
+            holdingName: "Microsoft",
+            holdingIssuerId: "issuer-msft",
+            holdingIssuerName: "Microsoft Corporation",
+            directWeight: 0,
+            indirectWeight: 0.06,
+            totalWeight: 0.06,
+            inputsSnapshot: { exposureRole: "underlying_security", issuerId: "issuer-msft", issuerName: "Microsoft Corporation" }
+          },
+          {
+            holdingSymbol: "AAPL",
+            holdingName: "Apple",
+            holdingIssuerId: "issuer-aapl",
+            holdingIssuerName: "Apple Inc.",
+            directWeight: 0,
+            indirectWeight: 0.05,
+            totalWeight: 0.05,
+            inputsSnapshot: { exposureRole: "underlying_security", issuerId: "issuer-aapl", issuerName: "Apple Inc." }
+          },
+          {
+            holdingSymbol: "LLY",
+            holdingName: "Eli Lilly",
+            holdingIssuerId: "issuer-lly",
+            holdingIssuerName: "Eli Lilly and Company",
+            directWeight: 0.04,
+            indirectWeight: 0,
+            totalWeight: 0.04,
+            inputsSnapshot: { instrumentAssetClass: "stock", issuerId: "issuer-lly", issuerName: "Eli Lilly and Company" }
+          }
+        ]
+      }
+    }
+  });
+  const directWrapper = calculateRisk([60, 10, 10, 10, 10]);
+  const wrapperExcludedLookthrough = calculateRisk([60, 10, 10, 10, 10], issuerConcentration);
+
+  assert.ok(issuerConcentration);
+  assert.equal(issuerConcentration.topHolding, 0.08);
+  assert.ok(Math.abs(issuerConcentration.topFive - 0.23) < 0.000001);
+  assert.ok(wrapperExcludedLookthrough.diversification.score >= directWrapper.diversification.score + 8);
+});
+
+test("risk analytics diversification score falls back to direct concentration without issuer input", () => {
+  const direct = calculateRisk([60, 10, 10, 10, 10]);
+  const nullIssuer = calculateRisk([60, 10, 10, 10, 10], null);
+
+  assert.equal(nullIssuer.diversification.score, direct.diversification.score);
+});
+
+test("risk analytics issuer concentration still penalizes genuine single-issuer concentration", () => {
+  const diversifiedIssuer = calculateRisk([20, 20, 20, 20, 20], { topHolding: 0.08, topFive: 0.32 });
+  const concentratedIssuer = calculateRisk([20, 20, 20, 20, 20], { topHolding: 0.55, topFive: 0.8 });
+
+  assert.ok(concentratedIssuer.diversification.score < diversifiedIssuer.diversification.score);
+});
+
+test("risk analytics holding score remains based on direct holding count", () => {
+  const oneWrapper = calculateRisk([100], { topHolding: 0.08, topFive: 0.32 });
+  const twelveWrappers = calculateRisk(Array.from({ length: 12 }, () => 100), { topHolding: 0.08, topFive: 0.32 });
+
+  assert.ok(twelveWrappers.diversification.score > oneWrapper.diversification.score);
 });
 
 test("covariance risk contribution calculates institutional volatility contribution", () => {

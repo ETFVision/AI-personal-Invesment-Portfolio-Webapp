@@ -1,5 +1,5 @@
-import { AllocationItem } from "@/domain/portfolio/types";
-import { diversificationScore } from "@/application/services/risk/riskMath";
+import type { AllocationItem } from "@/domain/portfolio/types";
+import { diversificationScore } from "./riskMath";
 
 export class DiversificationService {
   score(input: {

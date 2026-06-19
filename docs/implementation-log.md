@@ -1,3 +1,88 @@
+## 2026-06-19 - Wrapper-Excluded Diversification Penalty Fix
+
+### Source
+Claude Code
+
+### Objective
+Fix the Task 2 issuer-level diversification penalty so it uses wrapper-excluded underlying-company concentration, matching the Concentration Review section basis.
+
+### Files Changed
+- `src/application/services/risk/RiskAnalyticsDataService.ts`
+- `src/app/methodology/page.tsx`
+- `tests/risk-math.test.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `wrapperExcludedIssuerConcentration()` to derive diversification penalty top-one/top-five from latest Portfolio Review holding exposures while excluding direct ETF, bond ETF, gold ETF, crypto ETF, and cash-proxy wrappers.
+- Kept direct single-stock holdings included in the underlying-company rollup.
+- Replaced the prior `exposureContext.issuerExposures` concentration input, which could include ETF wrappers such as VOO, with the wrapper-excluded rollup.
+- Left `holdingScore`, direct concentration metadata, and Risk page direct-concentration warnings unchanged.
+- Added a regression test where VOO is 30% direct but NVDA is 8% underlying; the helper returns 8% top-one and the diversification score is materially higher than the direct-concentration result.
+- Updated score methodology, Portfolio Review methodology, and public methodology wording to specify wrapper-excluded underlying-company concentration.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (290/290)
+
+### Result
+Completed.
+
+### Notes for Claude
+- Live symptom corrected: the penalty input should no longer treat VOO around 30% as the top issuer; it should use the top underlying company, e.g. NVDA around 7.9%, when fresh look-through is available.
+- Reference portfolio before the Task 2 change was approximately 79; the incorrect intermediate fix only moved to approximately 80 because VOO still dominated. After this correction and a fresh risk/report refresh, the expected movement is into the high-80s.
+- Risk Analytics / risk-report refresh and Portfolio Review refresh are required before stored pages show the corrected value.
+
+---
+## 2026-06-19 - Issuer-Level Risk Diversification Concentration Penalty
+
+### Source
+Claude Code
+
+### Objective
+Make the Risk Analytics and Portfolio Review diversification score use issuer-level look-through top-one and top-five concentration for the diversification concentration penalty when issuer exposure is available, with direct concentration fallback.
+
+### Files Changed
+- `src/application/services/risk/RiskAnalyticsDataService.ts`
+- `src/application/services/risk/RiskAnalyticsService.ts`
+- `src/application/services/risk/DiversificationService.ts`
+- `src/application/services/risk/CorrelationService.ts`
+- `src/app/methodology/page.tsx`
+- `tests/risk-math.test.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Refactored `RiskAnalyticsDataService.buildReport()` to compute the existing portfolio exposure context once, derive issuer-level top-one and top-five concentration from `issuerExposures`, and pass those values into `RiskAnalyticsService.calculateRiskAnalytics()`.
+- Updated `RiskAnalyticsService.calculateRiskAnalytics()` to use issuer-level concentration only for `DiversificationService.score()` inputs when available; direct concentration remains the fallback.
+- Left `holdingScore`, Risk page direct-concentration warnings, and the `concentration` metadata object on direct holding concentration.
+- Left `riskMath.diversificationScore()` formula unchanged; only the upstream concentration inputs changed.
+- Added service-level regression tests for diversified-wrapper improvement, direct fallback, genuine issuer-concentration penalty, and direct holding-count behavior.
+- Updated score methodology, Portfolio Review methodology, and public methodology page text to describe issuer-level concentration penalty inputs and direct fallback.
+- Converted risk-service runtime imports touched by the new tests to relative/type-only imports so the compiled Node test runner can load the service directly.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (289/289)
+
+### Result
+Completed.
+
+### Notes for Claude
+- Existing live/reference portfolio baseline from the task prompt: diversification score was approximately 79 before this change; after risk-report refresh with issuer look-through available, expected movement is toward the high-80s.
+- Exact live after-value requires re-running Risk Analytics / risk-report refresh and then re-running Portfolio Review so stored reports read the updated risk diversification score.
+- Risk Analytics page and Portfolio Review both read the same stored `riskReport.diversification.score`, so they should move together after refresh.
+- Direct concentration warnings and the direct `concentration` metadata object intentionally remain unchanged.
+
+---
 ## 2026-06-19 - Issue-Aware Gap Candidate Primary Reasons
 
 ### Source

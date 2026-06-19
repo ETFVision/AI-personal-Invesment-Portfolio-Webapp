@@ -2,6 +2,66 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Wrapper-Excluded Diversification Penalty QA
+
+Scope:
+- Verify Risk Analytics diversification scoring excludes ETF/fund wrappers from issuer concentration penalty inputs and matches the Concentration Review underlying-company basis.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| The first Task 2 implementation used `buildPortfolioExposureContext(...).issuerExposures`, which can include ETF wrappers such as VOO, QQQ, VT, and BND | Fixed; diversification penalty inputs now come from a wrapper-excluded underlying-company rollup |
+| Live diversification only moved from approximately 79 to 80 because VOO around 30% still dominated the penalty | Fixed in code; after fresh Risk Analytics and Portfolio Review refreshes, the expected movement is into the high-80s when the top underlying company is around 7.9% |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Snapshot with VOO at 30% direct and NVDA at 8% underlying returns top-one issuer concentration of 8%, not 30% | PASS |
+| Direct bond ETF wrapper in the same snapshot is excluded from issuer concentration penalty inputs | PASS |
+| Direct single-stock holding remains included in the wrapper-excluded issuer rollup | PASS |
+| Diversification score with wrapper-excluded issuer concentration is materially higher than direct-concentration result | PASS |
+| Existing direct fallback, genuine issuer-concentration penalty, and direct holding-count tests still pass | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (290/290) |
+
+Residual items:
+- Re-run Risk Analytics / risk-report refresh and then Portfolio Review from the Admin panel to regenerate stored values and confirm the top-1 penalty input is the underlying company, not the ETF wrapper.
+
+## 2026-06-19 SGT - Issuer-Level Risk Diversification Concentration Penalty QA
+
+Scope:
+- Verify Risk Analytics diversification scoring uses issuer-level look-through concentration for its concentration penalty when available, while preserving direct holding-count behavior and direct concentration diagnostics.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Diversified ETF wrappers could depress the Risk Analytics / Portfolio Review diversification score because the concentration penalty used direct top-holding concentration | Fixed; the concentration penalty now uses issuer-level top-one and top-five look-through exposure when available |
+| First-run or missing-look-through cases need stable behavior | Preserved; the score falls back to direct concentration when issuer concentration is unavailable |
+| Single-product residual risk should remain visible | Preserved; `holdingScore` still uses direct meaningful holding count, and Risk page warnings/metadata still use direct concentration |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Diversified wrapper with high direct top-one but low issuer top-one scores higher when issuer concentration is supplied | PASS |
+| Null issuer concentration equals direct-concentration fallback score | PASS |
+| Genuine high issuer top-one/top-five concentration still lowers diversification score | PASS |
+| Few direct holdings still score lower than broader direct holding count with the same issuer concentration | PASS |
+| Direct concentration metadata remains direct top-one/top-five | PASS |
+| Direct top-holding warning remains present for high direct top-one concentration | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (289/289) |
+
+Residual items:
+- Re-run Risk Analytics / risk-report refresh and then Portfolio Review from the Admin panel to regenerate stored values and confirm the reference portfolio diversification score moves from approximately 79 toward the high-80s.
+
 ## 2026-06-19 SGT - Portfolio Review Gap Candidate Primary Reason QA
 
 Scope:

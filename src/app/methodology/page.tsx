@@ -196,7 +196,7 @@ const portfolioRows = [
 const portfolioDefinitionRows = [
   ["Allocation", "Starts from an 82 baseline and adjusts for equity-heavy exposure, low fixed-income ballast, high cash, and material crypto exposure."],
   ["Concentration", "Uses underlying-company issuer exposure on a total-value basis. Direct single-stock holdings are included; diversified ETF wrappers remain visible as direct positions but do not trigger single-company concentration findings."],
-  ["Diversification", "Uses meaningful holding count, asset-class count, sector count, currency count, average correlation, top holding concentration, and top-five concentration."],
+  ["Diversification", "Uses meaningful direct holding count, asset-class count, sector count, currency count, average correlation, and wrapper-excluded underlying-company top-one/top-five concentration where look-through exists, with direct concentration fallback."],
   ["Risk", "Uses portfolio volatility, current drawdown, max drawdown, and risk contribution diagnostics from flow-adjusted return data."],
   ["Macro Fit", "Compares portfolio posture against FRED rates, inflation, growth, liquidity regimes and the latest Market Vision risk context."],
   ["Insight Alignment", "Compares current holdings with the Characteristics Score engine output and measures coverage of scored instruments."],
@@ -220,7 +220,7 @@ const portfolioFormulaRows = [
 const portfolioPlainEnglishRows = [
   ["Allocation", "Starts at 82 and is reduced by excess equity concentration, insufficient bond ballast, high cash, or material crypto exposure."],
   ["Concentration", "Starts at 90 and is reduced by large single-company issuer exposure, high top-five issuer concentration, or dominant sector exposure."],
-  ["Diversification", "Builds from the risk analytics diversification score and adds points for broader sector and country coverage from ETF look-through."],
+  ["Diversification", "Builds from the risk analytics diversification score, whose concentration penalty uses wrapper-excluded underlying-company look-through when available, and adds points for broader sector and country coverage from ETF look-through."],
   ["Risk", "Starts at 88 and is reduced by high volatility, large drawdowns, or deep current drawdowns."],
   ["Macro Fit", "Starts at 72 and adjusts based on whether the portfolio posture is appropriate for current rate, growth, and inflation regimes."],
   ["Insight Alignment", "Starts at 60 and increases when current holdings score well in the Characteristics Score engine, and decreases when holdings score poorly."],
@@ -570,7 +570,7 @@ export default function MethodologyPage() {
                   </Paragraph>
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
                     Diversification Score = holdingScore + assetClassScore + sectorScore + currencyScore + 30 - correlationPenalty - concentrationPenalty.
-                    Holding, asset-class, sector, and currency scores are capped components; correlation and concentration reduce the final score.
+                    Holding, asset-class, sector, and currency scores are capped components; correlation and concentration reduce the final score. The concentration penalty uses wrapper-excluded underlying-company look-through top-one and top-five exposure when available, otherwise it falls back to direct holding concentration. The holding score remains based on direct meaningful holdings.
                   </div>
                 </CardContent>
               </Card>

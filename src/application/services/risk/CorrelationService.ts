@@ -1,4 +1,4 @@
-import { HoldingSnapshot } from "@/domain/portfolio/types";
+import type { HoldingSnapshot } from "@/domain/portfolio/types";
 import { calculateReturns, correlation } from "./riskMath";
 
 export type CorrelationCell = {
