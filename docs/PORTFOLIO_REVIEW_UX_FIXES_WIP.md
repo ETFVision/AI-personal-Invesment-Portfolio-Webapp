@@ -1,32 +1,56 @@
 # Portfolio Review UX Fixes — Working Notes
 
-**Status:** Temporary working document. Delete after all four fixes are implemented and verified.
+**Status:** Temporary working document tracking the Portfolio Review UX/compliance fix programme.
+Four items shipped (Task 1, P2, Task 2, P3); see "Current Status & Remaining Backlog" below for what's left.
+Delete once the backlog is cleared.
 
 **Source:** UX review of Portfolio Review page output, 2026-06-18. Trigger logic and new findings
 (T1, T2, A–E) confirmed against the live 2026-06-18 report (score 81).
 
-**Revised implementation order (supersedes the original P1→P4 sequence):**
+## Current Status & Remaining Backlog (updated 2026-06-19)
 
-1. **Concentration coherence task** — merge **A + P4 + T2 + B** (decisions locked 2026-06-19:
-   Option B issuer-level + total-basis): measure concentration at the underlying-company level on a
-   total-value basis (this harmonizes top-1/top-5 and structurally removes the VOO false positive, so
-   P4 needs no separate fund-wrapper logic), recalibrate the section score for issuer level, raise the
-   gap trigger's single-name threshold to ≥10%, and stop suggesting individual stocks for single-name
-   concentration (surface broad diversifiers only). This is the worst correctness + compliance cluster.
-   Includes Change 7 (basis label on displays).
-2. **Issuer-level diversification score (Task 2)** — move `riskMath` `concentrationPenalty` to
-   issuer-level look-through; keep `holdingScore` on direct count as the single-product residual.
-   Sequenced right after Task 1 because it reuses the same issuer-level look-through plumbing. Touches
-   the Risk page too — separate blast radius, own validation.
-3. **Trigger semantics task** — **T1**: remove `topHolding > 0.25` and `diversificationScore < 55`
-   from the international trigger; route them to the concentration finding.
-4. **P1 + P2** — gap candidate differentiation and primary-reason text, using the revised role set
-   (lead concentration with diversifiers, not reordered defensive sectors).
-5. **P3** — insight alignment score cap (on any non-info finding, not just `weakHeld`) + coverage display.
-6. **C, D, E** — compliance framing of candidate lists, country-count label, macro-finding polish.
+### Shipped, reviewed, committed & pushed, validated live
+- **Task 1 — issuer-level concentration** (`a095414`): concentration measured at underlying-company
+  level, total-value basis; VOO no longer false-positives; Concentration 90. (Absorbed original A + P4 + T2 + B.)
+- **P2 — issue-category-aware candidate text** (`fe3b882`): crypto-ballast candidates reference
+  ballast-vs-crypto context instead of generic bond text.
+- **Task 2 — issuer-level diversification + wrapper-exclusion fix** (`90432b7`): diversification
+  `concentrationPenalty` uses wrapper-excluded underlying-company concentration; `holdingScore` stays
+  direct. Validated Diversification 79 → 88.
+- **P3 — insight-alignment cap + coverage display** (`acbd49a`): section score capped at 94 when any
+  non-info finding present; "Recommendation Coverage" renders as %. Validated 100 → 94, overall → 85.
 
-The original standalone P1/P2/P3/P4 prompts below remain valid as drafts but should be reconciled
-with this merged sequence before handing to Codex — P4 in particular is now part of task 1.
+### Remaining backlog (recommended sequence)
+1. **Gap-analysis examples (#1)** — A) defensive gap surfaces diversified ETFs (XLV/VHT/XLU/XLP) not
+   single stocks (`issueFit` stock exclusion, mirroring concentration_risk); B) order candidate cards
+   by category fit (`issueFitScore`) not instrument quality. *Prompt ready. High — compliance.*
+2. **Per-sleeve defensive targeting (#2)** — defensive gap orders its sector roles by the most-underweight
+   defensive sleeve (healthcare/utilities/consumer staples); adds `utilitiesWeight` + `consumerStaplesWeight`
+   to `SuggestionContext`. Observational sub-category measurement (not advice). *Prompt ready. Builds on #1
+   (do #1 first — #1B's issueFit ordering + #1A's ETF-only are what make #2's effect visible).*
+3. **T1 — international trigger semantics** — remove `topHolding > 0.25 || diversificationScore < 55`
+   from `insufficient_international_exposure` so it can't emit a misleading "US-concentrated" finding for
+   a non-US-concentrated portfolio. *Needs prompt. Medium — latent correctness/compliance.*
+4. **D + E polish** — D: "Country Count: 1" is a ≥3% threshold count shown next to a 56-country table
+   (relabel/recount). E: macro inflation finding suggests inflation sleeves while portfolio already holds
+   TIP + GLD (acknowledge existing). *Needs prompt. Low.*
+5. **DRY cleanup** — extract the wrapper-exclusion helper (`isFundWrapper`/`isIssuerExposure`/`issuerKey`)
+   duplicated in `ConcentrationReviewService` and `RiskAnalyticsDataService`. *Needs prompt. Low — do after
+   the gap/risk code is stable.*
+6. **Display polish** — gap-title em-dash consistency; exchange-ticker format (`8306.T`, `7203.T`) in
+   overlap text. *Needs prompt. Lowest.*
+
+Notes:
+- Sort-fallback nit (`recommendationScore ?? score` badge vs `?? 0` sort) is absorbed by #1B.
+- "Direct Positions — LLY missing" was display truncation (top-12 cap), not a bug — dropped.
+- Finding C (candidates reading as ranked picks) is largely addressed by #1 (ETFs + category-fit ordering + disclaimers).
+
+---
+
+**Historical note — superseded earlier sequence (kept for context):** The original plan ordered the work
+as Concentration coherence (A+P4+T2+B) → Task 2 → T1 → P1+P2 → P3 → C/D/E. Task 1 absorbed A/P4/T2/B and
+the concentration portion of P1; P1's defensive/international differentiation became unnecessary once Task 1
+made concentration_risk diversifier-only. The standalone P1–P4 prompts below remain as historical drafts.
 
 ---
 
