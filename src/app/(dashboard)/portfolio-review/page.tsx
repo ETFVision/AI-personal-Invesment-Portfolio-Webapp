@@ -20,7 +20,7 @@ import type {
 import type { PortfolioLookthroughExposure, PortfolioLookthroughHolding, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
 import { assessmentLabel } from "@/application/services/recommendations/recommendationPresentation";
-import { compareGapCandidatesByCategoryFit, groupDefensiveGapCandidates } from "@/application/services/portfolioReview/gapCandidateDisplay";
+import { compareGapCandidatesByCategoryFit, defensiveGapTooltipCategory, groupDefensiveGapCandidates } from "@/application/services/portfolioReview/gapCandidateDisplay";
 
 type PortfolioReviewPageProps = {
   searchParams?: Promise<{
@@ -74,7 +74,8 @@ function sanitizeGapText(value: string | null | undefined) {
     .replace(/\bPortfolio Improvement Observations\b/gi, "Gap Analysis — Instruments in Underweighted Categories")
     .replace(/\bPotential Review Actions\b/gi, "Analytical Gap Summary")
     .replace(/\bimprovement suggestions\b/gi, "gap findings")
-    .replace(/\bReview healthcare and defensive diversification\b/gi, "Healthcare & Defensive — Underweighted Category")
+    .replace(/\bReview healthcare and defensive diversification\b/gi, "Defensive Sectors — Underweighted Category")
+    .replace(/\bHealthcare & Defensive — Underweighted Category\b/gi, "Defensive Sectors — Underweighted Category")
     .replace(/\bReview diversification candidates\b/gi, "International Equity — Underweighted Category")
     .replace(/\byou should consider\b/gi, "context for review:")
     .replace(/\bAdds ([^.]+?) exposure\b/gi, "Provides exposure to $1")
@@ -100,7 +101,7 @@ function exposureWeight(rows: PortfolioLookthroughExposure[], name: string) {
 
 function gapCategoryForTooltip(suggestion: PortfolioImprovementSuggestion, candidate: PortfolioReviewCandidate) {
   const title = sanitizeGapText(suggestion.title) ?? suggestion.title;
-  if (suggestion.issueCategory === "insufficient_defensive_exposure" || title.includes("Healthcare")) return "Healthcare";
+  if (suggestion.issueCategory === "insufficient_defensive_exposure" || title.includes("Defensive Sectors")) return defensiveGapTooltipCategory(candidate);
   if (suggestion.issueCategory === "insufficient_international_exposure" || title.includes("International Equity")) return "International equity";
   return candidate.diversificationType?.replace(/ sector$/i, "") ?? title.replace(" — Underweighted Category", "");
 }

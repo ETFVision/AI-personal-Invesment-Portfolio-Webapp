@@ -60,6 +60,9 @@ const defensiveEquitySleeveRoles = new Set<CandidateRole>([
   "consumer_staples_defensive"
 ]);
 
+const nonDefensiveSectorEtfs = new Set(["XBI", "IBB", "ARKG"]);
+const broadDefensiveSectorEtfs = new Set(["XLV", "VHT", "XLU", "VPU", "XLP", "VDC"]);
+
 function recommendationMap(recommendations: InstrumentRecommendation[]) {
   return new Map(recommendations.map((recommendation) => [recommendation.instrumentId, recommendation]));
 }
@@ -219,6 +222,7 @@ function issueFit(instrument: Instrument, issueCategory: PortfolioImprovementIss
   if (issueCategory === "insufficient_international_exposure") return roleFit(role, issueCategory, context);
   if (issueCategory === "insufficient_defensive_exposure") {
     if (instrument.assetClass === "stock") return 0;
+    if (nonDefensiveSectorEtfs.has((instrument.symbol ?? "").toUpperCase())) return 0;
     if (internationalCandidateRoles.has(role)) return 0;
     return roleFit(role, issueCategory, context) || (instrumentIsDefensiveDiversifier(instrument) ? 24 : 0);
   }
@@ -341,6 +345,17 @@ function candidateRankScore(candidate: PortfolioReviewCandidate) {
   );
 }
 
+function defensiveCandidateRankScore(candidate: PortfolioReviewCandidate) {
+  const broadSectorBonus = broadDefensiveSectorEtfs.has(candidate.symbol.toUpperCase()) ? 1000 : 0;
+  return (
+    broadSectorBonus +
+    (candidate.recommendationScore ?? 0) * 10 +
+    (candidate.issueFitScore ?? candidate.relevanceScore ?? 0) +
+    (candidate.confidenceScore ?? 0) * 0.1 +
+    (candidate.macroFitScore ?? 50) * 0.05
+  );
+}
+
 const diversificationBenefitService = new DiversificationBenefitService();
 
 function candidate(
@@ -448,7 +463,7 @@ function rankedDefensiveCandidates(context: PortfolioReviewInputContext, issueCo
     .filter((role) => defensiveEquitySleeveRoles.has(role))
     .flatMap((role) =>
       (byRole.get(role) ?? [])
-        .sort((left, right) => candidateRankScore(right) - candidateRankScore(left))
+        .sort((left, right) => defensiveCandidateRankScore(right) - defensiveCandidateRankScore(left))
         .slice(0, perSleeveLimit)
     );
 }
@@ -574,7 +589,7 @@ export class PortfolioImprovementSuggestionService {
         category: "diversification",
         issueCategory: "insufficient_defensive_exposure",
         priority: "low",
-        title: "Healthcare & Defensive — Underweighted Category",
+        title: "Defensive Sectors — Underweighted Category",
         rationale: `Technology is the largest look-through sector at ${(issueContext.technologyWeight * 100).toFixed(1)}%. Defensive sleeve look-through is Healthcare ${(issueContext.healthcareWeight * 100).toFixed(1)}%, Utilities ${(issueContext.utilitiesWeight * 100).toFixed(1)}%, and Consumer Staples ${(issueContext.consumerStaplesWeight * 100).toFixed(1)}%.`,
         candidates: rankedDefensiveCandidates(context, issueContext),
         benefit: "May relate to sector balance without relying only on broad-market ETFs.",

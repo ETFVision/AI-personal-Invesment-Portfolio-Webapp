@@ -1,3 +1,45 @@
+## 2026-06-19 - Defensive Gap Title, Broad ETF Preference, and Tooltip Fix
+
+### Source
+Claude Code
+
+### Objective
+Rename the Portfolio Review defensive gap finding, exclude narrow healthcare sub-theme ETFs from that finding, prefer broad defensive sector ETFs within each sleeve, and make defensive candidate tooltips sleeve-aware.
+
+### Files Changed
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `src/application/services/portfolioReview/gapCandidateDisplay.ts`
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Renamed the defensive gap finding to `Defensive Sectors — Underweighted Category` and kept a page-level legacy text rewrite for stored reports still carrying the old title.
+- Excluded XBI, IBB, and ARKG from `insufficient_defensive_exposure` candidate selection.
+- Added a broad defensive-sector preference so XLV/VHT, XLU/VPU, and XLP/VDC rank ahead of narrower or global variants within the defensive sleeve cap.
+- Added `defensiveGapTooltipCategory()` so defensive finding tooltips use the candidate's actual sleeve category, such as Utilities, Consumer Staples, or Healthcare.
+- Extended regression coverage for broad ETF preference, non-defensive healthcare exclusions, ballast exclusion, and sleeve-aware tooltip categories.
+- Updated Portfolio Review methodology and QA notes to match the defensive finding behavior.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (303/303)
+
+### Result
+Completed.
+
+### Notes for Claude
+- Before this change, the defensive finding could surface narrow healthcare sub-theme ETFs such as XBI/ARKG and narrower utilities variants such as FXU/JXI ahead of broad sleeve representatives.
+- After this change, the defensive finding selects broad sleeve examples first, such as XLV/VHT for Healthcare and XLU/VPU for Utilities, while International and Crypto-Ballast findings remain unchanged.
+- The tooltip category for a Utilities defensive candidate now resolves to Utilities rather than a generic or Healthcare-derived defensive category.
+- No trigger, score, section score, feature flag, or access-control behavior changed.
+- Portfolio Review must be re-run from the Admin panel to regenerate stored report output.
+
+---
 ## 2026-06-19 - Defensive Gap Equity-Sleeve Scope
 
 ### Source

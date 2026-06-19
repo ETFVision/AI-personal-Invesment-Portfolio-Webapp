@@ -34,6 +34,10 @@ function defensiveSleeveKey(candidate: DefensiveGapCandidateGroupInput) {
   return { key: "other", label: "Other Defensive" };
 }
 
+export function defensiveGapTooltipCategory(candidate: DefensiveGapCandidateGroupInput) {
+  return defensiveSleeveKey(candidate).label;
+}
+
 export function groupDefensiveGapCandidates<T extends DefensiveGapCandidateGroupInput>(candidates: T[]) {
   const groups: DefensiveGapCandidateGroup<T>[] = [];
   const byKey = new Map<string, DefensiveGapCandidateGroup<T>>();

@@ -13,7 +13,7 @@ import { PortfolioRiskReviewService } from "../src/application/services/portfoli
 import { MacroFitReviewService } from "../src/application/services/portfolioReview/MacroFitReviewService";
 import { RecommendationAlignmentReviewService } from "../src/application/services/portfolioReview/RecommendationAlignmentReviewService";
 import { portfolioReviewConfidenceScore } from "../src/application/services/portfolioReview/PortfolioReviewService";
-import { compareGapCandidatesByCategoryFit, groupDefensiveGapCandidates } from "../src/application/services/portfolioReview/gapCandidateDisplay";
+import { compareGapCandidatesByCategoryFit, defensiveGapTooltipCategory, groupDefensiveGapCandidates } from "../src/application/services/portfolioReview/gapCandidateDisplay";
 import { weightedPortfolioScore } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import type { PortfolioReviewInputContext } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import { PortfolioLookthroughExposureService } from "../src/application/services/etfLookthrough/PortfolioLookthroughExposureService";
@@ -566,10 +566,15 @@ test("defensive gap candidate selection includes each defensive sleeve with per-
       instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] }),
       instrument({ id: "vpu", symbol: "VPU", name: "Vanguard Utilities ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification", "Defensive"] }),
       instrument({ id: "idu", symbol: "IDU", name: "iShares U.S. Utilities ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification", "Defensive"] }),
+      instrument({ id: "fxu", symbol: "FXU", name: "First Trust Utilities AlphaDEX Fund", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] }),
+      instrument({ id: "jxi", symbol: "JXI", name: "iShares Global Utilities ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Global Diversification", "Defensive"] }),
       instrument({ id: "xlp", symbol: "XLP", name: "Consumer Staples Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Consumer Staples", canonicalThemes: ["Defensive Consumer"] }),
       instrument({ id: "vdc", symbol: "VDC", name: "Vanguard Consumer Staples ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification", "Defensive Consumer"] }),
       instrument({ id: "xlv", symbol: "XLV", name: "Health Care Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
       instrument({ id: "vht", symbol: "VHT", name: "Vanguard Health Care ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
+      instrument({ id: "xbi", symbol: "XBI", name: "SPDR S&P Biotech ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Biotechnology"] }),
+      instrument({ id: "ibb", symbol: "IBB", name: "iShares Biotechnology ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Biotechnology"] }),
+      instrument({ id: "arkg", symbol: "ARKG", name: "ARK Genomic Revolution ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Genomics", "Healthcare Innovation"] }),
       instrument({ id: "bnd", symbol: "BND", name: "Vanguard Total Bond Market ETF", assetClass: "bond_etf", instrumentType: "bond_etf", canonicalSector: "Bonds / Fixed Income", canonicalThemes: ["Treasury Bonds"], durationCategory: "intermediate" }),
       instrument({ id: "govt", symbol: "GOVT", name: "iShares U.S. Treasury Bond ETF", assetClass: "bond_etf", instrumentType: "bond_etf", canonicalSector: "Bonds / Fixed Income", canonicalThemes: ["Treasury Bonds"], durationCategory: "intermediate" })
     ]
@@ -578,11 +583,17 @@ test("defensive gap candidate selection includes each defensive sleeve with per-
   const symbols = defensiveSuggestion?.candidateInstruments.map((candidate) => candidate.symbol) ?? [];
   const groups = groupDefensiveGapCandidates(defensiveSuggestion?.candidateInstruments ?? []);
 
+  assert.equal(defensiveSuggestion?.title, "Defensive Sectors — Underweighted Category");
   assert.deepEqual(groups.map((group) => group.key), ["utilities", "consumer_staples", "healthcare"]);
   assert.deepEqual(groups.map((group) => group.candidates.length), [2, 2, 2]);
-  assert.deepEqual(symbols.slice(0, 2), ["XLU", "VPU"]);
-  assert.ok(symbols.some((symbol) => ["XLP", "VDC"].includes(symbol)));
-  assert.ok(symbols.some((symbol) => ["XLV", "VHT"].includes(symbol)));
+  assert.deepEqual(groups[0]?.candidates.map((candidate) => candidate.symbol), ["XLU", "VPU"]);
+  assert.deepEqual(groups[1]?.candidates.map((candidate) => candidate.symbol), ["XLP", "VDC"]);
+  assert.deepEqual(groups[2]?.candidates.map((candidate) => candidate.symbol), ["XLV", "VHT"]);
+  assert.equal(symbols.includes("FXU"), false);
+  assert.equal(symbols.includes("JXI"), false);
+  assert.equal(symbols.includes("XBI"), false);
+  assert.equal(symbols.includes("IBB"), false);
+  assert.equal(symbols.includes("ARKG"), false);
   assert.equal(symbols.includes("BND"), false);
   assert.equal(symbols.includes("GOVT"), false);
   assert.equal(groups.some((group) => group.label === "Defensive Ballast"), false);
@@ -677,6 +688,12 @@ test("defensive gap display grouping buckets sleeves and preserves incoming orde
   assert.deepEqual(groups[0]?.candidates.map((candidate) => candidate.symbol), ["XLU", "VPU"]);
   assert.deepEqual(groups[1]?.candidates.map((candidate) => candidate.symbol), ["XLP"]);
   assert.deepEqual(groups[2]?.candidates.map((candidate) => candidate.symbol), ["XLV"]);
+});
+
+test("defensive gap tooltip categories follow the candidate sleeve", () => {
+  assert.equal(defensiveGapTooltipCategory({ diversificationType: "Defensive utilities" }), "Utilities");
+  assert.equal(defensiveGapTooltipCategory({ diversificationType: "Defensive consumer staples" }), "Consumer Staples");
+  assert.equal(defensiveGapTooltipCategory({ diversificationType: "Healthcare defensive sector" }), "Healthcare");
 });
 
 test("improvement suggestions map concentration issues to diversifying candidates", () => {

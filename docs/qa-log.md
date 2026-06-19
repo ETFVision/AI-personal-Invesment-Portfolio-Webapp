@@ -2,6 +2,36 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Defensive Gap Title, Candidate Preference, and Tooltip QA
+
+Scope:
+- Verify the Portfolio Review defensive gap finding uses compliant Defensive Sectors language, broad defensive sector ETF examples, and sleeve-specific tooltip categories.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Finding title still referenced Healthcare & Defensive even though the displayed candidates span Utilities, Consumer Staples, and Healthcare | Fixed; service output and page legacy rewrite now use `Defensive Sectors — Underweighted Category` |
+| Narrow healthcare sub-theme ETFs such as XBI, IBB, and ARKG could appear in a defensive-sector finding | Fixed; those symbols are excluded from `insufficient_defensive_exposure` |
+| Narrow or global utilities variants such as FXU/JXI could rank ahead of broad sector sleeve examples | Fixed; broad sleeve examples such as XLU/VPU, XLP/VDC, and XLV/VHT are preferred within the per-sleeve cap |
+| Defensive tooltip category could be too generic for Utilities or Consumer Staples candidates | Fixed; tooltip category is now derived from the candidate's defensive sleeve |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Defensive candidate test confirms Utilities group selects XLU/VPU and excludes FXU/JXI | PASS |
+| Defensive candidate test confirms Healthcare group selects XLV/VHT and excludes XBI/IBB/ARKG | PASS |
+| Defensive grouping still produces only Utilities, Consumer Staples, and Healthcare groups with no Defensive Ballast group | PASS |
+| Defensive tooltip helper returns Utilities, Consumer Staples, or Healthcare from the candidate sleeve | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (303/303) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports.
+
 ## 2026-06-19 SGT - Defensive Gap Equity-Sleeve Scope QA
 
 Scope:

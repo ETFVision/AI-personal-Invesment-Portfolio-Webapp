@@ -114,14 +114,14 @@ Candidate `primaryReason` text is issue-category-aware for newer gap findings:
 - `excessive_crypto_risk` bond, treasury, fixed-income, and credit candidates reference ballast characteristics relative to crypto and high-volatility alternative exposure.
 - `concentration_risk` geographic diversifiers reference issuer/geographic diversification relative to concentrated single-name look-through exposure; bond, treasury, fixed-income, credit, gold, and inflation-hedge candidates reference generally lower-correlation ballast relative to the flagged concentration.
 
-The candidate logic should not change internal scoring labels. It uses stored insight outputs and active universe data as inputs into portfolio-level gap findings. Category-remedy findings surface diversified funds where appropriate; `insufficient_defensive_exposure` excludes individual single-stock instruments so Healthcare & Defensive examples are sector/diversified ETF instruments rather than individual company names. The Healthcare & Defensive finding presents candidates in per-sleeve subsections ordered by the most-underweight defensive sleeve first, with up to two examples per sleeve. User-facing cards should include the disclaimer chip: `Shown because category is underweighted - not a buy recommendation`.
+The candidate logic should not change internal scoring labels. It uses stored insight outputs and active universe data as inputs into portfolio-level gap findings. Category-remedy findings surface diversified funds where appropriate; `insufficient_defensive_exposure` excludes individual single-stock instruments so Defensive Sectors examples are sector/diversified ETF instruments rather than individual company names. The Defensive Sectors finding presents candidates in per-sleeve subsections ordered by the most-underweight defensive sleeve first, with up to two examples per sleeve. It excludes narrow healthcare sub-theme ETFs such as XBI, IBB, and ARKG from this defensive-sector finding, and it prefers broad defensive sector ETFs such as XLV/VHT, XLU/VPU, and XLP/VDC within their respective sleeves. Defensive candidate tooltips should use the candidate's sleeve category, such as Utilities, Consumer Staples, or Healthcare, rather than a generic defensive category. User-facing cards should include the disclaimer chip: `Shown because category is underweighted - not a buy recommendation`.
 
 The Portfolio Review page should use the following public language:
 
 - `Gap Analysis - Instruments in Underweighted Categories`
 - `Analytical Gap Summary`
 - `Gap findings`
-- `Healthcare & Defensive - Underweighted Category`
+- `Defensive Sectors - Underweighted Category`
 - `International Equity - Underweighted Category`
 
 The page should not present these outputs as recommendations to buy, sell, hold, review, or trade an instrument. Explanatory tooltips can show why an instrument appeared, using existing look-through exposure data and guardrail-pass status.
@@ -294,7 +294,7 @@ rankScore =
 - `confidenceScore`: `recommendation.confidenceScore`; falls back to 50.
 - `macroFitScore`: from recommendation scoring breakdown components `["macro_fit", "market_vision_alignment", "theme_alignment"]`; falls back to 50.
 
-Up to 5 candidates are returned per non-defensive gap finding, sorted by `rankScore` descending. On the Portfolio Review page, those already-selected candidates are displayed by category fit (`issueFitScore` descending, with `recommendationScore` as a tie-breaker) so broad/core instruments for the underweighted category appear first. For `insufficient_defensive_exposure`, candidates are selected by equity sector sleeve only: up to two Utilities, Consumer Staples, or Healthcare candidates per sleeve, with sleeve order following the same most-underweight role priority used for `issueFitScore`. Instrument quality remains visible as a per-card badge, but display order is category-intrinsic rather than a personalised ranking.
+Up to 5 candidates are returned per non-defensive gap finding, sorted by `rankScore` descending. On the Portfolio Review page, those already-selected candidates are displayed by category fit (`issueFitScore` descending, with `recommendationScore` as a tie-breaker) so broad/core instruments for the underweighted category appear first. For `insufficient_defensive_exposure`, candidates are selected by equity sector sleeve only: up to two Utilities, Consumer Staples, or Healthcare candidates per sleeve, with sleeve order following the same most-underweight role priority used for `issueFitScore`. Narrow healthcare sub-theme ETFs such as XBI, IBB, and ARKG are excluded from the Defensive Sectors finding, while broad sleeve representatives such as XLV/VHT, XLU/VPU, and XLP/VDC are preferred within the per-sleeve ordering. Instrument quality remains visible as a per-card badge, but display order is category-intrinsic rather than a personalised ranking.
 
 ## ETF Company-Level Overlap Detection (Gap Analysis)
 
