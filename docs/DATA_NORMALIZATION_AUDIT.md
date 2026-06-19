@@ -168,8 +168,8 @@ Current intended usage:
 
 Key implementation evidence:
 
-- `TaxonomyService` maps provider sectors and industries into canonical sectors/themes.
-- `MetadataRefreshService` stores raw provider payload while calculating canonical fields.
+- `TaxonomyService` derives canonical sector/themes **curated-authoritatively** (2026-06-19): for instruments in the alpha universe, ETF sector resolves from `ALPHA_ETF_CATEGORIES` (via an explicit `EtfCategory → canonical_sector` map) and stock sector from `ALPHA_STOCK_SECTORS`, taking precedence over provider sector/industry; provider sector/industry is used only as fallback for instruments outside the curated maps. Themes are an independent, additive layer (not derived from sector, not blanket-applied — `Global Diversification` only for genuinely global/ex-US categories), and sector is never inferred from a theme. See `docs/instrument-taxonomy-alpha-universe.md` → "Canonical Sector And Theme Derivation".
+- `MetadataRefreshService` stores raw provider payload while calculating canonical fields, and exposes a CRON-protected, override-respecting, idempotent taxonomy backfill (`backfillCanonicalTaxonomy`, via `/api/jobs/instrument-metadata-refresh?taxonomyBackfill=true`) that re-normalizes active rows without refetching provider metadata.
 - `UniverseManagementService` seeds ETFVision-owned `asset_category` and `etf_category`.
 - `PortfolioExposureContextService` prefers look-through sector rows over direct metadata fallback.
 - `PortfolioLookthroughExposureService` uses ETF sector exposure where available and records diagnostics when fallback is needed.
