@@ -1,3 +1,40 @@
+## 2026-06-19 - International Gap Subsection Presentation
+
+### Source
+Claude Code
+
+### Objective
+Present the Portfolio Review International Equity gap finding as per-sub-role subsections instead of a flat one-per-role candidate list.
+
+### Files Changed
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `src/application/services/portfolioReview/gapCandidateDisplay.ts`
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- International Equity candidate selection now returns up to two representatives per ex-US sub-role: Broad ex-US, Developed markets, and Emerging markets.
+- Added International grouping helpers that mirror the Defensive Sectors subsection presentation.
+- The Portfolio Review page now renders International candidates through the same grouped card path used by Defensive Sectors, with Broad ex-US framed as the all-in-one option.
+- IXUS now routes to `international_equity` and SPDW routes to `developed_international_equity`; VT, ACWI, and IOO remain excluded as global-including-US candidates.
+- No section-score, scoring formula, trigger, or disclaimer wording changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (312/312)
+
+### Result
+Completed.
+
+### Notes for Claude
+- This supersedes the prior flat 1-per-role International display with per-sub-role subsections while preserving the same category-remedy intent.
+- Stored Portfolio Review reports must be regenerated from the Admin panel before the UI reflects this updated grouping.
+
 ## 2026-06-19 - Portfolio Review Polish Items
 
 ### Source

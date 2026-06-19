@@ -20,7 +20,13 @@ import type {
 import type { PortfolioLookthroughExposure, PortfolioLookthroughHolding, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
 import { assessmentLabel } from "@/application/services/recommendations/recommendationPresentation";
-import { compareGapCandidatesByCategoryFit, defensiveGapTooltipCategory, groupDefensiveGapCandidates } from "@/application/services/portfolioReview/gapCandidateDisplay";
+import {
+  compareGapCandidatesByCategoryFit,
+  defensiveGapTooltipCategory,
+  groupDefensiveGapCandidates,
+  groupInternationalGapCandidates,
+  internationalGapTooltipCategory
+} from "@/application/services/portfolioReview/gapCandidateDisplay";
 import { portfolioReviewMetricLabel, sharedCompanyDisplayName } from "@/application/services/portfolioReview/portfolioReviewDisplay";
 
 type PortfolioReviewPageProps = {
@@ -100,7 +106,7 @@ function exposureWeight(rows: PortfolioLookthroughExposure[], name: string) {
 function gapCategoryForTooltip(suggestion: PortfolioImprovementSuggestion, candidate: PortfolioReviewCandidate) {
   const title = sanitizeGapText(suggestion.title) ?? suggestion.title;
   if (suggestion.issueCategory === "insufficient_defensive_exposure" || title.includes("Defensive Sectors")) return defensiveGapTooltipCategory(candidate);
-  if (suggestion.issueCategory === "insufficient_international_exposure" || title.includes("International Equity")) return "International equity";
+  if (suggestion.issueCategory === "insufficient_international_exposure" || title.includes("International Equity")) return internationalGapTooltipCategory(candidate);
   return candidate.diversificationType?.replace(/ sector$/i, "") ?? title.replace(" — Underweighted Category", "");
 }
 
@@ -358,7 +364,12 @@ function Suggestions({ suggestions, lookthrough }: { suggestions: PortfolioImpro
           const candidates = Array.isArray(suggestion.candidateInstruments) ? suggestion.candidateInstruments : [];
           const sortedCandidates = [...candidates].sort(compareGapCandidatesByCategoryFit);
           const isDefensiveGap = suggestion.issueCategory === "insufficient_defensive_exposure";
-          const defensiveGroups = isDefensiveGap ? groupDefensiveGapCandidates(candidates) : [];
+          const isInternationalGap = suggestion.issueCategory === "insufficient_international_exposure";
+          const candidateGroups = isDefensiveGap
+            ? groupDefensiveGapCandidates(candidates)
+            : isInternationalGap
+              ? groupInternationalGapCandidates(candidates)
+              : [];
           const title = sanitizeGapText(suggestion.title) ?? suggestion.title;
           const renderCandidate = (candidate: PortfolioReviewCandidate, candidateIndex: number) => {
             const tooltip = whyThisAppearedText(suggestion, candidate, lookthrough);
@@ -468,9 +479,10 @@ function Suggestions({ suggestions, lookthrough }: { suggestions: PortfolioImpro
             ) : null}
             {candidates.length > 0 ? (
               <div className="mt-3 grid gap-2">
-                {isDefensiveGap ? defensiveGroups.map((group) => (
+                {candidateGroups.length > 0 ? candidateGroups.map((group) => (
                   <div key={`${suggestion.title}-${group.key}`} className="space-y-2 rounded-md border border-dashed p-2">
                     <p className="text-xs font-medium text-slate-700">{group.label}</p>
+                    {group.note ? <p className="text-[10px] text-muted-foreground">{group.note}</p> : null}
                     <div className="grid gap-2">
                       {group.candidates.map((candidate, candidateIndex) => renderCandidate(candidate, candidateIndex))}
                     </div>

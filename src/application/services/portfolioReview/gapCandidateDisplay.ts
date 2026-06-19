@@ -11,6 +11,7 @@ export type DefensiveGapCandidateGroupInput = {
 export type DefensiveGapCandidateGroup<T> = {
   key: string;
   label: string;
+  note?: string;
   candidates: T[];
 };
 
@@ -54,4 +55,40 @@ export function groupDefensiveGapCandidates<T extends DefensiveGapCandidateGroup
     group.candidates.push(candidate);
   }
   return groups;
+}
+
+function internationalSleeveKey(candidate: DefensiveGapCandidateGroupInput) {
+  const type = candidate.diversificationType?.toLowerCase() ?? "";
+  if (type.includes("developed international")) {
+    return { key: "developed_international", label: "Developed markets" };
+  }
+  if (type.includes("emerging-market") || type.includes("emerging market")) {
+    return { key: "emerging_markets", label: "Emerging markets" };
+  }
+  if (type.includes("international equity")) {
+    return {
+      key: "broad_ex_us",
+      label: "Broad ex-US (all regions)",
+      note: "This group is the all-in-one ex-US option; developed and emerging groups below are regional building blocks."
+    };
+  }
+  return { key: "other_international", label: "Other international" };
+}
+
+export function internationalGapTooltipCategory(candidate: DefensiveGapCandidateGroupInput) {
+  return internationalSleeveKey(candidate).label;
+}
+
+export function groupInternationalGapCandidates<T extends DefensiveGapCandidateGroupInput>(candidates: T[]) {
+  const priority = ["broad_ex_us", "developed_international", "emerging_markets", "other_international"];
+  const groups = new Map<string, DefensiveGapCandidateGroup<T>>();
+  for (const candidate of candidates) {
+    const sleeve = internationalSleeveKey(candidate);
+    const group = groups.get(sleeve.key) ?? { ...sleeve, candidates: [] };
+    group.candidates.push(candidate);
+    groups.set(sleeve.key, group);
+  }
+  return priority
+    .map((key) => groups.get(key))
+    .filter((group): group is DefensiveGapCandidateGroup<T> => Boolean(group));
 }

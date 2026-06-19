@@ -2,6 +2,36 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - International Gap Subsection Presentation QA
+
+Scope:
+- Verify the International Equity gap renders as Broad ex-US, Developed markets, and Emerging markets subsections with up to two candidates per group.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| International Equity previously showed a flat one-per-role list, hiding useful second representatives within each ex-US sub-role | Fixed; candidates are grouped into per-sub-role subsections with up to two representatives each |
+| Total ex-US funds could read as additive peers beside developed and emerging regional funds | Fixed; the Broad ex-US subsection includes an all-in-one note |
+| IXUS and SPDW required explicit ex-US role routing for the grouped presentation | Fixed; IXUS routes to total ex-US and SPDW routes to developed ex-US |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| International candidates group as Broad ex-US, Developed markets, Emerging markets | PASS |
+| Each International group contains no more than two candidates | PASS |
+| Broad ex-US includes VXUS and IXUS; Developed includes VEA and SPDW | PASS |
+| Global-including-US and country/dividend candidates remain excluded | PASS |
+| Defensive grouping remains unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (312/312) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports reflect the grouped International presentation.
+
 ## 2026-06-19 SGT - Portfolio Review Polish Items QA
 
 Scope:

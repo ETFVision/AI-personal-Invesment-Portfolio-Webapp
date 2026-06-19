@@ -140,8 +140,8 @@ export function candidateRole(instrument: Instrument): CandidateRole {
   const classification = instrument.treasuryClassification?.toLowerCase() ?? "";
   const creditQuality = instrument.creditQuality?.toLowerCase() ?? "";
 
-  if (["VXUS"].includes(symbol)) return "international_equity";
-  if (["VEA"].includes(symbol)) return "developed_international_equity";
+  if (["VXUS", "IXUS"].includes(symbol)) return "international_equity";
+  if (["VEA", "SPDW"].includes(symbol)) return "developed_international_equity";
   if (["VWO", "IEMG"].includes(symbol)) return "emerging_market_equity";
   if (["VT", "ACWI"].includes(symbol)) return "global_equity";
   if (["BNDX"].includes(symbol)) return "international_bond";
@@ -475,7 +475,7 @@ function rankedCandidates(context: PortfolioReviewInputContext, issueContext: Su
     .slice(0, limit);
 }
 
-function rankedInternationalCandidates(context: PortfolioReviewInputContext, issueContext: SuggestionContext) {
+function rankedInternationalCandidates(context: PortfolioReviewInputContext, issueContext: SuggestionContext, perRoleLimit = 2) {
   const recs = recommendationMap(context.recommendations);
   const byRole = new Map<CandidateRole, PortfolioReviewCandidate[]>();
   for (const instrument of context.instruments) {
@@ -488,9 +488,11 @@ function rankedInternationalCandidates(context: PortfolioReviewInputContext, iss
     byRole.set(role, candidates);
   }
   return exUsInternationalCandidateRoles
-    .map((role) => (byRole.get(role) ?? [])
-      .sort((left, right) => categoryRemedyCandidateRankScore(right) - categoryRemedyCandidateRankScore(left))[0])
-    .filter((item): item is PortfolioReviewCandidate => Boolean(item));
+    .flatMap((role) =>
+      (byRole.get(role) ?? [])
+        .sort((left, right) => categoryRemedyCandidateRankScore(right) - categoryRemedyCandidateRankScore(left))
+        .slice(0, perRoleLimit)
+    );
 }
 
 function rankedDefensiveCandidates(context: PortfolioReviewInputContext, issueContext: SuggestionContext, perSleeveLimit = 2) {

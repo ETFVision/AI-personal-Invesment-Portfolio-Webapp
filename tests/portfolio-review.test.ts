@@ -15,7 +15,13 @@ import { RecommendationAlignmentReviewService } from "../src/application/service
 import { GeographyReviewService } from "../src/application/services/portfolioReview/GeographyReviewService";
 import { DiversificationReviewService } from "../src/application/services/portfolioReview/DiversificationReviewService";
 import { portfolioReviewConfidenceScore } from "../src/application/services/portfolioReview/PortfolioReviewService";
-import { compareGapCandidatesByCategoryFit, defensiveGapTooltipCategory, groupDefensiveGapCandidates } from "../src/application/services/portfolioReview/gapCandidateDisplay";
+import {
+  compareGapCandidatesByCategoryFit,
+  defensiveGapTooltipCategory,
+  groupDefensiveGapCandidates,
+  groupInternationalGapCandidates,
+  internationalGapTooltipCategory
+} from "../src/application/services/portfolioReview/gapCandidateDisplay";
 import { portfolioReviewMetricLabel, sharedCompanyDisplayName } from "../src/application/services/portfolioReview/portfolioReviewDisplay";
 import { weightedPortfolioScore } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import type { PortfolioReviewInputContext } from "../src/application/services/portfolioReview/portfolioReviewScoring";
@@ -752,8 +758,8 @@ test("gap candidate display comparator orders by category fit before instrument 
   assert.deepEqual(ordered.map((candidate) => candidate.symbol), ["VEA", "VXUS", "DXJ"]);
 });
 
-test("international gap candidates lead with one core representative per ex-US sub-role", () => {
-  const symbols = ["DXJ", "SCHY", "IDV", "JPXN", "EWJ", "HEFA", "EMXC", "IOO", "VT", "ACWI", "VXUS", "VEA", "SCHF", "VWO", "EEM", "IEMG"];
+test("international gap candidates group up to two core representatives per ex-US sub-role", () => {
+  const symbols = ["DXJ", "SCHY", "IDV", "JPXN", "EWJ", "HEFA", "EMXC", "IOO", "VT", "ACWI", "VXUS", "IXUS", "VEA", "SPDW", "SCHF", "VWO", "EEM", "IEMG"];
   const instruments = symbols.map((symbol) =>
     instrument({
       id: symbol.toLowerCase(),
@@ -818,10 +824,20 @@ test("international gap candidates lead with one core representative per ex-US s
   const displaySymbols = [...(internationalSuggestion?.candidateInstruments ?? [])]
     .sort(compareGapCandidatesByCategoryFit)
     .map((candidate) => candidate.symbol);
+  const groups = groupInternationalGapCandidates(internationalSuggestion?.candidateInstruments ?? []);
 
-  assert.deepEqual(selectedSymbols, ["VXUS", "VEA", "VWO"]);
-  assert.deepEqual(displaySymbols, ["VXUS", "VEA", "VWO"]);
-  assert.equal(selectedSymbols.some((symbol) => ["SCHF", "EEM", "IEMG", "HEFA", "EMXC", "IOO", "VT", "ACWI", "DXJ", "SCHY", "IDV", "JPXN", "EWJ"].includes(symbol)), false);
+  assert.deepEqual(selectedSymbols, ["VXUS", "IXUS", "VEA", "SPDW", "VWO", "EEM"]);
+  assert.deepEqual(displaySymbols, ["VXUS", "IXUS", "VEA", "SPDW", "VWO", "EEM"]);
+  assert.deepEqual(groups.map((group) => group.label), ["Broad ex-US (all regions)", "Developed markets", "Emerging markets"]);
+  assert.deepEqual(groups.map((group) => group.candidates.length), [2, 2, 2]);
+  assert.deepEqual(groups[0]?.candidates.map((candidate) => candidate.symbol), ["VXUS", "IXUS"]);
+  assert.deepEqual(groups[1]?.candidates.map((candidate) => candidate.symbol), ["VEA", "SPDW"]);
+  assert.deepEqual(groups[2]?.candidates.map((candidate) => candidate.symbol), ["VWO", "EEM"]);
+  assert.match(groups[0]?.note ?? "", /all-in-one ex-US option/);
+  assert.equal(selectedSymbols.some((symbol) => ["IEMG", "HEFA", "EMXC", "IOO", "VT", "ACWI", "DXJ", "SCHY", "IDV", "JPXN", "EWJ"].includes(symbol)), false);
+  assert.equal(candidateRole(instrument({ id: "ixus", symbol: "IXUS", name: "iShares Core MSCI Total International Stock ETF", assetClass: "etf", instrumentType: "etf" })), "international_equity");
+  assert.equal(candidateRole(instrument({ id: "spdw", symbol: "SPDW", name: "SPDR Portfolio Developed World ex-US ETF", assetClass: "etf", instrumentType: "etf" })), "developed_international_equity");
+  assert.equal(candidateRole(instrument({ id: "vt", symbol: "VT", name: "Vanguard Total World Stock ETF", assetClass: "etf", instrumentType: "etf" })), "global_equity");
 
   const tieredDisplayOrder = [
     { symbol: "DXJ", categoryRepresentativeScore: 0, issueFitScore: 100, recommendationScore: 96 },
@@ -901,6 +917,23 @@ test("defensive gap tooltip categories follow the candidate sleeve", () => {
   assert.equal(defensiveGapTooltipCategory({ diversificationType: "Defensive utilities" }), "Utilities");
   assert.equal(defensiveGapTooltipCategory({ diversificationType: "Defensive consumer staples" }), "Consumer Staples");
   assert.equal(defensiveGapTooltipCategory({ diversificationType: "Healthcare defensive sector" }), "Healthcare");
+});
+
+test("international gap display grouping buckets sub-roles and tooltip categories", () => {
+  const groups = groupInternationalGapCandidates([
+    { symbol: "VWO", diversificationType: "Emerging-market equity" },
+    { symbol: "VXUS", diversificationType: "International equity" },
+    { symbol: "VEA", diversificationType: "Developed international equity" },
+    { symbol: "IXUS", diversificationType: "International equity" }
+  ]);
+
+  assert.deepEqual(groups.map((group) => group.label), ["Broad ex-US (all regions)", "Developed markets", "Emerging markets"]);
+  assert.deepEqual(groups[0]?.candidates.map((candidate) => candidate.symbol), ["VXUS", "IXUS"]);
+  assert.deepEqual(groups[1]?.candidates.map((candidate) => candidate.symbol), ["VEA"]);
+  assert.deepEqual(groups[2]?.candidates.map((candidate) => candidate.symbol), ["VWO"]);
+  assert.equal(internationalGapTooltipCategory({ diversificationType: "International equity" }), "Broad ex-US (all regions)");
+  assert.equal(internationalGapTooltipCategory({ diversificationType: "Developed international equity" }), "Developed markets");
+  assert.equal(internationalGapTooltipCategory({ diversificationType: "Emerging-market equity" }), "Emerging markets");
 });
 
 test("improvement suggestions map concentration issues to diversifying candidates", () => {
