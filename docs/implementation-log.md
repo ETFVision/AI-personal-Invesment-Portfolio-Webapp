@@ -1,3 +1,43 @@
+## 2026-06-19 - Defensive Gap Sleeve-Aware Role Priority
+
+### Source
+Claude Code
+
+### Objective
+Make the Portfolio Review `insufficient_defensive_exposure` gap finding prioritize the most-underweight defensive sector sleeve in look-through exposure.
+
+### Files Changed
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `utilitiesWeight` and `consumerStaplesWeight` to `SuggestionContext`, populated from look-through sector exposures using the same pattern as `healthcareWeight`.
+- Extracted `buildPortfolioImprovementSuggestionContext()` so context construction remains shared by runtime code and tests.
+- Made `rolePriority("insufficient_defensive_exposure", context)` sort healthcare, utilities, and consumer staples roles by lowest sleeve weight first, with deterministic healthcare -> utilities -> consumer staples tie order.
+- Preserved the existing stock exclusion for defensive candidates, the service candidate selection mechanics, section scores, and other finding triggers.
+- Updated the defensive gap rationale to state the measured sleeve weights factually.
+- Added tests for sleeve ordering, tie determinism, context weights, and higher `issueFitScore` for the most-underweight sleeve.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (298/298)
+
+### Result
+Completed.
+
+### Notes for Claude
+- Example sleeve order when healthcare is 12.0%, utilities is 0.0%, and consumer staples is 4.0%: utilities_defensive -> consumer_staples_defensive -> healthcare_defensive -> short_treasury_cash_like -> core_us_bond.
+- With utilities most underweight, XLU receives higher `issueFitScore` than XLP, which receives higher `issueFitScore` than XLV in the regression test.
+- This is sub-category-level observational targeting only; no score, trigger, buy/sell language, or position sizing logic changed.
+- Visible utilities/staples breadth remains limited until the separate #ETF-TAXONOMY task fixes sector ETF classification/routing.
+- Portfolio Review must be re-run from the Admin panel to regenerate stored report output.
+
+---
 ## 2026-06-19 - Gap Analysis Defensive ETF Examples and Category-Fit Display Order
 
 ### Source

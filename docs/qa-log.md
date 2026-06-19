@@ -2,6 +2,37 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Defensive Gap Sleeve-Aware Role Priority QA
+
+Scope:
+- Verify the Portfolio Review `insufficient_defensive_exposure` gap finding prioritizes the most-underweight defensive sector sleeve rather than using a static healthcare-first role order.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Defensive gap ordering always led with healthcare even when healthcare already had look-through exposure and utilities had none | Fixed; healthcare, utilities, and consumer staples roles are ordered by lowest sleeve weight first |
+| `SuggestionContext` only carried healthcare defensive sleeve weight | Fixed; it now also carries `utilitiesWeight` and `consumerStaplesWeight` |
+| Equal or missing defensive sleeve weights needed deterministic behavior | Preserved; tie order remains healthcare -> utilities -> consumer staples |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Healthcare 12.0%, utilities 0.0%, consumer staples 4.0% orders roles utilities -> consumer staples -> healthcare -> short treasury -> core bond | PASS |
+| Utilities-most-underweight scenario gives XLU higher `issueFitScore` than XLP and XLV | PASS |
+| Equal/absent sleeve weights preserve default healthcare -> utilities -> consumer staples order | PASS |
+| `SuggestionContext` exposes `utilitiesWeight` and `consumerStaplesWeight` from look-through sector exposures | PASS |
+| Existing international, crypto, concentration, macro, and fixed-income gap tests still pass | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (298/298) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports.
+- Visible utilities/staples candidate breadth remains limited until the separate #ETF-TAXONOMY classification/routing task lands.
+
 ## 2026-06-19 SGT - Gap Analysis Defensive ETF Examples and Category-Fit Ordering QA
 
 Scope:

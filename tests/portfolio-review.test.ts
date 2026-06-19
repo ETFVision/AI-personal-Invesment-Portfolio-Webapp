@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PortfolioImprovementSuggestionService } from "../src/application/services/portfolioReview/PortfolioImprovementSuggestionService";
+import {
+  buildPortfolioImprovementSuggestionContext,
+  PortfolioImprovementSuggestionService,
+  rolePriority
+} from "../src/application/services/portfolioReview/PortfolioImprovementSuggestionService";
 import { PortfolioActionSuggestionService } from "../src/application/services/portfolioReview/PortfolioActionSuggestionService";
 import { AllocationReviewService } from "../src/application/services/portfolioReview/AllocationReviewService";
 import { ConcentrationReviewService } from "../src/application/services/portfolioReview/ConcentrationReviewService";
@@ -452,9 +456,91 @@ test("defensive gap candidates surface diversified ETFs and exclude single stock
   const symbols = defensiveSuggestion?.candidateInstruments.map((candidate) => candidate.symbol) ?? [];
 
   assert.ok(defensiveSuggestion);
-  assert.deepEqual(symbols, ["XLV", "VHT", "XLU", "XLP"]);
+  assert.deepEqual(new Set(symbols), new Set(["XLV", "VHT", "XLU", "XLP"]));
   assert.ok(defensiveSuggestion.candidateInstruments.every((candidate) => candidate.assetClass !== "stock"));
   assert.ok(!symbols.some((symbol) => ["ISRG", "AMGN", "GILD", "BMY", "PFE"].includes(symbol)));
+});
+
+test("defensive gap role priority follows the most-underweight defensive sleeve", () => {
+  const issueContext = buildPortfolioImprovementSuggestionContext(context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.4, directWeight: 0.4, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.12, directWeight: 0.12, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Utilities", exposureWeight: 0, directWeight: 0, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Consumer Staples", exposureWeight: 0.04, directWeight: 0.04, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    }
+  }));
+
+  assert.equal(issueContext.utilitiesWeight, 0);
+  assert.equal(issueContext.consumerStaplesWeight, 0.04);
+  assert.deepEqual(rolePriority("insufficient_defensive_exposure", issueContext), [
+    "utilities_defensive",
+    "consumer_staples_defensive",
+    "healthcare_defensive",
+    "short_treasury_cash_like",
+    "core_us_bond"
+  ]);
+});
+
+test("defensive gap tie ordering remains deterministic when sleeve weights are absent", () => {
+  const issueContext = buildPortfolioImprovementSuggestionContext(context());
+
+  assert.equal(issueContext.healthcareWeight, 0);
+  assert.equal(issueContext.utilitiesWeight, 0);
+  assert.equal(issueContext.consumerStaplesWeight, 0);
+  assert.deepEqual(rolePriority("insufficient_defensive_exposure", issueContext), [
+    "healthcare_defensive",
+    "utilities_defensive",
+    "consumer_staples_defensive",
+    "short_treasury_cash_like",
+    "core_us_bond"
+  ]);
+});
+
+test("defensive gap assigns higher issue fit to the most-underweight sleeve", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.4, directWeight: 0.4, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.12, directWeight: 0.12, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Utilities", exposureWeight: 0, directWeight: 0, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Consumer Staples", exposureWeight: 0.04, directWeight: 0.04, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    instruments: [
+      instrument({ id: "xlv", symbol: "XLV", name: "Health Care Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
+      instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] }),
+      instrument({ id: "xlp", symbol: "XLP", name: "Consumer Staples Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Consumer Staples", canonicalThemes: ["Defensive Consumer"] })
+    ]
+  }));
+  const defensiveSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure");
+  const utilitiesCandidate = defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLU");
+  const staplesCandidate = defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLP");
+  const healthcareCandidate = defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV");
+
+  assert.ok(utilitiesCandidate);
+  assert.ok(staplesCandidate);
+  assert.ok(healthcareCandidate);
+  assert.ok((utilitiesCandidate.issueFitScore ?? 0) > (staplesCandidate.issueFitScore ?? 0));
+  assert.ok((staplesCandidate.issueFitScore ?? 0) > (healthcareCandidate.issueFitScore ?? 0));
 });
 
 test("gap candidate display comparator orders by category fit before instrument quality", () => {

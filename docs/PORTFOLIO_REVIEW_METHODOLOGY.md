@@ -154,6 +154,8 @@ Instruments with recommendation labels `"Reduce"`, `"Sell"`, `"Insufficient Data
 | `dominantSectorWeight` | Weight of the dominant sector (0–1) | |
 | `technologyWeight` | Look-through technology sector weight (0–1) | |
 | `healthcareWeight` | Look-through healthcare sector weight (0–1) | |
+| `utilitiesWeight` | Look-through utilities sector weight (0–1) | |
+| `consumerStaplesWeight` | Look-through consumer staples sector weight (0–1) | |
 | `usExposure` | Look-through US country weight; 0 if unavailable | |
 | `internationalExposure` | `max(0, 1 − usExposure)` | |
 | `bondAllocation` | `bondReport.totalBondAllocation` | |
@@ -258,13 +260,14 @@ This represents the top non-ETF look-through positions by combined direct + indi
 | `insufficient_international_exposure` | international_equity → developed_international_equity → emerging_market_equity → global_equity → international_bond |
 | `insufficient_fixed_income` | core_us_bond → international_bond → intermediate_treasury → short_treasury_cash_like → tips_inflation_linked → long_duration_treasury → investment_grade_credit |
 | `insufficient_inflation_hedge` | gold_hedge → tips_inflation_linked → energy_inflation_equity |
-| `insufficient_defensive_exposure` | healthcare_defensive → utilities_defensive → consumer_staples_defensive → short_treasury_cash_like → core_us_bond |
+| `insufficient_defensive_exposure` | healthcare_defensive / utilities_defensive / consumer_staples_defensive ordered by lowest look-through sleeve weight first, with deterministic tie order healthcare → utilities → consumer_staples, then short_treasury_cash_like → core_us_bond |
 | `concentration_risk` | international_equity → developed_international_equity → core_us_bond → gold_hedge → intermediate_treasury → international_bond |
 | `excessive_crypto_risk` | short_treasury_cash_like → core_us_bond → gold_hedge |
 | `macro_vulnerability` | gold_hedge → tips_inflation_linked → intermediate_treasury → healthcare_defensive → utilities_defensive → consumer_staples_defensive |
 
 Additional `issueFit` blocking rules:
 - `insufficient_defensive_exposure`: single-stock instruments are blocked (`issueFit = 0`) so defensive examples come from diversified healthcare, utilities, consumer staples, bond, or cash-like instruments.
+- `insufficient_defensive_exposure`: the three defensive sector roles are sub-category-gap-aware. The role with the lowest current look-through sleeve weight receives the highest `issueFitScore`; this is observational sector-sleeve measurement, not a personalised security ranking.
 - `concentration_risk`: single-stock instruments and instruments in the same dominant sector as the portfolio are blocked (`issueFit = 0`).
 - `excessive_crypto_risk`: instruments with `assetClass` in `["cash_proxy", "bond_etf", "gold_etf"]` receive a minimum fit of 24 even if not in the role priority list.
 - `macro_vulnerability`: instruments with themes "defensive", "inflation hedge", or "recession hedge" receive a minimum fit of 24 even if not in the role priority list.
