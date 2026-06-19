@@ -2,6 +2,35 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Gap Analysis Defensive ETF Examples and Category-Fit Ordering QA
+
+Scope:
+- Verify Portfolio Review Gap Analysis avoids single-stock examples in the Healthcare & Defensive underweighted category and displays candidate cards by category fit.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Healthcare & Defensive gap could surface individual healthcare stocks such as ISRG, AMGN, GILD, BMY, and PFE under an underweighted-category framing | Fixed; `insufficient_defensive_exposure` now blocks stock instruments and surfaces diversified defensive/sector ETFs such as XLV, VHT, XLU, and XLP |
+| Gap candidate cards were ordered by standalone instrument quality, making narrower high-quality instruments appear ahead of broader category-fit instruments | Fixed; display order now uses `issueFitScore` first and `recommendationScore` only as tie-breaker |
+| The UI chip said `Ordered by: Instrument quality`, which could read like a ranked pick list | Fixed; chip now reads `Ordered by: Category fit` and supporting copy describes category-intrinsic ordering |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Defensive gap test with XLV/VHT/XLU/XLP and ISRG/AMGN/GILD/BMY/PFE returns only ETFs | PASS |
+| Display comparator orders higher category-fit/lower-quality candidates above lower-fit/higher-quality candidates | PASS |
+| International and crypto gap tests still emit existing candidates | PASS |
+| XLV, VHT, XLU, and XLP are present in the seeded universe and default active | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (295/295) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports and verify the live Healthcare & Defensive finding shows diversified ETF examples and category-fit display order.
+
 ## 2026-06-19 SGT - Insight Alignment Score Cap and Coverage Display QA
 
 Scope:

@@ -20,6 +20,7 @@ import type {
 import type { PortfolioLookthroughExposure, PortfolioLookthroughHolding, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
 import { assessmentLabel } from "@/application/services/recommendations/recommendationPresentation";
+import { compareGapCandidatesByCategoryFit } from "@/application/services/portfolioReview/gapCandidateDisplay";
 
 type PortfolioReviewPageProps = {
   searchParams?: Promise<{
@@ -349,16 +350,14 @@ function Suggestions({ suggestions, lookthrough }: { suggestions: PortfolioImpro
     <Card>
       <CardHeader>
         <CardTitle>Gap Analysis — Instruments in Underweighted Categories</CardTitle>
-        <CardDescription>Instruments below pass all guardrail filters and belong to an underweighted category. Ordered by instrument quality score only. Portfolio impact indicators are factual observations {"\u2014"} not a recommendation to buy, sell, or hold.</CardDescription>
+        <CardDescription>Instruments below pass all guardrail filters and belong to an underweighted category. Ordered by how closely each instrument matches the underweighted category; this reflects the category, not your specific holdings. Portfolio impact indicators are factual observations {"\u2014"} not a recommendation to buy, sell, or hold.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {safeSuggestions.length === 0 ? (
           <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No gap finding generated for the latest review.</p>
         ) : safeSuggestions.map((suggestion) => {
           const candidates = Array.isArray(suggestion.candidateInstruments) ? suggestion.candidateInstruments : [];
-          const sortedCandidates = [...candidates].sort(
-            (a, b) => (b.recommendationScore ?? 0) - (a.recommendationScore ?? 0)
-          );
+          const sortedCandidates = [...candidates].sort(compareGapCandidatesByCategoryFit);
           const title = sanitizeGapText(suggestion.title) ?? suggestion.title;
           return <div key={`${suggestion.category}-${suggestion.title}`} className="rounded-md border p-4">
             <div className="flex flex-wrap items-center gap-2">
@@ -387,8 +386,8 @@ function Suggestions({ suggestions, lookthrough }: { suggestions: PortfolioImpro
               <div className="mt-3 flex flex-wrap justify-between gap-3 border-t pt-2">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[10px] uppercase text-muted-foreground">Ordered by:</span>
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">Instrument quality</span>
-                  <span className="text-[10px] text-muted-foreground">universal {"\u00b7"} not portfolio-specific</span>
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">Category fit</span>
+                  <span className="text-[10px] text-muted-foreground">category-relevant {"\u00b7"} not portfolio-specific</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[10px] uppercase text-muted-foreground">Impact indicators:</span>

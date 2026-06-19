@@ -1,3 +1,43 @@
+## 2026-06-19 - Gap Analysis Defensive ETF Examples and Category-Fit Display Order
+
+### Source
+Claude Code
+
+### Objective
+Improve Portfolio Review Gap Analysis candidate examples by excluding single stocks from the Healthcare & Defensive gap and displaying selected candidates by category fit rather than standalone instrument quality.
+
+### Files Changed
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `src/application/services/portfolioReview/gapCandidateDisplay.ts`
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added a stock exclusion guard for `insufficient_defensive_exposure` issue fit so Healthcare & Defensive candidate examples come from diversified ETFs/funds rather than individual healthcare stocks.
+- Added a pure `compareGapCandidatesByCategoryFit()` helper that sorts already-selected candidate cards by `issueFitScore` descending and then `recommendationScore` descending.
+- Updated the Portfolio Review Gap Analysis card description and "Ordered by" chip from `Instrument quality` to `Category fit` while keeping the per-card Quality badge.
+- Added tests for defensive ETF-only candidates and category-fit display sorting.
+- Updated Portfolio Review methodology to document defensive stock exclusion and display ordering.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (295/295)
+
+### Result
+Completed.
+
+### Notes for Claude
+- Verified XLV, VHT, XLU, and XLP are present in the seeded universe and default active.
+- Defensive gap examples move from single-stock names such as ISRG, AMGN, GILD, BMY, and PFE to diversified sector ETFs such as XLV, VHT, XLU, and XLP after a fresh Portfolio Review run.
+- Candidate selection still occurs in the service via `candidateRankScore`; this task changes display order for the selected cards to category-intrinsic fit.
+- Portfolio Review must be re-run from the Admin panel to regenerate stored report output.
+
+---
 ## 2026-06-19 - Insight Alignment Score Cap and Coverage Display
 
 ### Source

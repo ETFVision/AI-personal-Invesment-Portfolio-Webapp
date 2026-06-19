@@ -174,7 +174,10 @@ function issueFit(instrument: Instrument, issueCategory: PortfolioImprovementIss
   if (issueCategory === "insufficient_inflation_hedge") return roleFit(role, issueCategory, context) || (instrument.assetClass === "gold_etf" || themes.includes("inflation hedge") ? 35 : 0);
   if (issueCategory === "insufficient_geopolitical_hedge") return roleFit(role, issueCategory, context) || (instrument.assetClass === "gold_etf" || themes.includes("recession hedge") ? 30 : 0);
   if (issueCategory === "insufficient_international_exposure") return roleFit(role, issueCategory, context);
-  if (issueCategory === "insufficient_defensive_exposure") return roleFit(role, issueCategory, context) || (instrumentIsDefensiveDiversifier(instrument) ? 24 : 0);
+  if (issueCategory === "insufficient_defensive_exposure") {
+    if (instrument.assetClass === "stock") return 0;
+    return roleFit(role, issueCategory, context) || (instrumentIsDefensiveDiversifier(instrument) ? 24 : 0);
+  }
   if (issueCategory === "sector_concentration" || issueCategory === "theme_concentration") {
     if (instrumentIsSameDominantSector(instrument, context)) return 0;
     if (context.dominantSector === "Technology" && sector === "technology") return 0;

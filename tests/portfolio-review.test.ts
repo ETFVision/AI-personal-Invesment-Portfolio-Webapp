@@ -8,6 +8,7 @@ import { PortfolioRiskReviewService } from "../src/application/services/portfoli
 import { MacroFitReviewService } from "../src/application/services/portfolioReview/MacroFitReviewService";
 import { RecommendationAlignmentReviewService } from "../src/application/services/portfolioReview/RecommendationAlignmentReviewService";
 import { portfolioReviewConfidenceScore } from "../src/application/services/portfolioReview/PortfolioReviewService";
+import { compareGapCandidatesByCategoryFit } from "../src/application/services/portfolioReview/gapCandidateDisplay";
 import { weightedPortfolioScore } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import type { PortfolioReviewInputContext } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import { PortfolioLookthroughExposureService } from "../src/application/services/etfLookthrough/PortfolioLookthroughExposureService";
@@ -424,6 +425,46 @@ test("improvement suggestions only include approved non-reduce candidates", () =
   assert.ok(!candidates.some((candidate) => candidate.symbol === "HYG"));
   const fixedIncomeSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_fixed_income");
   assert.match(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BND")?.primaryReason ?? "", /provides exposure to fixed income where bond allocation is 0\.0%/);
+});
+
+test("defensive gap candidates surface diversified ETFs and exclude single stocks", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationBySector: [
+        { label: "Technology", value: 40, percent: 0.4 },
+        { label: "Healthcare", value: 5, percent: 0.05 }
+      ]
+    },
+    instruments: [
+      instrument({ id: "xlv", symbol: "XLV", name: "Health Care Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
+      instrument({ id: "vht", symbol: "VHT", name: "Vanguard Health Care ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
+      instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] }),
+      instrument({ id: "xlp", symbol: "XLP", name: "Consumer Staples Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Consumer Staples", canonicalThemes: ["Defensive Consumer"] }),
+      instrument({ id: "isrg", symbol: "ISRG", name: "Intuitive Surgical", assetClass: "stock", instrumentType: "stock", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
+      instrument({ id: "amgn", symbol: "AMGN", name: "Amgen", assetClass: "stock", instrumentType: "stock", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare"] }),
+      instrument({ id: "gild", symbol: "GILD", name: "Gilead Sciences", assetClass: "stock", instrumentType: "stock", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare"] }),
+      instrument({ id: "bmy", symbol: "BMY", name: "Bristol Myers Squibb", assetClass: "stock", instrumentType: "stock", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare"] }),
+      instrument({ id: "pfe", symbol: "PFE", name: "Pfizer", assetClass: "stock", instrumentType: "stock", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare"] })
+    ]
+  }));
+  const defensiveSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure");
+  const symbols = defensiveSuggestion?.candidateInstruments.map((candidate) => candidate.symbol) ?? [];
+
+  assert.ok(defensiveSuggestion);
+  assert.deepEqual(symbols, ["XLV", "VHT", "XLU", "XLP"]);
+  assert.ok(defensiveSuggestion.candidateInstruments.every((candidate) => candidate.assetClass !== "stock"));
+  assert.ok(!symbols.some((symbol) => ["ISRG", "AMGN", "GILD", "BMY", "PFE"].includes(symbol)));
+});
+
+test("gap candidate display comparator orders by category fit before instrument quality", () => {
+  const ordered = [
+    { symbol: "DXJ", issueFitScore: 70, recommendationScore: 95 },
+    { symbol: "VXUS", issueFitScore: 100, recommendationScore: 60 },
+    { symbol: "VEA", issueFitScore: 100, recommendationScore: 75 }
+  ].sort(compareGapCandidatesByCategoryFit);
+
+  assert.deepEqual(ordered.map((candidate) => candidate.symbol), ["VEA", "VXUS", "DXJ"]);
 });
 
 test("improvement suggestions map concentration issues to diversifying candidates", () => {

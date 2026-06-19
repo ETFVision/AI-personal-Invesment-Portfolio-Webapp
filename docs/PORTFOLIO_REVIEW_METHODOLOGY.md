@@ -114,7 +114,7 @@ Candidate `primaryReason` text is issue-category-aware for newer gap findings:
 - `excessive_crypto_risk` bond, treasury, fixed-income, and credit candidates reference ballast characteristics relative to crypto and high-volatility alternative exposure.
 - `concentration_risk` geographic diversifiers reference issuer/geographic diversification relative to concentrated single-name look-through exposure; bond, treasury, fixed-income, credit, gold, and inflation-hedge candidates reference generally lower-correlation ballast relative to the flagged concentration.
 
-The candidate logic should not change internal scoring labels. It uses stored insight outputs and active universe data as inputs into portfolio-level gap findings. User-facing cards should include the disclaimer chip: `Shown because category is underweighted - not a buy recommendation`.
+The candidate logic should not change internal scoring labels. It uses stored insight outputs and active universe data as inputs into portfolio-level gap findings. Category-remedy findings surface diversified funds where appropriate; `insufficient_defensive_exposure` excludes individual single-stock instruments so Healthcare & Defensive examples are sector/diversified ETF instruments rather than individual company names. User-facing cards should include the disclaimer chip: `Shown because category is underweighted - not a buy recommendation`.
 
 The Portfolio Review page should use the following public language:
 
@@ -264,6 +264,7 @@ This represents the top non-ETF look-through positions by combined direct + indi
 | `macro_vulnerability` | gold_hedge → tips_inflation_linked → intermediate_treasury → healthcare_defensive → utilities_defensive → consumer_staples_defensive |
 
 Additional `issueFit` blocking rules:
+- `insufficient_defensive_exposure`: single-stock instruments are blocked (`issueFit = 0`) so defensive examples come from diversified healthcare, utilities, consumer staples, bond, or cash-like instruments.
 - `concentration_risk`: single-stock instruments and instruments in the same dominant sector as the portfolio are blocked (`issueFit = 0`).
 - `excessive_crypto_risk`: instruments with `assetClass` in `["cash_proxy", "bond_etf", "gold_etf"]` receive a minimum fit of 24 even if not in the role priority list.
 - `macro_vulnerability`: instruments with themes "defensive", "inflation hedge", or "recession hedge" receive a minimum fit of 24 even if not in the role priority list.
@@ -288,7 +289,7 @@ rankScore =
 - `confidenceScore`: `recommendation.confidenceScore`; falls back to 50.
 - `macroFitScore`: from recommendation scoring breakdown components `["macro_fit", "market_vision_alignment", "theme_alignment"]`; falls back to 50.
 
-Up to 5 candidates are returned per gap finding, sorted by `rankScore` descending.
+Up to 5 candidates are returned per gap finding, sorted by `rankScore` descending. On the Portfolio Review page, those already-selected candidates are displayed by category fit (`issueFitScore` descending, with `recommendationScore` as a tie-breaker) so broad/core instruments for the underweighted category appear first. Instrument quality remains visible as a per-card badge, but display order is category-intrinsic rather than a personalised ranking.
 
 ## ETF Company-Level Overlap Detection (Gap Analysis)
 
