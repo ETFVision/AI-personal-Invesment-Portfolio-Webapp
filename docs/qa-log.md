@@ -2,6 +2,61 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Defensive Gap Equity-Sleeve Scope QA
+
+Scope:
+- Verify the Portfolio Review Healthcare & Defensive gap finding is scoped to defensive equity sector sleeves and does not duplicate treasury/cash ballast candidates from other findings.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Defensive per-sleeve grouping could create a `Defensive Ballast` subsection from short-treasury/core-bond roles | Fixed; defensive selection now filters to Utilities, Consumer Staples, and Healthcare roles only |
+| Treasury/cash ETFs could duplicate between Healthcare & Defensive and Crypto-Ballast / Fixed-Income findings | Fixed for Healthcare & Defensive; ballast remains available to the other findings |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Defensive candidate test includes BND/GOVT and confirms neither appears in the defensive finding | PASS |
+| Defensive grouping produces only Utilities, Consumer Staples, and Healthcare groups, with no `Defensive Ballast` group | PASS |
+| Crypto-Ballast regression still confirms BND appears with crypto/ballast explanation text | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (302/302) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports.
+
+## 2026-06-19 SGT - Defensive Gap Per-Sleeve Candidate Sections QA
+
+Scope:
+- Verify the Portfolio Review Healthcare & Defensive gap finding no longer allows one defensive sleeve to dominate all displayed candidates.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Defensive gap could show a flat list dominated by Utilities after Utilities became the most-underweight sleeve | Fixed; defensive selection now takes up to two candidates per sleeve |
+| Healthcare and Consumer Staples examples could be crowded out from a finding titled Healthcare & Defensive | Fixed; defensive candidates are displayed in per-sleeve subsections ordered by sleeve underweight |
+| Non-defensive findings should not inherit subsection display | Preserved; International, Crypto, and other gap findings remain flat lists |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Utilities-most-underweight scenario returns Utilities, Consumer Staples, and Healthcare groups with no more than two candidates per sleeve | PASS |
+| Display grouping helper labels Utilities, Consumer Staples, and Healthcare and preserves incoming order | PASS |
+| Existing international, crypto, concentration, macro, and fixed-income gap tests still pass | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (302/302) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports.
+
 ## 2026-06-19 SGT - Portfolio Review ETF Sector Classification Fallback QA
 
 Scope:

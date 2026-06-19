@@ -20,7 +20,7 @@ import type {
 import type { PortfolioLookthroughExposure, PortfolioLookthroughHolding, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
 import { assessmentLabel } from "@/application/services/recommendations/recommendationPresentation";
-import { compareGapCandidatesByCategoryFit } from "@/application/services/portfolioReview/gapCandidateDisplay";
+import { compareGapCandidatesByCategoryFit, groupDefensiveGapCandidates } from "@/application/services/portfolioReview/gapCandidateDisplay";
 
 type PortfolioReviewPageProps = {
   searchParams?: Promise<{
@@ -358,7 +358,77 @@ function Suggestions({ suggestions, lookthrough }: { suggestions: PortfolioImpro
         ) : safeSuggestions.map((suggestion) => {
           const candidates = Array.isArray(suggestion.candidateInstruments) ? suggestion.candidateInstruments : [];
           const sortedCandidates = [...candidates].sort(compareGapCandidatesByCategoryFit);
+          const isDefensiveGap = suggestion.issueCategory === "insufficient_defensive_exposure";
+          const defensiveGroups = isDefensiveGap ? groupDefensiveGapCandidates(candidates) : [];
           const title = sanitizeGapText(suggestion.title) ?? suggestion.title;
+          const renderCandidate = (candidate: PortfolioReviewCandidate, candidateIndex: number) => {
+            const tooltip = whyThisAppearedText(suggestion, candidate, lookthrough);
+            const issueFitWidth = Math.min(100, Math.max(0, candidate.issueFitScore ?? 0));
+            const sharedCompanyWeight = candidate.sharedCompanyWeight ?? 0;
+            const overlapLevel = sharedCompanyWeight > 0.35 ? "High" : sharedCompanyWeight >= 0.15 ? "Moderate" : "Low";
+            const overlapClasses =
+              overlapLevel === "High"
+                ? "bg-red-100 text-red-800"
+                : overlapLevel === "Moderate"
+                  ? "bg-amber-100 text-amber-800"
+                  : "bg-emerald-100 text-emerald-800";
+            const sharedCompanyCount = candidate.sharedCompanyCount ?? 0;
+            const etfList = candidate.topSharedSymbols?.length > 0
+              ? ` via ${candidate.topSharedSymbols.slice(0, 3).join(", ")} look-through`
+              : "";
+            const overlapDetail = sharedCompanyCount > 0
+              ? `${sharedCompanyCount} shared ${sharedCompanyCount === 1 ? "company" : "companies"}${etfList}`
+              : candidate.overlapWarning
+                ? sanitizeGapText(candidate.overlapWarning)
+                : "No material company overlap detected";
+            return (
+              <div
+                key={`${suggestion.title}-${candidate.instrumentId}`}
+                className="rounded-md border p-3 text-xs transition-colors hover:bg-muted"
+              >
+                <div className="flex flex-wrap items-start gap-2">
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px]">#{candidateIndex + 1}</span>
+                  <span className="text-xs font-medium">Quality {Math.round(candidate.recommendationScore ?? candidate.score ?? 0)}</span>
+                  <div className="min-w-0 shrink-0">
+                    <Link
+                      href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
+                      className="font-medium text-slate-900 underline-offset-4 hover:underline"
+                    >
+                      {candidate.symbol}
+                    </Link>
+                    <p className="mt-1 inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                      Shown because category is underweighted — not a buy recommendation
+                    </p>
+                  </div>
+                  <div className="flex min-w-0 flex-1 items-center gap-1">
+                    <Link
+                      href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
+                      className="truncate font-medium text-slate-800 underline-offset-4 hover:underline"
+                    >
+                      {candidate.name}
+                    </Link>
+                    <GapAnalysisTooltip text={tooltip} />
+                  </div>
+                  <span>{assessmentLabel(candidate.recommendationLabel)}</span>
+                  {candidate.confidenceScore != null ? <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Conf {formatPercent(candidate.confidenceScore / 100)}</span> : null}
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="mb-1 text-[10px] font-medium uppercase text-muted-foreground">Exposure impact</p>
+                    <div className="h-1.5 w-full overflow-hidden rounded bg-muted">
+                      <div className="h-full rounded bg-blue-500" style={{ width: `${issueFitWidth}%` }} />
+                    </div>
+                    <p className="mt-1 text-muted-foreground">{sanitizeGapText(candidate.primaryReason ?? candidate.whyThisCandidate ?? candidate.reason)}</p>
+                  </div>
+                  <div>
+                    <p className="mb-1 text-[10px] font-medium uppercase text-muted-foreground">Holdings overlap</p>
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${overlapClasses}`}>{overlapLevel}</span>
+                    <p className="mt-1 text-muted-foreground">{overlapDetail}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          };
           return <div key={`${suggestion.category}-${suggestion.title}`} className="rounded-md border p-4">
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-medium">{title}</p>
@@ -399,74 +469,14 @@ function Suggestions({ suggestions, lookthrough }: { suggestions: PortfolioImpro
             ) : null}
             {candidates.length > 0 ? (
               <div className="mt-3 grid gap-2">
-                {sortedCandidates.map((candidate, candidateIndex) => {
-                  const tooltip = whyThisAppearedText(suggestion, candidate, lookthrough);
-                  const issueFitWidth = Math.min(100, Math.max(0, candidate.issueFitScore ?? 0));
-                  const sharedCompanyWeight = candidate.sharedCompanyWeight ?? 0;
-                  const overlapLevel = sharedCompanyWeight > 0.35 ? "High" : sharedCompanyWeight >= 0.15 ? "Moderate" : "Low";
-                  const overlapClasses =
-                    overlapLevel === "High"
-                      ? "bg-red-100 text-red-800"
-                      : overlapLevel === "Moderate"
-                        ? "bg-amber-100 text-amber-800"
-                        : "bg-emerald-100 text-emerald-800";
-                  const sharedCompanyCount = candidate.sharedCompanyCount ?? 0;
-                  const etfList = candidate.topSharedSymbols?.length > 0
-                    ? ` via ${candidate.topSharedSymbols.slice(0, 3).join(", ")} look-through`
-                    : "";
-                  const overlapDetail = sharedCompanyCount > 0
-                    ? `${sharedCompanyCount} shared ${sharedCompanyCount === 1 ? "company" : "companies"}${etfList}`
-                    : candidate.overlapWarning
-                      ? sanitizeGapText(candidate.overlapWarning)
-                      : "No material company overlap detected";
-                  return (
-                  <div
-                    key={`${suggestion.title}-${candidate.instrumentId}`}
-                    className="rounded-md border p-3 text-xs transition-colors hover:bg-muted"
-                  >
-                    <div className="flex flex-wrap items-start gap-2">
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px]">#{candidateIndex + 1}</span>
-                      <span className="text-xs font-medium">Quality {Math.round(candidate.recommendationScore ?? candidate.score ?? 0)}</span>
-                      <div className="min-w-0 shrink-0">
-                        <Link
-                          href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
-                          className="font-medium text-slate-900 underline-offset-4 hover:underline"
-                        >
-                          {candidate.symbol}
-                        </Link>
-                        <p className="mt-1 inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-                          Shown because category is underweighted — not a buy recommendation
-                        </p>
-                      </div>
-                      <div className="flex min-w-0 flex-1 items-center gap-1">
-                        <Link
-                          href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
-                          className="truncate font-medium text-slate-800 underline-offset-4 hover:underline"
-                        >
-                          {candidate.name}
-                        </Link>
-                        <GapAnalysisTooltip text={tooltip} />
-                      </div>
-                      <span>{assessmentLabel(candidate.recommendationLabel)}</span>
-                      {candidate.confidenceScore != null ? <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Conf {formatPercent(candidate.confidenceScore / 100)}</span> : null}
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="mb-1 text-[10px] font-medium uppercase text-muted-foreground">Exposure impact</p>
-                        <div className="h-1.5 w-full overflow-hidden rounded bg-muted">
-                          <div className="h-full rounded bg-blue-500" style={{ width: `${issueFitWidth}%` }} />
-                        </div>
-                        <p className="mt-1 text-muted-foreground">{sanitizeGapText(candidate.primaryReason ?? candidate.whyThisCandidate ?? candidate.reason)}</p>
-                      </div>
-                      <div>
-                        <p className="mb-1 text-[10px] font-medium uppercase text-muted-foreground">Holdings overlap</p>
-                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${overlapClasses}`}>{overlapLevel}</span>
-                        <p className="mt-1 text-muted-foreground">{overlapDetail}</p>
-                      </div>
+                {isDefensiveGap ? defensiveGroups.map((group) => (
+                  <div key={`${suggestion.title}-${group.key}`} className="space-y-2 rounded-md border border-dashed p-2">
+                    <p className="text-xs font-medium text-slate-700">{group.label}</p>
+                    <div className="grid gap-2">
+                      {group.candidates.map((candidate, candidateIndex) => renderCandidate(candidate, candidateIndex))}
                     </div>
                   </div>
-                );
-                })}
+                )) : sortedCandidates.map((candidate, candidateIndex) => renderCandidate(candidate, candidateIndex))}
               </div>
             ) : null}
           </div>;

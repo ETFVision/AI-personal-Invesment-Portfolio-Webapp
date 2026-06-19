@@ -13,7 +13,7 @@ import { PortfolioRiskReviewService } from "../src/application/services/portfoli
 import { MacroFitReviewService } from "../src/application/services/portfolioReview/MacroFitReviewService";
 import { RecommendationAlignmentReviewService } from "../src/application/services/portfolioReview/RecommendationAlignmentReviewService";
 import { portfolioReviewConfidenceScore } from "../src/application/services/portfolioReview/PortfolioReviewService";
-import { compareGapCandidatesByCategoryFit } from "../src/application/services/portfolioReview/gapCandidateDisplay";
+import { compareGapCandidatesByCategoryFit, groupDefensiveGapCandidates } from "../src/application/services/portfolioReview/gapCandidateDisplay";
 import { weightedPortfolioScore } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import type { PortfolioReviewInputContext } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import { PortfolioLookthroughExposureService } from "../src/application/services/etfLookthrough/PortfolioLookthroughExposureService";
@@ -544,6 +544,51 @@ test("defensive gap assigns higher issue fit to the most-underweight sleeve", ()
   assert.ok((staplesCandidate.issueFitScore ?? 0) > (healthcareCandidate.issueFitScore ?? 0));
 });
 
+test("defensive gap candidate selection includes each defensive sleeve with per-sleeve caps", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.4, directWeight: 0.4, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.12, directWeight: 0.12, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Utilities", exposureWeight: 0.01, directWeight: 0.01, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Consumer Staples", exposureWeight: 0.04, directWeight: 0.04, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    instruments: [
+      instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] }),
+      instrument({ id: "vpu", symbol: "VPU", name: "Vanguard Utilities ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification", "Defensive"] }),
+      instrument({ id: "idu", symbol: "IDU", name: "iShares U.S. Utilities ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification", "Defensive"] }),
+      instrument({ id: "xlp", symbol: "XLP", name: "Consumer Staples Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Consumer Staples", canonicalThemes: ["Defensive Consumer"] }),
+      instrument({ id: "vdc", symbol: "VDC", name: "Vanguard Consumer Staples ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification", "Defensive Consumer"] }),
+      instrument({ id: "xlv", symbol: "XLV", name: "Health Care Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
+      instrument({ id: "vht", symbol: "VHT", name: "Vanguard Health Care ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
+      instrument({ id: "bnd", symbol: "BND", name: "Vanguard Total Bond Market ETF", assetClass: "bond_etf", instrumentType: "bond_etf", canonicalSector: "Bonds / Fixed Income", canonicalThemes: ["Treasury Bonds"], durationCategory: "intermediate" }),
+      instrument({ id: "govt", symbol: "GOVT", name: "iShares U.S. Treasury Bond ETF", assetClass: "bond_etf", instrumentType: "bond_etf", canonicalSector: "Bonds / Fixed Income", canonicalThemes: ["Treasury Bonds"], durationCategory: "intermediate" })
+    ]
+  }));
+  const defensiveSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure");
+  const symbols = defensiveSuggestion?.candidateInstruments.map((candidate) => candidate.symbol) ?? [];
+  const groups = groupDefensiveGapCandidates(defensiveSuggestion?.candidateInstruments ?? []);
+
+  assert.deepEqual(groups.map((group) => group.key), ["utilities", "consumer_staples", "healthcare"]);
+  assert.deepEqual(groups.map((group) => group.candidates.length), [2, 2, 2]);
+  assert.deepEqual(symbols.slice(0, 2), ["XLU", "VPU"]);
+  assert.ok(symbols.some((symbol) => ["XLP", "VDC"].includes(symbol)));
+  assert.ok(symbols.some((symbol) => ["XLV", "VHT"].includes(symbol)));
+  assert.equal(symbols.includes("BND"), false);
+  assert.equal(symbols.includes("GOVT"), false);
+  assert.equal(groups.some((group) => group.label === "Defensive Ballast"), false);
+  assert.ok(groups.every((group) => group.candidates.length <= 2));
+});
+
 test("curated alpha ETF category prevents US sector ETFs from routing to global equity", () => {
   const fxu = instrument({
     id: "fxu",
@@ -618,6 +663,20 @@ test("gap candidate display comparator orders by category fit before instrument 
   ].sort(compareGapCandidatesByCategoryFit);
 
   assert.deepEqual(ordered.map((candidate) => candidate.symbol), ["VEA", "VXUS", "DXJ"]);
+});
+
+test("defensive gap display grouping buckets sleeves and preserves incoming order", () => {
+  const groups = groupDefensiveGapCandidates([
+    { symbol: "XLU", diversificationType: "Defensive utilities" },
+    { symbol: "VPU", diversificationType: "Defensive utilities" },
+    { symbol: "XLP", diversificationType: "Defensive consumer staples" },
+    { symbol: "XLV", diversificationType: "Healthcare defensive sector" }
+  ]);
+
+  assert.deepEqual(groups.map((group) => group.label), ["Utilities", "Consumer Staples", "Healthcare"]);
+  assert.deepEqual(groups[0]?.candidates.map((candidate) => candidate.symbol), ["XLU", "VPU"]);
+  assert.deepEqual(groups[1]?.candidates.map((candidate) => candidate.symbol), ["XLP"]);
+  assert.deepEqual(groups[2]?.candidates.map((candidate) => candidate.symbol), ["XLV"]);
 });
 
 test("improvement suggestions map concentration issues to diversifying candidates", () => {
@@ -770,6 +829,7 @@ test("improvement suggestions emit crypto ballast observation above threshold on
   const bondCandidate = cryptoSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BND");
 
   assert.ok(cryptoSuggestion);
+  assert.ok(bondCandidate);
   assert.match(bondCandidate?.primaryReason ?? "", /Ballast/);
   assert.match(bondCandidate?.primaryReason ?? "", /crypto/);
   assert.match(cryptoSuggestion.rationale, /Analytical observation only - not a position sizing recommendation\./);

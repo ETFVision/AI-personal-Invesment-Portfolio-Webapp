@@ -54,6 +54,12 @@ const internationalCandidateRoles = new Set<CandidateRole>([
   "global_equity"
 ]);
 
+const defensiveEquitySleeveRoles = new Set<CandidateRole>([
+  "healthcare_defensive",
+  "utilities_defensive",
+  "consumer_staples_defensive"
+]);
+
 function recommendationMap(recommendations: InstrumentRecommendation[]) {
   return new Map(recommendations.map((recommendation) => [recommendation.instrumentId, recommendation]));
 }
@@ -427,6 +433,26 @@ function rankedCandidates(context: PortfolioReviewInputContext, issueContext: Su
     .slice(0, limit);
 }
 
+function rankedDefensiveCandidates(context: PortfolioReviewInputContext, issueContext: SuggestionContext, perSleeveLimit = 2) {
+  const recs = recommendationMap(context.recommendations);
+  const byRole = new Map<CandidateRole, PortfolioReviewCandidate[]>();
+  for (const instrument of context.instruments) {
+    const role = candidateRole(instrument);
+    const item = candidate(instrument, recs.get(instrument.id), "insufficient_defensive_exposure", issueContext);
+    if (!item) continue;
+    const candidates = byRole.get(role) ?? [];
+    candidates.push(item);
+    byRole.set(role, candidates);
+  }
+  return rolePriority("insufficient_defensive_exposure", issueContext)
+    .filter((role) => defensiveEquitySleeveRoles.has(role))
+    .flatMap((role) =>
+      (byRole.get(role) ?? [])
+        .sort((left, right) => candidateRankScore(right) - candidateRankScore(left))
+        .slice(0, perSleeveLimit)
+    );
+}
+
 function suggestion(input: {
   category: PortfolioImprovementSuggestion["category"];
   issueCategory: PortfolioImprovementIssueCategory;
@@ -550,7 +576,7 @@ export class PortfolioImprovementSuggestionService {
         priority: "low",
         title: "Healthcare & Defensive — Underweighted Category",
         rationale: `Technology is the largest look-through sector at ${(issueContext.technologyWeight * 100).toFixed(1)}%. Defensive sleeve look-through is Healthcare ${(issueContext.healthcareWeight * 100).toFixed(1)}%, Utilities ${(issueContext.utilitiesWeight * 100).toFixed(1)}%, and Consumer Staples ${(issueContext.consumerStaplesWeight * 100).toFixed(1)}%.`,
-        candidates: rankedCandidates(context, issueContext, "insufficient_defensive_exposure", 5),
+        candidates: rankedDefensiveCandidates(context, issueContext),
         benefit: "May relate to sector balance without relying only on broad-market ETFs.",
         tradeOff: "Defensive sectors may lag during high-beta technology-led rallies."
       }));

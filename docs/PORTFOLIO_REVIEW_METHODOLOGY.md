@@ -114,7 +114,7 @@ Candidate `primaryReason` text is issue-category-aware for newer gap findings:
 - `excessive_crypto_risk` bond, treasury, fixed-income, and credit candidates reference ballast characteristics relative to crypto and high-volatility alternative exposure.
 - `concentration_risk` geographic diversifiers reference issuer/geographic diversification relative to concentrated single-name look-through exposure; bond, treasury, fixed-income, credit, gold, and inflation-hedge candidates reference generally lower-correlation ballast relative to the flagged concentration.
 
-The candidate logic should not change internal scoring labels. It uses stored insight outputs and active universe data as inputs into portfolio-level gap findings. Category-remedy findings surface diversified funds where appropriate; `insufficient_defensive_exposure` excludes individual single-stock instruments so Healthcare & Defensive examples are sector/diversified ETF instruments rather than individual company names. User-facing cards should include the disclaimer chip: `Shown because category is underweighted - not a buy recommendation`.
+The candidate logic should not change internal scoring labels. It uses stored insight outputs and active universe data as inputs into portfolio-level gap findings. Category-remedy findings surface diversified funds where appropriate; `insufficient_defensive_exposure` excludes individual single-stock instruments so Healthcare & Defensive examples are sector/diversified ETF instruments rather than individual company names. The Healthcare & Defensive finding presents candidates in per-sleeve subsections ordered by the most-underweight defensive sleeve first, with up to two examples per sleeve. User-facing cards should include the disclaimer chip: `Shown because category is underweighted - not a buy recommendation`.
 
 The Portfolio Review page should use the following public language:
 
@@ -261,13 +261,13 @@ This represents the top non-ETF look-through positions by combined direct + indi
 | `insufficient_international_exposure` | international_equity → developed_international_equity → emerging_market_equity → global_equity → international_bond |
 | `insufficient_fixed_income` | core_us_bond → international_bond → intermediate_treasury → short_treasury_cash_like → tips_inflation_linked → long_duration_treasury → investment_grade_credit |
 | `insufficient_inflation_hedge` | gold_hedge → tips_inflation_linked → energy_inflation_equity |
-| `insufficient_defensive_exposure` | healthcare_defensive / utilities_defensive / consumer_staples_defensive ordered by lowest look-through sleeve weight first, with deterministic tie order healthcare → utilities → consumer_staples, then short_treasury_cash_like → core_us_bond |
+| `insufficient_defensive_exposure` | healthcare_defensive / utilities_defensive / consumer_staples_defensive ordered by lowest look-through sleeve weight first, with deterministic tie order healthcare → utilities → consumer_staples |
 | `concentration_risk` | international_equity → developed_international_equity → core_us_bond → gold_hedge → intermediate_treasury → international_bond |
 | `excessive_crypto_risk` | short_treasury_cash_like → core_us_bond → gold_hedge |
 | `macro_vulnerability` | gold_hedge → tips_inflation_linked → intermediate_treasury → healthcare_defensive → utilities_defensive → consumer_staples_defensive |
 
 Additional `issueFit` blocking rules:
-- `insufficient_defensive_exposure`: single-stock instruments are blocked (`issueFit = 0`) so defensive examples come from diversified healthcare, utilities, consumer staples, bond, or cash-like instruments.
+- `insufficient_defensive_exposure`: single-stock instruments are blocked (`issueFit = 0`) and displayed candidates are scoped to diversified healthcare, utilities, and consumer staples sector instruments. Bond and cash-like ballast roles remain available to fixed-income, crypto-ballast, and macro findings instead.
 - `insufficient_defensive_exposure`: the three defensive sector roles are sub-category-gap-aware. The role with the lowest current look-through sleeve weight receives the highest `issueFitScore`; this is observational sector-sleeve measurement, not a personalised security ranking.
 - `insufficient_defensive_exposure`: instruments classified to international/global equity roles are blocked (`issueFit = 0`) as a consistency guard, even if provider metadata carries a defensive theme.
 - `concentration_risk`: single-stock instruments and instruments in the same dominant sector as the portfolio are blocked (`issueFit = 0`).
@@ -294,7 +294,7 @@ rankScore =
 - `confidenceScore`: `recommendation.confidenceScore`; falls back to 50.
 - `macroFitScore`: from recommendation scoring breakdown components `["macro_fit", "market_vision_alignment", "theme_alignment"]`; falls back to 50.
 
-Up to 5 candidates are returned per gap finding, sorted by `rankScore` descending. On the Portfolio Review page, those already-selected candidates are displayed by category fit (`issueFitScore` descending, with `recommendationScore` as a tie-breaker) so broad/core instruments for the underweighted category appear first. Instrument quality remains visible as a per-card badge, but display order is category-intrinsic rather than a personalised ranking.
+Up to 5 candidates are returned per non-defensive gap finding, sorted by `rankScore` descending. On the Portfolio Review page, those already-selected candidates are displayed by category fit (`issueFitScore` descending, with `recommendationScore` as a tie-breaker) so broad/core instruments for the underweighted category appear first. For `insufficient_defensive_exposure`, candidates are selected by equity sector sleeve only: up to two Utilities, Consumer Staples, or Healthcare candidates per sleeve, with sleeve order following the same most-underweight role priority used for `issueFitScore`. Instrument quality remains visible as a per-card badge, but display order is category-intrinsic rather than a personalised ranking.
 
 ## ETF Company-Level Overlap Detection (Gap Analysis)
 

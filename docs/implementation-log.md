@@ -1,3 +1,80 @@
+## 2026-06-19 - Defensive Gap Equity-Sleeve Scope
+
+### Source
+Claude Code
+
+### Objective
+Restrict the Portfolio Review Healthcare & Defensive gap finding to the three equity defensive sleeves so treasury/cash ballast instruments remain in fixed-income, crypto-ballast, or macro findings instead of duplicating inside the defensive finding.
+
+### Files Changed
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Filtered `rankedDefensiveCandidates()` to iterate only `utilities_defensive`, `consumer_staples_defensive`, and `healthcare_defensive`, preserving the existing most-underweight-first sleeve order and two-candidate-per-sleeve cap.
+- Left `groupDefensiveGapCandidates()` unchanged; with ballast excluded upstream, the defensive finding no longer produces a `Defensive Ballast` subsection.
+- Extended the defensive selection regression test with BND and GOVT and asserted they are excluded from defensive candidates while the Crypto-Ballast finding still surfaces BND.
+- Updated Portfolio Review methodology wording so the defensive finding is documented as equity-sector-sleeve-only.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (302/302)
+
+### Result
+Completed.
+
+### Notes for Claude
+- Defensive finding now shows only Utilities, Consumer Staples, and Healthcare subsections.
+- Crypto-Ballast and Fixed-Income findings continue to use `rankedCandidates()` and remain the place where treasury/cash ballast instruments can appear.
+- No finding trigger, score, section score, wording, feature flag, or access-control behavior changed.
+- Portfolio Review must be re-run from the Admin panel to regenerate stored report output.
+
+---
+## 2026-06-19 - Defensive Gap Per-Sleeve Candidate Sections
+
+### Source
+Claude Code
+
+### Objective
+Restructure the Portfolio Review Healthcare & Defensive gap finding so candidates are selected and displayed by defensive sleeve instead of one flat list dominated by the most-underweight sleeve.
+
+### Files Changed
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `src/application/services/portfolioReview/gapCandidateDisplay.ts`
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added defensive-only candidate selection that groups eligible candidates by role and takes up to two per sleeve in the existing most-underweight defensive role order.
+- Added a pure `groupDefensiveGapCandidates()` display helper that buckets candidates into Utilities, Consumer Staples, Healthcare, and defensive ballast groups while preserving incoming order.
+- Updated the Portfolio Review page so only the `insufficient_defensive_exposure` finding renders per-sleeve subsections; International, Crypto, and other gap findings remain flat.
+- Preserved finding triggers, score calculations, issue-fit scoring, non-defensive candidate ordering, and compliance disclaimer chips.
+- Added regression tests for per-sleeve backend selection and display grouping.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (302/302)
+
+### Result
+Completed.
+
+### Notes for Claude
+- Before this change, a defensive finding could show five Utilities candidates after Utilities became the most-underweight sleeve.
+- After this change, the defensive finding can show per-sleeve subsections such as Utilities, Consumer Staples, and Healthcare, with no more than two candidates per sleeve.
+- International and Crypto gap findings remain flat lists and their selection path still uses `rankedCandidates()`.
+- Portfolio Review must be re-run from the Admin panel to regenerate stored report output.
+
+---
 ## 2026-06-19 - Portfolio Review ETF Sector Classification Fallback
 
 ### Source
