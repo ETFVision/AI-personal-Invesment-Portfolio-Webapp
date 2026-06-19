@@ -38,13 +38,18 @@ const roleLabels = {
 export type CandidateRole = keyof typeof roleLabels;
 
 const alphaEtfCategoryRoles: Partial<Record<EtfCategory, CandidateRole>> = {
+  GLOBAL_EQUITY: "global_equity",
+  DEVELOPED_MARKETS: "developed_international_equity",
+  EMERGING_MARKETS: "emerging_market_equity",
   HEALTHCARE: "healthcare_defensive",
   UTILITIES: "utilities_defensive",
   CONSUMER_STAPLES: "consumer_staples_defensive",
   ENERGY: "energy_inflation_equity",
   FINANCIALS: "financials_cyclical",
   INDUSTRIALS: "industrials_cyclical",
-  REAL_ESTATE: "real_estate"
+  REAL_ESTATE: "real_estate",
+  INTERNATIONAL_DIVIDEND: "international_equity",
+  COUNTRY: "international_equity"
 };
 
 const internationalCandidateRoles = new Set<CandidateRole>([
@@ -95,15 +100,10 @@ function hasTheme(instrument: Instrument, themeName: string) {
   return instrument.canonicalThemes.some((theme) => theme.toLowerCase() === themeName);
 }
 
-function hasAnyTheme(instrument: Instrument, themes: string[]) {
-  const canonicalThemes = instrument.canonicalThemes.map((theme) => theme.toLowerCase());
-  return themes.some((theme) => canonicalThemes.includes(theme));
-}
-
 function instrumentIsInternationalDiversifier(instrument: Instrument) {
   const symbol = instrument.symbol?.toUpperCase() ?? "";
   const geography = (instrument.geography ?? instrument.geoExposure ?? "").toLowerCase();
-  return internationalSymbols.has(symbol) || hasTheme(instrument, "global diversification") || geography.includes("international") || geography.includes("global") || geography.includes("emerging");
+  return internationalSymbols.has(symbol) || geography.includes("international") || geography.includes("global") || geography.includes("emerging");
 }
 
 function instrumentIsDefensiveDiversifier(instrument: Instrument) {
@@ -159,7 +159,7 @@ export function candidateRole(instrument: Instrument): CandidateRole {
     if (duration === "ultra-short" || duration === "short") return "short_treasury_cash_like";
     return "core_us_bond";
   }
-  if (hasAnyTheme(instrument, ["global diversification"]) || instrumentIsInternationalDiversifier(instrument)) return "global_equity";
+  if (instrumentIsInternationalDiversifier(instrument)) return "global_equity";
   if (instrument.assetClass === "etf" && normalizedSector(instrument) === "multi-asset / broad market") return "broad_market";
   return "other";
 }

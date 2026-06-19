@@ -239,6 +239,7 @@ An independent deep architecture audit with live read-only database verification
 25. ETF holdings provider plan expansion monitoring
     - **Updated 2026-06-18:** Top holdings coverage is now 169/169 eligible equity ETFs. Portfolio indirect-holding company overlap is fully operational (Task B). Five ETFs (IYW, VCR, JXI, VOX, PXE) have no FMP sector data — confirmed as a FMP data gap, not a plan limitation; seeded single-sector fallback covers all five.
     - **Updated 2026-06-18:** FMP `weightPercentage` normalisation bug fixed (100× overstatement for sub-1% holdings). All 169 ETFs re-refreshed after fix; security ID mappings and issuer links re-synced. Stored weights are now correct.
+    - **Closed 2026-06-19:** Systemic instrument taxonomy data-quality gap closed in code and documentation. ETF `canonical_sector` is now curated-authoritative from `ALPHA_ETF_CATEGORIES`, stock `canonical_sector` is re-checked from `ALPHA_STOCK_SECTORS`, generic ETF labels no longer blanket-apply `Global Diversification`, and the metadata job exposes `taxonomyBackfill=true` for re-normalizing active rows.
     - Remaining: evaluate whether FMP plan expansion would increase the number of top holdings returned per ETF (currently capped at 100 by the provider service, but FMP may return fewer under the current plan for some ETFs); monitor ETF-to-security mapping coverage in the Security Master after any plan change.
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 5.
 

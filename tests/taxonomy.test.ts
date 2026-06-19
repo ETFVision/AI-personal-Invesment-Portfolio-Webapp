@@ -13,7 +13,7 @@ import {
 
 const taxonomy = new TaxonomyService();
 
-test("maps broad market ETFs to broad market sector and diversification theme", () => {
+test("maps broad market ETFs to broad market sector without blanket global theme", () => {
   const result = taxonomy.normalize({
     symbol: "VOO",
     assetClass: "etf",
@@ -24,7 +24,64 @@ test("maps broad market ETFs to broad market sector and diversification theme", 
   });
 
   assert.equal(result.canonicalSector, "Multi-Asset / Broad Market");
-  assert.ok(result.canonicalThemes.includes("Global Diversification"));
+  assert.equal(result.canonicalThemes.includes("Global Diversification"), false);
+  assert.ok(result.canonicalThemes.includes("Quality"));
+});
+
+test("maps curated sector ETFs to authoritative sectors without global diversification theme", () => {
+  for (const [symbol, expectedSector] of [
+    ["FXU", "Utilities"],
+    ["VPU", "Utilities"],
+    ["IYH", "Healthcare"],
+    ["VFH", "Financials"],
+    ["VDE", "Energy"]
+  ] as const) {
+    const result = taxonomy.normalize({
+      symbol,
+      assetClass: "etf",
+      instrumentType: "etf",
+      rawSector: "ETF",
+      rawIndustry: "ETF",
+      seededThemes: ["sector-etf"]
+    });
+
+    assert.equal(result.canonicalSector, expectedSector);
+    assert.notEqual(result.canonicalSector, "Multi-Asset / Broad Market");
+    assert.equal(result.canonicalThemes.includes("Global Diversification"), false);
+  }
+});
+
+test("keeps global diversification theme for genuinely global and ex-US ETFs", () => {
+  const vt = taxonomy.normalize({
+    symbol: "VT",
+    assetClass: "etf",
+    instrumentType: "etf",
+    rawSector: "ETF",
+    rawIndustry: "ETF",
+    seededThemes: ["global-equity"]
+  });
+  const vxus = taxonomy.normalize({
+    symbol: "VXUS",
+    assetClass: "etf",
+    instrumentType: "etf",
+    rawSector: "ETF",
+    rawIndustry: "ETF",
+    seededThemes: ["global-equity"]
+  });
+  const xlu = taxonomy.normalize({
+    symbol: "XLU",
+    assetClass: "etf",
+    instrumentType: "etf",
+    rawSector: "Utilities",
+    rawIndustry: "Sector ETF",
+    seededThemes: ["sector-etf"]
+  });
+
+  assert.equal(vt.canonicalSector, "Multi-Asset / Broad Market");
+  assert.equal(vxus.canonicalSector, "Multi-Asset / Broad Market");
+  assert.ok(vt.canonicalThemes.includes("Global Diversification"));
+  assert.ok(vxus.canonicalThemes.includes("Global Diversification"));
+  assert.equal(xlu.canonicalThemes.includes("Global Diversification"), false);
 });
 
 test("maps bond ETFs using duration and credit profile", () => {
@@ -59,6 +116,19 @@ test("maps FMP stock sectors into canonical sectors", () => {
 
   assert.equal(result.canonicalSector, "Financials");
   assert.ok(result.canonicalThemes.includes("Financial Services"));
+});
+
+test("stock sector source of truth overrides incorrect provider sectors", () => {
+  const result = taxonomy.normalize({
+    symbol: "MSFT",
+    assetClass: "stock",
+    instrumentType: "stock",
+    rawSector: "Financial Services",
+    rawIndustry: "Software - Infrastructure"
+  });
+
+  assert.equal(result.canonicalSector, "Technology");
+  assert.ok(result.canonicalThemes.includes("Cloud / Software"));
 });
 
 test("alpha universe contains the approved ETF and stock source-of-truth counts", () => {
@@ -103,6 +173,7 @@ test("ETF product category is separate from portfolio sector taxonomy", () => {
 
   assert.equal(result.canonicalSector, "Multi-Asset / Broad Market");
   assert.notEqual(result.canonicalSector, "US_BROAD_MARKET");
+  assert.equal(result.canonicalThemes.includes("Global Diversification"), false);
 });
 
 test("stock sector taxonomy maps approved alpha stocks by symbol", () => {

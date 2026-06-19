@@ -2,6 +2,39 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Curated Instrument Taxonomy Source QA
+
+Scope:
+- Verify ETF and stock canonical taxonomy is sourced from curated alpha-universe maps and generic ETF labels no longer blanket-apply `Global Diversification`.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Non-flagship sector ETFs could normalize to `Multi-Asset / Broad Market` when provider metadata was generic | Fixed; mapped ETFs now resolve `canonical_sector` from `ALPHA_ETF_CATEGORIES` first |
+| Generic ETF labels such as `ETF`, `Sector ETF`, `Broad Market`, and `US Broad Market` could apply `Global Diversification` to US-only funds | Fixed; those blanket theme aliases were removed |
+| Provider raw sector/industry could still add misleading themes to mapped ETFs | Fixed; mapped ETFs use curated category themes instead of raw provider sector/industry for themes |
+| Portfolio Review could infer global-equity role from the `Global Diversification` theme | Fixed; global/international roles now come from symbol/geography or curated international ETF categories |
+| Existing fresh instrument rows need re-normalization after taxonomy rule changes | Fixed; metadata refresh job supports `taxonomyBackfill=true` and live backfill was run |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Sector ETF normalization covers FXU/VPU/IYH/VFH/VDE as Utilities/Healthcare/Financials/Energy rather than broad market | PASS |
+| US sector ETF normalization keeps `Global Diversification` absent for XLU/FXU-style funds | PASS |
+| Global/ex-US ETF normalization keeps `Global Diversification` for VT/VXUS-style funds | PASS |
+| Stock sector normalization uses `ALPHA_STOCK_SECTORS` when provider raw sector is incorrect | PASS |
+| Portfolio Review candidate-role regression remains green for sector ETFs and international ETFs without theme-based sector inference | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (306/306) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports reflect the corrected instrument taxonomy.
+- Live diagnostic SQL after backfill returned zero mis-sectored mapped US sector ETFs and zero mapped US sector ETFs with `Global Diversification`.
+
 ## 2026-06-19 SGT - Defensive Gap Title, Candidate Preference, and Tooltip QA
 
 Scope:

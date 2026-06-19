@@ -49,6 +49,12 @@ function needsIdentifierRefresh(
   return missingCoreIdentifier && needsMetadataRefresh(instrument.identifierLastRefreshedAt ?? null, cutoffIso);
 }
 
+function sameStringArray(left: string[] | null | undefined, right: string[] | null | undefined) {
+  const leftValues = left ?? [];
+  const rightValues = right ?? [];
+  return leftValues.length === rightValues.length && leftValues.every((value, index) => value === rightValues[index]);
+}
+
 function classifyFundMetadata(item: { symbol: string; sector: string | null; industry: string | null }, assetClass: string) {
   if (assetClass === "bond_etf") {
     return {
@@ -215,6 +221,83 @@ export class MetadataRefreshService {
         missingSymbols: [],
         errors: [message],
         message: `Instrument metadata refresh failed: ${message}`
+      };
+    }
+  }
+
+  async backfillCanonicalTaxonomy(input: { requestedByUserId?: string | null } = {}): Promise<RefreshUniverseMetadataResult> {
+    try {
+      const instruments = await this.repository.listInstruments({ isActive: true });
+      const updates = instruments
+        .filter((instrument) => !instrument.taxonomyIsManualOverride)
+        .map((instrument) => {
+          const normalized = this.taxonomyService.normalizeInstrument(instrument);
+          return { instrument, normalized };
+        })
+        .filter(({ instrument, normalized }) =>
+          instrument.canonicalSector !== normalized.canonicalSector || !sameStringArray(instrument.canonicalThemes, normalized.canonicalThemes)
+        );
+
+      if (updates.length > 0) {
+        await this.repository.upsertInstrumentTaxonomy(
+          updates.map(({ instrument, normalized }) => ({
+            instrumentId: instrument.id,
+            rawSector: instrument.sector,
+            rawIndustry: instrument.industry,
+            canonicalSector: normalized.canonicalSector,
+            canonicalThemes: normalized.canonicalThemes,
+            sourceProvider: "etfvision_curated_taxonomy",
+            confidence: 1,
+            isManualOverride: false,
+            reviewStatus: normalized.unmappedRawValues.length > 0 ? "needs_review" : "mapped"
+          }))
+        );
+      }
+
+      await this.repository.insertMetadataRefreshLog({
+        refreshScope: "instrument_taxonomy_backfill",
+        provider: "etfvision_curated_taxonomy",
+        requestedCount: instruments.length,
+        updatedCount: updates.length,
+        missingCount: 0,
+        status: "completed",
+        message: `Backfilled canonical taxonomy for ${updates.length} active instrument${updates.length === 1 ? "" : "s"}.`,
+        requestedSymbols: instruments.map((instrument) => instrument.symbol ?? "").filter(Boolean),
+        missingSymbols: [],
+        requestedByUserId: input.requestedByUserId ?? null,
+        completedAt: new Date().toISOString(),
+        details: { source: "alpha_universe_curated_taxonomy" }
+      });
+
+      return {
+        requestedSymbols: instruments.map((instrument) => instrument.symbol ?? "").filter(Boolean),
+        updatedCount: updates.length,
+        missingSymbols: [],
+        errors: [],
+        message: `Backfilled canonical taxonomy for ${updates.length} active instrument${updates.length === 1 ? "" : "s"}.`
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Instrument taxonomy backfill failed.";
+      await this.repository.insertMetadataRefreshLog({
+        refreshScope: "instrument_taxonomy_backfill",
+        provider: "etfvision_curated_taxonomy",
+        requestedCount: 0,
+        updatedCount: 0,
+        missingCount: 0,
+        status: "failed",
+        message,
+        requestedSymbols: [],
+        missingSymbols: [],
+        requestedByUserId: input.requestedByUserId ?? null,
+        completedAt: new Date().toISOString(),
+        details: { source: "alpha_universe_curated_taxonomy" }
+      });
+      return {
+        requestedSymbols: [],
+        updatedCount: 0,
+        missingSymbols: [],
+        errors: [message],
+        message: `Instrument taxonomy backfill failed: ${message}`
       };
     }
   }

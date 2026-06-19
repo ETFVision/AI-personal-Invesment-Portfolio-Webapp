@@ -54,7 +54,7 @@ Insight alignment uses `60 + constructiveHeldCount * 4 - weakHeldCount * 8 + cov
 
 ## Exposure Inputs
 
-Portfolio sector/geography/theme exposure should prefer ETF look-through data where available. ETF product category is not a portfolio sector allocation source.
+Portfolio sector/geography/theme exposure should prefer ETF look-through data where available. ETF product category is not a portfolio sector allocation source. Instrument metadata canonicalization uses the curated `ALPHA_ETF_CATEGORIES` and `ALPHA_STOCK_SECTORS` maps as the source of truth for instrument-level `canonical_sector`; themes are independent additive descriptors and should not be used to infer sector.
 
 ## Security Master And Issuer Rollup Methodology
 
@@ -180,7 +180,7 @@ This represents the top non-ETF look-through positions by combined direct + indi
 
 ### Candidate Role Assignments
 
-`candidateRole(instrument)` maps each instrument to a `CandidateRole` enum used for candidate pool filtering and role-based explanation text. Evaluation order is symbol override first, then correctly enriched sector fallbacks, then curated ETF category fallback, then broader asset/theme fallbacks:
+`candidateRole(instrument)` maps each instrument to a `CandidateRole` enum used for candidate pool filtering and role-based explanation text. Evaluation order is symbol override first, then correctly enriched sector fallbacks, then curated ETF category fallback, then broader asset/geography fallbacks:
 
 **Symbol overrides (highest priority):**
 
@@ -215,12 +215,13 @@ This represents the top non-ETF look-through positions by combined direct + indi
 | `canonicalSector = "energy"` | `energy_inflation_equity` |
 | `canonicalSector = "financials"` | `financials_cyclical` |
 | `canonicalSector = "industrials"` | `industrials_cyclical` |
+| ETF symbol belongs to curated `ALPHA_ETF_CATEGORIES` international groups `GLOBAL_EQUITY`, `DEVELOPED_MARKETS`, `EMERGING_MARKETS`, `INTERNATIONAL_DIVIDEND`, or `COUNTRY` and no earlier rule matched | Matching international/global role; used as authoritative fallback without relying on `Global Diversification` theme text |
 | ETF symbol belongs to curated `ALPHA_ETF_CATEGORIES` sector groups `HEALTHCARE`, `UTILITIES`, `CONSUMER_STAPLES`, `ENERGY`, `FINANCIALS`, `INDUSTRIALS`, or `REAL_ESTATE` and no earlier rule matched | Matching sector role; used as authoritative fallback when provider `canonicalSector` is missing or incorrectly enriched to broad market |
 | `assetClass = "crypto"` | `crypto_alternative` |
 | `assetClass = "bond_etf"` AND `durationCategory = "long"` | `long_duration_treasury` |
 | `assetClass = "bond_etf"` AND `durationCategory` is ultra-short or short | `short_treasury_cash_like` |
 | `assetClass = "bond_etf"` (other duration) | `core_us_bond` |
-| Theme includes "global diversification" OR `instrumentIsInternationalDiversifier()` | `global_equity` |
+| Explicit international/global geography exposure or known international symbol | `global_equity` |
 | `assetClass = "etf"` AND sector is "multi-asset / broad market" | `broad_market` |
 | All other | `other` |
 

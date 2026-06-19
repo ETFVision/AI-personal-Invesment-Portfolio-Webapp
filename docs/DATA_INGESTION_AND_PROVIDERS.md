@@ -81,10 +81,21 @@ Exact schedule is in `docs/scheduled-jobs.md`.
 
 - FMP is the core market/fundamentals provider. Some tickers can have limited endpoint coverage or delayed end-of-day updates.
 - FMP profile metadata is also used as the primary source for normalized identifiers feeding Security Master.
+- Instrument metadata refresh preserves raw FMP sector/industry fields, but canonical ETFVision taxonomy is curated-authoritative: ETF `canonical_sector` comes from `ALPHA_ETF_CATEGORIES` where mapped, stock `canonical_sector` comes from `ALPHA_STOCK_SECTORS` where mapped, and provider sector is only a fallback. Canonical themes are independent descriptors and are not blanket-applied from generic ETF labels such as `ETF`, `Sector ETF`, `Broad Market`, or `US Broad Market`.
 - NewsData.io is preferred for scheduled macro/world news because it is less rate-limit fragile than GDELT.
 - GDELT should remain manual-only unless future rate-limit behavior is stabilized.
 - ETF top-holding availability depends on provider coverage. When top holdings are unavailable, portfolio exposure should fall back to sector/country exposure and mark coverage as limited.
 - FRED is stable for macro indicators but economic data updates at different publication cadences.
+
+## Instrument Taxonomy Backfill
+
+The normal metadata job refreshes stale or incomplete provider metadata. When taxonomy rules change but provider metadata is still fresh, run the existing protected metadata job with `taxonomyBackfill=true` to re-normalize active instruments from stored raw fields and curated universe maps without refetching FMP metadata:
+
+```text
+POST /api/jobs/instrument-metadata-refresh?taxonomyBackfill=true
+```
+
+This path uses the same cron/job authorization wrapper as the standard metadata refresh and writes an `instrument_taxonomy_backfill` metadata refresh log. It should be followed by Portfolio Review refresh when QA depends on stored report snapshots.
 
 ## FMP ETF Holdings API Behaviour
 

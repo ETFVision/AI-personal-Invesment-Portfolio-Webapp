@@ -1,3 +1,51 @@
+## 2026-06-19 - Curated Instrument Taxonomy Source Fix
+
+### Source
+Claude Code
+
+### Objective
+Fix ETF and stock canonical sector/theme normalization at the source so `instruments.canonical_sector` and `canonical_themes` are curated-authoritative for all consumers, not only Portfolio Review gap analysis.
+
+### Files Changed
+- `src/application/services/taxonomy/TaxonomyService.ts`
+- `src/application/services/MetadataRefreshService.ts`
+- `src/app/api/jobs/instrument-metadata-refresh/route.ts`
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `tests/taxonomy.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/DATA_INGESTION_AND_PROVIDERS.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added curated `EtfCategory` to canonical sector/theme mapping in `TaxonomyService`.
+- ETF sector normalization now resolves mapped ETF symbols through `ALPHA_ETF_CATEGORIES` before provider raw sector/industry fallbacks.
+- Stock sector normalization now resolves mapped stock symbols through `ALPHA_STOCK_SECTORS` before provider raw sector/industry fallbacks.
+- Removed blanket `ETF`, `Sector ETF`, `Broad Market`, and `US Broad Market` theme aliases that applied `Global Diversification` to US-only sector funds.
+- Stopped mapped ETFs from deriving themes from raw provider sector/industry labels; themes now come from curated categories, seeded tags, and explicit non-ETF raw fields.
+- Retired Portfolio Review candidate-role inference from the `Global Diversification` theme and expanded curated ETF category roles for international/global categories.
+- Added a protected taxonomy-only backfill path via `/api/jobs/instrument-metadata-refresh?taxonomyBackfill=true` to re-normalize active rows without refetching provider metadata.
+- Added taxonomy tests for sector ETFs, global/ex-US ETFs, US sector ETF theme absence, and stock source-of-truth sector overrides.
+- Updated methodology, ingestion, documentation-gap, QA, and implementation-log documentation.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (306/306)
+
+### Result
+Completed.
+
+### Notes for Claude
+- Expected downstream data effect after taxonomy backfill: `Global Diversification` should drop sharply because US sector and US broad-market ETFs no longer receive that blanket theme.
+- Corrected ETF examples include FXU/VPU as Utilities, IYH as Healthcare, VFH as Financials, and VDE as Energy.
+- Stock sectors are re-checked from `ALPHA_STOCK_SECTORS`; for example MSFT remains Technology even if a provider raw sector is incorrect.
+- Live taxonomy backfill was run through `/api/jobs/instrument-metadata-refresh?taxonomyBackfill=true`; diagnostic SQL moved `mis_sectored_mapped_etfs` from 67 to 0 and `us_sector_etfs_with_global_diversification` from 91 to 0.
+- Portfolio Review must be re-run from the Admin panel so stored reports reflect the corrected instrument taxonomy.
+
+---
 ## 2026-06-19 - Defensive Gap Title, Broad ETF Preference, and Tooltip Fix
 
 ### Source
@@ -152,7 +200,7 @@ Completed.
 - FXU-like US sector ETFs now route to sector-specific defensive roles when their curated ETF category supports one, so defensive gap examples no longer show non-US/global-equity explanations for those instruments.
 - VXUS-style international ETFs remain international candidates and can still appear in the International Equity finding.
 - Gap triggers, ordering mechanics, section scores, penalties, and benefit scoring were not changed.
-- Part B remains outstanding: database enrichment/backfill still needs to correct stale `canonical_sector` values for other consumers outside this Portfolio Review candidate-role fallback.
+- Part B was completed later on 2026-06-19: database enrichment/backfill now corrects stale `canonical_sector` and `canonical_themes` values for consumers outside this Portfolio Review candidate-role fallback.
 - Portfolio Review must be re-run from the Admin panel to regenerate stored report output.
 
 ---
