@@ -1,3 +1,38 @@
+## 2026-06-19 - Portfolio Review Gap Trigger and Breadth Ordering Fixes
+
+### Source
+Claude Code
+
+### Objective
+Fix crypto-ballast trigger semantics, grade International Equity breadth ordering, and tighten the International Equity trigger to genuine international underweight.
+
+### Files Changed
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- `excessive_crypto_risk` now fires only when crypto/high-volatility alternative exposure is above 5% and bond-plus-gold ballast is lower than crypto exposure.
+- International category representative scoring is now graded: core ex-US funds score above hedged/subset variants, which score above global-including-US funds; country and international-dividend funds remain below all representatives.
+- `insufficient_international_exposure` now fires from US/international look-through underweight only, not top-holding concentration or low diversification score side effects.
+- Defensive broad-sleeve ordering remains unchanged.
+- Updated Portfolio Review methodology and QA documentation.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (308/308)
+
+### Result
+Completed.
+
+### Notes for Claude
+- No section score, scoring-methodology formula, disclaimer chip, or candidate wording changed.
+- Stored Portfolio Review reports must be regenerated from the Admin panel before the corrected trigger behavior and ordering appear.
+
 ## 2026-06-19 - International Gap Broad ETF Ordering
 
 ### Source

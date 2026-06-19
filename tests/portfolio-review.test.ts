@@ -651,6 +651,19 @@ test("international-role instruments cannot enter defensive gap candidates", () 
         { label: "International", value: 20, percent: 0.2 }
       ]
     },
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.8, directWeight: 0.8, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
     instruments: [
       instrument({ id: "vxus", symbol: "VXUS", name: "Vanguard Total International Stock ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification", "Defensive"], geography: "International", geoExposure: "International" }),
       instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] })
@@ -676,8 +689,8 @@ test("gap candidate display comparator orders by category fit before instrument 
   assert.deepEqual(ordered.map((candidate) => candidate.symbol), ["VEA", "VXUS", "DXJ"]);
 });
 
-test("international gap candidates lead with broad ex-US representatives before country and dividend funds", () => {
-  const symbols = ["DXJ", "SCHY", "IDV", "JPXN", "EWJ", "VXUS", "VEA", "VWO", "IEMG"];
+test("international gap candidates lead with core ex-US representatives before variants, global-including-US, country and dividend funds", () => {
+  const symbols = ["DXJ", "SCHY", "IDV", "JPXN", "EWJ", "HEFA", "EMXC", "IOO", "VT", "ACWI", "VXUS", "VEA", "VWO", "IEMG"];
   const instruments = symbols.map((symbol) =>
     instrument({
       id: symbol.toLowerCase(),
@@ -698,7 +711,7 @@ test("international gap candidates lead with broad ex-US representatives before 
     symbol,
     instrumentType: "ETF",
     recommendationLabel: "Hold",
-    overallScore: ["DXJ", "SCHY", "IDV", "JPXN", "EWJ"].includes(symbol) ? 96 : 62,
+    overallScore: ["DXJ", "SCHY", "IDV", "JPXN", "EWJ", "HEFA", "EMXC", "IOO", "VT", "ACWI"].includes(symbol) ? 96 : 62,
     confidenceScore: 80,
     riskLevel: "medium",
     timeHorizon: "medium_term",
@@ -721,6 +734,19 @@ test("international gap candidates lead with broad ex-US representatives before 
         { label: "International", value: 22, percent: 0.22 }
       ]
     },
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.78, directWeight: 0.78, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
     instruments,
     recommendations
   }));
@@ -732,7 +758,17 @@ test("international gap candidates lead with broad ex-US representatives before 
 
   assert.deepEqual(selectedSymbols.slice(0, 4), ["VXUS", "VEA", "VWO", "IEMG"]);
   assert.deepEqual(displaySymbols.slice(0, 4), ["VXUS", "VEA", "VWO", "IEMG"]);
-  assert.equal(selectedSymbols.slice(0, 4).some((symbol) => ["DXJ", "SCHY", "IDV", "JPXN", "EWJ"].includes(symbol)), false);
+  assert.equal(selectedSymbols.slice(0, 4).some((symbol) => ["HEFA", "EMXC", "IOO", "VT", "ACWI", "DXJ", "SCHY", "IDV", "JPXN", "EWJ"].includes(symbol)), false);
+  assert.equal(selectedSymbols[4], "HEFA");
+
+  const tieredDisplayOrder = [
+    { symbol: "DXJ", categoryRepresentativeScore: 0, issueFitScore: 100, recommendationScore: 96 },
+    { symbol: "IOO", categoryRepresentativeScore: 30, issueFitScore: 74, recommendationScore: 96 },
+    { symbol: "EMXC", categoryRepresentativeScore: 60, issueFitScore: 83, recommendationScore: 96 },
+    { symbol: "VXUS", categoryRepresentativeScore: 100, issueFitScore: 100, recommendationScore: 62 }
+  ].sort(compareGapCandidatesByCategoryFit);
+
+  assert.deepEqual(tieredDisplayOrder.map((candidate) => candidate.symbol), ["VXUS", "EMXC", "IOO", "DXJ"]);
 });
 
 test("defensive gap display grouping buckets sleeves and preserves incoming order", () => {
@@ -880,16 +916,29 @@ test("improvement suggestions do not emit duplicate legacy gap categories", () =
   assert.equal(suggestions.filter((suggestion) => suggestion.issueCategory === "concentration_risk").length, 0);
 });
 
-test("improvement suggestions emit crypto ballast observation above threshold only", () => {
-  const aboveThreshold = new PortfolioImprovementSuggestionService().build(context({
+test("improvement suggestions emit crypto ballast observation only when ballast is below crypto exposure", () => {
+  const lowBallast = new PortfolioImprovementSuggestionService().build(context({
     dashboard: {
       ...context().dashboard,
       allocationByType: [
-        { label: "stock", value: 94, percent: 0.94 },
-        { label: "crypto_etf", value: 6, percent: 0.06 },
-        { label: "bond_etf", value: 0, percent: 0 }
+        { label: "stock", value: 90, percent: 0.9 },
+        { label: "crypto_etf", value: 8, percent: 0.08 },
+        { label: "bond_etf", value: 2, percent: 0.02 }
       ]
-    }
+    },
+    bondReport: { ...context().bondReport, totalBondAllocation: 0.02 } as PortfolioReviewInputContext["bondReport"]
+  }));
+  const adequateBallast = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "stock", value: 72, percent: 0.72 },
+        { label: "crypto_etf", value: 6, percent: 0.06 },
+        { label: "bond_etf", value: 20, percent: 0.2 },
+        { label: "gold_etf", value: 2, percent: 0.02 }
+      ]
+    },
+    bondReport: { ...context().bondReport, totalBondAllocation: 0.2 } as PortfolioReviewInputContext["bondReport"]
   }));
   const atThreshold = new PortfolioImprovementSuggestionService().build(context({
     dashboard: {
@@ -901,15 +950,53 @@ test("improvement suggestions emit crypto ballast observation above threshold on
       ]
     }
   }));
-  const cryptoSuggestion = aboveThreshold.find((suggestion) => suggestion.issueCategory === "excessive_crypto_risk");
+  const cryptoSuggestion = lowBallast.find((suggestion) => suggestion.issueCategory === "excessive_crypto_risk");
   const bondCandidate = cryptoSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BND");
 
   assert.ok(cryptoSuggestion);
+  assert.equal(cryptoSuggestion.title, "Crypto / Alternative - Ballast Underweighted");
   assert.ok(bondCandidate);
   assert.match(bondCandidate?.primaryReason ?? "", /Ballast/);
   assert.match(bondCandidate?.primaryReason ?? "", /crypto/);
+  assert.match(cryptoSuggestion.rationale, /Crypto and high-risk alternative exposure is 8\.0%, while bond and gold ballast is 2\.0%/);
   assert.match(cryptoSuggestion.rationale, /Analytical observation only - not a position sizing recommendation\./);
+  assert.equal(adequateBallast.some((suggestion) => suggestion.issueCategory === "excessive_crypto_risk"), false);
   assert.equal(atThreshold.some((suggestion) => suggestion.issueCategory === "excessive_crypto_risk"), false);
+});
+
+test("international gap does not fire from concentration or diversification side effects without international underweight", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByGeography: [
+        { label: "United States", value: 60, percent: 0.6 },
+        { label: "International", value: 40, percent: 0.4 }
+      ]
+    },
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.6, directWeight: 0.6, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    riskReport: {
+      ...context().riskReport,
+      concentration: {
+        ...context().riskReport.concentration,
+        topHoldingConcentration: 0.35
+      },
+      diversification: { score: 42 }
+    } as PortfolioReviewInputContext["riskReport"]
+  }));
+
+  assert.equal(suggestions.some((suggestion) => suggestion.issueCategory === "insufficient_international_exposure"), false);
 });
 
 test("improvement suggestions emit single-name look-through concentration only above threshold", () => {

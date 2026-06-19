@@ -68,7 +68,8 @@ const defensiveEquitySleeveRoles = new Set<CandidateRole>([
 const nonDefensiveSectorEtfs = new Set(["XBI", "IBB", "ARKG"]);
 const broadDefensiveSectorEtfs = new Set(["XLV", "VHT", "XLU", "VPU", "XLP", "VDC"]);
 const broadInternationalEtfCategories = new Set<EtfCategory>(["GLOBAL_EQUITY", "DEVELOPED_MARKETS", "EMERGING_MARKETS"]);
-const broadInternationalEtfs = new Set(["VXUS", "VEA", "VWO", "IEMG", "VT", "ACWI"]);
+const coreInternationalEtfs = new Set(["VXUS", "IXUS", "SPDW", "VEA", "IEFA", "EFA", "SCHF", "VWO", "IEMG", "EEM", "SPEM", "SCHE"]);
+const globalIncludingUsEtfs = new Set(["VT", "ACWI", "IOO"]);
 
 function recommendationMap(recommendations: InstrumentRecommendation[]) {
   return new Map(recommendations.map((recommendation) => [recommendation.instrumentId, recommendation]));
@@ -347,16 +348,19 @@ function candidateRankScore(candidate: PortfolioReviewCandidate) {
   );
 }
 
-function isBroadInternationalRepresentative(instrument: Instrument) {
+function internationalRepresentativeScore(instrument: Instrument) {
   const symbol = instrument.symbol?.toUpperCase() ?? "";
   const category = alphaEtfCategoryForSymbol(symbol);
-  return broadInternationalEtfs.has(symbol) || Boolean(category && broadInternationalEtfCategories.has(category));
+  if (!category || !broadInternationalEtfCategories.has(category)) return 0;
+  if (coreInternationalEtfs.has(symbol)) return 100;
+  if (globalIncludingUsEtfs.has(symbol)) return 30;
+  return 60;
 }
 
 function categoryRepresentativeScore(instrument: Instrument, issueCategory: PortfolioImprovementIssueCategory) {
   const symbol = instrument.symbol?.toUpperCase() ?? "";
   if (issueCategory === "insufficient_defensive_exposure" && broadDefensiveSectorEtfs.has(symbol)) return 100;
-  if (issueCategory === "insufficient_international_exposure" && isBroadInternationalRepresentative(instrument)) return 100;
+  if (issueCategory === "insufficient_international_exposure") return internationalRepresentativeScore(instrument);
   return 0;
 }
 
@@ -572,8 +576,6 @@ export class PortfolioImprovementSuggestionService {
     const suggestions: PortfolioImprovementSuggestion[] = [];
     const issueContext = buildPortfolioImprovementSuggestionContext(context);
     const bondAllocation = issueContext.bondAllocation;
-    const topHolding = context.riskReport.concentration.topHoldingConcentration;
-    const diversificationScore = context.riskReport.diversification.score;
 
     if (bondAllocation < 0.05) {
       suggestions.push(suggestion({
@@ -588,7 +590,7 @@ export class PortfolioImprovementSuggestionService {
       }));
     }
 
-    if (issueContext.usExposure > 0.7 || issueContext.internationalExposure < 0.3 || topHolding > 0.25 || diversificationScore < 55) {
+    if (issueContext.usExposure > 0.7 || issueContext.internationalExposure < 0.3) {
       suggestions.push(suggestion({
         category: "diversification",
         issueCategory: "insufficient_international_exposure",
@@ -614,7 +616,7 @@ export class PortfolioImprovementSuggestionService {
       }));
     }
 
-    if (issueContext.cryptoAllocation > 0.05) {
+    if (issueContext.cryptoAllocation > 0.05 && issueContext.recessionHedgeAllocation < issueContext.cryptoAllocation) {
       suggestions.push(suggestion({
         category: "risk",
         issueCategory: "excessive_crypto_risk",

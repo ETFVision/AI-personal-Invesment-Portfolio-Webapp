@@ -2,6 +2,36 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Portfolio Review Gap Trigger and Breadth Ordering QA
+
+Scope:
+- Verify crypto-ballast findings are ballast-aware, International Equity candidates use graded breadth ordering, and International Equity no longer fires from non-international concentration/diversification side effects.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Crypto / Alternative - Ballast Underweighted could appear when bond-plus-gold ballast already exceeded crypto exposure | Fixed; the finding is suppressed unless ballast is lower than crypto exposure |
+| International Equity broad-representative ordering could let hedged/subset or global-including-US funds outrank plain ex-US core funds | Fixed; core ex-US funds receive the highest representative score, variants receive a middle score, and global-including-US funds receive a lower score |
+| International Equity finding could fire from top-holding concentration or low diversification even when international exposure was not underweight | Fixed; the trigger is now based on US/international look-through underweight only |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| 22% ballast versus 6% crypto suppresses `excessive_crypto_risk` | PASS |
+| 8% crypto versus 2% ballast emits the crypto-ballast finding with the existing accurate title | PASS |
+| VXUS/VEA/VWO/IEMG lead international candidates ahead of HEFA/EMXC and IOO/VT/ACWI | PASS |
+| Concentration/diversification side effects alone do not emit International Equity | PASS |
+| Defensive broad-sleeve output remains unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (308/308) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports reflect the corrected trigger behavior and candidate ordering.
+
 ## 2026-06-19 SGT - International Gap Broad ETF Ordering QA
 
 Scope:
