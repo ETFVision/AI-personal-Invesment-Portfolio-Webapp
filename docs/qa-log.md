@@ -2,6 +2,38 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Portfolio Review Backlog Clearance QA
+
+Scope:
+- Verify Portfolio Balance Review user-facing rename, behavior-preserving wrapper-exclusion DRY cleanup, and cosmetic/taxonomy guard coverage.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| "Gap Analysis" framing could imply a user action to close a gap | Fixed; user-facing section now reads "Portfolio Balance Review" |
+| Generic "Underweighted Category" suffix was stronger than needed for compliance-safe balance framing | Fixed; generic suffix now reads "Lightly Represented Category" |
+| Wrapper-exclusion issuer logic was duplicated across Concentration, Risk, and page display paths | Fixed; shared helper now owns wrapper exclusion, issuer exposure detection, and issuer key generation |
+| Country-count labels used ASCII comparison text and symbol cleanup stripped US share-class suffixes | Fixed; labels use `≥`, foreign exchange suffixes are stripped, and `BRK.B` is preserved |
+| Curated taxonomy maps lacked a single regression guard across every approved ETF and stock symbol | Fixed; taxonomy test now covers all curated ETF categories and stock sectors |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Portfolio Balance Review and Portfolio Balance Summary strings are present | PASS |
+| `issueCategory` and internal gap identifiers remain unchanged | PASS |
+| Concentration and Risk wrapper-excluded issuer top-one/top-five outputs match on representative inputs | PASS |
+| `cleanHoldingSymbol("BRK.B")` preserves share class and `cleanHoldingSymbol("2330.TW")` strips exchange suffix | PASS |
+| Curated alpha ETF/stock symbols normalize to expected canonical sectors | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (314/314) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports reflect the renamed Portfolio Balance Review display strings.
+
 ## 2026-06-19 SGT - International Gap Subsection Presentation QA
 
 Scope:

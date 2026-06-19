@@ -6,6 +6,7 @@ import {
   PortfolioImprovementSuggestionService,
   rolePriority
 } from "../src/application/services/portfolioReview/PortfolioImprovementSuggestionService";
+import { wrapperExcludedIssuerConcentration } from "../src/application/services/risk/RiskAnalyticsDataService";
 import { PortfolioActionSuggestionService } from "../src/application/services/portfolioReview/PortfolioActionSuggestionService";
 import { AllocationReviewService } from "../src/application/services/portfolioReview/AllocationReviewService";
 import { ConcentrationReviewService } from "../src/application/services/portfolioReview/ConcentrationReviewService";
@@ -22,7 +23,7 @@ import {
   groupInternationalGapCandidates,
   internationalGapTooltipCategory
 } from "../src/application/services/portfolioReview/gapCandidateDisplay";
-import { portfolioReviewMetricLabel, sharedCompanyDisplayName } from "../src/application/services/portfolioReview/portfolioReviewDisplay";
+import { cleanHoldingSymbol, portfolioReviewMetricLabel, sharedCompanyDisplayName } from "../src/application/services/portfolioReview/portfolioReviewDisplay";
 import { weightedPortfolioScore } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import type { PortfolioReviewInputContext } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import { PortfolioLookthroughExposureService } from "../src/application/services/etfLookthrough/PortfolioLookthroughExposureService";
@@ -359,8 +360,11 @@ test("portfolio review metric labels clarify country materiality thresholds", ()
 
   assert.equal(geographyReview.metrics.countryCount, 1);
   assert.equal(diversificationReview.metrics.lookthroughCountryCount, 1);
-  assert.equal(portfolioReviewMetricLabel("countryCount"), "Countries >=1%");
-  assert.equal(portfolioReviewMetricLabel("lookthroughCountryCount"), "Look-through countries >=3%");
+  assert.equal(portfolioReviewMetricLabel("countryCount"), "Countries ≥1%");
+  assert.equal(portfolioReviewMetricLabel("lookthroughCountryCount"), "Look-through countries ≥3%");
+  assert.equal(cleanHoldingSymbol("BRK.B"), "BRK.B");
+  assert.equal(cleanHoldingSymbol("2330.TW"), "2330");
+  assert.equal(cleanHoldingSymbol("005930.KS"), "005930");
 });
 
 test("concentration review surfaces named direct and indirect top holdings", () => {
@@ -402,6 +406,28 @@ test("concentration review measures top holding at issuer level when ETF wrapper
   assert.equal(largestDirect.holdingSymbol, "VOO");
   assert.equal(review.findings.some((finding) => finding.title === "Single-company concentration"), false);
   assert.ok(review.score >= 89);
+});
+
+test("concentration and risk share wrapper-excluded issuer exposure semantics", () => {
+  const holdingExposures = [
+    { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "VOO", holdingName: "Vanguard S&P 500 ETF", directWeight: 0.3, indirectWeight: 0, totalWeight: 0.3, sourceEtfs: [], inputsSnapshot: { instrumentAssetClass: "etf", exposureRole: "direct_position" } },
+    { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "NVDA", holdingName: "NVIDIA", holdingIssuerId: "issuer-nvda", holdingIssuerName: "NVIDIA Corporation", directWeight: 0, indirectWeight: 0.12, totalWeight: 0.12, sourceEtfs: [{ symbol: "VOO", weight: 0.12 }], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "underlying_security", issuerId: "issuer-nvda", issuerName: "NVIDIA Corporation" } },
+    { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "NVDA", holdingName: "NVIDIA Class A", holdingIssuerId: "issuer-nvda", holdingIssuerName: "NVIDIA Corporation", directWeight: 0.03, indirectWeight: 0, totalWeight: 0.03, sourceEtfs: [], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "direct_position", issuerId: "issuer-nvda", issuerName: "NVIDIA Corporation" } },
+    { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "MSFT", holdingName: "Microsoft", holdingIssuerId: "issuer-msft", holdingIssuerName: "Microsoft Corporation", directWeight: 0, indirectWeight: 0.06, totalWeight: 0.06, sourceEtfs: [{ symbol: "VOO", weight: 0.06 }], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "underlying_security", issuerId: "issuer-msft", issuerName: "Microsoft Corporation" } }
+  ];
+  const concentrationReview = new ConcentrationReviewService().review(context({
+    lookthroughReport: lookthroughReport(holdingExposures)
+  }));
+  const riskIssuerConcentration = wrapperExcludedIssuerConcentration({
+    inputsSnapshot: {
+      lookthroughExposure: { holdingExposures }
+    }
+  });
+
+  assert.equal(Number(concentrationReview.metrics.topHoldingConcentration), riskIssuerConcentration?.topHolding);
+  assert.equal(Number(concentrationReview.metrics.topFiveConcentration), riskIssuerConcentration?.topFive);
+  assert.equal(riskIssuerConcentration?.topHolding, 0.15);
+  assert.equal(riskIssuerConcentration?.topFive, 0.21);
 });
 
 test("concentration review emits watch when a single issuer exceeds 10 percent", () => {
@@ -652,7 +678,7 @@ test("defensive gap candidate selection includes each defensive sleeve with per-
   const symbols = defensiveSuggestion?.candidateInstruments.map((candidate) => candidate.symbol) ?? [];
   const groups = groupDefensiveGapCandidates(defensiveSuggestion?.candidateInstruments ?? []);
 
-  assert.equal(defensiveSuggestion?.title, "Defensive Sectors — Underweighted Category");
+  assert.equal(defensiveSuggestion?.title, "Defensive Sectors — Lightly Represented Category");
   assert.deepEqual(groups.map((group) => group.key), ["utilities", "consumer_staples", "healthcare"]);
   assert.deepEqual(groups.map((group) => group.candidates.length), [2, 2, 2]);
   assert.deepEqual(groups[0]?.candidates.map((candidate) => candidate.symbol), ["XLU", "VPU"]);
@@ -878,7 +904,7 @@ test("gap titles use a consistent dash and overlap labels prefer company names",
     }
   }));
 
-  assert.ok(suggestions.some((suggestion) => suggestion.title === "International Equity — Underweighted Category"));
+  assert.ok(suggestions.some((suggestion) => suggestion.title === "International Equity — Lightly Represented Category"));
   assert.ok(suggestions.some((suggestion) => suggestion.title === "Crypto / Alternative — Ballast Underweighted"));
   assert.ok(suggestions.every((suggestion) => !suggestion.title.includes(" - ")));
   assert.equal(sharedCompanyDisplayName("2330.TW", context({

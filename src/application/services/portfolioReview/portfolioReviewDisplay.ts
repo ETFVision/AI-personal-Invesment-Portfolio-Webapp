@@ -2,8 +2,8 @@ import type { PortfolioLookthroughHolding } from "@/domain/etfLookthrough/types"
 
 export function portfolioReviewMetricLabel(value: string) {
   const labels: Record<string, string> = {
-    countryCount: "Countries >=1%",
-    lookthroughCountryCount: "Look-through countries >=3%"
+    countryCount: "Countries ≥1%",
+    lookthroughCountryCount: "Look-through countries ≥3%"
   };
   if (labels[value]) return labels[value];
   return value
@@ -13,7 +13,7 @@ export function portfolioReviewMetricLabel(value: string) {
 }
 
 export function cleanHoldingSymbol(symbol: string) {
-  return symbol.replace(/\.[A-Z]{1,4}$/i, "");
+  return symbol.replace(/\.(TW|KS|AS|L)$/i, "");
 }
 
 export function sharedCompanyDisplayName(symbol: string, holdings: PortfolioLookthroughHolding[] = []) {

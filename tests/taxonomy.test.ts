@@ -10,8 +10,84 @@ import {
   alphaEtfCategoryForSymbol,
   alphaStockSectorForSymbol
 } from "../src/domain/universe/alphaUniverse";
+import type { Instrument } from "../src/domain/universe/types";
 
 const taxonomy = new TaxonomyService();
+
+const expectedEtfCategorySectors: Record<keyof typeof ALPHA_ETF_CATEGORIES, string> = {
+  US_BROAD_MARKET: "Multi-Asset / Broad Market",
+  GLOBAL_EQUITY: "Multi-Asset / Broad Market",
+  DEVELOPED_MARKETS: "Multi-Asset / Broad Market",
+  EMERGING_MARKETS: "Multi-Asset / Broad Market",
+  TECHNOLOGY: "Technology",
+  SEMICONDUCTOR: "Technology",
+  AI_ROBOTICS: "Technology",
+  CYBERSECURITY: "Technology",
+  CLOUD_COMPUTING: "Technology",
+  HEALTHCARE: "Healthcare",
+  FINANCIALS: "Financials",
+  INDUSTRIALS: "Industrials",
+  CONSUMER_DISCRETIONARY: "Consumer Discretionary",
+  CONSUMER_STAPLES: "Consumer Staples",
+  ENERGY: "Energy",
+  MATERIALS: "Materials",
+  UTILITIES: "Utilities",
+  COMMUNICATION_SERVICES: "Communication Services",
+  REAL_ESTATE: "Real Estate",
+  DIVIDEND: "Multi-Asset / Broad Market",
+  GROWTH: "Multi-Asset / Broad Market",
+  VALUE: "Multi-Asset / Broad Market",
+  SMALL_CAP: "Multi-Asset / Broad Market",
+  BOND: "Bonds / Fixed Income",
+  CASH_EQUIVALENT: "Cash / Money Market",
+  COMMODITY: "Commodities / Gold",
+  GOLD_PRECIOUS_METALS: "Commodities / Gold",
+  CRYPTO_ETF: "Crypto",
+  INTERNATIONAL_DIVIDEND: "Multi-Asset / Broad Market",
+  COUNTRY: "Multi-Asset / Broad Market",
+  INFRASTRUCTURE: "Industrials",
+  CLEAN_ENERGY: "Energy"
+};
+
+function minimalInstrument(symbol: string, overrides: Partial<Instrument> = {}): Instrument {
+  return {
+    id: symbol.toLowerCase(),
+    symbol,
+    name: `${symbol} instrument`,
+    assetClass: "etf",
+    instrumentType: "etf",
+    sector: "Incorrect Provider Sector",
+    industry: "Incorrect Provider Industry",
+    canonicalSector: null,
+    canonicalThemes: [],
+    taxonomyIsManualOverride: false,
+    taxonomyReviewStatus: "pending",
+    geography: null,
+    currency: "USD",
+    exchange: null,
+    watchlistTier: null,
+    benchmarkTags: [],
+    thematicTags: [],
+    riskCategory: null,
+    volatilityBucket: null,
+    durationCategory: null,
+    treasuryClassification: null,
+    inflationLinked: false,
+    creditQuality: null,
+    geoExposure: null,
+    rateSensitivity: null,
+    inflationSensitivity: null,
+    recessionSensitivity: null,
+    liquidityRole: null,
+    cryptoClassification: null,
+    metadataLastRefreshedAt: null,
+    providerPrimary: null,
+    providerMetadata: {},
+    sourceType: "test",
+    isActive: true,
+    ...overrides
+  };
+}
 
 test("maps broad market ETFs to broad market sector without blanket global theme", () => {
   const result = taxonomy.normalize({
@@ -183,6 +259,25 @@ test("stock sector taxonomy maps approved alpha stocks by symbol", () => {
   assert.equal(alphaStockSectorForSymbol("PYPL"), "Financials");
   assert.equal(alphaStockSectorForSymbol("BA"), "Industrials");
   assert.equal(alphaStockSectorForSymbol("NEE"), "Utilities");
+});
+
+test("curated alpha universe maps normalizeInstrument to expected canonical sectors", () => {
+  for (const [category, symbols] of Object.entries(ALPHA_ETF_CATEGORIES) as Array<[keyof typeof ALPHA_ETF_CATEGORIES, string[]]>) {
+    for (const symbol of symbols) {
+      const result = taxonomy.normalizeInstrument(minimalInstrument(symbol));
+      assert.equal(result.canonicalSector, expectedEtfCategorySectors[category], `${symbol} should normalize from ${category}`);
+    }
+  }
+
+  for (const [sector, symbols] of Object.entries(ALPHA_STOCK_SECTORS)) {
+    for (const symbol of symbols) {
+      const result = taxonomy.normalizeInstrument(minimalInstrument(symbol, {
+        assetClass: "stock",
+        instrumentType: "stock"
+      }));
+      assert.equal(result.canonicalSector, sector, `${symbol} should normalize from stock sector source of truth`);
+    }
+  }
 });
 
 test("generic provider labels and alpha ETF category slugs do not create noisy taxonomy review items", () => {

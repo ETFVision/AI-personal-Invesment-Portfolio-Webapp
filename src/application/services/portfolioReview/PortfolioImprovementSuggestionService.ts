@@ -4,6 +4,7 @@ import type { Instrument } from "@/domain/universe/types";
 import type { EtfTopHolding, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { alphaEtfCategoryForSymbol, type EtfCategory } from "../../../domain/universe/alphaUniverse";
 import { DiversificationBenefitService } from "./DiversificationBenefitService";
+import { broadDefensiveSectorEtfs, broadInternationalEtfCategories, coreInternationalEtfs, globalIncludingUsEtfs, nonDefensiveSectorEtfs } from "./gapCandidateSets";
 import { type PortfolioReviewInputContext } from "./portfolioReviewScoring";
 
 const blockedLabels = new Set(["Reduce", "Sell", "Insufficient Data", "Not Applicable"]);
@@ -70,12 +71,6 @@ const defensiveEquitySleeveRoles = new Set<CandidateRole>([
   "utilities_defensive",
   "consumer_staples_defensive"
 ]);
-
-const nonDefensiveSectorEtfs = new Set(["XBI", "IBB", "ARKG"]);
-const broadDefensiveSectorEtfs = new Set(["XLV", "VHT", "XLU", "VPU", "XLP", "VDC"]);
-const broadInternationalEtfCategories = new Set<EtfCategory>(["GLOBAL_EQUITY", "DEVELOPED_MARKETS", "EMERGING_MARKETS"]);
-const coreInternationalEtfs = new Set(["VXUS", "IXUS", "SPDW", "VEA", "IEFA", "EFA", "SCHF", "VWO", "IEMG", "EEM", "SPEM", "SCHE"]);
-const globalIncludingUsEtfs = new Set(["VT", "ACWI", "IOO"]);
 
 function recommendationMap(recommendations: InstrumentRecommendation[]) {
   return new Map(recommendations.map((recommendation) => [recommendation.instrumentId, recommendation]));
@@ -621,7 +616,7 @@ export class PortfolioImprovementSuggestionService {
         category: "diversification",
         issueCategory: "insufficient_international_exposure",
         priority: issueContext.usExposure > 0.85 ? "high" : issueContext.usExposure > 0.7 ? "medium" : "low",
-        title: "International Equity — Underweighted Category",
+        title: "International Equity — Lightly Represented Category",
         rationale: `Look-through country exposure is US-oriented relative to a globally diversified baseline. US look-through is ${(issueContext.usExposure * 100).toFixed(1)}%.`,
         candidates: rankedInternationalCandidates(context, issueContext),
         benefit: "Can reduce US home bias and add regional diversification.",
@@ -634,7 +629,7 @@ export class PortfolioImprovementSuggestionService {
         category: "diversification",
         issueCategory: "insufficient_defensive_exposure",
         priority: "low",
-        title: "Defensive Sectors — Underweighted Category",
+        title: "Defensive Sectors — Lightly Represented Category",
         rationale: `Technology is the largest look-through sector at ${(issueContext.technologyWeight * 100).toFixed(1)}%. Defensive sleeve look-through is Healthcare ${(issueContext.healthcareWeight * 100).toFixed(1)}%, Utilities ${(issueContext.utilitiesWeight * 100).toFixed(1)}%, and Consumer Staples ${(issueContext.consumerStaplesWeight * 100).toFixed(1)}%.`,
         candidates: rankedDefensiveCandidates(context, issueContext),
         benefit: "May relate to sector balance without relying only on broad-market ETFs.",

@@ -1,3 +1,48 @@
+## 2026-06-19 - Portfolio Review Backlog Clearance
+
+### Source
+Claude Code
+
+### Objective
+Clear three Portfolio Review backlog items: user-facing Portfolio Balance Review rename, behavior-preserving wrapper-exclusion DRY cleanup, and cosmetic/taxonomy guard coverage.
+
+### Files Changed
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `src/application/services/portfolioReview/ConcentrationReviewService.ts`
+- `src/application/services/risk/RiskAnalyticsDataService.ts`
+- `src/application/services/portfolioReview/portfolioIssuerExposure.ts`
+- `src/application/services/portfolioReview/gapCandidateSets.ts`
+- `src/application/services/portfolioReview/portfolioReviewDisplay.ts`
+- `tests/portfolio-review.test.ts`
+- `tests/taxonomy.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/PORTFOLIO_REVIEW_UX_FIXES_WIP.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Renamed user-facing Portfolio Review section language from Gap Analysis to Portfolio Balance Review and from Analytical Gap Summary to Portfolio Balance Summary.
+- Softened generic finding suffixes from Underweighted Category to Lightly Represented Category while leaving issue-specific titles such as Ballast Underweighted and Recession Hedge Underweighted unchanged.
+- Extracted shared wrapper-exclusion issuer helpers for Concentration Review, Risk Analytics, and Portfolio Review page display without changing score or issuer aggregation behavior.
+- Co-located gap-engine curated sets in `gapCandidateSets.ts` without changing membership.
+- Updated country-count labels to use the `≥` glyph and tightened exchange-suffix cleanup so `BRK.B` is preserved while foreign suffixes such as `.TW` are stripped.
+- Added regression tests for wrapper-excluded Concentration/Risk equivalence and curated taxonomy normalization.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (314/314)
+
+### Result
+Completed.
+
+### Notes for Claude
+- No `issueCategory`, `gapCandidateDisplay.ts`, scoring formula, trigger, section-score, or access-control identifier was renamed.
+- Part B is behavior-preserving; the regression test confirms Concentration Review and Risk Analytics use identical wrapper-excluded issuer top-one/top-five semantics.
+- Stored Portfolio Review reports must be regenerated from the Admin panel before the renamed display strings appear for saved reports.
+
 ## 2026-06-19 - International Gap Subsection Presentation
 
 ### Source

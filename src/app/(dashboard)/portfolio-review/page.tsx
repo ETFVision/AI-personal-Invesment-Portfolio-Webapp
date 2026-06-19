@@ -27,6 +27,7 @@ import {
   groupInternationalGapCandidates,
   internationalGapTooltipCategory
 } from "@/application/services/portfolioReview/gapCandidateDisplay";
+import { instrumentAssetClass, isFundWrapper, isUnderlyingExposure, issuerKey as issuerExposureKey } from "@/application/services/portfolioReview/portfolioIssuerExposure";
 import { portfolioReviewMetricLabel, sharedCompanyDisplayName } from "@/application/services/portfolioReview/portfolioReviewDisplay";
 
 type PortfolioReviewPageProps = {
@@ -75,12 +76,16 @@ function formatPctOneDecimal(value: number) {
 function sanitizeGapText(value: string | null | undefined) {
   if (!value) return value;
   return value
-    .replace(/\bPortfolio Improvement Observations\b/gi, "Gap Analysis — Instruments in Underweighted Categories")
-    .replace(/\bPotential Review Actions\b/gi, "Analytical Gap Summary")
-    .replace(/\bimprovement suggestions\b/gi, "gap findings")
-    .replace(/\bReview healthcare and defensive diversification\b/gi, "Defensive Sectors — Underweighted Category")
-    .replace(/\bHealthcare & Defensive — Underweighted Category\b/gi, "Defensive Sectors — Underweighted Category")
-    .replace(/\bReview diversification candidates\b/gi, "International Equity — Underweighted Category")
+    .replace(/\bPortfolio Improvement Observations\b/gi, "Portfolio Balance Review")
+    .replace(/\bPotential Review Actions\b/gi, "Portfolio Balance Summary")
+    .replace(/\bimprovement suggestions\b/gi, "balance findings")
+    .replace(/\bgap findings\b/gi, "balance findings")
+    .replace(/\bGap findings\b/g, "Balance findings")
+    .replace(/\bReview healthcare and defensive diversification\b/gi, "Defensive Sectors — Lightly Represented Category")
+    .replace(/\bHealthcare & Defensive — Underweighted Category\b/gi, "Defensive Sectors — Lightly Represented Category")
+    .replace(/\bDefensive Sectors — Underweighted Category\b/gi, "Defensive Sectors — Lightly Represented Category")
+    .replace(/\bReview diversification candidates\b/gi, "International Equity — Lightly Represented Category")
+    .replace(/\bInternational Equity — Underweighted Category\b/gi, "International Equity — Lightly Represented Category")
     .replace(/\byou should consider\b/gi, "context for review:")
     .replace(/\bAdds ([^.]+?) exposure\b/gi, "Provides exposure to $1")
     .replace(/\bAdds a differentiated exposure driver\b/gi, "Provides a differentiated exposure driver")
@@ -95,7 +100,7 @@ function sanitizeGapText(value: string | null | undefined) {
     )
     .replace(
       /\bSuggestions are review prompts only and do not recommend exact trades or position sizes\./gi,
-      "Gap findings are deterministic analytical outputs and do not constitute investment advice, trade instructions, or position sizing guidance."
+      "Balance findings are deterministic analytical outputs and do not constitute investment advice, trade instructions, or position sizing guidance."
     );
 }
 
@@ -107,7 +112,7 @@ function gapCategoryForTooltip(suggestion: PortfolioImprovementSuggestion, candi
   const title = sanitizeGapText(suggestion.title) ?? suggestion.title;
   if (suggestion.issueCategory === "insufficient_defensive_exposure" || title.includes("Defensive Sectors")) return defensiveGapTooltipCategory(candidate);
   if (suggestion.issueCategory === "insufficient_international_exposure" || title.includes("International Equity")) return internationalGapTooltipCategory(candidate);
-  return candidate.diversificationType?.replace(/ sector$/i, "") ?? title.replace(" — Underweighted Category", "");
+  return candidate.diversificationType?.replace(/ sector$/i, "") ?? title.replace(" — Lightly Represented Category", "");
 }
 
 function whyThisAppearedText(
@@ -354,12 +359,12 @@ function Suggestions({ suggestions, lookthrough }: { suggestions: PortfolioImpro
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Gap Analysis — Instruments in Underweighted Categories</CardTitle>
-        <CardDescription>Instruments below pass all guardrail filters and belong to an underweighted category. Ordered by how closely each instrument matches the underweighted category; this reflects the category, not your specific holdings. Portfolio impact indicators are factual observations {"\u2014"} not a recommendation to buy, sell, or hold.</CardDescription>
+        <CardTitle>Portfolio Balance Review</CardTitle>
+        <CardDescription>Instruments below pass all guardrail filters and belong to a lightly represented category. Ordered by how closely each instrument matches the category; this reflects the category, not your specific holdings. Portfolio impact indicators are factual observations {"\u2014"} not a recommendation to buy, sell, or hold.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {safeSuggestions.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No gap finding generated for the latest review.</p>
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No balance finding generated for the latest review.</p>
         ) : safeSuggestions.map((suggestion) => {
           const candidates = Array.isArray(suggestion.candidateInstruments) ? suggestion.candidateInstruments : [];
           const sortedCandidates = [...candidates].sort(compareGapCandidatesByCategoryFit);
@@ -407,7 +412,7 @@ function Suggestions({ suggestions, lookthrough }: { suggestions: PortfolioImpro
                       {candidate.symbol}
                     </Link>
                     <p className="mt-1 inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-                      Shown because category is underweighted — not a buy recommendation
+                      Shown because category is lightly represented — not a buy recommendation
                     </p>
                   </div>
                   <div className="flex min-w-0 flex-1 items-center gap-1">
@@ -582,25 +587,6 @@ function rawSymbols(row: PortfolioLookthroughHolding) {
   return Array.from(new Set(values.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim().toUpperCase())));
 }
 
-function instrumentAssetClass(row: PortfolioLookthroughHolding) {
-  const value = holdingSnapshot(row).instrumentAssetClass;
-  return typeof value === "string" ? value : null;
-}
-
-function exposureRole(row: PortfolioLookthroughHolding) {
-  const value = holdingSnapshot(row).exposureRole;
-  return typeof value === "string" ? value : null;
-}
-
-function isFundWrapper(row: PortfolioLookthroughHolding) {
-  const assetClass = instrumentAssetClass(row);
-  return row.directWeight > 0 && row.indirectWeight === 0 && ["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"].includes(assetClass ?? "");
-}
-
-function isUnderlyingExposure(row: PortfolioLookthroughHolding) {
-  return row.indirectWeight > 0 || exposureRole(row) === "underlying_security";
-}
-
 function normalizeIssuerName(name: string | null | undefined, fallback: string) {
   const base = (name ?? fallback)
     .replace(/\s+Class\s+[A-Z0-9]+$/i, "")
@@ -611,12 +597,6 @@ function normalizeIssuerName(name: string | null | undefined, fallback: string) 
     .replace(/\s+/g, " ")
     .trim();
   return base || fallback;
-}
-
-function issuerKey(row: PortfolioLookthroughHolding) {
-  const snapshot = holdingSnapshot(row);
-  const snapshotIssuerId = typeof snapshot.issuerId === "string" ? snapshot.issuerId : null;
-  return row.holdingIssuerId ?? snapshotIssuerId ?? normalizeIssuerName(row.holdingIssuerName ?? row.holdingName, row.holdingSymbol).toUpperCase();
 }
 
 function issuerDisplayName(row: PortfolioLookthroughHolding) {
@@ -658,7 +638,7 @@ function aggregateByIssuer(rows: PortfolioLookthroughHolding[], mode: "underlyin
     if (isFundWrapper(row)) continue;
     if (mode === "underlying" && !isUnderlyingExposure(row)) continue;
     if (mode === "indirect" && row.indirectWeight <= 0) continue;
-    const key = issuerKey(row);
+    const key = issuerExposureKey(row);
     const symbols = rawSymbols(row);
     const current = map.get(key) ?? {
       ...row,
@@ -801,12 +781,12 @@ function Actions({ actions }: { actions: PortfolioPotentialAction[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Analytical Gap Summary</CardTitle>
-        <CardDescription>Deterministic summary of gap findings. Not investment advice, trade instructions, or a recommendation to buy, sell, or hold any instrument.</CardDescription>
+        <CardTitle>Portfolio Balance Summary</CardTitle>
+        <CardDescription>Deterministic summary of balance findings. Not investment advice, trade instructions, or a recommendation to buy, sell, or hold any instrument.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         {safeActions.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No analytical gap summary generated.</p>
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No portfolio balance summary generated.</p>
         ) : safeActions.map((action) => (
           <div key={`${action.actionType}-${action.title}`} className="rounded-md border p-3 text-sm">
             <p className="font-medium">{sanitizeGapText(action.title)}</p>

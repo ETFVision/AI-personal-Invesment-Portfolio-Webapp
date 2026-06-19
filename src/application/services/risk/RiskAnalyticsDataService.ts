@@ -9,6 +9,7 @@ import type { Instrument, InstrumentPrice } from "@/domain/universe/types";
 import type { RiskAnalyticsReport, RiskAnalyticsService } from "@/application/services/risk/RiskAnalyticsService";
 import { buildPortfolioExposureContext, dashboardWithExposureContext } from "../portfolio/PortfolioExposureContextService";
 import type { PortfolioReviewReport } from "@/domain/portfolioReview/types";
+import { isIssuerExposure, issuerKey, type PortfolioIssuerExposureRow } from "../portfolioReview/portfolioIssuerExposure";
 
 function yearsAgoIso(years: number) {
   const date = new Date();
@@ -67,58 +68,20 @@ function numberField(row: Record<string, unknown>, key: string) {
   return Number.isFinite(value) ? value : 0;
 }
 
-function holdingSnapshot(row: Record<string, unknown>) {
-  return toObject(row.inputsSnapshot);
-}
-
-function instrumentAssetClass(row: Record<string, unknown>) {
-  const value = holdingSnapshot(row).instrumentAssetClass;
-  return typeof value === "string" ? value : null;
-}
-
-function exposureRole(row: Record<string, unknown>) {
-  const value = holdingSnapshot(row).exposureRole;
-  return typeof value === "string" ? value : null;
-}
-
-function isFundWrapper(row: Record<string, unknown>) {
-  const directWeight = numberField(row, "directWeight");
-  const indirectWeight = numberField(row, "indirectWeight");
-  const assetClass = instrumentAssetClass(row);
-  return directWeight > 0 && indirectWeight === 0 && ["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"].includes(assetClass ?? "");
-}
-
-function isUnderlyingExposure(row: Record<string, unknown>) {
-  return numberField(row, "indirectWeight") > 0 || exposureRole(row) === "underlying_security";
-}
-
-function isIssuerExposure(row: Record<string, unknown>) {
-  return !isFundWrapper(row) && (isUnderlyingExposure(row) || numberField(row, "directWeight") > 0);
-}
-
-function normalizeIssuerName(name: string | null | undefined, fallback: string) {
-  return (name ?? fallback)
-    .replace(/\s+Class\s+[A-Z0-9]+$/i, "")
-    .replace(/\s+Ordinary\s+Shares?$/i, "")
-    .replace(/\s+Common\s+Stock$/i, "")
-    .replace(/\s+Sponsored\s+ADR$/i, "")
-    .replace(/\s+ADR$/i, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toUpperCase() || fallback.toUpperCase();
-}
-
 function stringField(row: Record<string, unknown>, key: string) {
   const value = row[key];
   return typeof value === "string" ? value : null;
 }
 
-function issuerKey(row: Record<string, unknown>) {
-  const snapshot = holdingSnapshot(row);
-  const snapshotIssuerId = typeof snapshot.issuerId === "string" ? snapshot.issuerId : null;
-  return stringField(row, "holdingIssuerId")
-    ?? snapshotIssuerId
-    ?? normalizeIssuerName(stringField(row, "holdingName"), stringField(row, "holdingSymbol") ?? "UNKNOWN");
+function issuerExposureRow(row: Record<string, unknown>): PortfolioIssuerExposureRow {
+  return {
+    directWeight: numberField(row, "directWeight"),
+    indirectWeight: numberField(row, "indirectWeight"),
+    holdingSymbol: stringField(row, "holdingSymbol") ?? "UNKNOWN",
+    holdingName: stringField(row, "holdingName"),
+    holdingIssuerId: stringField(row, "holdingIssuerId"),
+    inputsSnapshot: row.inputsSnapshot
+  };
 }
 
 export function wrapperExcludedIssuerConcentration(
@@ -131,8 +94,9 @@ export function wrapperExcludedIssuerConcentration(
     : [];
   const grouped = new Map<string, number>();
   for (const row of rows) {
-    if (!isIssuerExposure(row)) continue;
-    const key = issuerKey(row);
+    const adaptedRow = issuerExposureRow(row);
+    if (!isIssuerExposure(adaptedRow)) continue;
+    const key = issuerKey(adaptedRow);
     grouped.set(key, (grouped.get(key) ?? 0) + numberField(row, "totalWeight"));
   }
   const weights = Array.from(grouped.values()).sort((a, b) => b - a);

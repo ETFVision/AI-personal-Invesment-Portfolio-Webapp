@@ -1,56 +1,12 @@
 import { finding, section, type PortfolioReviewInputContext } from "./portfolioReviewScoring";
+import { holdingSnapshot, isIssuerExposure, issuerKey } from "./portfolioIssuerExposure";
 
 type HoldingExposure = NonNullable<PortfolioReviewInputContext["lookthroughReport"]>["holdingExposures"][number];
-
-function holdingSnapshot(row: HoldingExposure) {
-  return row.inputsSnapshot && typeof row.inputsSnapshot === "object" ? row.inputsSnapshot as Record<string, unknown> : {};
-}
-
-function instrumentAssetClass(row: HoldingExposure) {
-  const value = holdingSnapshot(row).instrumentAssetClass;
-  return typeof value === "string" ? value : null;
-}
-
-function exposureRole(row: HoldingExposure) {
-  const value = holdingSnapshot(row).exposureRole;
-  return typeof value === "string" ? value : null;
-}
-
-function isFundWrapper(row: HoldingExposure) {
-  const assetClass = instrumentAssetClass(row);
-  return row.directWeight > 0 && row.indirectWeight === 0 && ["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"].includes(assetClass ?? "");
-}
-
-function isUnderlyingExposure(row: HoldingExposure) {
-  return row.indirectWeight > 0 || exposureRole(row) === "underlying_security";
-}
-
-function isIssuerExposure(row: HoldingExposure) {
-  return !isFundWrapper(row) && (isUnderlyingExposure(row) || row.directWeight > 0);
-}
-
-function normalizeIssuerName(name: string | null | undefined, fallback: string) {
-  return (name ?? fallback)
-    .replace(/\s+Class\s+[A-Z0-9]+$/i, "")
-    .replace(/\s+Ordinary\s+Shares?$/i, "")
-    .replace(/\s+Common\s+Stock$/i, "")
-    .replace(/\s+Sponsored\s+ADR$/i, "")
-    .replace(/\s+ADR$/i, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toUpperCase() || fallback.toUpperCase();
-}
 
 function issuerName(row: HoldingExposure) {
   const snapshot = holdingSnapshot(row);
   const snapshotIssuerName = typeof snapshot.issuerName === "string" ? snapshot.issuerName : null;
   return row.holdingIssuerName ?? snapshotIssuerName ?? row.holdingName ?? row.holdingSymbol;
-}
-
-function issuerKey(row: HoldingExposure) {
-  const snapshot = holdingSnapshot(row);
-  const snapshotIssuerId = typeof snapshot.issuerId === "string" ? snapshot.issuerId : null;
-  return row.holdingIssuerId ?? snapshotIssuerId ?? normalizeIssuerName(row.holdingName, row.holdingSymbol);
 }
 
 function issuerGroupedUnderlying(rows: HoldingExposure[]) {

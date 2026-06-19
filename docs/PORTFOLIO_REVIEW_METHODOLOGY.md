@@ -4,7 +4,7 @@ Last updated: 2026-06-19
 
 ## Purpose
 
-Portfolio Review is a deterministic portfolio-level diagnostic engine. It does not execute trades. It generates observations, section scores, gap findings, and explanatory diagnostics. User-facing wording should avoid action-oriented framing and should not imply personalised investment advice.
+Portfolio Review is a deterministic portfolio-level diagnostic engine. It does not execute trades. It generates observations, section scores, balance findings, and explanatory diagnostics. User-facing wording should avoid action-oriented framing and should not imply personalised investment advice.
 
 ## Main Code Paths
 
@@ -98,9 +98,9 @@ Related files:
 - `src/app/(dashboard)/portfolio-review/page.tsx`
 - `docs/SECURITY_MASTER_AUDIT.md`
 
-## Gap Analysis Findings
+## Portfolio Balance Review Findings
 
-Gap Analysis is framed as a mechanical screener, not as a suggestion or action engine. Instruments appear only when their category is underweighted in the current portfolio look-through exposure, they are in the active approved universe, and they have passed all guardrail filters.
+Portfolio Balance Review is framed as a mechanical screener, not as a suggestion or action engine. Instruments appear only when their category is lightly represented in the current portfolio look-through exposure, they are in the active approved universe, and they have passed all guardrail filters.
 
 Candidate instruments should explain:
 
@@ -109,20 +109,20 @@ Candidate instruments should explain:
 - Diversification benefit.
 - Trade-offs and overlap risk.
 
-Candidate `primaryReason` text is issue-category-aware for newer gap findings:
+Candidate `primaryReason` text is issue-category-aware for newer balance findings:
 
 - `excessive_crypto_risk` bond, treasury, fixed-income, and credit candidates reference ballast characteristics relative to crypto and high-volatility alternative exposure.
 - `concentration_risk` geographic diversifiers reference issuer/geographic diversification relative to concentrated single-name look-through exposure; bond, treasury, fixed-income, credit, gold, and inflation-hedge candidates reference generally lower-correlation ballast relative to the flagged concentration.
 
-The candidate logic should not change internal scoring labels. It uses stored insight outputs and active universe data as inputs into portfolio-level gap findings. Category-remedy findings surface diversified funds where appropriate; `insufficient_defensive_exposure` excludes individual single-stock instruments so Defensive Sectors examples are sector/diversified ETF instruments rather than individual company names. The Defensive Sectors finding presents candidates in per-sleeve subsections ordered by the most-underweight defensive sleeve first, with up to two examples per sleeve. The International Equity finding uses the same subsection presentation pattern with up to two candidates in Broad ex-US (all regions), Developed markets, and Emerging markets groups; the Broad ex-US group is framed as an all-in-one ex-US option rather than an additive peer to the regional building blocks. It excludes narrow healthcare sub-theme ETFs such as XBI, IBB, and ARKG from this defensive-sector finding, and it prefers broad defensive sector ETFs such as XLV/VHT, XLU/VPU, and XLP/VDC within their respective sleeves. Defensive candidate tooltips should use the candidate's sleeve category, such as Utilities, Consumer Staples, or Healthcare, rather than a generic defensive category. User-facing cards should include the disclaimer chip: `Shown because category is underweighted - not a buy recommendation`.
+The candidate logic should not change internal scoring labels. It uses stored insight outputs and active universe data as inputs into portfolio-level balance findings. Category-remedy findings surface diversified funds where appropriate; `insufficient_defensive_exposure` excludes individual single-stock instruments so Defensive Sectors examples are sector/diversified ETF instruments rather than individual company names. The Defensive Sectors finding presents candidates in per-sleeve subsections ordered by the most-underweight defensive sleeve first, with up to two examples per sleeve. The International Equity finding uses the same subsection presentation pattern with up to two candidates in Broad ex-US (all regions), Developed markets, and Emerging markets groups; the Broad ex-US group is framed as an all-in-one ex-US option rather than an additive peer to the regional building blocks. It excludes narrow healthcare sub-theme ETFs such as XBI, IBB, and ARKG from this defensive-sector finding, and it prefers broad defensive sector ETFs such as XLV/VHT, XLU/VPU, and XLP/VDC within their respective sleeves. Defensive candidate tooltips should use the candidate's sleeve category, such as Utilities, Consumer Staples, or Healthcare, rather than a generic defensive category. User-facing cards should include the disclaimer chip: `Shown because category is lightly represented - not a buy recommendation`.
 
 The Portfolio Review page should use the following public language:
 
-- `Gap Analysis - Instruments in Underweighted Categories`
-- `Analytical Gap Summary`
-- `Gap findings`
-- `Defensive Sectors - Underweighted Category`
-- `International Equity - Underweighted Category`
+- `Portfolio Balance Review`
+- `Portfolio Balance Summary`
+- `Balance findings`
+- `Defensive Sectors - Lightly Represented Category`
+- `International Equity - Lightly Represented Category`
 
 The page should not present these outputs as recommendations to buy, sell, hold, review, or trade an instrument. Explanatory tooltips can show why an instrument appeared, using existing look-through exposure data and guardrail-pass status.
 
@@ -299,7 +299,7 @@ Up to 5 candidates are returned per non-defensive gap finding, sorted by `rankSc
 
 The `excessive_crypto_risk` finding is ballast-aware. It only appears when crypto/high-volatility alternative exposure is above 5% and bond-plus-gold ballast is lower than crypto exposure. This prevents a "Ballast Underweighted" finding when ballast already exceeds the high-volatility alternative sleeve.
 
-## ETF Company-Level Overlap Detection (Gap Analysis)
+## ETF Company-Level Overlap Detection (Portfolio Balance Review)
 
 Added 2026-06-18. Wires `etf_top_holdings` data into gap-analysis candidate scoring so overlap reflects real underlying company exposure rather than a sector/ticker proxy.
 

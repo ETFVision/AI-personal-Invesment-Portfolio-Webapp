@@ -4,6 +4,12 @@
 Four items shipped (Task 1, P2, Task 2, P3); see "Current Status & Remaining Backlog" below for what's left.
 Delete once the backlog is cleared.
 
+**Latest shipped note (2026-06-19):** Portfolio Balance Review backlog clearance shipped. User-facing "Gap
+Analysis" language is now "Portfolio Balance Review", "Analytical Gap Summary" is now "Portfolio Balance
+Summary", generic "Underweighted Category" subtitles are softened to "Lightly Represented Category",
+wrapper-exclusion logic is shared across Concentration/Risk/page display, curated gap-engine sets are
+co-located, and taxonomy/display guard tests cover the cleanup.
+
 **Source:** UX review of Portfolio Review page output, 2026-06-18. Trigger logic and new findings
 (T1, T2, A–E) confirmed against the live 2026-06-18 report (score 81).
 
@@ -46,19 +52,19 @@ proliferation of per-finding hand-curated lists. A Real Estate sleeve, if added,
 funds (VNQ/SCHH/IYR-style) over narrow specialty / mortgage / international-REIT variants via this mechanism.
 
 ### Remaining backlog (recommended sequence)
-1. **"Gap Analysis" → "Portfolio Balance Review" rename (user-facing strings only)** — rename the section
+1. **"Gap Analysis" → "Portfolio Balance Review" rename (user-facing strings only)** — shipped 2026-06-19. Previously requested to rename the section
    from "Gap Analysis" (the "gap" framing implies an action to take) to **"Portfolio Balance Review"**, and
    soften the "Underweighted Category" subtitle. (Label decided 2026-06-19. "Balance" chosen because "Coverage"
    collides with Data/Lookthrough/Recommendation/Profile Coverage and "Exposure" collides with Theme Exposure
    Review + look-through tables.) Scope: section title, subtitles, exec-summary "N gap findings" wording,
    "Analytical Gap Summary" block, methodology doc — UI strings only; keep internal code names
-   (`gapCandidateDisplay.ts`, `issueCategory`, etc.) unchanged. *Needs prompt. Compliance/UX.*
+   (`gapCandidateDisplay.ts`, `issueCategory`, etc.) unchanged.
 2. **D + E polish** — shipped 2026-06-19. Country Count labels now state materiality thresholds, and the
    macro inflation finding acknowledges held TIP/GLD-style hedges when present.
-3. **DRY cleanup** — extract the wrapper-exclusion helper (`isFundWrapper`/`isIssuerExposure`/`issuerKey`)
+3. **DRY cleanup** — shipped 2026-06-19. Extract the wrapper-exclusion helper (`isFundWrapper`/`isIssuerExposure`/`issuerKey`)
    duplicated in `ConcentrationReviewService` and `RiskAnalyticsDataService`; consider consolidating the
    gap-engine curated symbol sets (`nonDefensiveSectorEtfs`/`broadDefensiveSectorEtfs`/`coreInternationalEtfs`/
-   `globalIncludingUsEtfs`). *Needs prompt. Low.*
+   `globalIncludingUsEtfs`).
 4. **Display polish** — shipped 2026-06-19. Gap titles use em dashes, and overlap text prefers company
    names with ticker cleanup fallback.
 5. *(optional)* **Real Estate / REIT sleeve trigger** — reuses the shared broad-representative mechanism
