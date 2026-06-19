@@ -1,4 +1,5 @@
 export type GapCandidateDisplaySortInput = {
+  categoryRepresentativeScore?: number | null;
   issueFitScore?: number | null;
   recommendationScore?: number | null;
 };
@@ -18,6 +19,7 @@ export function compareGapCandidatesByCategoryFit(
   right: GapCandidateDisplaySortInput
 ) {
   return (
+    (right.categoryRepresentativeScore ?? 0) - (left.categoryRepresentativeScore ?? 0) ||
     (right.issueFitScore ?? 0) - (left.issueFitScore ?? 0) ||
     (right.recommendationScore ?? 0) - (left.recommendationScore ?? 0)
   );

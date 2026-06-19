@@ -45,6 +45,7 @@ export type PortfolioReviewCandidate = {
   macroFitScore?: number | null;
   diversificationType?: string | null;
   issueFitScore?: number | null;
+  categoryRepresentativeScore?: number | null;
   overlapPenalty?: number | null;
   sharedCompanyCount: number | null;
   sharedCompanyWeight: number | null;

@@ -1,3 +1,40 @@
+## 2026-06-19 - International Gap Broad ETF Ordering
+
+### Source
+Claude Code
+
+### Objective
+Make the Portfolio Review International Equity gap finding lead with broad ex-US diversified ETFs instead of narrower country or international-dividend ETFs.
+
+### Files Changed
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `src/application/services/portfolioReview/gapCandidateDisplay.ts`
+- `src/domain/portfolioReview/types.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added a shared category-representative score used by both international and defensive category-remedy candidate ordering.
+- International gap selection now prefers broad ex-US representatives such as VXUS, VEA, VWO, and IEMG before narrower country or international-dividend ETFs such as DXJ, SCHY, IDV, JPXN, and EWJ.
+- Portfolio Review display sorting now respects the same category-representative score before issue-fit and quality tie-breakers.
+- Defensive broad-sleeve preference continues to use the shared helper and remains unchanged in behavior.
+- Updated methodology and QA documentation.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (307/307)
+
+### Result
+Completed.
+
+### Notes for Claude
+- No trigger, score, section-score, disclaimer, or compliance wording changed.
+- Stored Portfolio Review reports must be regenerated from the Admin panel before the new candidate ordering appears in already-saved reports.
+
 ## 2026-06-19 - Curated Instrument Taxonomy Source Fix
 
 ### Source

@@ -2,6 +2,32 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - International Gap Broad ETF Ordering QA
+
+Scope:
+- Verify the Portfolio Review International Equity gap leads with broad ex-US diversified ETFs before narrower country or international-dividend funds.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| International Equity gap could show narrower funds such as DXJ, SCHY, IDV, JPXN, and EWJ before broad ex-US diversifiers | Fixed; broad representatives such as VXUS, VEA, VWO, and IEMG receive category-representative priority |
+| Display ordering could re-sort selected candidates by issue fit and quality without preserving broad representative priority | Fixed; display sorting now applies category-representative score before issue fit and recommendation score |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Broad ex-US representatives lead the international candidate list even when narrow funds have higher standalone scores | PASS |
+| Defensive broad-sleeve candidate ordering remains covered by the shared category-remedy helper | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (307/307) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports reflect the corrected International Equity candidate ordering.
+
 ## 2026-06-19 SGT - Curated Instrument Taxonomy Source QA
 
 Scope:

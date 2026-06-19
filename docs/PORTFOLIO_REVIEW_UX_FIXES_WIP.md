@@ -19,29 +19,72 @@ Delete once the backlog is cleared.
   direct. Validated Diversification 79 → 88.
 - **P3 — insight-alignment cap + coverage display** (`acbd49a`): section score capped at 94 when any
   non-info finding present; "Recommendation Coverage" renders as %. Validated 100 → 94, overall → 85.
+- **Gap-analysis examples (#1)** (`550f4cc`): defensive gap surfaces diversified ETFs (XLV/VHT/XLU/XLP)
+  not single stocks; candidate cards ordered by category fit (`issueFitScore`) via the pure helper
+  `gapCandidateDisplay.ts`. Validated live: defensive shows ETFs, International leads with VXUS over DXJ.
+
+### Also shipped (gap-analysis quality cluster, 2026-06-19)
+- **Per-sleeve defensive targeting (#2)** (`f0eb7ec`); **#ETF-TAXONOMY Part A** curated-category routing + role/finding guard (`ed8f4e6`); **defensive per-sleeve subsections** (`d5de677`); **rename to "Defensive Sectors" + broad-flagship preference + biotech/genomic exclusion + sleeve-aware tooltip** (`e0f6841`). All validated live.
+
+### In flight (prompt sent 2026-06-19)
+- **International broad-representative preference** — extend the defensive broad-flagship preference to the
+  `insufficient_international_exposure` finding so broad ex-US diversifiers (VXUS/VEA/VWO/IEMG, i.e.
+  `GLOBAL_EQUITY`/`DEVELOPED_MARKETS`/`EMERGING_MARKETS` categories) lead over single-country (`COUNTRY`:
+  DXJ/JPXN/EWJ/FXI) and international-dividend (`INTERNATIONAL_DIVIDEND`: SCHY/IDV/DWX) funds, in **both**
+  selection and the category-fit display order. Refactor into a shared broad-representative ranking helper
+  (not a second hand-curated set); defensive output must stay unchanged. *Codex prompt sent; awaiting output.*
+
+### Design convention — "broad representative" preference (category-remedy findings)
+Any gap finding that remedies a **missing category sleeve** (defensive sectors, international, and any future
+sleeve trigger such as **Real Estate / REIT**) should reuse the shared broad-representative ranking rather
+than introduce its own curated symbol set: prefer the broad, canonical representative(s) of the target
+category over narrow sub-theme / single-country / niche variants, and do **not** let overlap with existing
+broad exposure bury the representative candidate. This keeps candidate quality consistent and avoids a
+proliferation of per-finding hand-curated lists. A Real Estate sleeve, if added, should lead with broad REIT
+funds (VNQ/SCHH/IYR-style) over narrow specialty / mortgage / international-REIT variants via this mechanism.
 
 ### Remaining backlog (recommended sequence)
-1. **Gap-analysis examples (#1)** — A) defensive gap surfaces diversified ETFs (XLV/VHT/XLU/XLP) not
-   single stocks (`issueFit` stock exclusion, mirroring concentration_risk); B) order candidate cards
-   by category fit (`issueFitScore`) not instrument quality. *Prompt ready. High — compliance.*
-2. **Per-sleeve defensive targeting (#2)** — defensive gap orders its sector roles by the most-underweight
-   defensive sleeve (healthcare/utilities/consumer staples); adds `utilitiesWeight` + `consumerStaplesWeight`
-   to `SuggestionContext`. Observational sub-category measurement (not advice). *Prompt ready. Builds on #1
-   (do #1 first — #1B's issueFit ordering + #1A's ETF-only are what make #2's effect visible).*
-3. **T1 — international trigger semantics** — remove `topHolding > 0.25 || diversificationScore < 55`
-   from `insufficient_international_exposure` so it can't emit a misleading "US-concentrated" finding for
-   a non-US-concentrated portfolio. *Needs prompt. Medium — latent correctness/compliance.*
-4. **D + E polish** — D: "Country Count: 1" is a ≥3% threshold count shown next to a 56-country table
+1. **#ETF-TAXONOMY Part B (enrichment + backfill)** — fix `TaxonomyService` so `canonical_sector` is
+   curated-authoritative (ETFs via `ALPHA_ETF_CATEGORIES` + explicit category→sector map; stocks via
+   `ALPHA_STOCK_SECTORS`), de-blanket the `"Global Diversification"` theme (`TaxonomyService` maps
+   `etf`/`sector-etf`/`broad-market` → it), retire theme→sector inference, then backfill all instruments
+   via `MetadataRefreshService`. Fixes the data for every consumer (theme signals, sector views, etc.).
+   *Prompt ready. High — substantive data task; touches ingestion + backfill.*
+2. **Trigger-semantics cleanup (T1 + crypto-ballast)** — fix gap triggers whose firing/title doesn't
+   match what they detect:
+   - **T1 — international trigger:** remove `topHolding > 0.25 || diversificationScore < 55` from
+     `insufficient_international_exposure` so it can't emit a misleading "US-concentrated" finding for a
+     non-US-concentrated portfolio.
+   - **Crypto-ballast trigger:** `excessive_crypto_risk` fires purely on `cryptoAllocation > 0.05` but is
+     titled "Ballast Underweighted" — it fired on a portfolio with 22.1% bond+gold ballast (3.7× crypto).
+     Make it ballast-aware (only flag "underweighted" when ballast is actually low relative to crypto)
+     and/or reframe the title so it doesn't claim a gap that doesn't exist.
+   *Needs prompt. Medium — latent correctness/compliance (title-vs-trigger mismatches).*
+3. **D + E polish** — D: "Country Count: 1" is a ≥3% threshold count shown next to a 56-country table
    (relabel/recount). E: macro inflation finding suggests inflation sleeves while portfolio already holds
    TIP + GLD (acknowledge existing). *Needs prompt. Low.*
-5. **DRY cleanup** — extract the wrapper-exclusion helper (`isFundWrapper`/`isIssuerExposure`/`issuerKey`)
-   duplicated in `ConcentrationReviewService` and `RiskAnalyticsDataService`. *Needs prompt. Low — do after
-   the gap/risk code is stable.*
-6. **Display polish** — gap-title em-dash consistency; exchange-ticker format (`8306.T`, `7203.T`) in
+4. **DRY cleanup** — extract the wrapper-exclusion helper (`isFundWrapper`/`isIssuerExposure`/`issuerKey`)
+   duplicated in `ConcentrationReviewService` and `RiskAnalyticsDataService`; consider consolidating the
+   gap-engine curated symbol sets (`nonDefensiveSectorEtfs`/`broadDefensiveSectorEtfs`). *Needs prompt. Low.*
+5. **Display polish** — gap-title em-dash consistency; exchange-ticker format (`8306.T`, `7203.T`) in
    overlap text. *Needs prompt. Lowest.*
 
+### Diagnostic finding (2026-06-19) — systemic ETF sector mis-classification
+Surfaced by the post-#1 live re-run (FXU appeared in Healthcare & Defensive with "non-US equity" text).
+SQL diagnostic over the active universe found it is **systemic, ~60 sector/thematic ETFs**, two root causes:
+1. **`canonical_sector` mis-enriched to "Multi-Asset / Broad Market"** for most non-flagship sector ETFs
+   (FXU, VPU, IDU, JXI, IYH, FHLC, XBI, IBB, VFH, IYF, KBE, KRE, VDE, IYE, IXC, XOP, VAW, MXI, VCR, VDC,
+   FSTA, …). Only flagship SPDR/Vanguard sector ETFs (XLV, XLU, XLP, XLK, XLC, XLY, XLB, VGT, VHT, SOXX)
+   enriched to their real sector.
+2. **`"Global Diversification"` theme is applied to essentially every ETF** (incl. US-only funds like XLU/XLK).
+Mechanism: `candidateRole` checks sector before the theme branch; a mis-enriched ETF fails the sector
+checks, hits `hasAnyTheme(["global diversification"])` → `global_equity` → "non-US equity" text. Correctly
+enriched ETFs (XLU = "Utilities") never reach the theme branch, so they classify right. Broader impact:
+mis-enriched US sector ETFs are eligible for the **International** gap finding as "non-US equity" diversifiers
+(e.g. a US healthcare/financials/energy ETF surfacing as an international candidate), not just the FXU cosmetic case.
+
 Notes:
-- Sort-fallback nit (`recommendationScore ?? score` badge vs `?? 0` sort) is absorbed by #1B.
+- Sort-fallback nit (`recommendationScore ?? score` badge vs `?? 0` sort) is absorbed by #1B (shipped).
 - "Direct Positions — LLY missing" was display truncation (top-12 cap), not a bug — dropped.
 - Finding C (candidates reading as ranked picks) is largely addressed by #1 (ETFs + category-fit ordering + disclaimers).
 

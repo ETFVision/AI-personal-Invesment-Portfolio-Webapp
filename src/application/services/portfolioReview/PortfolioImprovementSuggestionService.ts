@@ -67,6 +67,8 @@ const defensiveEquitySleeveRoles = new Set<CandidateRole>([
 
 const nonDefensiveSectorEtfs = new Set(["XBI", "IBB", "ARKG"]);
 const broadDefensiveSectorEtfs = new Set(["XLV", "VHT", "XLU", "VPU", "XLP", "VDC"]);
+const broadInternationalEtfCategories = new Set<EtfCategory>(["GLOBAL_EQUITY", "DEVELOPED_MARKETS", "EMERGING_MARKETS"]);
+const broadInternationalEtfs = new Set(["VXUS", "VEA", "VWO", "IEMG", "VT", "ACWI"]);
 
 function recommendationMap(recommendations: InstrumentRecommendation[]) {
   return new Map(recommendations.map((recommendation) => [recommendation.instrumentId, recommendation]));
@@ -345,10 +347,22 @@ function candidateRankScore(candidate: PortfolioReviewCandidate) {
   );
 }
 
-function defensiveCandidateRankScore(candidate: PortfolioReviewCandidate) {
-  const broadSectorBonus = broadDefensiveSectorEtfs.has(candidate.symbol.toUpperCase()) ? 1000 : 0;
+function isBroadInternationalRepresentative(instrument: Instrument) {
+  const symbol = instrument.symbol?.toUpperCase() ?? "";
+  const category = alphaEtfCategoryForSymbol(symbol);
+  return broadInternationalEtfs.has(symbol) || Boolean(category && broadInternationalEtfCategories.has(category));
+}
+
+function categoryRepresentativeScore(instrument: Instrument, issueCategory: PortfolioImprovementIssueCategory) {
+  const symbol = instrument.symbol?.toUpperCase() ?? "";
+  if (issueCategory === "insufficient_defensive_exposure" && broadDefensiveSectorEtfs.has(symbol)) return 100;
+  if (issueCategory === "insufficient_international_exposure" && isBroadInternationalRepresentative(instrument)) return 100;
+  return 0;
+}
+
+function categoryRemedyCandidateRankScore(candidate: PortfolioReviewCandidate) {
   return (
-    broadSectorBonus +
+    (candidate.categoryRepresentativeScore ?? 0) * 10 +
     (candidate.recommendationScore ?? 0) * 10 +
     (candidate.issueFitScore ?? candidate.relevanceScore ?? 0) +
     (candidate.confidenceScore ?? 0) * 0.1 +
@@ -371,6 +385,7 @@ function candidate(
   const recommendationScore = recommendation?.overallScore ?? 55;
   const confidenceScore = recommendation?.confidenceScore ?? 50;
   const candidateRelevanceScore = relevanceScore(fit);
+  const candidateRepresentativeScore = categoryRepresentativeScore(instrument, issueCategory);
   const type = diversificationType(instrument);
   const candidateHoldings = context.etfTopHoldings
     .filter((holding) => holding.etfInstrumentId === instrument.id);
@@ -413,6 +428,7 @@ function candidate(
     confidenceScore,
     relevanceScore: candidateRelevanceScore,
     issueFitScore: candidateRelevanceScore,
+    categoryRepresentativeScore: candidateRepresentativeScore,
     diversificationBenefitScore: benefit.score,
     macroFitScore,
     overlapPenalty: benefit.overlapPenalty,
@@ -439,11 +455,12 @@ function candidate(
 
 function rankedCandidates(context: PortfolioReviewInputContext, issueContext: SuggestionContext, issueCategory: PortfolioImprovementIssueCategory, limit = 5) {
   const recs = recommendationMap(context.recommendations);
+  const rankScore = issueCategory === "insufficient_international_exposure" ? categoryRemedyCandidateRankScore : candidateRankScore;
   return context.instruments
     .map((instrument) => candidate(instrument, recs.get(instrument.id), issueCategory, issueContext))
     .filter((item): item is PortfolioReviewCandidate => Boolean(item))
     .sort((a, b) => {
-      return candidateRankScore(b) - candidateRankScore(a);
+      return rankScore(b) - rankScore(a);
     })
     .slice(0, limit);
 }
@@ -463,7 +480,7 @@ function rankedDefensiveCandidates(context: PortfolioReviewInputContext, issueCo
     .filter((role) => defensiveEquitySleeveRoles.has(role))
     .flatMap((role) =>
       (byRole.get(role) ?? [])
-        .sort((left, right) => defensiveCandidateRankScore(right) - defensiveCandidateRankScore(left))
+        .sort((left, right) => categoryRemedyCandidateRankScore(right) - categoryRemedyCandidateRankScore(left))
         .slice(0, perSleeveLimit)
     );
 }

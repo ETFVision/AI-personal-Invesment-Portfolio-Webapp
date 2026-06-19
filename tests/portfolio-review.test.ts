@@ -676,6 +676,65 @@ test("gap candidate display comparator orders by category fit before instrument 
   assert.deepEqual(ordered.map((candidate) => candidate.symbol), ["VEA", "VXUS", "DXJ"]);
 });
 
+test("international gap candidates lead with broad ex-US representatives before country and dividend funds", () => {
+  const symbols = ["DXJ", "SCHY", "IDV", "JPXN", "EWJ", "VXUS", "VEA", "VWO", "IEMG"];
+  const instruments = symbols.map((symbol) =>
+    instrument({
+      id: symbol.toLowerCase(),
+      symbol,
+      name: `${symbol} ETF`,
+      assetClass: "etf",
+      instrumentType: "etf",
+      canonicalSector: "Multi-Asset / Broad Market",
+      canonicalThemes: ["Global Diversification"],
+      geography: "International",
+      geoExposure: "International"
+    })
+  );
+  const recommendations: PortfolioReviewInputContext["recommendations"] = symbols.map((symbol) => ({
+    id: `r-${symbol.toLowerCase()}`,
+    recommendationRunId: "run-1",
+    instrumentId: symbol.toLowerCase(),
+    symbol,
+    instrumentType: "ETF",
+    recommendationLabel: "Hold",
+    overallScore: ["DXJ", "SCHY", "IDV", "JPXN", "EWJ"].includes(symbol) ? 96 : 62,
+    confidenceScore: 80,
+    riskLevel: "medium",
+    timeHorizon: "medium_term",
+    recommendationReasoningSummary: "",
+    positiveDrivers: [],
+    negativeDrivers: [],
+    guardrailsApplied: [],
+    dataLimitations: [],
+    recommendationChangeTriggers: { upgrade: [], downgrade: [] },
+    inputsSnapshot: {},
+    scoringBreakdown: {},
+    createdAt: "",
+    updatedAt: ""
+  }));
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByGeography: [
+        { label: "United States", value: 78, percent: 0.78 },
+        { label: "International", value: 22, percent: 0.22 }
+      ]
+    },
+    instruments,
+    recommendations
+  }));
+  const internationalSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_international_exposure");
+  const selectedSymbols = internationalSuggestion?.candidateInstruments.map((candidate) => candidate.symbol) ?? [];
+  const displaySymbols = [...(internationalSuggestion?.candidateInstruments ?? [])]
+    .sort(compareGapCandidatesByCategoryFit)
+    .map((candidate) => candidate.symbol);
+
+  assert.deepEqual(selectedSymbols.slice(0, 4), ["VXUS", "VEA", "VWO", "IEMG"]);
+  assert.deepEqual(displaySymbols.slice(0, 4), ["VXUS", "VEA", "VWO", "IEMG"]);
+  assert.equal(selectedSymbols.slice(0, 4).some((symbol) => ["DXJ", "SCHY", "IDV", "JPXN", "EWJ"].includes(symbol)), false);
+});
+
 test("defensive gap display grouping buckets sleeves and preserves incoming order", () => {
   const groups = groupDefensiveGapCandidates([
     { symbol: "XLU", diversificationType: "Defensive utilities" },
