@@ -2,6 +2,42 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Portfolio Review Concentration Coherence
+
+Scope:
+- Align Portfolio Review concentration measurement and the `concentration_risk` gap finding around issuer-level underlying-company exposure on a total-value basis.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Top-one concentration used wrapper/direct ex-cash basis while top-five used issuer look-through total basis, allowing top-one to exceed top-five | Fixed by measuring both top-one and top-five from issuer-level underlying-company exposure when look-through exists |
+| Diversified ETF wrapper such as VOO could trigger "largest holding exceeds 25%" single-name finding | Fixed; wrappers remain in `largestDirectHolding` metadata but do not trigger single-company concentration findings |
+| `concentration_risk` gap finding fired at >5%, flagging normal large-cap ETF holdings such as NVDA around 7-8% | Fixed; gap trigger now requires issuer look-through weight >10%, high priority above 15% |
+| `concentration_risk` candidates could include individual stocks to address single-name concentration | Fixed; stock instruments are excluded from `concentration_risk` issue fit and candidate roles are diversified products only |
+| Direct single-stock concentration could be missed if the issuer rollup only accepted indirect rows | Fixed; direct single-stock rows are included in issuer exposure |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| ETF wrapper at 30% with largest issuer at 7% does not emit single-company concentration finding | PASS |
+| Single issuer at 12% emits watch finding | PASS |
+| Single issuer at 22% emits attention finding | PASS |
+| Direct single-stock at 30% is included in issuer top-one and emits attention | PASS |
+| Empty issuer look-through falls back to direct concentration | PASS |
+| `concentration_risk` does not fire at 10% or below | PASS |
+| `concentration_risk` candidates exclude stocks | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (285/285) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate the stored reference report and confirm the expected Concentration section score movement from approximately 69 to approximately 90.
+- Owner should confirm the 10% / 20% issuer concentration thresholds and 15% high-priority gap threshold after reviewing live output.
+- Risk Analytics diversification score still uses direct-level concentration; moving that to issuer-level remains a separate Task 2 follow-on.
+
 ## 2026-06-17 SGT - Task 14: Full Pre-Commercial RLS Hardening
 
 Scope:

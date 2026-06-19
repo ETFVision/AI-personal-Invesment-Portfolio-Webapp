@@ -183,7 +183,7 @@ const guardrailRows = [
 
 const portfolioRows = [
   ["Allocation", "15%", "Cash, equity, fixed income, gold and crypto balance"],
-  ["Concentration", "15%", "Top holding, top-five, and sector concentration"],
+  ["Concentration", "15%", "Underlying-company top holding, top-five issuer exposure, and sector concentration"],
   ["Diversification", "15%", "Holding count, asset class, sector, geography, currency spread and correlations"],
   ["Risk", "15%", "Volatility, drawdown and risk contribution"],
   ["Macro Fit", "15%", "Portfolio posture vs FRED regimes and Market Vision"],
@@ -195,7 +195,7 @@ const portfolioRows = [
 
 const portfolioDefinitionRows = [
   ["Allocation", "Starts from an 82 baseline and adjusts for equity-heavy exposure, low fixed-income ballast, high cash, and material crypto exposure."],
-  ["Concentration", "Uses direct holdings plus ETF look-through where available. Penalizes high largest holding, high top-five exposure, and high largest-sector exposure."],
+  ["Concentration", "Uses underlying-company issuer exposure on a total-value basis. Direct single-stock holdings are included; diversified ETF wrappers remain visible as direct positions but do not trigger single-company concentration findings."],
   ["Diversification", "Uses meaningful holding count, asset-class count, sector count, currency count, average correlation, top holding concentration, and top-five concentration."],
   ["Risk", "Uses portfolio volatility, current drawdown, max drawdown, and risk contribution diagnostics from flow-adjusted return data."],
   ["Macro Fit", "Compares portfolio posture against FRED rates, inflation, growth, liquidity regimes and the latest Market Vision risk context."],
@@ -207,7 +207,7 @@ const portfolioDefinitionRows = [
 
 const portfolioFormulaRows = [
   ["Allocation", "82 - max(0, equity - 0.85) x 80 - max(0, 0.08 - bonds) x 90 - max(0, cash - 0.35) x 55 - max(0, crypto - 0.10) x 90."],
-  ["Concentration", "90 - max(0, topHolding - 0.15) x 120 - max(0, topCombinedFive - 0.50) x 80 - max(0, sectorTop - 0.40) x 60."],
+  ["Concentration", "90 - max(0, topIssuerConcentration - 0.10) x 150 - max(0, topCombinedFive - 0.40) x 80 - max(0, sectorTop - 0.40) x 60. Measured at the underlying-company issuer look-through level on a total-value basis."],
   ["Diversification", "Starts from the Risk Analytics diversification score. If ETF look-through exists, adds min(8, sectorCount + countryCount)."],
   ["Risk", "88 - max(0, volatility - 0.18) x 120 - max(0, abs(maxDrawdown) - 0.15) x 100 - max(0, abs(currentDrawdown) - 0.08) x 70."],
   ["Macro Fit", "72 - 8 if rates are restrictive and equity allocation is above 75% - 10 if growth is weak and equity allocation is above 70% + 5 if inflation is elevated and the portfolio has gold exposure."],
@@ -219,7 +219,7 @@ const portfolioFormulaRows = [
 
 const portfolioPlainEnglishRows = [
   ["Allocation", "Starts at 82 and is reduced by excess equity concentration, insufficient bond ballast, high cash, or material crypto exposure."],
-  ["Concentration", "Starts at 90 and is reduced by large single holdings, high top-five concentration, or dominant sector exposure."],
+  ["Concentration", "Starts at 90 and is reduced by large single-company issuer exposure, high top-five issuer concentration, or dominant sector exposure."],
   ["Diversification", "Builds from the risk analytics diversification score and adds points for broader sector and country coverage from ETF look-through."],
   ["Risk", "Starts at 88 and is reduced by high volatility, large drawdowns, or deep current drawdowns."],
   ["Macro Fit", "Starts at 72 and adjusts based on whether the portfolio posture is appropriate for current rate, growth, and inflation regimes."],

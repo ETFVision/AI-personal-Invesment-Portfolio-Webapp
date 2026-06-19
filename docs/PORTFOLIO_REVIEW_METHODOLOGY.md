@@ -1,6 +1,6 @@
 # Portfolio Review Methodology
 
-Last updated: 2026-06-18
+Last updated: 2026-06-19
 
 ## Purpose
 
@@ -61,6 +61,7 @@ Portfolio Review now separates direct product holdings from underlying company e
 - **Direct Portfolio Positions** show what the portfolio directly owns: ETF wrappers, direct stocks, bond ETFs, gold ETFs, crypto ETFs, and cash-like products.
 - **Top Underlying Company Exposure** shows issuer-level company exposure after ETF look-through. ETF wrappers are excluded from this chart.
 - **Top Indirect Company Exposure** shows ETF-derived underlying exposure only. Direct stock exposure is excluded from the bar value, while total-with-direct can be shown in the detail text.
+- Concentration Review measures top-one and top-five concentration at the underlying-company issuer level on a total-value basis, including cash in the denominator. Direct single-stock holdings are included in issuer exposure; diversified ETF wrappers are retained in `largestDirectHolding` metadata but do not trigger single-company concentration findings.
 
 Identity priority for underlying concentration:
 
@@ -129,7 +130,7 @@ Seven triggers are active in `PortfolioImprovementSuggestionService.build()`. Tr
 | `insufficient_international_exposure` | `usExposure > 0.7` OR `internationalExposure < 0.3` OR `topHolding > 0.25` OR `diversificationScore < 55` | high if usExposure > 0.85; medium if usExposure > 0.7; low otherwise |
 | `insufficient_defensive_exposure` | `dominantSectorWeight > 0.35` OR `technologyWeight > 0.3` OR (`healthcareWeight < 0.08` AND `technologyWeight > 0.25`) | low |
 | `excessive_crypto_risk` | `cryptoAllocation > 0.05` | high if cryptoAllocation > 0.1; medium otherwise |
-| `concentration_risk` | `concentratedLookthroughHoldings.length > 0` (any non-ETF look-through holding above 5%) | high if top look-through holding > 8%; medium otherwise |
+| `concentration_risk` | `concentratedLookthroughHoldings.length > 0` (any non-ETF issuer look-through holding above 10%) | high if top look-through holding > 15%; medium otherwise |
 | `macro_vulnerability` | `growthRegime` includes "contraction" or "slowdown" AND `recessionHedgeAllocation < 0.25` | medium |
 | `insufficient_inflation_hedge` | `goldAllocation < 0.03` AND `inflationRegime` includes "elevated" | low |
 
@@ -161,7 +162,7 @@ Instruments with recommendation labels `"Reduce"`, `"Sell"`, `"Insufficient Data
 
 Built inline as an IIFE in `build()`:
 1. Build a map of `{ symbol → assetClass }` from all universe instruments.
-2. Filter `lookthroughReport.holdingExposures` to rows where `totalWeight > 0.05` AND the holding's asset class is NOT in `["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"]`.
+2. Filter `lookthroughReport.holdingExposures` to rows where `totalWeight > 0.10` AND the holding's asset class is NOT in `["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"]`.
 3. Sort descending by `totalWeight`, take top 3.
 4. Store as `Array<{ symbol: string; totalWeight: number }>`.
 
@@ -250,12 +251,12 @@ This represents the top non-ETF look-through positions by combined direct + indi
 | `insufficient_fixed_income` | core_us_bond → international_bond → intermediate_treasury → short_treasury_cash_like → tips_inflation_linked → long_duration_treasury → investment_grade_credit |
 | `insufficient_inflation_hedge` | gold_hedge → tips_inflation_linked → energy_inflation_equity |
 | `insufficient_defensive_exposure` | healthcare_defensive → utilities_defensive → consumer_staples_defensive → short_treasury_cash_like → core_us_bond |
-| `concentration_risk` | healthcare_defensive → utilities_defensive → consumer_staples_defensive → gold_hedge → international_bond → core_us_bond → international_equity → developed_international_equity → emerging_market_equity |
+| `concentration_risk` | international_equity → developed_international_equity → core_us_bond → gold_hedge → intermediate_treasury → international_bond |
 | `excessive_crypto_risk` | short_treasury_cash_like → core_us_bond → gold_hedge |
 | `macro_vulnerability` | gold_hedge → tips_inflation_linked → intermediate_treasury → healthcare_defensive → utilities_defensive → consumer_staples_defensive |
 
 Additional `issueFit` blocking rules:
-- `concentration_risk`: instruments in the same dominant sector as the portfolio are blocked (`issueFit = 0`).
+- `concentration_risk`: single-stock instruments and instruments in the same dominant sector as the portfolio are blocked (`issueFit = 0`).
 - `excessive_crypto_risk`: instruments with `assetClass` in `["cash_proxy", "bond_etf", "gold_etf"]` receive a minimum fit of 24 even if not in the role priority list.
 - `macro_vulnerability`: instruments with themes "defensive", "inflation hedge", or "recession hedge" receive a minimum fit of 24 even if not in the role priority list.
 
@@ -327,5 +328,5 @@ The `overlapWarning` string is extended to include "including top company holdin
 - Gap-finding explanations are deterministic templates and exposure-aware, but not a full optimizer.
 - Geography currently has 0% score weight in the overall portfolio score.
 - `roleExplanation()` in `PortfolioImprovementSuggestionService.ts` contains well-crafted role-and-context-specific text but is currently dead code. The fallback `benefit.primaryReason || roleExplanation(...)` at line 340 never fires because `DiversificationBenefitService` always sets a non-empty `primaryReason`. Effective candidate explanation text is controlled entirely by `DiversificationBenefitService.evaluate()`.
-- `concentration_risk` rolePriority leads with `healthcare_defensive`, which overlaps with the candidate pool for `insufficient_defensive_exposure`. This causes the two gap findings to surface similar candidates. Pending fix: change `concentration_risk` rolePriority to lead with `utilities_defensive`, `consumer_staples_defensive`, and `gold_hedge`. See `docs/PORTFOLIO_REVIEW_UX_FIXES_WIP.md` P1.
+- Concentration thresholds are intentionally configurable candidates for future calibration. Current issuer-level finding thresholds are watch above 10% and attention above 20%.
 - Historical reports generated before Security Master Phase 4C/4D may not contain issuer IDs or `securityBreakdown`; refresh Portfolio Review before using issuer-level outputs for QA.

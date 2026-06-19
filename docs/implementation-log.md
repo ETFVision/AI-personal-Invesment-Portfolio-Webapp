@@ -1,3 +1,50 @@
+## 2026-06-19 - Portfolio Review Issuer-Level Concentration Coherence
+
+### Source
+Claude Code
+
+### Objective
+Make Portfolio Review concentration measurement coherent by using underlying-company issuer look-through concentration on a total-value basis for the Concentration Review section and `concentration_risk` gap finding.
+
+### Files Changed
+- `src/application/services/portfolioReview/ConcentrationReviewService.ts`
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `src/app/(dashboard)/portfolio-review/page.tsx`
+- `src/app/methodology/page.tsx`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Changed Concentration Review top-one measurement from wrapper/direct concentration to issuer-level underlying-company concentration when look-through exists, falling back to direct concentration only when issuer rows are unavailable.
+- Included direct single-stock holdings in issuer exposure while excluding diversified ETF, bond ETF, gold ETF, crypto ETF, and cash-proxy wrappers from single-company concentration measurement.
+- Recalibrated the Concentration section formula to `90 - max(0, topIssuerConcentration - 0.10) * 150 - max(0, topCombinedFive - 0.40) * 80 - max(0, sectorTop - 0.40) * 60`.
+- Replaced the old largest-holding finding with issuer-level single-company findings: watch above 10%, attention above 20%.
+- Lowered top-five issuer concentration finding to watch above 50%.
+- Raised `concentration_risk` gap threshold from >5% to >10%, with high priority above 15%.
+- Changed `concentration_risk` candidate roles to diversified products only and excluded stock instruments from that issue fit.
+- Added total-value basis labels to Direct Portfolio Positions and Top Underlying Company Exposure.
+- Updated methodology documentation and public methodology page to describe issuer-level, total-value concentration measurement.
+- Added tests for ETF-wrapper false-positive removal, watch/attention thresholds, direct single-stock inclusion, fallback behaviour, concentration-gap thresholding, and stock-candidate exclusion.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (285/285)
+
+### Result
+Completed.
+
+### Notes for Claude
+- Expected reference portfolio Concentration section score moves from approximately 69 to approximately 90 when the largest issuer is below 10%, top five issuers are below 40%, and largest sector is below 40%.
+- `largestDirectHolding` metadata still retains wrapper/product visibility such as VOO, but diversified ETF wrappers no longer trigger single-company concentration findings.
+- Risk Analytics diversification scoring (`riskMath` / `RiskAnalyticsService`) was intentionally not changed; issuer-level diversification score migration remains a separate follow-on task.
+- Portfolio Review must be re-run from the Admin panel to regenerate stored reports and confirm the score jump with owner approval.
+
+---
 ## 2026-06-18 - Harden Portfolio Review Gap Analysis Tests
 
 ### Source

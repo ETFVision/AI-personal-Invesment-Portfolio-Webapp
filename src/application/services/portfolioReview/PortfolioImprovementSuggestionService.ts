@@ -147,7 +147,7 @@ function rolePriority(issueCategory: PortfolioImprovementIssueCategory, _context
   }
   // theme_concentration is a reserved issue category with no active gap-analysis trigger.
   if (issueCategory === "concentration_risk") {
-    return ["healthcare_defensive", "utilities_defensive", "consumer_staples_defensive", "gold_hedge", "international_bond", "core_us_bond", "international_equity", "developed_international_equity", "emerging_market_equity"];
+    return ["international_equity", "developed_international_equity", "core_us_bond", "gold_hedge", "intermediate_treasury", "international_bond"];
   }
   if (issueCategory === "excessive_crypto_risk") {
     return ["short_treasury_cash_like", "core_us_bond", "gold_hedge"];
@@ -183,6 +183,7 @@ function issueFit(instrument: Instrument, issueCategory: PortfolioImprovementIss
     return 0;
   }
   if (issueCategory === "concentration_risk") {
+    if (instrument.assetClass === "stock") return 0;
     if (instrumentIsSameDominantSector(instrument, context)) return 0;
     return roleFit(role, issueCategory, context);
   }
@@ -449,7 +450,7 @@ export class PortfolioImprovementSuggestionService {
         );
         return (context.lookthroughReport?.holdingExposures ?? [])
           .filter((h) => {
-            if (!h.holdingSymbol || h.totalWeight <= 0.05) return false;
+            if (!h.holdingSymbol || h.totalWeight <= 0.10) return false;
             const ac = instrumentAssetClassBySymbol.get(h.holdingSymbol.toUpperCase());
             if (ac && etfAssetClasses.has(ac)) return false;
             return true;
@@ -520,7 +521,7 @@ export class PortfolioImprovementSuggestionService {
       suggestions.push(suggestion({
         category: "concentration",
         issueCategory: "concentration_risk",
-        priority: topLookthroughHolding.totalWeight > 0.08 ? "high" : "medium",
+        priority: topLookthroughHolding.totalWeight > 0.15 ? "high" : "medium",
         title: "Top Look-Through Positions - Single-Name Concentration Watch",
         rationale: `Top look-through holding ${topLookthroughHolding.symbol} represents ${(topLookthroughHolding.totalWeight * 100).toFixed(1)}% of portfolio exposure after ETF holdings are included. Analytical observation only - not a position sizing recommendation.`,
         candidates: rankedCandidates(context, issueContext, "concentration_risk", 5),

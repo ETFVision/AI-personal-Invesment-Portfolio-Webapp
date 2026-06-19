@@ -692,15 +692,18 @@ function DirectPositionExposureTable({ rows }: { rows: PortfolioLookthroughHoldi
         {shownRows.length === 0 ? (
           <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No direct position exposure available.</p>
         ) : (
-          <HorizontalExposureBars
-            max={Math.max(...shownRows.map((row) => row.directWeight), 0.01)}
-            items={shownRows.map((row) => ({
-              label: `${row.holdingSymbol}${row.holdingName ? ` - ${row.holdingName}` : ""}`,
-              value: row.directWeight,
-              valueLabel: formatPercent(row.directWeight),
-              detail: instrumentAssetClass(row) ? `Type: ${metricLabel(instrumentAssetClass(row) ?? "")}` : undefined
-            }))}
-          />
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Weights shown as % of total portfolio value (including cash).</p>
+            <HorizontalExposureBars
+              max={Math.max(...shownRows.map((row) => row.directWeight), 0.01)}
+              items={shownRows.map((row) => ({
+                label: `${row.holdingSymbol}${row.holdingName ? ` - ${row.holdingName}` : ""}`,
+                value: row.directWeight,
+                valueLabel: formatPercent(row.directWeight),
+                detail: instrumentAssetClass(row) ? `Type: ${metricLabel(instrumentAssetClass(row) ?? "")}` : undefined
+              }))}
+            />
+          </div>
         )}
       </CardContent>
     </Card>
@@ -720,6 +723,7 @@ function HoldingExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] })
           <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Underlying company exposure unavailable.</p>
         ) : (
           <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Weights shown as % of total portfolio value (including cash).</p>
             {shownRows.map((row) => (
               <StackedExposureBar
                 key={`${row.holdingSymbol}-${row.holdingName}`}

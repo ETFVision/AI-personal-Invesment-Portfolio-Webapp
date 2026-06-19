@@ -130,6 +130,22 @@ function instrument(input: Partial<Instrument> & Pick<Instrument, "id" | "symbol
   };
 }
 
+function lookthroughReport(holdingExposures: NonNullable<PortfolioReviewInputContext["lookthroughReport"]>["holdingExposures"], sectorWeight = 0.3): NonNullable<PortfolioReviewInputContext["lookthroughReport"]> {
+  return {
+    asOfDate: "2026-06-01",
+    coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+    sectorExposures: [
+      { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: sectorWeight, directWeight: sectorWeight, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+    ],
+    countryExposures: [],
+    topHoldingExposures: [],
+    holdingExposures,
+    currencyExposures: [],
+    themeExposures: [],
+    diagnostics: []
+  };
+}
+
 test("portfolio review weights calculate a deterministic overall score", () => {
   const score = weightedPortfolioScore([
     { key: "allocation", label: "Allocation", score: 80, weight: 0.5, reason: "" },
@@ -203,6 +219,71 @@ test("concentration review surfaces named direct and indirect top holdings", () 
   assert.equal(largestDirect.holdingSymbol, "VOO");
   assert.equal(largestIndirect.holdingSymbol, "MSFT");
   assert.ok(Number(largestIndirect.indirectWeight) > 0);
+});
+
+test("concentration review measures top holding at issuer level when ETF wrapper is largest direct position", () => {
+  const review = new ConcentrationReviewService().review(context({
+    lookthroughReport: lookthroughReport([
+      { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "VOO", holdingName: "Vanguard S&P 500 ETF", directWeight: 0.3, indirectWeight: 0, totalWeight: 0.3, sourceEtfs: [], inputsSnapshot: { instrumentAssetClass: "etf", exposureRole: "direct_position" } },
+      { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "NVDA", holdingName: "NVIDIA", directWeight: 0, indirectWeight: 0.07, totalWeight: 0.07, sourceEtfs: [{ symbol: "VOO", weight: 0.07 }], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "underlying_security" } }
+    ])
+  }));
+  const largestDirect = review.metrics.largestDirectHolding as { holdingSymbol?: string; totalWeight?: number };
+
+  assert.equal(Math.round(Number(review.metrics.topHoldingConcentration) * 100), 7);
+  assert.equal(largestDirect.holdingSymbol, "VOO");
+  assert.equal(review.findings.some((finding) => finding.title === "Single-company concentration"), false);
+  assert.ok(review.score >= 89);
+});
+
+test("concentration review emits watch when a single issuer exceeds 10 percent", () => {
+  const review = new ConcentrationReviewService().review(context({
+    lookthroughReport: lookthroughReport([
+      { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "NVDA", holdingName: "NVIDIA", directWeight: 0, indirectWeight: 0.12, totalWeight: 0.12, sourceEtfs: [{ symbol: "VOO", weight: 0.12 }], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "underlying_security" } }
+    ])
+  }));
+  const finding = review.findings.find((item) => item.title === "Single-company concentration");
+
+  assert.equal(finding?.severity, "watch");
+  assert.match(finding?.detail ?? "", /exceeds 10%/);
+});
+
+test("concentration review emits attention when a single issuer exceeds 20 percent", () => {
+  const review = new ConcentrationReviewService().review(context({
+    lookthroughReport: lookthroughReport([
+      { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "NVDA", holdingName: "NVIDIA", directWeight: 0, indirectWeight: 0.22, totalWeight: 0.22, sourceEtfs: [{ symbol: "VOO", weight: 0.22 }], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "underlying_security" } }
+    ])
+  }));
+  const finding = review.findings.find((item) => item.title === "Single-company concentration");
+
+  assert.equal(finding?.severity, "attention");
+  assert.match(finding?.detail ?? "", /exceeds 20%/);
+});
+
+test("concentration review includes direct single-stock exposure in issuer top holding", () => {
+  const review = new ConcentrationReviewService().review(context({
+    lookthroughReport: lookthroughReport([
+      { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "MSFT", holdingName: "Microsoft", directWeight: 0.3, indirectWeight: 0, totalWeight: 0.3, sourceEtfs: [], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "direct_position" } }
+    ])
+  }));
+  const finding = review.findings.find((item) => item.title === "Single-company concentration");
+
+  assert.equal(Number(review.metrics.topHoldingConcentration), 0.3);
+  assert.equal(finding?.severity, "attention");
+});
+
+test("concentration review falls back to direct concentration when look-through has no issuer rows", () => {
+  const review = new ConcentrationReviewService().review(context({
+    riskReport: {
+      ...context().riskReport,
+      concentration: { ...context().riskReport.concentration, topHoldingConcentration: 0.3, topFiveConcentration: 0.4 }
+    } as any,
+    lookthroughReport: lookthroughReport([])
+  }));
+  const finding = review.findings.find((item) => item.title === "Single-company concentration");
+
+  assert.equal(Number(review.metrics.topHoldingConcentration), 0.3);
+  assert.equal(finding?.severity, "attention");
 });
 
 test("portfolio review data coverage falls when ETF top-holding look-through is missing", () => {
@@ -417,13 +498,13 @@ test("improvement suggestions emit single-name look-through concentration only a
     themeExposures: [],
     diagnostics: []
   });
-  const aboveThreshold = new PortfolioImprovementSuggestionService().build(context({ lookthroughReport: report(0.06) }));
-  const atThreshold = new PortfolioImprovementSuggestionService().build(context({ lookthroughReport: report(0.05) }));
+  const aboveThreshold = new PortfolioImprovementSuggestionService().build(context({ lookthroughReport: report(0.11) }));
+  const atThreshold = new PortfolioImprovementSuggestionService().build(context({ lookthroughReport: report(0.10) }));
   const concentrationSuggestion = aboveThreshold.find((suggestion) => suggestion.issueCategory === "concentration_risk");
 
   assert.ok(concentrationSuggestion);
   assert.equal(concentrationSuggestion.category, "concentration");
-  assert.match(concentrationSuggestion.rationale, /MSFT represents 6\.0%/);
+  assert.match(concentrationSuggestion.rationale, /MSFT represents 11\.0%/);
   assert.match(concentrationSuggestion.rationale, /Analytical observation only - not a position sizing recommendation\./);
   assert.equal(atThreshold.some((suggestion) => suggestion.issueCategory === "concentration_risk"), false);
 });
@@ -459,7 +540,7 @@ test("improvement suggestions emit macro vulnerability only in slowing growth wi
   assert.equal(expanding.some((suggestion) => suggestion.issueCategory === "macro_vulnerability"), false);
 });
 
-test("concentration risk candidates prefer defensive roles before international equity", () => {
+test("concentration risk candidates use diversified funds and exclude stocks", () => {
   const suggestions = new PortfolioImprovementSuggestionService().build(context({
     lookthroughReport: {
       asOfDate: "2026-06-01",
@@ -468,7 +549,7 @@ test("concentration risk candidates prefer defensive roles before international 
       countryExposures: [],
       topHoldingExposures: [],
       holdingExposures: [
-        { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "MSFT", holdingName: "Microsoft", directWeight: 0.02, indirectWeight: 0.07, totalWeight: 0.09, sourceEtfs: [{ symbol: "VOO", weight: 0.07 }], inputsSnapshot: {} }
+        { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "MSFT", holdingName: "Microsoft", directWeight: 0.02, indirectWeight: 0.10, totalWeight: 0.12, sourceEtfs: [{ symbol: "VOO", weight: 0.10 }], inputsSnapshot: {} }
       ],
       currencyExposures: [],
       themeExposures: [],
@@ -476,18 +557,21 @@ test("concentration risk candidates prefer defensive roles before international 
     },
     instruments: [
       instrument({ id: "vxus", symbol: "VXUS", name: "Vanguard Total International Stock ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification"], geography: "International", geoExposure: "International" }),
-      instrument({ id: "xlv", symbol: "XLV", name: "Health Care Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation", "Quality"] }),
-      instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] }),
-      instrument({ id: "gld", symbol: "GLD", name: "SPDR Gold Shares", assetClass: "gold_etf", instrumentType: "etf", canonicalSector: "Commodities / Gold", canonicalThemes: ["Inflation Hedge"] })
+      instrument({ id: "vea", symbol: "VEA", name: "Vanguard Developed Markets ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification"], geography: "International", geoExposure: "International" }),
+      instrument({ id: "bnd", symbol: "BND", name: "Vanguard Total Bond Market ETF", assetClass: "bond_etf", instrumentType: "bond_etf", canonicalSector: "Bonds / Fixed Income", canonicalThemes: ["Treasury Bonds"] }),
+      instrument({ id: "gld", symbol: "GLD", name: "SPDR Gold Shares", assetClass: "gold_etf", instrumentType: "etf", canonicalSector: "Commodities / Gold", canonicalThemes: ["Inflation Hedge"] }),
+      instrument({ id: "msft", symbol: "MSFT", name: "Microsoft", assetClass: "stock", instrumentType: "stock", canonicalSector: "Technology", canonicalThemes: ["Cloud / Software"] })
     ],
     recommendations: []
   }));
   const concentrationSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "concentration_risk");
-  const firstCandidate = concentrationSuggestion?.candidateInstruments[0]?.symbol;
+  const candidateSymbols = concentrationSuggestion?.candidateInstruments.map((candidate) => candidate.symbol) ?? [];
 
   assert.ok(concentrationSuggestion);
-  assert.ok(["XLV", "XLU", "GLD"].includes(firstCandidate ?? ""));
-  assert.ok((concentrationSuggestion.candidateInstruments.findIndex((candidate) => candidate.symbol === "VXUS") ?? -1) > 0);
+  assert.ok(concentrationSuggestion.candidateInstruments.length > 0);
+  assert.ok(concentrationSuggestion.candidateInstruments.every((candidate) => candidate.assetClass !== "stock"));
+  assert.ok(candidateSymbols.every((symbol) => ["VXUS", "VEA", "BND", "GLD"].includes(symbol)));
+  assert.ok(!candidateSymbols.includes("MSFT"));
 });
 
 test("improvement suggestions calculate ETF top-company overlap for candidates", () => {

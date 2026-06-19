@@ -920,7 +920,9 @@ Allocation:
 
 Concentration:
 
-`90 - max(0, topHolding - 0.15) * 120 - max(0, topCombinedFive - 0.50) * 80 - max(0, sectorTop - 0.40) * 60`
+`90 - max(0, topIssuerConcentration - 0.10) * 150 - max(0, topCombinedFive - 0.40) * 80 - max(0, sectorTop - 0.40) * 60`
+
+Concentration is measured at the underlying-company (issuer look-through) level on a total-value basis, including cash in the denominator. Direct single-stock holdings are included in issuer exposure; diversified ETF wrappers are retained as direct-position metadata but do not trigger single-company concentration findings.
 
 Diversification:
 
