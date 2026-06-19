@@ -15,7 +15,7 @@ import { MacroFitReviewService } from "../src/application/services/portfolioRevi
 import { RecommendationAlignmentReviewService } from "../src/application/services/portfolioReview/RecommendationAlignmentReviewService";
 import { GeographyReviewService } from "../src/application/services/portfolioReview/GeographyReviewService";
 import { DiversificationReviewService } from "../src/application/services/portfolioReview/DiversificationReviewService";
-import { portfolioReviewConfidenceScore } from "../src/application/services/portfolioReview/PortfolioReviewService";
+import { portfolioReviewConfidenceScore, portfolioReviewExecutiveSummary } from "../src/application/services/portfolioReview/PortfolioReviewService";
 import {
   compareGapCandidatesByCategoryFit,
   defensiveGapTooltipCategory,
@@ -365,6 +365,14 @@ test("portfolio review metric labels clarify country materiality thresholds", ()
   assert.equal(cleanHoldingSymbol("BRK.B"), "BRK.B");
   assert.equal(cleanHoldingSymbol("2330.TW"), "2330");
   assert.equal(cleanHoldingSymbol("005930.KS"), "005930");
+});
+
+test("portfolio review executive summary capitalizes balance findings disclaimer", () => {
+  const summary = portfolioReviewExecutiveSummary(82, 1, 2, 0);
+
+  assert.match(summary, /2 balance findings/);
+  assert.match(summary, /Balance findings are deterministic analytical outputs/);
+  assert.doesNotMatch(summary, /balance findings are deterministic analytical outputs/);
 });
 
 test("concentration review surfaces named direct and indirect top holdings", () => {
@@ -960,6 +968,99 @@ test("international gap display grouping buckets sub-roles and tooltip categorie
   assert.equal(internationalGapTooltipCategory({ diversificationType: "International equity" }), "Broad ex-US (all regions)");
   assert.equal(internationalGapTooltipCategory({ diversificationType: "Developed international equity" }), "Developed markets");
   assert.equal(internationalGapTooltipCategory({ diversificationType: "Emerging-market equity" }), "Emerging markets");
+});
+
+test("real estate balance finding leads with broad US REIT representatives", () => {
+  const symbols = ["REM", "VNQI", "REET", "VNQ", "SCHH", "IYR", "USRT", "FREL", "XLRE", "RWR"];
+  const instruments = symbols.map((symbol) =>
+    instrument({
+      id: symbol.toLowerCase(),
+      symbol,
+      name: `${symbol} ETF`,
+      assetClass: "etf",
+      instrumentType: "etf",
+      canonicalSector: "Real Estate",
+      canonicalThemes: ["Real Estate / REITs"],
+      geography: symbol === "VNQI" || symbol === "REET" ? "Global" : "US",
+      geoExposure: symbol === "VNQI" || symbol === "REET" ? "Global" : "United States"
+    })
+  );
+  const recommendations: PortfolioReviewInputContext["recommendations"] = symbols.map((symbol) => ({
+    id: `r-${symbol.toLowerCase()}`,
+    recommendationRunId: "run-1",
+    instrumentId: symbol.toLowerCase(),
+    symbol,
+    instrumentType: "ETF",
+    recommendationLabel: "Hold",
+    overallScore: ["REM", "VNQI", "REET"].includes(symbol) ? 96 : 62,
+    confidenceScore: 80,
+    riskLevel: "medium",
+    timeHorizon: "medium_term",
+    recommendationReasoningSummary: "",
+    positiveDrivers: [],
+    negativeDrivers: [],
+    guardrailsApplied: [],
+    dataLimitations: [],
+    recommendationChangeTriggers: { upgrade: [], downgrade: [] },
+    inputsSnapshot: {},
+    scoringBreakdown: {},
+    createdAt: "",
+    updatedAt: ""
+  }));
+  const baseContext = context({
+    lookthroughReport: {
+      ...lookthroughReport([]),
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.42, directWeight: 0.42, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Real Estate", exposureWeight: 0.01, directWeight: 0.01, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ]
+    },
+    instruments,
+    recommendations
+  });
+  const scoreInputsBefore = JSON.stringify({
+    riskReport: baseContext.riskReport,
+    bondReport: baseContext.bondReport,
+    macroRegime: baseContext.macroRegime,
+    dashboard: {
+      allocationByType: baseContext.dashboard.allocationByType,
+      allocationBySector: baseContext.dashboard.allocationBySector,
+      allocationByGeography: baseContext.dashboard.allocationByGeography
+    }
+  });
+  const suggestions = new PortfolioImprovementSuggestionService().build(baseContext);
+  const realEstateSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_real_estate_exposure");
+
+  assert.equal(realEstateSuggestion?.title, "Real Estate — Lightly Represented Category");
+  assert.equal(realEstateSuggestion?.priority, "low");
+  assert.match(realEstateSuggestion?.rationale ?? "", /Real estate look-through exposure is 1\.0%/);
+  assert.equal((realEstateSuggestion?.candidateInstruments ?? []).length <= 4, true);
+  assert.deepEqual(realEstateSuggestion?.candidateInstruments.map((candidate) => candidate.symbol), ["VNQ", "SCHH", "IYR", "USRT"]);
+  assert.equal(realEstateSuggestion?.candidateInstruments.some((candidate) => ["REM", "VNQI", "REET"].includes(candidate.symbol)), false);
+  assert.equal(JSON.stringify({
+    riskReport: baseContext.riskReport,
+    bondReport: baseContext.bondReport,
+    macroRegime: baseContext.macroRegime,
+    dashboard: {
+      allocationByType: baseContext.dashboard.allocationByType,
+      allocationBySector: baseContext.dashboard.allocationBySector,
+      allocationByGeography: baseContext.dashboard.allocationByGeography
+    }
+  }), scoreInputsBefore);
+});
+
+test("real estate balance finding does not fire when sleeve is adequately represented", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    lookthroughReport: {
+      ...lookthroughReport([]),
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.34, directWeight: 0.34, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Real Estate", exposureWeight: 0.04, directWeight: 0.04, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ]
+    }
+  }));
+
+  assert.equal(suggestions.some((suggestion) => suggestion.issueCategory === "insufficient_real_estate_exposure"), false);
 });
 
 test("improvement suggestions map concentration issues to diversifying candidates", () => {

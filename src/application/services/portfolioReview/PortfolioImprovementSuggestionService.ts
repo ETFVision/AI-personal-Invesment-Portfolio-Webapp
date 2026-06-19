@@ -4,7 +4,7 @@ import type { Instrument } from "@/domain/universe/types";
 import type { EtfTopHolding, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { alphaEtfCategoryForSymbol, type EtfCategory } from "../../../domain/universe/alphaUniverse";
 import { DiversificationBenefitService } from "./DiversificationBenefitService";
-import { broadDefensiveSectorEtfs, broadInternationalEtfCategories, coreInternationalEtfs, globalIncludingUsEtfs, nonDefensiveSectorEtfs } from "./gapCandidateSets";
+import { broadDefensiveSectorEtfs, broadInternationalEtfCategories, broadReitEtfs, coreInternationalEtfs, globalIncludingUsEtfs, nonDefensiveSectorEtfs } from "./gapCandidateSets";
 import { type PortfolioReviewInputContext } from "./portfolioReviewScoring";
 
 const blockedLabels = new Set(["Reduce", "Sell", "Insufficient Data", "Not Applicable"]);
@@ -83,6 +83,7 @@ export type SuggestionContext = {
   healthcareWeight: number;
   utilitiesWeight: number;
   consumerStaplesWeight: number;
+  realEstateWeight: number;
   usExposure: number;
   internationalExposure: number;
   bondAllocation: number;
@@ -195,6 +196,9 @@ export function rolePriority(issueCategory: PortfolioImprovementIssueCategory, c
       .map((item) => item.role)
       .concat(["short_treasury_cash_like", "core_us_bond"]);
   }
+  if (issueCategory === "insufficient_real_estate_exposure") {
+    return ["real_estate"];
+  }
   // theme_concentration is a reserved issue category with no active gap-analysis trigger.
   if (issueCategory === "concentration_risk") {
     return ["international_equity", "developed_international_equity", "core_us_bond", "gold_hedge", "intermediate_treasury", "international_bond"];
@@ -224,6 +228,7 @@ function issueFit(instrument: Instrument, issueCategory: PortfolioImprovementIss
   if (issueCategory === "insufficient_inflation_hedge") return roleFit(role, issueCategory, context) || (instrument.assetClass === "gold_etf" || themes.includes("inflation hedge") ? 35 : 0);
   if (issueCategory === "insufficient_geopolitical_hedge") return roleFit(role, issueCategory, context) || (instrument.assetClass === "gold_etf" || themes.includes("recession hedge") ? 30 : 0);
   if (issueCategory === "insufficient_international_exposure") return roleFit(role, issueCategory, context);
+  if (issueCategory === "insufficient_real_estate_exposure") return roleFit(role, issueCategory, context);
   if (issueCategory === "insufficient_defensive_exposure") {
     if (instrument.assetClass === "stock") return 0;
     if (nonDefensiveSectorEtfs.has((instrument.symbol ?? "").toUpperCase())) return 0;
@@ -362,6 +367,7 @@ function categoryRepresentativeScore(instrument: Instrument, issueCategory: Port
   const symbol = instrument.symbol?.toUpperCase() ?? "";
   if (issueCategory === "insufficient_defensive_exposure" && broadDefensiveSectorEtfs.has(symbol)) return 100;
   if (issueCategory === "insufficient_international_exposure") return internationalRepresentativeScore(instrument);
+  if (issueCategory === "insufficient_real_estate_exposure") return broadReitEtfs.has(symbol) ? 100 : candidateRole(instrument) === "real_estate" ? 30 : 0;
   return 0;
 }
 
@@ -460,7 +466,7 @@ function candidate(
 
 function rankedCandidates(context: PortfolioReviewInputContext, issueContext: SuggestionContext, issueCategory: PortfolioImprovementIssueCategory, limit = 5) {
   const recs = recommendationMap(context.recommendations);
-  const rankScore = issueCategory === "insufficient_international_exposure" ? categoryRemedyCandidateRankScore : candidateRankScore;
+  const rankScore = issueCategory === "insufficient_international_exposure" || issueCategory === "insufficient_real_estate_exposure" ? categoryRemedyCandidateRankScore : candidateRankScore;
   return context.instruments
     .map((instrument) => candidate(instrument, recs.get(instrument.id), issueCategory, issueContext))
     .filter((item): item is PortfolioReviewCandidate => Boolean(item))
@@ -563,6 +569,7 @@ export function buildPortfolioImprovementSuggestionContext(context: PortfolioRev
     healthcareWeight: sectorExposureWeight(sectorExposures, "healthcare"),
     utilitiesWeight: sectorExposureWeight(sectorExposures, "utilities"),
     consumerStaplesWeight: sectorExposureWeight(sectorExposures, "consumer staples"),
+    realEstateWeight: sectorExposureWeight(sectorExposures, "real estate"),
     usExposure,
     internationalExposure,
     bondAllocation,
@@ -635,6 +642,22 @@ export class PortfolioImprovementSuggestionService {
         benefit: "May relate to sector balance without relying only on broad-market ETFs.",
         tradeOff: "Defensive sectors may lag during high-beta technology-led rallies."
       }));
+    }
+
+    if (issueContext.realEstateWeight < 0.03) {
+      const candidates = rankedCandidates(context, issueContext, "insufficient_real_estate_exposure", 4);
+      if (candidates.length > 0) {
+        suggestions.push(suggestion({
+          category: "diversification",
+          issueCategory: "insufficient_real_estate_exposure",
+          priority: "low",
+          title: "Real Estate — Lightly Represented Category",
+          rationale: `Real estate look-through exposure is ${(issueContext.realEstateWeight * 100).toFixed(1)}%, below the 3.0% balance threshold. Analytical observation only - not a position sizing recommendation.`,
+          candidates,
+          benefit: "May add property-income and real-asset sensitivity context to the portfolio balance review.",
+          tradeOff: "REIT funds can be sensitive to interest rates, financing conditions, and property-market cycles."
+        }));
+      }
     }
 
     if (issueContext.cryptoAllocation > 0.05 && issueContext.recessionHedgeAllocation < issueContext.cryptoAllocation) {

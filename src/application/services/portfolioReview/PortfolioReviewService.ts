@@ -59,6 +59,16 @@ export function portfolioReviewConfidenceScore(context: PortfolioReviewInputCont
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
+export function portfolioReviewExecutiveSummary(score: number | null, watchAreaCount: number, suggestionCount: number, limitationCount: number) {
+  const scoreText = score == null ? "insufficient data" : `${score}/100`;
+  const posture =
+    score == null ? "cannot yet be scored reliably" :
+    score >= 75 ? "is broadly healthy" :
+    score >= 60 ? "is workable but has review areas" :
+    "needs attention before it can be considered well balanced";
+  return `Portfolio review score is ${scoreText}. The portfolio ${posture}. ${watchAreaCount} watch areas, ${suggestionCount} balance findings and ${limitationCount} data limitations were identified. Balance findings are deterministic analytical outputs and do not constitute investment advice, trade instructions, or position sizing guidance.`;
+}
+
 function dataLimitations(context: PortfolioReviewInputContext) {
   return [
     context.dashboard.holdings.length === 0 ? "No holdings are available for portfolio review." : null,
@@ -230,12 +240,6 @@ export class PortfolioReviewService {
   }
 
   private executiveSummary(score: number | null, watchAreaCount: number, suggestionCount: number, limitationCount: number) {
-    const scoreText = score == null ? "insufficient data" : `${score}/100`;
-    const posture =
-      score == null ? "cannot yet be scored reliably" :
-      score >= 75 ? "is broadly healthy" :
-      score >= 60 ? "is workable but has review areas" :
-      "needs attention before it can be considered well balanced";
-    return `Portfolio review score is ${scoreText}. The portfolio ${posture}. ${watchAreaCount} watch areas, ${suggestionCount} gap findings and ${limitationCount} data limitations were identified. Gap findings are deterministic analytical outputs and do not constitute investment advice, trade instructions, or position sizing guidance.`;
+    return portfolioReviewExecutiveSummary(score, watchAreaCount, suggestionCount, limitationCount);
   }
 }

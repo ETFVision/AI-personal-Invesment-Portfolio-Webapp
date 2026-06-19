@@ -10,6 +10,10 @@ Summary", generic "Underweighted Category" subtitles are softened to "Lightly Re
 wrapper-exclusion logic is shared across Concentration/Risk/page display, curated gap-engine sets are
 co-located, and taxonomy/display guard tests cover the cleanup.
 
+**Latest shipped note (2026-06-19):** Real Estate / REIT balance finding shipped. Low real-estate
+look-through exposure now surfaces a flat Real Estate - Lightly Represented Category finding led by broad US
+REIT representatives, and the executive-summary balance-finding disclaimer capitalization is fixed.
+
 **Source:** UX review of Portfolio Review page output, 2026-06-18. Trigger logic and new findings
 (T1, T2, A–E) confirmed against the live 2026-06-18 report (score 81).
 
@@ -67,8 +71,8 @@ funds (VNQ/SCHH/IYR-style) over narrow specialty / mortgage / international-REIT
    `globalIncludingUsEtfs`).
 4. **Display polish** — shipped 2026-06-19. Gap titles use em dashes, and overlap text prefers company
    names with ticker cleanup fallback.
-5. *(optional)* **Real Estate / REIT sleeve trigger** — reuses the shared broad-representative mechanism
-   (broad REIT funds lead). *Needs prompt if pursued.*
+5. *(optional)* **Real Estate / REIT sleeve trigger** — shipped 2026-06-19. Reuses the shared
+   broad-representative mechanism; broad REIT funds lead.
 6. *(optional)* **Taxonomy verification test** — read-only test asserting every active instrument's stored
    sector == `TaxonomyService.normalizeInstrument` output. *Needs prompt if pursued.*
 

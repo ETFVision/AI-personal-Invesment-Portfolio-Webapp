@@ -1,3 +1,43 @@
+## 2026-06-19 - Real Estate Portfolio Balance Finding
+
+### Source
+Claude Code
+
+### Objective
+Add a low-priority Real Estate / REIT Portfolio Balance Review finding and fix the executive-summary Balance findings disclaimer capitalization.
+
+### Files Changed
+- `src/domain/portfolioReview/types.ts`
+- `src/application/services/portfolioReview/gapCandidateSets.ts`
+- `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+- `src/application/services/portfolioReview/PortfolioReviewService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/PORTFOLIO_REVIEW_UX_FIXES_WIP.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `insufficient_real_estate_exposure` as a Portfolio Balance Review issue category.
+- Added a low-priority "Real Estate - Lightly Represented Category" finding when real estate look-through exposure is below 3.0% and eligible REIT candidates exist.
+- Ranked broad US REIT representatives (`VNQ`, `SCHH`, `IYR`, `USRT`, `FREL`, `XLRE`, `RWR`) ahead of mortgage, international, or global REIT variants for this sleeve.
+- Kept the REIT candidate list flat and capped at four candidates.
+- Exposed the executive-summary text through a pure helper and covered the capitalized "Balance findings are deterministic..." disclaimer with a regression test.
+- Updated Portfolio Review methodology and WIP notes for the REIT sleeve behavior.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (317/317)
+
+### Result
+Completed.
+
+### Notes for Claude
+- No existing section score, scoring formula, trigger threshold, access control, or user-facing advisory label was changed.
+- Stored Portfolio Review reports must be regenerated from the Admin panel before the new REIT finding or updated summary text appears in saved reports.
+
 ## 2026-06-19 - Portfolio Review Backlog Clearance
 
 ### Source

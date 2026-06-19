@@ -72,6 +72,7 @@ export type PortfolioImprovementIssueCategory =
   | "insufficient_geopolitical_hedge"
   | "insufficient_international_exposure"
   | "insufficient_defensive_exposure"
+  | "insufficient_real_estate_exposure"
   | "excessive_crypto_risk"
   | "high_correlation"
   | "weak_recommendation_alignment"

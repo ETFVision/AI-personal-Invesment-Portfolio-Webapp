@@ -2,6 +2,37 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Real Estate Portfolio Balance Finding QA
+
+Scope:
+- Verify the new Real Estate / REIT Portfolio Balance Review finding and executive-summary Balance findings capitalization.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Portfolio Balance Review had no dedicated real estate / REIT sleeve when real estate look-through exposure was lightly represented | Fixed; a low-priority "Real Estate - Lightly Represented Category" finding now appears when real estate look-through exposure is below 3.0% and eligible REIT candidates exist |
+| Mortgage, international, or global REIT variants could lead the sleeve if they had higher instrument scores | Fixed; broad US REIT representatives lead the Real Estate candidate ranking, with `REM`, `VNQI`, and `REET` ranked below |
+| Executive-summary balance-finding disclaimer needed title-case sentence capitalization | Fixed; the summary now contains "Balance findings are deterministic analytical outputs..." |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Real Estate finding fires at 1.0% look-through exposure with non-advisory rationale | PASS |
+| Real Estate finding does not fire at 4.0% look-through exposure | PASS |
+| Candidate list is flat, capped at four, and leads with `VNQ`, `SCHH`, `IYR`, `USRT` | PASS |
+| `REM`, `VNQI`, and `REET` do not lead the Real Estate candidate list | PASS |
+| Existing section score inputs remain unchanged in the Real Estate finding test context | PASS |
+| Executive summary uses capitalized "Balance findings are deterministic analytical outputs" | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (317/317) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports can include the new Real Estate finding and updated summary text.
+
 ## 2026-06-19 SGT - Portfolio Review Backlog Clearance QA
 
 Scope:
