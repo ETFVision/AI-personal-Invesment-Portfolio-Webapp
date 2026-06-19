@@ -2,6 +2,35 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-19 SGT - Portfolio Review Gap Candidate Primary Reason QA
+
+Scope:
+- Verify Portfolio Review gap-analysis candidate `primaryReason` text is issue-category-aware for crypto-ballast and concentration-risk findings.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Crypto / Alternative ballast bond and treasury candidates showed generic fixed-income text such as "provides exposure to fixed income where bond allocation is ..." | Fixed; `excessive_crypto_risk` bond, treasury, fixed-income, and credit candidates now reference ballast characteristics relative to crypto and high-volatility alternative exposure |
+| Concentration-risk diversifier candidates lacked single-name concentration or correlation context | Fixed; geographic diversifiers now reference concentrated single-name look-through exposure, and ballast candidates reference lower-correlation context |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `excessive_crypto_risk` bond candidate `primaryReason` includes ballast and crypto context | PASS |
+| `concentration_risk` bond candidate no longer uses generic fixed-income allocation text | PASS |
+| `concentration_risk` bond candidate references lower-correlation or concentration context | PASS |
+| `concentration_risk` international diversifier references concentrated single-name look-through exposure | PASS |
+| `insufficient_fixed_income` bond candidate keeps existing generic fixed-income allocation text | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (285/285) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports with the updated candidate explanation text.
+
 ## 2026-06-19 SGT - Portfolio Review Concentration Coherence
 
 Scope:

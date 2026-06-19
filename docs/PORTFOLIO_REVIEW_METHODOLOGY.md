@@ -106,6 +106,11 @@ Candidate instruments should explain:
 - Diversification benefit.
 - Trade-offs and overlap risk.
 
+Candidate `primaryReason` text is issue-category-aware for newer gap findings:
+
+- `excessive_crypto_risk` bond, treasury, fixed-income, and credit candidates reference ballast characteristics relative to crypto and high-volatility alternative exposure.
+- `concentration_risk` geographic diversifiers reference issuer/geographic diversification relative to concentrated single-name look-through exposure; bond, treasury, fixed-income, credit, gold, and inflation-hedge candidates reference generally lower-correlation ballast relative to the flagged concentration.
+
 The candidate logic should not change internal scoring labels. It uses stored insight outputs and active universe data as inputs into portfolio-level gap findings. User-facing cards should include the disclaimer chip: `Shown because category is underweighted - not a buy recommendation`.
 
 The Portfolio Review page should use the following public language:

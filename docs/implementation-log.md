@@ -1,3 +1,40 @@
+## 2026-06-19 - Issue-Aware Gap Candidate Primary Reasons
+
+### Source
+Claude Code
+
+### Objective
+Make Portfolio Review gap-analysis candidate `primaryReason` text issue-category-aware for `excessive_crypto_risk` and `concentration_risk`.
+
+### Files Changed
+- `src/application/services/portfolioReview/DiversificationBenefitService.ts`
+- `tests/portfolio-review.test.ts`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added issue-category-specific `primaryReason` overrides for crypto-ballast bond, treasury, fixed-income, and credit candidates.
+- Added issue-category-specific `primaryReason` overrides for concentration-risk international/geographic diversifiers and ballast candidates.
+- Left the existing technology-overlap override intact so it still wins for technology-dominant candidates that are not strong diversifiers.
+- No score, overlap penalty, finding, secondary benefit, role-priority, or candidate-filtering logic changed.
+- Added regression assertions for crypto-ballast text, concentration-risk text, and unchanged insufficient-fixed-income bond text.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+- `npm.cmd run test` - PASS (285/285)
+
+### Result
+Completed.
+
+### Notes for Claude
+- Portfolio Review must be re-run from the Admin panel to regenerate stored report text.
+- Before crypto-ballast bond candidate text: `BND provides exposure to fixed income where bond allocation is 0.0%.`
+- After crypto-ballast bond candidate text: `BND is a bond or treasury instrument. Ballast characteristics such as these may differ from crypto and high-volatility alternative exposure.`
+
+---
 ## 2026-06-19 - Portfolio Review Issuer-Level Concentration Coherence
 
 ### Source

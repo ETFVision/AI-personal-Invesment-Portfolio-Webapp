@@ -329,6 +329,8 @@ test("improvement suggestions only include approved non-reduce candidates", () =
   const candidates = suggestions.flatMap((suggestion) => suggestion.candidateInstruments);
   assert.ok(candidates.some((candidate) => candidate.symbol === "BND"));
   assert.ok(!candidates.some((candidate) => candidate.symbol === "HYG"));
+  const fixedIncomeSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_fixed_income");
+  assert.match(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BND")?.primaryReason ?? "", /provides exposure to fixed income where bond allocation is 0\.0%/);
 });
 
 test("improvement suggestions map concentration issues to diversifying candidates", () => {
@@ -478,8 +480,11 @@ test("improvement suggestions emit crypto ballast observation above threshold on
     }
   }));
   const cryptoSuggestion = aboveThreshold.find((suggestion) => suggestion.issueCategory === "excessive_crypto_risk");
+  const bondCandidate = cryptoSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BND");
 
   assert.ok(cryptoSuggestion);
+  assert.match(bondCandidate?.primaryReason ?? "", /Ballast/);
+  assert.match(bondCandidate?.primaryReason ?? "", /crypto/);
   assert.match(cryptoSuggestion.rationale, /Analytical observation only - not a position sizing recommendation\./);
   assert.equal(atThreshold.some((suggestion) => suggestion.issueCategory === "excessive_crypto_risk"), false);
 });
@@ -566,12 +571,17 @@ test("concentration risk candidates use diversified funds and exclude stocks", (
   }));
   const concentrationSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "concentration_risk");
   const candidateSymbols = concentrationSuggestion?.candidateInstruments.map((candidate) => candidate.symbol) ?? [];
+  const bondCandidate = concentrationSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BND");
+  const diversifierCandidate = concentrationSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "VXUS");
 
   assert.ok(concentrationSuggestion);
   assert.ok(concentrationSuggestion.candidateInstruments.length > 0);
   assert.ok(concentrationSuggestion.candidateInstruments.every((candidate) => candidate.assetClass !== "stock"));
   assert.ok(candidateSymbols.every((symbol) => ["VXUS", "VEA", "BND", "GLD"].includes(symbol)));
   assert.ok(!candidateSymbols.includes("MSFT"));
+  assert.doesNotMatch(bondCandidate?.primaryReason ?? "", /fixed income where bond allocation is/);
+  assert.match(bondCandidate?.primaryReason ?? "", /lower-correlation|concentration/);
+  assert.match(diversifierCandidate?.primaryReason ?? "", /concentrated single-name look-through exposure/);
 });
 
 test("improvement suggestions calculate ETF top-company overlap for candidates", () => {

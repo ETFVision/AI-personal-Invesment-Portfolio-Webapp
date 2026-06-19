@@ -100,6 +100,18 @@ export class DiversificationBenefitService {
       secondaryBenefit = "May relate to resilience to inflation, real-rate and geopolitical shocks.";
     }
 
+    if (input.issueCategory === "excessive_crypto_risk" && hasAny(role, ["bond", "treasury", "fixed income", "credit"])) {
+      primaryReason = `${input.symbol} is a bond or treasury instrument. Ballast characteristics such as these may differ from crypto and high-volatility alternative exposure.`;
+    }
+
+    if (input.issueCategory === "concentration_risk") {
+      if (hasAny(role, ["international equity", "developed international", "emerging-market", "global equity"])) {
+        primaryReason = `${input.symbol} adds geographic and issuer diversification that may differ from concentrated single-name look-through exposure.`;
+      } else if (hasAny(role, ["bond", "treasury", "fixed income", "credit", "gold", "inflation hedge"])) {
+        primaryReason = `${input.symbol} provides ballast that is generally lower-correlation to the concentrated equity positions flagged in look-through analysis.`;
+      }
+    }
+
     if (input.issueCategory === "sector_concentration" || input.issueCategory === "theme_concentration" || input.issueCategory === "concentration_risk") {
       if (input.candidateSector && input.dominantSector && input.candidateSector.toLowerCase() !== input.dominantSector.toLowerCase()) {
         concentrationScore += clampRange(input.dominantSectorWeight * 45, 0, 18);
