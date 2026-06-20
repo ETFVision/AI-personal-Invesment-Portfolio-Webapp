@@ -2,6 +2,44 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-20 SGT - Orthogonal Fundamentals Quality Score QA
+
+Scope:
+- Verify the stock Fundamentals Quality sub-score measures earnings quality and consistency instead of re-averaging Profitability, Cash Flow, and Balance Sheet signals.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Previous Quality formula reused category-level signals and was highly correlated with Profitability, Cash Flow, and Balance Sheet | Fixed; Quality now uses earnings stability, cash conversion/accruals, ROIC durability, and capital discipline with frozen economic anchors |
+| Quality anchors needed to be fixed and documented rather than refit per refresh | Fixed; methodology docs and public methodology page now state the fixed-anchor formula and generalization principle |
+| Business Quality and overall stock composite impact needed explicit test coverage | Covered; tests assert directionality, pinned anchor scores, and orthogonality while leaving Business Quality weights unchanged |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Signal direction: stable margins and strong cash conversion raise Quality, volatile margins and weak conversion lower it | PASS |
+| Pinned frozen-anchor scores: STABLE 96, DISCIPLINED 82, DILUTIVE 63, VOLATILE 3 | PASS |
+| Fixture previous Quality correlations vs Profitability / Cash Flow / Balance Sheet | `1.000`, `1.000`, `0.999` |
+| Fixture new Quality correlations vs Profitability / Cash Flow / Balance Sheet | `0.142`, `0.098`, `0.127` |
+| Read-only Supabase pass: eligible stocks / comparable scored rows | `105` / `96` |
+| Read-only Supabase previous Quality correlations vs Profitability / Cash Flow / Balance Sheet | `0.855`, `0.739`, `0.504` |
+| Read-only Supabase new Quality correlations vs Profitability / Cash Flow / Balance Sheet | `0.153`, `0.327`, `-0.214` |
+| Read-only Supabase new Quality distribution | min `18.73`, p25 `58.36`, median `75.04`, p75 `92.10`, max `100.00` |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (321/321) |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- Fundamentals Quality, Business Quality, and the stock overall Characteristics composite can shift after refreshed fundamentals and recommendation scores. No user-facing labels or advice wording changed.
+
+Residual items:
+- Re-run Fundamentals refresh and recommendation-run from the Admin panel.
+- Perform Med 29 recalibration QA after refreshed scores are stored.
+- Monitor annual ROIC coverage: the live comparable sample had no available ROIC durability observations, so that signal currently drops from the Quality denominator until coverage improves.
+
 ## 2026-06-20 SGT - Concentration and Diversification Scoring Separation QA
 
 Scope:

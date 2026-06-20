@@ -356,6 +356,154 @@ test("fundamental scoring gives quality growth stocks a bounded valuation adjust
   assert.ok((score.inputsSnapshot.valuationAdjustment as number) > 0);
 });
 
+function qualityInput(input: {
+  symbol: string;
+  margins: number[];
+  operatingCashFlow: number;
+  netIncome: number;
+  roic: number;
+  latestShares: number;
+  previousShares: number;
+}) {
+  const years = [2021, 2022, 2023, 2024, 2025].slice(-input.margins.length);
+  const ratios = input.margins.map((margin, index): FinancialRatio => ({
+    instrumentId: `inst-${input.symbol}`,
+    symbol: input.symbol,
+    period: "annual",
+    fiscalYear: years[index],
+    fiscalQuarter: 0,
+    reportDate: `${years[index]}-12-31`,
+    peRatio: null,
+    forwardPe: null,
+    priceToSales: null,
+    priceToBook: null,
+    evToEbitda: null,
+    evToSales: null,
+    grossMargin: null,
+    operatingMargin: margin,
+    netMargin: margin,
+    roe: null,
+    roic: input.roic,
+    roa: null,
+    debtToEquity: null,
+    netDebtToEbitda: null,
+    currentRatio: null,
+    quickRatio: null,
+    freeCashFlowYield: null,
+    revenueGrowth: null,
+    epsGrowth: null,
+    netIncomeGrowth: null,
+    freeCashFlowGrowth: null,
+    provider: "test",
+    providerMetadata: {}
+  }));
+  const statements: FinancialStatement[] = [
+    trendStatement({ symbol: input.symbol, statementType: "income_statement", period: "annual", year: 2024, revenue: 100, operatingIncome: input.margins.at(-2) ?? input.margins[0], netIncome: input.netIncome, sharesOutstanding: input.previousShares }),
+    trendStatement({ symbol: input.symbol, statementType: "income_statement", period: "annual", year: 2025, revenue: 100, operatingIncome: input.margins.at(-1) ?? input.margins[0], netIncome: input.netIncome, sharesOutstanding: input.latestShares }),
+    trendStatement({ symbol: input.symbol, statementType: "cash_flow", period: "annual", year: 2025, operatingCashFlow: input.operatingCashFlow }),
+    trendStatement({ symbol: input.symbol, statementType: "balance_sheet", period: "annual", year: 2025, totalAssets: 1_000 })
+  ];
+  return { ratios, statements };
+}
+
+function qualityScoreFor(input: Parameters<typeof qualityInput>[0]) {
+  const data = qualityInput(input);
+  const income = data.statements.find((statement) => statement.statementType === "income_statement" && statement.fiscalYear === 2025) ?? null;
+  const cashFlow = data.statements.find((statement) => statement.statementType === "cash_flow") ?? null;
+  const balanceSheet = data.statements.find((statement) => statement.statementType === "balance_sheet") ?? null;
+  return fundamentalScoringInternals.calculateQualityScore({
+    ratios: data.ratios,
+    statements: data.statements,
+    income,
+    cashFlow,
+    balanceSheet
+  });
+}
+
+function pearson(left: number[], right: number[]) {
+  const leftMean = left.reduce((sum, value) => sum + value, 0) / left.length;
+  const rightMean = right.reduce((sum, value) => sum + value, 0) / right.length;
+  const numerator = left.reduce((sum, value, index) => sum + (value - leftMean) * (right[index] - rightMean), 0);
+  const leftDenominator = Math.sqrt(left.reduce((sum, value) => sum + (value - leftMean) ** 2, 0));
+  const rightDenominator = Math.sqrt(right.reduce((sum, value) => sum + (value - rightMean) ** 2, 0));
+  return numerator / (leftDenominator * rightDenominator);
+}
+
+test("fundamental quality score rewards stability and cash conversion with frozen anchors", () => {
+  const strong = qualityScoreFor({
+    symbol: "STABLE",
+    margins: [0.30, 0.31, 0.29, 0.30, 0.30],
+    operatingCashFlow: 110,
+    netIncome: 100,
+    roic: 0.20,
+    latestShares: 98,
+    previousShares: 100
+  });
+  const volatile = qualityScoreFor({
+    symbol: "VOLATILE",
+    margins: [0.05, 0.45, -0.02, 0.30, 0.10],
+    operatingCashFlow: 50,
+    netIncome: 100,
+    roic: 0.04,
+    latestShares: 112,
+    previousShares: 100
+  });
+  const accrualWeak = qualityScoreFor({
+    symbol: "ACCRUAL",
+    margins: [0.30, 0.31, 0.29, 0.30, 0.30],
+    operatingCashFlow: 50,
+    netIncome: 100,
+    roic: 0.12,
+    latestShares: 100,
+    previousShares: 100
+  });
+
+  assert.ok((strong.score ?? 0) > 90);
+  assert.ok((volatile.score ?? 100) < 25);
+  assert.ok((accrualWeak.score ?? 0) < (strong.score ?? 0));
+  assert.ok((strong.signals.cashConversion.score ?? 0) > (accrualWeak.signals.cashConversion.score ?? 0));
+  assert.ok((strong.signals.earningsStability.score ?? 0) > (volatile.signals.earningsStability.score ?? 0));
+});
+
+test("fundamental quality score named anchors are pinned", () => {
+  const anchors = new Map([
+    ["STABLE", qualityScoreFor({ symbol: "STABLE", margins: [0.30, 0.31, 0.29, 0.30, 0.30], operatingCashFlow: 110, netIncome: 100, roic: 0.20, latestShares: 98, previousShares: 100 }).score],
+    ["DISCIPLINED", qualityScoreFor({ symbol: "DISCIPLINED", margins: [0.20, 0.20, 0.21, 0.20, 0.20], operatingCashFlow: 100, netIncome: 100, roic: 0.14, latestShares: 99, previousShares: 100 }).score],
+    ["DILUTIVE", qualityScoreFor({ symbol: "DILUTIVE", margins: [0.25, 0.25, 0.25, 0.24, 0.25], operatingCashFlow: 90, netIncome: 100, roic: 0.12, latestShares: 110, previousShares: 100 }).score],
+    ["VOLATILE", qualityScoreFor({ symbol: "VOLATILE", margins: [0.05, 0.45, -0.02, 0.30, 0.10], operatingCashFlow: 50, netIncome: 100, roic: 0.04, latestShares: 112, previousShares: 100 }).score]
+  ]);
+
+  assert.equal(Math.round(anchors.get("STABLE") ?? 0), 96);
+  assert.equal(Math.round(anchors.get("DISCIPLINED") ?? 0), 82);
+  assert.equal(Math.round(anchors.get("DILUTIVE") ?? 0), 63);
+  assert.equal(Math.round(anchors.get("VOLATILE") ?? 0), 3);
+});
+
+test("fundamental quality score is more orthogonal than the previous overlapping formula on fixture", () => {
+  const profitability = [30, 40, 50, 60, 70, 80, 90];
+  const cashFlow = [28, 42, 52, 63, 72, 83, 92];
+  const balanceSheet = [32, 44, 54, 61, 73, 82, 91];
+  const newQuality = [
+    qualityScoreFor({ symbol: "Q1", margins: [0.30, 0.31, 0.30, 0.29, 0.30], operatingCashFlow: 110, netIncome: 100, roic: 0.20, latestShares: 98, previousShares: 100 }).score ?? 0,
+    qualityScoreFor({ symbol: "Q2", margins: [0.05, 0.45, -0.02, 0.30, 0.10], operatingCashFlow: 50, netIncome: 100, roic: 0.04, latestShares: 112, previousShares: 100 }).score ?? 0,
+    qualityScoreFor({ symbol: "Q3", margins: [0.20, 0.20, 0.21, 0.20, 0.20], operatingCashFlow: 100, netIncome: 100, roic: 0.14, latestShares: 99, previousShares: 100 }).score ?? 0,
+    qualityScoreFor({ symbol: "Q4", margins: [0.25, 0.10, 0.30, 0.15, 0.22], operatingCashFlow: 75, netIncome: 100, roic: 0.09, latestShares: 105, previousShares: 100 }).score ?? 0,
+    qualityScoreFor({ symbol: "Q5", margins: [0.25, 0.25, 0.25, 0.24, 0.25], operatingCashFlow: 90, netIncome: 100, roic: 0.12, latestShares: 110, previousShares: 100 }).score ?? 0,
+    qualityScoreFor({ symbol: "Q6", margins: [0.18, 0.22, 0.19, 0.21, 0.20], operatingCashFlow: 70, netIncome: 100, roic: 0.08, latestShares: 102, previousShares: 100 }).score ?? 0,
+    qualityScoreFor({ symbol: "Q7", margins: [0.32, 0.30, 0.31, 0.29, 0.30], operatingCashFlow: 95, netIncome: 100, roic: 0.18, latestShares: 97, previousShares: 100 }).score ?? 0
+  ];
+  const previousQuality = profitability.map((profitabilityScore, index) =>
+    (profitabilityScore + cashFlow[index] + balanceSheet[index] + profitabilityScore + cashFlow[index]) / 5
+  );
+
+  assert.ok(Math.abs(pearson(previousQuality, profitability)) > 0.98);
+  assert.ok(Math.abs(pearson(previousQuality, cashFlow)) > 0.98);
+  assert.ok(Math.abs(pearson(previousQuality, balanceSheet)) > 0.98);
+  assert.ok(Math.abs(pearson(newQuality, profitability)) < 0.4);
+  assert.ok(Math.abs(pearson(newQuality, cashFlow)) < 0.4);
+  assert.ok(Math.abs(pearson(newQuality, balanceSheet)) < 0.4);
+});
+
 test("financial sector detection matches only bank and capital markets industries", () => {
   const profile = (sector: string, industry: string): CompanyProfile => ({
     instrumentId: `inst-${industry}`,
@@ -655,6 +803,7 @@ function trendStatement(input: {
   quarter?: number;
   revenue?: number | null;
   operatingIncome?: number | null;
+  operatingCashFlow?: number | null;
   ebitda?: number | null;
   netIncome?: number | null;
   dilutedEps?: number | null;
@@ -687,7 +836,7 @@ function trendStatement(input: {
     shareholdersEquity: input.shareholdersEquity ?? null,
     cashAndEquivalents: input.cashAndEquivalents ?? null,
     totalDebt: input.totalDebt ?? null,
-    operatingCashFlow: null,
+    operatingCashFlow: input.operatingCashFlow ?? null,
     capitalExpenditure: null,
     freeCashFlow: input.freeCashFlow ?? null,
     sharesOutstanding: input.sharesOutstanding ?? null,

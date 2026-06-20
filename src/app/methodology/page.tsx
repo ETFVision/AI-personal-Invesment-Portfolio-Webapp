@@ -130,7 +130,7 @@ const fundamentalHelperRows = [
   ["Positive percent metrics", "scorePositivePercent(value): value <= -10% gives 10; values up to neutral produce 35-50; values from neutral to excellent produce 50-100; final result is clamped to 0-100. Defaults: neutral 5%, excellent 30%."],
   ["Margin metrics", "scoreMargin(value, weak, strong) = ((value - weak) / (strong - weak)) x 70 + 25, clamped to 0-100."],
   ["Return metrics", "scoreReturn(value, weak, strong) = ((value - weak) / (strong - weak)) x 75 + 20, clamped to 0-100."],
-  ["Lower-is-better metrics", "scoreLowerBetter(value, excellent, poor) = 100 - ((value - excellent) / (poor - excellent)) x 80, clamped to 0-100. Null or negative values are excluded."],
+  ["Lower-is-better metrics", "scoreLowerBetter(value, excellent, poor) = 100 - ((value - excellent) / (poor - excellent)) x 80, clamped to 0-100. Null values are excluded; negative values are excluded unless the metric uses a negative excellent anchor, such as share-count shrinkage."],
   ["Higher-is-better metrics", "scoreHigherBetter(value, poor, excellent) = ((value - poor) / (excellent - poor)) x 80 + 10, clamped to 0-100."]
 ];
 
@@ -140,7 +140,7 @@ const fundamentalCalculationRows = [
   ["Valuation", "Average of P/E scoreLowerBetter(12, 60), forward P/E scoreLowerBetter(12, 55), price/sales scoreLowerBetter(2, 20), price/book scoreLowerBetter(1.5, 15), EV/EBITDA scoreLowerBetter(8, 35), and free cash flow yield scoreHigherBetter(0, 0.08)."],
   ["Balance sheet", "Average of debt/equity scoreLowerBetter(0.2, 3), net debt/EBITDA scoreLowerBetter(0.5, 5), current ratio scoreHigherBetter(0.7, 2.5), quick ratio scoreHigherBetter(0.5, 2), and cash/debt scoreHigherBetter(0.05, 1)."],
   ["Cash flow", "Average of operating cash flow relative to 25% of revenue, free cash flow relative to 20% of revenue, free cash flow margin scoreMargin(0, 0.25), and free cash flow growth scorePositivePercent(neutral 3%, excellent 25%)."],
-  ["Quality", "Average of profitability score, cash flow score, balance sheet score, ROIC score, and operating margin score."],
+  ["Quality", "Weighted average of orthogonal quality signals: earnings stability 30% using margin coefficient-of-variation scoreLowerBetter(0.10, 0.50), cash conversion / accruals 30% using operating cash flow to net income scoreHigherBetter(0.60, 1.10), ROIC durability 25% using average ROIC scoreReturn(0.06, 0.20), and capital discipline 15% using year-over-year share-count growth scoreLowerBetter(-0.02, 0.10). Missing signals are excluded. Anchors are fixed economic anchors validated once, not refit per refresh."],
   ["Overall fundamentals", "Weighted average of available category scores: growth 20%, profitability 20%, valuation 20%, balance sheet 15%, cash flow 15%, quality 10%. Missing categories are excluded from the denominator."],
   ["Quality valuation adjustment", "For large-cap quality-growth companies with market cap at least $50B in technology, communication, semiconductor, software, internet, healthcare, biotechnology, or pharmaceutical areas, a quality composite of growth/profitability/cash flow/quality at least 70 can add +12 to +22 to raw valuation, plus +4 when growth is at least 70. Adjusted valuation is at least 28 and capped at 55."]
 ];
@@ -470,7 +470,7 @@ export default function MethodologyPage() {
                     </FormulaAccordion>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-                    Fundamentals confidence = clamp((availableInputs / 16) x 100). The availability count includes growth, profitability, valuation, balance-sheet, and cash-flow data points used by the scoring service.
+                    Fundamentals confidence = clamp((availableInputs / 16) x 100). The availability count includes growth, profitability, valuation, balance-sheet, cash-flow, and quality-signal data points used by the scoring service.
                   </div>
                   <div className="space-y-3">
                     <h3 className="text-base font-semibold text-slate-950">Fundamental Trend Calculations</h3>

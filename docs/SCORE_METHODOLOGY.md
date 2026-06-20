@@ -151,19 +151,22 @@ Financial-sector instruments use adjusted business-quality benchmarks because ba
 
 ### Quality Score
 
-Average of:
+Quality measures earnings quality and consistency using fixed economic anchors that are validated once against the investable universe and are not refit on each refresh. Missing signals are excluded from the denominator.
 
-- Profitability score
-- Cash flow score
-- Balance sheet score
-- ROIC score
-- Operating margin score
+| Signal | Measure | Anchor | Weight |
+|---|---|---|---|
+| Earnings stability | Coefficient of variation across available operating and net margin observations | `scoreLowerBetter(cv, 0.10, 0.50)` | 30% |
+| Cash conversion / accruals | `operatingCashFlow / netIncome`; fallback: `1 - (netIncome - operatingCashFlow) / totalAssets` | `scoreHigherBetter(ratio, 0.60, 1.10)` | 30% |
+| ROIC durability | Average annual ROIC across available periods | `scoreReturn(roic, 0.06, 0.20)` | 25% |
+| Capital discipline | Year-over-year shares outstanding growth | `scoreLowerBetter(shareGrowth, -0.02, 0.10)` | 15% |
+
+The score is intentionally orthogonal to Profitability, Cash Flow and Balance Sheet sub-scores: those categories measure level and scale; Quality measures stability, conversion, durability and dilution discipline.
 
 ### Fundamentals Confidence
 
 `scoreConfidence = clamp((availableInputs / 16) * 100)`
 
-Availability count includes growth, profitability, valuation, balance sheet, and cash-flow data points listed in the scoring service.
+Availability count includes growth, profitability, valuation, balance-sheet, cash-flow and quality-signal data points listed in the scoring service.
 
 ## Fundamental Trend Scores
 

@@ -1,3 +1,52 @@
+## 2026-06-20 - Orthogonal Fundamentals Quality Score
+
+### Source
+Claude Code
+
+### Objective
+Redefine the stock Fundamentals `qualityScore` so it measures earnings quality and consistency using frozen economic anchors instead of re-averaging profitability, cash-flow, and balance-sheet sub-scores.
+
+### Files Changed
+- `src/application/services/fundamentals/FundamentalScoringService.ts`
+- `tests/fundamentals.test.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `src/app/methodology/page.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Replaced the prior overlapping Quality formula with weighted available signals: earnings stability, cash conversion/accruals, ROIC durability, and capital discipline.
+- Kept Business Quality category weights unchanged, with Quality still at 15% inside Business Quality and 10% in the overall Fundamentals composite.
+- Kept fundamentals confidence on the `/16` denominator while updating representative availability inputs to include quality signals.
+- Added tests for signal direction, pinned frozen-anchor scores, and orthogonality against Profitability, Cash Flow, and Balance Sheet.
+- Updated public and internal methodology text with the frozen-anchor formula and the fixed-anchor generalization principle.
+
+### Validation
+- Fixture orthogonality check:
+  - Previous Quality vs Profitability / Cash Flow / Balance Sheet: `1.000`, `1.000`, `0.999`
+  - New Quality vs Profitability / Cash Flow / Balance Sheet: `0.142`, `0.098`, `0.127`
+- Read-only Supabase universe pass:
+  - Eligible stocks: `105`
+  - Rows with comparable stored category scores: `96`
+  - Previous Quality correlations: Profitability `0.855`, Cash Flow `0.739`, Balance Sheet `0.504`
+  - New Quality correlations: Profitability `0.153`, Cash Flow `0.327`, Balance Sheet `-0.214`
+  - New Quality distribution: min `18.73`, p25 `58.36`, median `75.04`, p75 `92.10`, max `100.00`
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (321/321)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- User-facing methodology changed, but no labels, recommendation wording, access controls, or feature flags changed.
+- Business Quality and the stock overall Characteristics composite can shift after a fundamentals refresh and recommendation run because Quality now measures orthogonal quality signals.
+- The live universe pass showed ROIC durability currently had no available annual ROIC observations in the comparable sample, so the signal correctly dropped from the denominator; data coverage for annual ROIC remains worth monitoring during Med 29 recalibration QA.
+- Follow-up: run Fundamentals refresh and recommendation-run from Admin, then perform Med 29 recalibration QA.
+
 ## 2026-06-20 - Separate Concentration and Diversification Scoring
 
 ### Source
