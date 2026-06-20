@@ -1,3 +1,35 @@
+## 2026-06-20 - Admin Force Fundamentals Refresh Control
+
+### Source
+Claude Code
+
+### Objective
+Add an Admin Data Sources control that lets operators force-refresh all active stock fundamentals, bypassing the routine stale/incomplete filter.
+
+### Files Changed
+- `src/app/(dashboard)/admin/data-sources/page.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Added a second Fundamentals action form labeled `Force refresh fundamentals`.
+- The new form posts to the existing `refreshFundamentalsAction` with `returnTo=/admin/data-sources` and hidden `force=true`.
+- Left the existing routine `Refresh fundamentals` button unchanged.
+- Added helper copy noting that the force refresh re-fetches all active stocks, uses more provider calls, and may need a few passes.
+- No server action, API route, job, service, scoring, methodology, label, feature-flag, or access-control change.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (323/323)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- This is the Admin step needed after provider-mapping fixes such as FMP key-metrics ROIC ingestion, because already-fresh stocks would otherwise be skipped by the routine refresh.
+- End-to-end browser click verification was not performed in this turn; validation was by code inspection, typecheck, test suite, lint, and production build.
+
 ## 2026-06-20 - FMP Key Metrics ROIC Ingestion
 
 ### Source

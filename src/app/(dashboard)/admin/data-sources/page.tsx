@@ -942,10 +942,17 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         description="FMP fundamentals refresh status for stock profiles, statements, ratios, scores and trend metrics."
         whereUsed="fundamentals overview, instrument detail pages, insights"
         actions={
+          <>
             <form action={refreshFundamentalsAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
               <SubmitButton pendingLabel="Refreshing fundamentals...">Refresh fundamentals</SubmitButton>
             </form>
+            <form action={refreshFundamentalsAction}>
+              <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <input type="hidden" name="force" value="true" />
+              <SubmitButton variant="secondary" pendingLabel="Force refreshing fundamentals...">Force refresh fundamentals</SubmitButton>
+            </form>
+          </>
         }
       >
         <div className="grid gap-3 md:grid-cols-4">
@@ -972,6 +979,9 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
             {fundamentalsCoverage.missingComplete === 0 && fundamentalsCoverage.staleCount === 0
               ? "Fundamentals coverage is complete and current for eligible stocks."
               : `${fundamentalsCoverage.missingComplete} stock${fundamentalsCoverage.missingComplete === 1 ? "" : "s"} are incomplete and ${fundamentalsCoverage.staleCount} stock${fundamentalsCoverage.staleCount === 1 ? "" : "s"} are stale. Run Refresh fundamentals until incomplete and stale reach zero.`}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Force refresh fundamentals re-fetches all active stocks, including fresh and complete names. Use it after provider-mapping fixes; it can use more provider calls and may need a few passes.
           </p>
         </div>
         <div className="mt-4 space-y-2 text-sm">
