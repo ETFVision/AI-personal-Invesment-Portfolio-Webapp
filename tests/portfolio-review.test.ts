@@ -413,7 +413,7 @@ test("concentration review measures top holding at issuer level when ETF wrapper
   assert.equal(Math.round(Number(review.metrics.topHoldingConcentration) * 100), 7);
   assert.equal(largestDirect.holdingSymbol, "VOO");
   assert.equal(review.findings.some((finding) => finding.title === "Single-company concentration"), false);
-  assert.ok(review.score >= 89);
+  assert.equal(review.score, 90);
 });
 
 test("concentration and risk share wrapper-excluded issuer exposure semantics", () => {

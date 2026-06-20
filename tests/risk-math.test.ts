@@ -274,24 +274,20 @@ test("holding correlations align returns by date for uneven histories", () => {
   assert.equal(cell?.value, null);
 });
 
-test("diversification score rewards spread and penalizes concentration", () => {
+test("diversification score rewards breadth and penalizes correlation", () => {
   const diversified = diversificationScore({
     meaningfulHoldings: 14,
     assetClassCount: 5,
     sectorCount: 8,
     currencyCount: 3,
-    averageCorrelation: 0.25,
-    topHoldingConcentration: 0.08,
-    topFiveConcentration: 0.32
+    averageCorrelation: 0.25
   });
   const concentrated = diversificationScore({
     meaningfulHoldings: 2,
     assetClassCount: 1,
     sectorCount: 1,
     currencyCount: 1,
-    averageCorrelation: 0.9,
-    topHoldingConcentration: 0.65,
-    topFiveConcentration: 1
+    averageCorrelation: 0.9
   });
 
   assert.ok(diversified > concentrated);
@@ -299,17 +295,26 @@ test("diversification score rewards spread and penalizes concentration", () => {
   assert.ok(concentrated >= 0);
 });
 
-test("risk analytics diversification score uses issuer concentration when supplied", () => {
+test("risk analytics diversification score ignores issuer concentration inputs", () => {
   const directWrapper = calculateRisk([60, 10, 10, 10, 10]);
   const issuerLookthrough = calculateRisk([60, 10, 10, 10, 10], { topHolding: 0.08, topFive: 0.32 });
 
-  assert.ok(issuerLookthrough.diversification.score > directWrapper.diversification.score);
+  assert.equal(issuerLookthrough.diversification.score, directWrapper.diversification.score);
   assert.equal(issuerLookthrough.concentration.topHoldingConcentration, directWrapper.concentration.topHoldingConcentration);
   assert.equal(issuerLookthrough.concentration.topFiveConcentration, directWrapper.concentration.topFiveConcentration);
   assert.ok(issuerLookthrough.warnings.includes("Top holding exceeds 25% of invested assets."));
 });
 
-test("risk analytics issuer concentration excludes ETF wrappers before diversification scoring", () => {
+test("risk analytics diversification score is unchanged across different issuer concentration levels", () => {
+  const diversifiedIssuer = calculateRisk([20, 20, 20, 20, 20], { topHolding: 0.08, topFive: 0.32 });
+  const concentratedIssuer = calculateRisk([20, 20, 20, 20, 20], { topHolding: 0.55, topFive: 0.8 });
+
+  assert.equal(concentratedIssuer.diversification.score, diversifiedIssuer.diversification.score);
+  assert.equal(concentratedIssuer.concentration.topHoldingConcentration, diversifiedIssuer.concentration.topHoldingConcentration);
+  assert.equal(concentratedIssuer.concentration.topFiveConcentration, diversifiedIssuer.concentration.topFiveConcentration);
+});
+
+test("risk analytics issuer concentration still excludes ETF wrappers for concentration diagnostics", () => {
   const issuerConcentration = wrapperExcludedIssuerConcentration({
     inputsSnapshot: {
       lookthroughExposure: {
@@ -380,21 +385,14 @@ test("risk analytics issuer concentration excludes ETF wrappers before diversifi
   assert.ok(issuerConcentration);
   assert.equal(issuerConcentration.topHolding, 0.08);
   assert.ok(Math.abs(issuerConcentration.topFive - 0.23) < 0.000001);
-  assert.ok(wrapperExcludedLookthrough.diversification.score >= directWrapper.diversification.score + 8);
+  assert.equal(wrapperExcludedLookthrough.diversification.score, directWrapper.diversification.score);
 });
 
-test("risk analytics diversification score falls back to direct concentration without issuer input", () => {
+test("risk analytics diversification score is unchanged when issuer concentration is absent", () => {
   const direct = calculateRisk([60, 10, 10, 10, 10]);
   const nullIssuer = calculateRisk([60, 10, 10, 10, 10], null);
 
   assert.equal(nullIssuer.diversification.score, direct.diversification.score);
-});
-
-test("risk analytics issuer concentration still penalizes genuine single-issuer concentration", () => {
-  const diversifiedIssuer = calculateRisk([20, 20, 20, 20, 20], { topHolding: 0.08, topFive: 0.32 });
-  const concentratedIssuer = calculateRisk([20, 20, 20, 20, 20], { topHolding: 0.55, topFive: 0.8 });
-
-  assert.ok(concentratedIssuer.diversification.score < diversifiedIssuer.diversification.score);
 });
 
 test("risk analytics holding score remains based on direct holding count", () => {

@@ -2,6 +2,38 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-20 SGT - Concentration and Diversification Scoring Separation QA
+
+Scope:
+- Verify Risk Analytics diversification no longer double-counts issuer concentration already owned by the Concentration section.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Diversification subtracted an issuer concentration penalty while Concentration also scored issuer concentration | Fixed; Diversification now measures breadth and correlation only |
+| Issuer concentration inputs could change the Risk Analytics diversification score | Fixed; regression tests assert diversification is unchanged across different issuer concentration inputs |
+| Methodology docs and public methodology page could describe the old double-counting formula | Fixed; formula text now removes `concentrationPenalty` and explains the separation |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `diversificationScore` formula is `holdingScore + assetClassScore + sectorScore + currencyScore + 30 - correlationPenalty` | PASS |
+| Issuer concentration inputs no longer change Risk Analytics diversification score | PASS |
+| Concentration Review wrapper-excluded representative score remains 90 | PASS |
+| Risk Analytics concentration diagnostics and top-holding warnings remain unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run test` | PASS (318/318) |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- Risk Analytics diversification and Portfolio Review Diversification can shift upward where issuer concentration had previously reduced diversification. Concentration section numbers remain unchanged.
+
+Residual items:
+- Re-run Risk Analytics refresh and Portfolio Review from the Admin panel so stored reports reflect the new diversification formula.
+
 ## 2026-06-19 SGT - Real Estate Exposure Impact Text QA
 
 Scope:

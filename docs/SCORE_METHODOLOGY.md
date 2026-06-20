@@ -490,7 +490,7 @@ Primary code: `diversificationScore` in `riskMath.ts`
 
 Formula:
 
-`score = holdingScore + assetClassScore + sectorScore + currencyScore + 30 - correlationPenalty - concentrationPenalty`
+`score = holdingScore + assetClassScore + sectorScore + currencyScore + 30 - correlationPenalty`
 
 Where:
 
@@ -499,9 +499,8 @@ Where:
 - `sectorScore = min(sectorCount / 8, 1) * 20`
 - `currencyScore = min(currencyCount / 3, 1) * 10`
 - `correlationPenalty = averageCorrelation == null ? 5 : max(0, averageCorrelation) * 15`
-- `concentrationPenalty = topHoldingConcentration * 20 + max(0, topFiveConcentration - 0.5) * 30`
 
-For the concentration penalty, `topHoldingConcentration` and `topFiveConcentration` use wrapper-excluded underlying-company issuer look-through exposure on a total-value basis when issuer exposure exists from the latest Portfolio Review snapshot. Diversified ETF, bond ETF, gold ETF, crypto ETF, and cash-proxy wrappers are excluded from these concentration-penalty inputs; direct single-stock holdings remain included. If underlying-company issuer look-through is unavailable, the inputs fall back to direct holding concentration. `holdingScore` deliberately remains based on the direct count of meaningful holdings so single-product concentration still affects the diversification score.
+Concentration is measured in the Concentration section; Diversification measures breadth and correlation so the two are not double-counted. Correlation is the primary risk signal inside this score, while holding count, asset-class spread, sector spread, and currency spread measure breadth.
 
 Final score is rounded and clamped to 0-100.
 
@@ -930,6 +929,7 @@ Diversification:
 
 - Starts from Risk Analytics diversification score.
 - If ETF look-through exists, adds `min(8, sectorCount + countryCount)`.
+- Concentration is measured in the Concentration section; Diversification measures breadth and correlation so the two are not double-counted.
 
 Portfolio risk:
 

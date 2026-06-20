@@ -101,8 +101,6 @@ export class RiskAnalyticsService {
     const holdingValues = investedValuations.map((valuation) => valuation.value);
     const topHoldingConcentration = concentrationRatio(holdingValues, 1);
     const topFiveConcentration = concentrationRatio(holdingValues, 5);
-    const diversificationTopHoldingConcentration = input.issuerConcentration?.topHolding ?? topHoldingConcentration;
-    const diversificationTopFiveConcentration = input.issuerConcentration?.topFive ?? topFiveConcentration;
     const holdingsById = new Map(investedValuations.map((valuation) => [valuation.holding.id, valuation.holding.ticker ?? valuation.holding.assetName]));
     const assetClassByHoldingId = new Map(investedValuations.map((valuation) => [valuation.holding.id, valuation.holding.assetType]));
     const correlations = this.correlationService.calculateHoldingCorrelations({
@@ -118,9 +116,7 @@ export class RiskAnalyticsService {
       assetClasses: dashboard.allocationByType,
       sectors: dashboard.allocationBySector,
       currencies: dashboard.currencyExposure,
-      averageCorrelation: correlations.averageCorrelation,
-      topHoldingConcentration: diversificationTopHoldingConcentration,
-      topFiveConcentration: diversificationTopFiveConcentration
+      averageCorrelation: correlations.averageCorrelation
     });
     const volatility = this.volatilityService.calculatePortfolioVolatility(input.portfolioSnapshots, input.transactions);
     const drawdown = this.drawdownService.calculatePortfolioDrawdown(input.portfolioSnapshots, input.transactions);

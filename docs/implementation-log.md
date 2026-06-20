@@ -1,3 +1,46 @@
+## 2026-06-20 - Separate Concentration and Diversification Scoring
+
+### Source
+Claude Code
+
+### Objective
+Remove issuer concentration from the Risk Analytics diversification score so Concentration owns concentration and Diversification measures breadth plus correlation only.
+
+### Files Changed
+- `src/application/services/risk/riskMath.ts`
+- `src/application/services/risk/DiversificationService.ts`
+- `src/application/services/risk/RiskAnalyticsService.ts`
+- `tests/risk-math.test.ts`
+- `tests/portfolio-review.test.ts`
+- `src/app/methodology/page.tsx`
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/PORTFOLIO_REVIEW_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Removed the diversification `concentrationPenalty` term from `diversificationScore`.
+- Simplified Diversification service inputs so top-one/top-five concentration are no longer passed into diversification scoring.
+- Left Risk Analytics concentration diagnostics and warnings unchanged.
+- Left Portfolio Review `ConcentrationReviewService` unchanged; added an explicit regression assertion that the representative wrapper-excluded concentration review score remains 90.
+- Updated risk-math tests to assert issuer concentration inputs no longer change diversification scores.
+- Updated score methodology docs and the public methodology page to show `holdingScore + assetClassScore + sectorScore + currencyScore + 30 - correlationPenalty`.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run test` - PASS (318/318)
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- This is a deliberate pre-alpha scoring-methodology refinement: Risk Analytics diversification and Portfolio Review Diversification can shift upward where issuer concentration had previously reduced diversification.
+- No labels, advice framing, access controls, feature flags, Concentration Review scoring, or other Portfolio Review section formulas were changed.
+- Stored Portfolio Review reports must be regenerated from the Admin panel, and Risk Analytics diversification summaries refreshed, before saved/displayed numbers reflect the new formula.
+
 ## 2026-06-19 - Real Estate Exposure Impact Text Fix
 
 ### Source
