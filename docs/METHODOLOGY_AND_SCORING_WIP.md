@@ -20,7 +20,7 @@ methodology/calc items); ties to **Med 26** (golden regression — the Spec 3 va
 
 ### ⚠ DO FIRST TOMORROW — verify ROIC + re-check #5 orthogonality
 This is the open loop. Steps:
-1. Admin → Data Sources → **Force refresh fundamentals** (re-fetches all ~105 stocks; watch incomplete/stale → 0; may take a few passes).
+1. Admin → Data Sources → **Force refresh fundamentals** — click ~**3 times** (cap 50, universe 105; the batch now rotates oldest-first per commit `e4260c5`). Watch missing-ROIC drop 55 → ~5 → 0.
 2. Run **`recommendation-run`** from Admin (recompute Characteristics/Quality with live ROIC).
 3. Confirm ROIC coverage in Supabase SQL editor:
    ```sql
