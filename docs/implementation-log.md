@@ -1,3 +1,41 @@
+## 2026-06-20 - FMP Key Metrics ROIC Ingestion
+
+### Source
+Claude Code
+
+### Objective
+Populate annual and quarterly `financial_ratios.roic` by sourcing ROIC from FMP `key-metrics` while preserving existing scoring anchors, weights, sub-score definitions, and user-facing labels.
+
+### Files Changed
+- `src/infrastructure/providers/fundamentals/FmpFundamentalsProvider.ts`
+- `tests/fundamentals.test.ts`
+- `docs/DATA_INGESTION_AND_PROVIDERS.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `key-metrics` to the FMP fundamentals fetch batch using the same symbol, period, and limit as `ratios`.
+- Joined key-metrics rows to ratios rows by `date`, with a `fiscalYear|period` fallback when date is missing.
+- Set normalized `roic` from ratios-supplied `returnOnInvestedCapital` / `roic` first, then key-metrics `returnOnInvestedCapital` / `roic`.
+- Preserved existing missing-endpoint tolerance through the shared FMP fetch helper, so missing `key-metrics` rows leave ROIC null instead of failing the refresh.
+- Added provider unit tests for key-metrics ROIC population and ratios-row ROIC precedence.
+- Updated data-ingestion lineage docs to state that ROIC comes from key-metrics, not the stable ratios response.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (323/323)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Data input restoration only: no scoring anchors, weights, sub-score definitions, labels, feature flags, or access controls changed.
+- After merge/deploy, run Fundamentals refresh with force and then recommendation-run from Admin so live fundamentals scores and Characteristics Scores recompute with ROIC populated.
+- After that refresh, perform a read-only Supabase check for annual `financial_ratios.roic` coverage across the roughly 105 active stocks, and rerun the Quality orthogonality check to confirm correlations vs Profitability / Cash Flow / Balance Sheet remain below roughly `0.4`.
+- Expected live impact: overall fundamentals, Profitability, Business Quality, Quality, and stock Characteristics composites may shift slightly for names where ROIC becomes available. This is expected data coverage restoration, not a methodology change.
+
 ## 2026-06-20 - Orthogonal Fundamentals Quality Score
 
 ### Source

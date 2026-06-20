@@ -179,6 +179,7 @@ Base URL:
 | `balance-sheet-statement` | `financial_statements` rows with `statement_type = balance_sheet` |
 | `cash-flow-statement` | `financial_statements` rows with `statement_type = cash_flow` |
 | `ratios` | `financial_ratios` |
+| `key-metrics` | ROIC enrichment for `financial_ratios.roic` |
 
 The refresh service pulls annual and quarterly fundamentals separately:
 
@@ -243,7 +244,7 @@ All statement rows map `date`, `reportDate`, or `fillingDate` into `report_date`
 | `operating_margin` | `operatingProfitMargin`, `operatingMargin` |
 | `net_margin` | `netProfitMargin`, `netMargin` |
 | `roe` | `returnOnEquity`, `roe` |
-| `roic` | `returnOnInvestedCapital`, `roic` |
+| `roic` | `key-metrics.returnOnInvestedCapital`, `key-metrics.roic`; ratios-row `returnOnInvestedCapital` / `roic` still wins if ever supplied |
 | `roa` | `returnOnAssets`, `roa` |
 | `debt_to_equity` | `debtEquityRatio`, `debtToEquity` |
 | `net_debt_to_ebitda` | `netDebtToEBITDA`, `netDebtToEbitda` |
@@ -255,6 +256,8 @@ All statement rows map `date`, `reportDate`, or `fillingDate` into `report_date`
 | `net_income_growth` | `netIncomeGrowth` |
 | `free_cash_flow_growth` | `freeCashFlowGrowth` |
 | `provider_metadata` | Raw provider item |
+
+FMP stable `ratios` does not currently carry ROIC on the configured API response. ROIC is sourced by joining `key-metrics` rows to `ratios` rows by `date` with a `fiscalYear|period` fallback. ROE and ROA may also be absent from the stable ratios response and remain subject to existing provider/derived-data availability; this task does not change their sourcing.
 
 ### Derived Ratio Fallbacks
 

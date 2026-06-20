@@ -246,6 +246,40 @@ test("FMP fundamentals provider maps Berkshire share-class symbol to provider fo
   assert.equal(fmpFundamentalsInternals.normalizeFmpSymbol("AAPL"), "AAPL");
 });
 
+test("FMP fundamentals normalization joins ROIC from key metrics", () => {
+  const keyMetrics = fmpFundamentalsInternals.buildKeyMetricsLookup([{
+    date: "2025-12-31",
+    fiscalYear: 2025,
+    period: "FY",
+    returnOnInvestedCapital: 0.18
+  }], "annual");
+  const ratio = fmpFundamentalsInternals.normalizeRatio("AAPL", {
+    date: "2025-12-31",
+    calendarYear: 2025,
+    period: "FY",
+    returnOnEquity: 0.3,
+    returnOnAssets: 0.2
+  }, "fmp", "annual", keyMetrics.get("2025-12-31"));
+
+  assert.equal(ratio.roic, 0.18);
+  assert.equal(ratio.roe, 0.3);
+  assert.equal(ratio.roa, 0.2);
+});
+
+test("FMP fundamentals normalization keeps ratios-supplied ROIC precedence", () => {
+  const keyMetrics = fmpFundamentalsInternals.buildKeyMetricsLookup([{
+    fiscalYear: 2025,
+    returnOnInvestedCapital: 0.18
+  }], "annual");
+  const ratio = fmpFundamentalsInternals.normalizeRatio("AAPL", {
+    calendarYear: 2025,
+    period: "FY",
+    returnOnInvestedCapital: 0.22
+  }, "fmp", "annual", keyMetrics.get("2025|annual"));
+
+  assert.equal(ratio.roic, 0.22);
+});
+
 test("fundamental scoring produces deterministic scores and confidence", () => {
   const service = new FundamentalScoringService();
   const score = service.calculateScore({

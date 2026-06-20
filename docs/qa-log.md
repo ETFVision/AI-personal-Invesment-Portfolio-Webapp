@@ -2,6 +2,40 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-20 SGT - FMP Key Metrics ROIC Ingestion QA
+
+Scope:
+- Verify FMP fundamentals ingestion restores ROIC as a provider data input by joining `key-metrics` to `ratios` rows.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| FMP stable `ratios` response did not provide `returnOnInvestedCapital` / `roic`, leaving `financial_ratios.roic` null | Fixed at provider layer by fetching `key-metrics` and joining by date with a fiscal-year fallback |
+| ROIC durability in the Quality score was uniformly dropped because ROIC had no provider source | Provider data source restored; live recomputation still requires post-merge Fundamentals refresh |
+| Data-ingestion docs incorrectly implied ROIC came from the ratios endpoint | Fixed; docs now identify `key-metrics.returnOnInvestedCapital` as the ROIC source |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Ratios row without ROIC receives ROIC from matching key-metrics row | PASS |
+| Ratios-supplied ROIC still takes precedence if present | PASS |
+| Existing ROE/ROA sourcing unchanged | PASS |
+| Scoring anchors, weights, sub-score definitions, and labels unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (323/323) |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- No label or methodology wording changed. After live refresh, overall fundamentals, Profitability, Business Quality, Quality, and stock Characteristics composites may shift slightly where ROIC becomes available. This is expected data coverage restoration.
+
+Residual items:
+- After merge/deploy, run Fundamentals refresh with force and then recommendation-run from Admin.
+- After the live refresh, run a read-only Supabase coverage check for annual `financial_ratios.roic` across the active stock universe and record the populated count.
+- Re-check Quality orthogonality after refresh to confirm correlations vs Profitability / Cash Flow / Balance Sheet remain below roughly `0.4`, and confirm `roicDurability` is no longer uniformly dropped.
+
 ## 2026-06-20 SGT - Orthogonal Fundamentals Quality Score QA
 
 Scope:
