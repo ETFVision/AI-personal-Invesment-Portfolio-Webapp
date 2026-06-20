@@ -40,7 +40,19 @@ needed (optional future polish only). q_vs_profitability rose from the dormant-R
    - stays **< ~0.4** → #5 is fully validated with all four signals live → mark #5 DONE.
    - rises **above ~0.4** → `roicDurability` (uses ROIC *level*, shared with Profitability) needs redefining to ROIC *consistency/durability over time* (CoV of ROIC, or sustained ROIC>threshold). Small follow-up spec.
 
-### Then — remaining specs (ready)
+### ⚠ NEW (2026-06-20) — Financial-sector scoring fix (do before Spec 2)
+Found a gap: `isFinancialSector` (`FundamentalScoringService.ts:64`) = `profile.industry` contains
+"banks"/"capital markets" only → catches 9/16 universe financials but **misses insurers CB & BRK.B**
+(they get industrial debt/equity + FCF scoring the doc says is wrong for financials). Separately, the **#5
+Quality redesign applies cashConversion + ROIC to banks** — re-introducing the metrics excluded elsewhere.
+Fix spec written (in chat / to paste): Step 1 enumerate live `company_profiles.industry` for the 16
+Financials; Step 2 robust curated detection (banks + capital markets + **insurance**; NOT fee-based V/MA/
+PYPL/BLK), gated on canonical Financials sector; Step 3 exclude cashConversion + roicDurability from Quality
+for balance-sheet financials (drop from denominator; optional future: substitute ROE/ROA durability); Step 4
+reconcile SCORE_METHODOLOGY §Financial Sector + limitation note; re-run orthogonality check. **Recommend
+running this FIRST** (completes #5 correctly; must precede the Spec 2 methodology rewrite).
+
+### Then — remaining specs (ready). Sequence: Financial-sector fix → Spec 3b (parallel) → Spec 1 → Spec 2 (last)
 - **Spec 3b (#2)** — ETF "Benchmark Relative" → true relative vs external benchmark. **Written and ready to hand to Codex.** Part 0 seeds EFA (`developed_ex_us`) + EEM (`emerging_markets`) benchmarks — both confirmed FMP-covered. Independent of the ROIC loop; can run any time.
 - **Spec 1** — Fundamentals surfaces (Fundamentals page, instrument detail, directory) → show Business Quality + separate Valuation; retire the valuation-blended six-category "Overall" from the UI (still live in code today). Pre-check internal consumers before retiring.
 - **Spec 2** — Methodology page + docs end-user/compliance rewrite: Fundamentals→Business Quality naming, single Business Quality table, strip dev language, remove stale phase-1, mark dead portfolio-dependent guardrails inactive, **+ the Tier-1/2 calc-audit disclosures** (see below). Do this LAST so it documents the final state of #2/#3/#5.
