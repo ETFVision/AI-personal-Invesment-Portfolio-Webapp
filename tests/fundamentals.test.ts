@@ -1175,6 +1175,54 @@ test("fundamentals refresh excludes non-stocks and logs partial success", async 
   assert.equal(repository.logs[0]?.status, "partial_success");
 });
 
+test("forced fundamentals refresh rotates through oldest profile cohorts", async () => {
+  const instruments = ["AAA", "BBB", "CCC", "DDD", "EEE"].map(stock);
+  const repository = new FakeFundamentalsRepository(instruments);
+  const profileFor = (symbol: string, lastRefreshedAt: string | null): CompanyProfile => ({
+    instrumentId: `inst-${symbol}`,
+    symbol,
+    companyName: `${symbol} Inc`,
+    sector: "Technology",
+    industry: "Software",
+    country: "US",
+    exchange: "NASDAQ",
+    currency: "USD",
+    marketCap: 1000,
+    beta: 1,
+    description: null,
+    website: null,
+    ceo: null,
+    ipoDate: null,
+    employees: 100,
+    lastRefreshedAt,
+    provider: "fake",
+    providerMetadata: {}
+  });
+  repository.profiles = [
+    profileFor("AAA", null),
+    profileFor("BBB", "2026-01-01T00:00:00Z"),
+    profileFor("CCC", "2026-02-01T00:00:00Z"),
+    profileFor("DDD", "2026-03-01T00:00:00Z"),
+    profileFor("EEE", "2026-04-01T00:00:00Z")
+  ];
+  const service = new FundamentalsRefreshService(repository, new FakeFundamentalsProvider(), new FundamentalScoringService(), new FundamentalTrendCalculationService(), {
+    enabled: true,
+    maxStocksPerRefresh: 2,
+    refreshFrequencyDays: 1,
+    staleAfterDays: 30
+  });
+
+  const first = await service.refreshAll({ force: true });
+  const firstSymbols = repository.scores.map((score) => score.symbol);
+  const second = await service.refreshAll({ force: true });
+  const secondSymbols = repository.scores.slice(firstSymbols.length).map((score) => score.symbol);
+
+  assert.equal(first.stocksRequested, 2);
+  assert.equal(second.stocksRequested, 2);
+  assert.deepEqual(firstSymbols, ["AAA", "BBB"]);
+  assert.deepEqual(secondSymbols, ["CCC", "DDD"]);
+});
+
 test("fundamentals cron protection uses shared CRON_SECRET validation", () => {
   assert.equal(isCronSecretValid("expected", "expected"), true);
   assert.equal(isCronSecretValid("expected", "bad"), false);

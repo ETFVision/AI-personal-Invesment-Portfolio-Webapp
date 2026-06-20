@@ -2,6 +2,37 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-20 SGT - Forced Fundamentals Refresh Rotation QA
+
+Scope:
+- Verify forced fundamentals refresh advances through the active stock universe instead of repeatedly refreshing the same first symbol-ordered batch.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Forced fundamentals refresh bypassed the freshness filter but still sliced the symbol-ordered list, causing each forced pass to process the same first batch | Fixed; due candidates are sorted by oldest `lastRefreshedAt` before applying `maxStocksPerRefresh` |
+| Stocks beyond the first forced batch could remain untouched during repeated forced runs | Fixed; refreshed symbols move to the newest cohort, allowing the next forced run to select the next-oldest stocks |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Null or missing `lastRefreshedAt` is treated as oldest | PASS |
+| First forced pass selects the oldest/null cohort under the batch cap | PASS |
+| Second forced pass selects a different next-oldest cohort after first-batch timestamps advance | PASS |
+| `maxStocksPerRefresh` cap remains unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (324/324) |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- Admin/operator behavior only. No user-facing labels, scoring, methodology, or recommendation wording changed.
+
+Residual items:
+- For ROIC repopulation after the key-metrics provider fix, run Force refresh fundamentals about 3 times for roughly 105 active stocks at cap 50, then run the ROIC coverage query and recommendation-run.
+
 ## 2026-06-20 SGT - FMP Key Metrics ROIC Ingestion QA
 
 Scope:

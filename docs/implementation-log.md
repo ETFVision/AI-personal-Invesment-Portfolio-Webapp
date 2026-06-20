@@ -1,3 +1,38 @@
+## 2026-06-20 - Forced Fundamentals Refresh Batch Rotation
+
+### Source
+Claude Code
+
+### Objective
+Fix forced fundamentals refresh so repeated forced passes advance through the whole active stock universe instead of repeatedly selecting the same first symbol-ordered batch.
+
+### Files Changed
+- `src/application/services/fundamentals/FundamentalsRefreshService.ts`
+- `tests/fundamentals.test.ts`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added oldest-profile-first ordering before applying `maxStocksPerRefresh`.
+- Missing, null, or invalid `lastRefreshedAt` profiles are treated as oldest.
+- The same stale-first ordering applies to both forced and non-forced refreshes.
+- Kept `maxStocksPerRefresh` unchanged to preserve provider-call/rate-limit protections.
+- Added a regression test proving two forced passes rotate from the first oldest cohort to a different second cohort after the first batch refreshes.
+- No scoring, methodology, labels, provider mapping, server action, API route, feature-flag, or access-control change.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (324/324)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Operators should run Force refresh fundamentals approximately `ceil(active stocks / maxStocksPerRefresh)` times to cover the full universe; with roughly 105 active stocks and cap 50, that is about 3 passes.
+- After the forced passes complete, run the ROIC coverage query; annual `financial_ratios.roic` should approach the active-stock universe count where FMP key-metrics coverage exists.
+
 ## 2026-06-20 - Admin Force Fundamentals Refresh Control
 
 ### Source
