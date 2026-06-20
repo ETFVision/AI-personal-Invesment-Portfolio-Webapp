@@ -18,8 +18,14 @@ methodology/calc items); ties to **Med 26** (golden regression — the Spec 3 va
 - `87e5a1e` — **ROIC provider fix**: source `roic` from FMP `key-metrics` (the `/ratios` endpoint doesn't carry it). See [[fmp-stable-ratios-lacks-roic]].
 - `ba11fde` — **"Force refresh fundamentals"** button on Admin → Data Sources (the routine button does NOT force).
 
-### ⚠ DO FIRST TOMORROW — verify ROIC + re-check #5 orthogonality
-This is the open loop. Steps:
+### ✅ CLOSED 2026-06-20 — ROIC verified + #5 orthogonality re-check passed
+ROIC populated across the universe (force-refresh rotation fix `e4260c5` worked). #5 orthogonality re-check
+**with ROIC durability live** (n=105): Quality vs Profitability **0.323**, vs Cash Flow **0.303**, vs Balance
+Sheet **−0.073** — all < ~0.4. **#5 is validated and DONE**; no `roicDurability` level→consistency tweak
+needed (optional future polish only). q_vs_profitability rose from the dormant-ROIC baseline 0.153 → 0.323
+(expected — ROIC level is shared with Profitability) but stayed well under threshold.
+
+### (historical) The open loop that is now closed — steps were:
 1. Admin → Data Sources → **Force refresh fundamentals** — click ~**3 times** (cap 50, universe 105; the batch now rotates oldest-first per commit `e4260c5`). Watch missing-ROIC drop 55 → ~5 → 0.
 2. Run **`recommendation-run`** from Admin (recompute Characteristics/Quality with live ROIC).
 3. Confirm ROIC coverage in Supabase SQL editor:
