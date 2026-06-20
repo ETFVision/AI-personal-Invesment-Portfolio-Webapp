@@ -144,6 +144,10 @@ in their phases. Capture each batch as its own implementation-log entry.
   whenever Portfolio/Risk pages are next touched.
 - The UI/UX improvement track (above) is cross-cutting and iterative; schedule its batches alongside the
   phased items rather than as a single blocking task.
+- **Methodology page + scoring refinements** are tracked in detail in `docs/METHODOLOGY_AND_SCORING_WIP.md`
+  (page-vs-code audit result, Fundamentals→Business Quality decision, calc-audit findings, and the spec
+  sequence #3 → Spec 1 → Spec 2 → Spec 3). The Spec 3 validation script doubles as the **Med 26** golden
+  regression, and a **Med 29** recalibration QA should follow it.
 - **Relationship to `COMMERCIALIZATION_AUDIT_PLAN.md` timing:** that doc's "Before Public Alpha" bucket is
   the set needed for a *complete* alpha and is broader than Phase A here. Phase A is deliberately the
   narrower *invite-gating* subset; the remaining "before alpha" audit-plan items (Calculation #7, AI
