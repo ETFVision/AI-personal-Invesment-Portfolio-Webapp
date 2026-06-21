@@ -325,6 +325,86 @@ test("fundamental scoring produces deterministic scores and confidence", () => {
   assert.match(score.explanation, /Deterministic fundamentals score/);
 });
 
+test("fundamental scoring selects annual rows over latest quarterly rows for period-sensitive inputs", () => {
+  const service = new FundamentalScoringService();
+  const annualRatio: FinancialRatio = {
+    instrumentId: "inst-seasonal",
+    symbol: "SEAS",
+    period: "annual",
+    fiscalYear: 2025,
+    fiscalQuarter: 0,
+    reportDate: "2025-12-31",
+    peRatio: 20,
+    forwardPe: 18,
+    priceToSales: 3,
+    priceToBook: 4,
+    evToEbitda: 14,
+    evToSales: null,
+    grossMargin: 0.45,
+    operatingMargin: 0.24,
+    netMargin: 0.18,
+    roe: 0.18,
+    roic: 0.16,
+    roa: 0.10,
+    debtToEquity: 0.4,
+    netDebtToEbitda: 1.2,
+    currentRatio: 1.6,
+    quickRatio: 1.2,
+    freeCashFlowYield: 0.05,
+    revenueGrowth: 0.12,
+    epsGrowth: 0.14,
+    netIncomeGrowth: 0.13,
+    freeCashFlowGrowth: 0.11,
+    provider: "test",
+    providerMetadata: {}
+  };
+  const quarterlyRatio: FinancialRatio = {
+    ...annualRatio,
+    period: "quarterly",
+    fiscalYear: 2026,
+    fiscalQuarter: 1,
+    reportDate: "2026-03-31",
+    peRatio: 160,
+    priceToSales: 15,
+    evToEbitda: 70,
+    grossMargin: 0.05,
+    operatingMargin: -0.04,
+    netMargin: -0.08,
+    roe: -0.02,
+    roic: -0.01,
+    roa: -0.01,
+    revenueGrowth: -0.15,
+    epsGrowth: -0.2,
+    netIncomeGrowth: -0.25,
+    freeCashFlowGrowth: -0.3,
+    freeCashFlowYield: -0.01
+  };
+
+  const score = service.calculateScore({
+    instrumentId: "inst-seasonal",
+    symbol: "SEAS",
+    profile: null,
+    ratios: [quarterlyRatio, annualRatio],
+    statements: [
+      trendStatement({ symbol: "SEAS", statementType: "income_statement", period: "annual", year: 2025, revenue: 1_000, operatingIncome: 240, netIncome: 180, sharesOutstanding: 100 }),
+      trendStatement({ symbol: "SEAS", statementType: "cash_flow", period: "annual", year: 2025, operatingCashFlow: 260, freeCashFlow: 190 }),
+      trendStatement({ symbol: "SEAS", statementType: "balance_sheet", period: "annual", year: 2025, totalAssets: 1_500, cashAndEquivalents: 150, totalDebt: 300 }),
+      trendStatement({ symbol: "SEAS", statementType: "income_statement", period: "quarterly", year: 2026, quarter: 1, revenue: 200, operatingIncome: -10, netIncome: -20, sharesOutstanding: 100 }),
+      trendStatement({ symbol: "SEAS", statementType: "cash_flow", period: "quarterly", year: 2026, quarter: 1, operatingCashFlow: -30, freeCashFlow: -60 }),
+      trendStatement({ symbol: "SEAS", statementType: "balance_sheet", period: "quarterly", year: 2026, quarter: 1, totalAssets: 1_400, cashAndEquivalents: 50, totalDebt: 600 })
+    ]
+  });
+
+  assert.equal((score.inputsSnapshot.latestRatio as FinancialRatio | null)?.period, "annual");
+  assert.equal((score.inputsSnapshot.latestIncomeStatement as FinancialStatement | null)?.period, "annual");
+  assert.equal((score.inputsSnapshot.latestCashFlowStatement as FinancialStatement | null)?.period, "annual");
+  assert.equal((score.inputsSnapshot.latestBalanceSheet as FinancialStatement | null)?.period, "annual");
+  assert.ok((score.growthScore ?? 0) > 60);
+  assert.ok((score.profitabilityScore ?? 0) > 60);
+  assert.ok((score.cashFlowScore ?? 0) > 60);
+  assert.ok((score.valuationScore ?? 0) > 30);
+});
+
 test("fundamental scoring gives quality growth stocks a bounded valuation adjustment", () => {
   const service = new FundamentalScoringService();
   const baseRatio: FinancialRatio = {

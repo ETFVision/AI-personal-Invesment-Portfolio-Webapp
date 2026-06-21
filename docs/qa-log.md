@@ -2,6 +2,64 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-21 SGT - Annual-Basis Fundamental Scoring Inputs QA
+
+Scope:
+- Verify Fundamentals scoring uses annual-basis rows instead of latest-quarter rows for period-sensitive inputs.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Latest quarterly ratios were selected for growth, profitability, valuation, and balance-sheet inputs | Fixed; scoring now selects the latest annual ratio row |
+| Latest quarterly statements were selected for cash-flow and revenue-denominator inputs | Fixed; scoring now selects latest annual income, cash-flow, and balance-sheet statements |
+| Seasonally negative latest-quarter FCF could floor cash-flow scores despite positive annual FCF | Fixed for rows with annual FCF coverage; regression test added |
+| Quarterly valuation ratios were single-quarter distorted | Fixed by moving valuation to annual basis; stored quarterly examples were materially inflated versus annual values |
+
+Valuation-basis decision:
+- Stored quarterly valuation fields are not reliable TTM valuation inputs. Read-only examples: ASML price/sales `50.23` quarterly vs `10.83` annual; V price/sales `51.50` quarterly vs `16.57` annual; CVX price/sales `8.61` quarterly vs `1.53` annual. Valuation therefore uses the latest annual ratio row.
+
+Selected live before/after scores:
+
+| Symbol | Growth | Profitability | Cash Flow | Valuation | Overall |
+|---|---:|---:|---:|---:|---:|
+| CVX | `19.7 -> 30.2` | `19.2 -> 33.7` | `10.0 -> 66.6` | `34.4 -> 86.2` | `28.9 -> 52.9` |
+| EOG | `91.8 -> 17.9` | `64.2 -> 85.2` | `91.2 -> 64.8` | `60.8 -> 91.8` | `77.5 -> 68.8` |
+| ASML | `32.4 -> 81.5` | `69.0 -> 95.3` | `3.2 -> 92.6` | `1.3 -> 51.9` | `37.9 -> 79.3` |
+| V | `38.7 -> 57.5` | `75.5 -> 100.0` | `10.0 -> 78.2` | `5.4 -> 40.1` | `43.2 -> 69.0` |
+| JNJ | `36.8 -> 74.1` | `56.2 -> 86.6` | `10.0 -> 45.7` | `15.7 -> 74.9` | `38.0 -> 68.9` |
+| AMZN | `55.0 -> 68.1` | `44.7 -> 57.9` | `16.5 -> 31.1` | `28.6 -> 64.4` | `39.9 -> 55.9` |
+| WMT | `60.3 -> null` | `26.3 -> 35.3` | `10.0 -> null` | `26.7 -> 74.0` | `36.0 -> 47.0` |
+
+Additional notes:
+- XOM and MA already selected annual rows in the live sample, so their scores were unchanged.
+- MSFT and NVDA did not have comparable live stored rows in the read-only sample used for this check.
+- Negative latest-quarter FCF recovery cases found in the live sample: ASML cash-flow `3.2 -> 92.6`, AMZN `16.5 -> 31.1`, F `12.0 -> 42.2`.
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Annual ratio selected when newer quarterly ratio exists | PASS |
+| Annual income/cash-flow/balance-sheet statements selected when newer quarterly statements exist | PASS |
+| Seasonally negative quarterly FCF does not floor cash-flow score when annual FCF is positive | PASS |
+| Bank and insurer financial-sector exclusions preserved on annual basis | PASS |
+| Quality correlation vs Cash Flow | `0.152` over 69 comparable rows |
+| Quality correlation vs Balance Sheet | `0.036` over 85 comparable rows |
+| Quality correlation vs Profitability | `0.573` over 83 comparable rows; follow-up needed because this no longer meets `< ~0.4` after annualizing Profitability |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (325/325) |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- Business Quality, valuation, cash-flow, profitability, and overall stock fundamental scores can shift broadly after recomputation. This is expected from a correctness fix to the input period basis.
+
+Residual items:
+- After deploy, run Force refresh fundamentals and recommendation-run from Admin.
+- Rerun stock calibration diagnosis only after scores are recomputed.
+- Follow-up required: annual-basis Profitability now correlates with Quality at `0.573`; any remedy would require a separate methodology/anchor review, not this inputs-only fix.
+
 ## 2026-06-21 SGT - Financial Sector Fundamentals Guard Consistency QA
 
 Scope:

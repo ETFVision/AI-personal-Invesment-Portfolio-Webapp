@@ -1,3 +1,43 @@
+## 2026-06-21 - Annual-Basis Fundamental Scoring Inputs
+
+### Source
+Claude Code
+
+### Objective
+Fix the period-selection bug where Fundamentals scoring selected the latest quarterly ratio and statement rows instead of the annual basis for growth, profitability, cash-flow, balance-sheet, and valuation inputs.
+
+### Files Changed
+- `src/application/services/fundamentals/FundamentalScoringService.ts`
+- `tests/fundamentals.test.ts`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added annual-basis selectors for ratios and financial statements.
+- Routed growth, profitability, valuation, balance-sheet, cash-flow, and cash-flow margin inputs through the latest annual row instead of the latest row across all periods.
+- Kept all anchors, thresholds, category weights, labels, financial-sector exclusions, and Quality signal definitions unchanged.
+- Verified stored quarterly valuation ratios are single-quarter distorted, not TTM-like, so valuation also moved to annual basis. Examples: ASML price/sales `50.23` quarterly vs `10.83` annual; V price/sales `51.50` quarterly vs `16.57` annual.
+- Added a regression test proving annual rows are selected when newer quarterly rows exist, including a seasonally negative latest-quarter FCF fixture.
+
+### Live Read-Only Checks
+- Before/after selected names (old latest-quarter -> new annual): CVX overall `28.9 -> 52.9`, ASML `37.9 -> 79.3`, V `43.2 -> 69.0`, JNJ `38.0 -> 68.9`, AMZN `39.9 -> 55.9`, WMT `36.0 -> 47.0`, EOG `77.5 -> 68.8`; XOM and MA were already using annual rows; MSFT/NVDA lacked comparable live stored rows in the read-only sample.
+- Negative latest-quarter FCF recovery cases found in the live sample: ASML cash-flow `3.2 -> 92.6`, AMZN `16.5 -> 31.1`, F `12.0 -> 42.2`.
+- Quality orthogonality re-check after annualizing profitability/cash-flow inputs: vs Profitability `0.573` (n=83), vs Cash Flow `0.152` (n=69), vs Balance Sheet `0.036` (n=85). Profitability correlation no longer meets the `< ~0.4` target and is logged as a follow-up; no anchor or weight changes were made in this inputs-only task.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (325/325)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed with QA follow-up.
+
+### Notes for Claude
+- Business Quality and overall fundamental scores will shift broadly after recomputation. This is expected from the annual-basis correctness fix, not a methodology/label change.
+- After deploy, run Force refresh fundamentals and then recommendation-run from Admin before rerunning stock calibration diagnosis.
+- Follow-up: reassess the Quality orthogonality target now that Profitability is also on the annual basis; live Quality vs Profitability correlation was `0.573`.
+
 ## 2026-06-21 - Financial Sector Fundamentals Guard Consistency
 
 ### Source

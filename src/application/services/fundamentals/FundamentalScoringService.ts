@@ -106,10 +106,14 @@ function qualityAdjustedValuationScore(input: {
   return clamp(Math.max(adjusted, 28), 0, 55);
 }
 
-function latestStatement(statements: FinancialStatement[], type: FinancialStatement["statementType"]) {
-  return statements
-    .filter((statement) => statement.statementType === type)
-    .sort((a, b) => (b.reportDate ?? "").localeCompare(a.reportDate ?? ""))[0] ?? null;
+function latestAnnualRatio(ratios: FinancialRatio[]) {
+  return ratios
+    .filter((ratio) => ratio.period === "annual")
+    .sort((a, b) => b.reportDate.localeCompare(a.reportDate))[0] ?? null;
+}
+
+function latestAnnualStatement(statements: FinancialStatement[], type: FinancialStatement["statementType"]) {
+  return latestStatementsByPeriod(statements, type)[0] ?? null;
 }
 
 function nonNullCount(values: Array<number | null | undefined>) {
@@ -256,10 +260,10 @@ export class FundamentalScoringService {
     statements: FinancialStatement[];
     asOfDate?: string;
   }): FundamentalScore {
-    const latestRatio = [...input.ratios].sort((a, b) => b.reportDate.localeCompare(a.reportDate))[0] ?? null;
-    const income = latestStatement(input.statements, "income_statement");
-    const cashFlow = latestStatement(input.statements, "cash_flow");
-    const balanceSheet = latestStatement(input.statements, "balance_sheet");
+    const latestRatio = latestAnnualRatio(input.ratios);
+    const income = latestAnnualStatement(input.statements, "income_statement");
+    const cashFlow = latestAnnualStatement(input.statements, "cash_flow");
+    const balanceSheet = latestAnnualStatement(input.statements, "balance_sheet");
     const isFinancial = isFinancialSector(input.profile);
 
     const growthInputs = [
