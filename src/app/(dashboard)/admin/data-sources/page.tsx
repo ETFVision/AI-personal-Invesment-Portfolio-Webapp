@@ -12,6 +12,7 @@ import { refreshFundamentalsAction } from "@/server/actions/fundamentalsActions"
 import { clearEtfLookthroughExposureAction, refreshEtfLookthroughExposureAction } from "@/server/actions/portfolioReviewActions";
 import {
   backfillUniverseHistoryAction,
+  refreshBenchmarksAction,
   refreshInstrumentDailyReturnsAction,
   refreshInstrumentMarketMetricsAction,
   refreshInstrumentMetadataAction,
@@ -39,6 +40,7 @@ import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const maxDuration = 300;
 
 function statusLabel(enabled: boolean, configured = true) {
   if (!configured) return { label: "Missing key", className: "text-destructive" };
@@ -765,6 +767,10 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
             <form action={backfillUniverseHistoryAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
               <SubmitButton variant="secondary" pendingLabel="Backfilling market history...">Backfill market history</SubmitButton>
+            </form>
+            <form action={refreshBenchmarksAction}>
+              <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <SubmitButton variant="secondary" pendingLabel="Refreshing benchmarks...">Refresh benchmarks</SubmitButton>
             </form>
             <form action={refreshEtfLookthroughExposureAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />

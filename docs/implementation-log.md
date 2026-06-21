@@ -1,3 +1,70 @@
+## 2026-06-21 - Complete Backfill Timeout Fix
+
+### Source
+Claude Code
+
+### Objective
+Complete the backfill-timeout fix omitted from the prior benchmark-button task by making Admin -> Data Sources `Backfill market history` a prices-only fetch.
+
+### Files Changed
+- `src/server/actions/dataRefreshActions.ts`
+- `src/app/(dashboard)/admin/data-sources/page.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Updated `backfillUniverseHistoryAction` so it only fetches 5-year price history with `includeBackfill: true`.
+- Reduced backfill batch size from `8` to `5` and set `skipDerivedMetrics: true` so derived daily returns, anchors, market metrics, and risk metrics are handled by the numbered Admin buttons instead of the serverless backfill invocation.
+- Removed inline benchmark refresh from the backfill action; benchmarks now use the dedicated `Refresh benchmarks` control added in the previous task.
+- Added `export const maxDuration = 300` to the Admin Data Sources page segment config.
+- Did not change the benchmark button/action, scheduled cron route, `refreshAllDataAction`, schema, scoring, labels, or methodology.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (330/330)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- This entry completes the backfill-timeout fix that the previous Admin Benchmark Refresh Control entry omitted.
+- Operational sequence after history is complete: run buttons 2 Daily returns through 5 Risk metrics, then run Refresh benchmarks, then recommendation-run if ETF Benchmark Relative scores need recomputation.
+
+## 2026-06-21 - Admin Benchmark Refresh Control
+
+### Source
+Claude Code
+
+### Objective
+Add a manual benchmark-refresh control to Admin -> Data Sources so operators can backfill benchmark histories, including newly seeded EFA/EEM benchmarks, without using the broader all-data refresh.
+
+### Files Changed
+- `src/server/actions/dataRefreshActions.ts`
+- `src/app/(dashboard)/admin/data-sources/page.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `refreshBenchmarksAction`, guarded by `requireAdmin()`, using `jobRunService.runManual("benchmark-refresh", ...)`.
+- The action runs `container.jobs.refreshBenchmarkData.run({ lookbackDays: 1825 })`, revalidates `/admin/data-sources`, `/portfolio`, and `/risk`, and redirects back with refresh status parameters.
+- Added a `Refresh benchmarks` secondary button in the Admin -> Data Sources `Market Data and ETF Look-Through` action group immediately after `Backfill market history`.
+- Did not change the scheduled cron route, `refreshAllDataAction`, schema, migrations, scoring, labels, or methodology.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (330/330)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- This is admin-only operational tooling. It reuses the existing `benchmark-refresh` job log surface and should populate EFA/EEM benchmark snapshots after the benchmark migration is deployed.
+- After running Refresh benchmarks, run recommendation-run from Admin so ETF Benchmark Relative scores can use the refreshed benchmark history.
+
 ## 2026-06-21 - ETF Benchmark Relative Scale Re-Anchor
 
 ### Source

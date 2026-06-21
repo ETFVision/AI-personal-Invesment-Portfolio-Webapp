@@ -2,6 +2,68 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-21 SGT - Backfill Timeout Fix QA
+
+Scope:
+- Verify Admin -> Data Sources `Backfill market history` no longer combines 5-year price fetch, derived/risk metric rebuilds, and benchmark refresh in one Vercel serverless invocation.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Backfill market history could time out at Vercel's 300s ceiling because it fetched 5-year prices, rebuilt derived/risk metrics, and refreshed benchmarks in one action | Fixed; backfill now fetches prices only |
+| Inline benchmark refresh remained in backfill after a dedicated benchmark button was added | Removed; benchmarks now use `Refresh benchmarks` |
+| Backfill batch size was still 8 symbols per click | Reduced to 5 symbols per click |
+| Data Sources page did not explicitly declare the Vercel function ceiling | Added `maxDuration = 300` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Backfill action uses `batchSize: 5` | PASS |
+| Backfill action uses `skipDerivedMetrics: true` | PASS |
+| Backfill action no longer calls `refreshBenchmarkData.run` | PASS |
+| Admin Data Sources page exports `maxDuration = 300` | PASS |
+| Benchmark button/action unchanged | PASS |
+| `refreshAllDataAction` unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Operationally, after history backfill is complete, run buttons 2 Daily returns through 5 Risk metrics, then Refresh benchmarks.
+
+## 2026-06-21 SGT - Admin Benchmark Refresh Control QA
+
+Scope:
+- Verify Admin -> Data Sources has a direct manual control for the existing `benchmark-refresh` job so newly seeded benchmarks can be backfilled before recommendation runs.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Operators needed a direct way to run benchmark-refresh after adding EFA/EEM benchmark seeds | Fixed; Admin -> Data Sources now includes `Refresh benchmarks` |
+| Benchmark refresh should reuse existing job logging rather than creating a new job surface | Preserved; action uses `runManual("benchmark-refresh", ...)` |
+| Full-history benchmark refresh should match cron/backfill horizon | Preserved; action uses `lookbackDays: 1825` |
+| Scheduled cron route and all-data refresh should remain unchanged | Preserved |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Server action requires admin access | PASS |
+| Server action uses job name `benchmark-refresh` | PASS |
+| Server action uses `lookbackDays: 1825` | PASS |
+| Data Sources button posts `returnTo=/admin/data-sources` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- After deploy, click Admin -> Data Sources -> Refresh benchmarks to populate EFA/EEM benchmark snapshots, then run recommendation-run.
+
 ## 2026-06-21 SGT - ETF Benchmark Relative Scale Re-Anchor QA
 
 Scope:
