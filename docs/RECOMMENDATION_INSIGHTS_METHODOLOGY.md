@@ -1,6 +1,6 @@
 # Recommendation Insights Methodology
 
-Last updated: 2026-06-17
+Last updated: 2026-06-21
 
 ## Purpose
 
@@ -22,7 +22,7 @@ Public surfaces should describe these outputs as Insights, Characteristics Score
 
 Recommendation inputs can include:
 
-- Fundamentals score.
+- Business Quality score.
 - Trend score.
 - Valuation score.
 - Risk analytics score.

@@ -2,6 +2,64 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-21 SGT - Benchmark Disclosure and Methodology Map Cleanup QA
+
+Scope:
+- Verify ETF Benchmark Relative methodology wording accurately describes the benchmark families and the exact ETF category/symbol map used by code.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Disclosure overgeneralized Benchmark Relative as pairing each fund to an MSCI-family benchmark | Fixed; wording now distinguishes S&P 500 for US equity ETFs from MSCI-family proxies for developed/emerging international ETFs |
+| Benchmark map omitted International Dividend and curated single-country behavior | Fixed; docs now list International Dividend, EWJ/DXJ/JPXN/EWU/EWC, MCHI/FXI/KWEB/INDA/INDY, and no component for other single-country ETFs |
+| Methodology page did not explicitly state annual basis for stock fundamentals | Fixed; fundamentals helper row now states latest annual ratios/statements are used |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Public methodology benchmark disclosure updated | PASS |
+| `SCORE_METHODOLOGY.md` benchmark disclosure updated | PASS |
+| Benchmark map matches `benchmarkKeyForEtf` documented categories/symbols | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Methodology Documentation Business Quality Cleanup QA
+
+Scope:
+- Verify methodology documentation presents Business Quality as the stock fundamentals headline, keeps Valuation separate, and does not describe the retired valuation-blended fundamentals display as live.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Public methodology page still described a six-category Fundamentals Score including Valuation | Fixed; section now presents Business Quality as the fundamentals headline and Valuation as a separate Characteristics component |
+| Score methodology still opened with six-category fundamentals weights | Fixed; Business Quality headline composite is documented with Growth/Profitability/Cash Flow/Balance Sheet/Quality weights |
+| Portfolio-context guardrails needed clearer scope | Fixed; concentration, duplicate exposure, and crypto allocation caps are marked Portfolio Review only |
+| Required limitations/disclosures were missing from the public and formula-level methodology docs | Added |
+| Recommendation Insights methodology still listed a generic Fundamentals score input | Updated to Business Quality |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Public methodology page no longer includes the old fundamentals calculation row | PASS |
+| `METHODOLOGY_LAST_UPDATED` bumped to 2026-06-21 | PASS |
+| Straggler sweep across active methodology docs for retired wording | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
 ## 2026-06-21 SGT - Fundamentals Business Quality Display QA
 
 Scope:

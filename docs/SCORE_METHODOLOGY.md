@@ -1,6 +1,6 @@
 # ETFVision Score Methodology
 
-Last updated: 2026-06-18 00:00:00 +08:00
+Last updated: 2026-06-21 00:00:00 +08:00
 
 Authoritative status: formula-level handover snapshot based on current code and migrations. This document explains how the main derived scores are calculated. If a score is later recalibrated, update this file in the same commit.
 
@@ -11,26 +11,29 @@ Authoritative status: formula-level handover snapshot based on current code and 
 - Scores are generally clamped to 0-100.
 - Missing inputs are usually excluded from weighted averages rather than treated as zero, unless a service explicitly defines a fallback.
 
-## Fundamentals Score
+## Fundamentals
 
 Primary code: `src/application/services/fundamentals/FundamentalScoringService.ts`
 
 Stored table: `fundamental_scores`
 
-### Overall Weights
+### Business Quality Headline Composite
 
-| Component | Weight |
+Business Quality is the canonical stock fundamentals headline displayed in ETFVision. It uses the stored fundamental sub-scores and excludes Valuation, which remains a separate 20% top-level component in stock Characteristics scoring. The stored `overallFundamentalScore` field remains available for compatibility and non-display paths, but it is not the live Fundamentals headline shown in the UI.
+
+| Component | Business Quality weight |
 |---|---:|
-| Growth | 20% |
-| Profitability | 20% |
-| Valuation | 20% |
+| Growth | 25% |
+| Profitability | 25% |
+| Cash flow | 20% |
 | Balance sheet | 15% |
-| Cash flow | 15% |
-| Quality | 10% |
+| Quality | 15% |
 
-Only available component scores are included in the denominator.
+Only available Business Quality component scores are included in the denominator. Missing components are excluded rather than treated as zero.
 
 ### Helper Formulas
+
+Stock fundamental sub-scores use the latest annual ratios and statements, not the latest quarter, so flow-sensitive metrics are measured on an annual basis.
 
 `scorePositivePercent(value, neutral = 0.05, excellent = 0.30)`:
 
@@ -508,7 +511,7 @@ Where:
 - `currencyScore = min(currencyCount / 3, 1) * 10`
 - `correlationPenalty = averageCorrelation == null ? 5 : max(0, averageCorrelation) * 15`
 
-Concentration is measured in the Concentration section; Diversification measures breadth and correlation so the two are not double-counted. Correlation is the primary risk signal inside this score, while holding count, asset-class spread, sector spread, and currency spread measure breadth.
+Concentration is measured in the Concentration section; Diversification measures breadth and correlation as a separate dimension. Correlation is the primary risk signal inside this score, while holding count, asset-class spread, sector spread, and currency spread measure breadth.
 
 Final score is rounded and clamped to 0-100.
 
@@ -818,7 +821,7 @@ Portfolio fit:
 | Theme alignment | 5% |
 | Momentum | 3% |
 
-Business Quality is a composite of the fundamental sub-scores: Growth (25%), Profitability (25%), Cash Flow (20%), Balance Sheet (15%), and Quality (15%). Valuation is intentionally excluded to prevent double-counting valuation as both a Business Quality input and a separate top-level component. Missing sub-scores are excluded from both numerator and denominator.
+Business Quality is a composite of the fundamental sub-scores: Growth (25%), Profitability (25%), Cash Flow (20%), Balance Sheet (15%), and Quality (15%). Valuation is measured separately as its own top-level component. Missing sub-scores are excluded from both numerator and denominator.
 
 #### ETFs
 
@@ -845,8 +848,11 @@ ETF benchmark map:
 |---|---|
 | US broad market, Growth, Value, Dividend, Small Cap, US sector/thematic categories | `sp500` |
 | Global Equity | `global_equities` |
-| Developed Markets, International Dividend, developed-market country funds | `developed_ex_us` |
-| Emerging Markets, emerging-market country funds | `emerging_markets` |
+| Developed Markets and International Dividend | `developed_ex_us` |
+| Emerging Markets | `emerging_markets` |
+| Curated developed single-country ETFs: EWJ, DXJ, JPXN, EWU, EWC | `developed_ex_us` |
+| Curated emerging single-country ETFs: MCHI, FXI, KWEB, INDA, INDY | `emerging_markets` |
+| Other single-country ETFs | No Benchmark Relative component |
 | Bond, Cash Equivalent | `us_aggregate_bonds` |
 | Commodity, Gold / Precious Metals | `gold` |
 | Crypto ETF | `bitcoin` |
@@ -920,8 +926,11 @@ Liquidity score:
 | Valuation below 15 for stocks | Hold |
 | Risk score above 75 | Hold for stocks with Strong or Exceptional Business Quality; otherwise Watch unless already lower |
 | Long-duration bond mismatch with restrictive/rising/high rates | Hold |
+| Portfolio concentration cap | Portfolio Review only; not applied to per-instrument Characteristics Score |
+| Duplicate exposure cap | Portfolio Review only; not applied to per-instrument Characteristics Score |
+| Crypto allocation cap | Portfolio Review only; not applied to per-instrument Characteristics Score |
 
-The guardrail service still accepts optional concentration and duplicate-exposure inputs for backward compatibility and direct tests. The current stored recommendation scoring pipeline does not pass those portfolio-dependent inputs.
+Portfolio-context guardrails such as concentration, duplicate exposure, and crypto allocation are handled in Portfolio Review and exposure diagnostics. They are not applied to per-instrument Characteristics Score because they require holdings context.
 
 ## Portfolio Review Scores
 
@@ -986,6 +995,18 @@ Geography:
 `86 - max(0, usWeight - 0.70) * 80 - max(0, 0.12 - internationalWeight) * 120`
 
 Geography currently has 0% overall weight but is still shown as a diagnostic section.
+
+## Limitations / Disclosures
+
+- The Portfolio Score is bounded by its component construction and in practice tops out in the mid-80s rather than 100; a mid-80s score reflects a well-constructed portfolio, not an underperformance signal.
+- Business Quality is a quality-and-growth composite — it includes a 25% growth weight alongside profitability, cash flow, balance-sheet strength, and earnings quality — not a pure quality measure.
+- Sub-score thresholds are fixed absolute economic anchors, not sector-relative; capital-light and capital-intensive businesses are measured against the same anchors, so cross-sector comparisons should account for structural differences.
+- Bond, gold, and crypto component scores are regime-dependent (rates, inflation, liquidity) and shift as the macro regime changes, independent of the instrument.
+- Geography is computed for context and shown diagnostically but carries 0% weight in the composite score.
+- The Excellent band (80-100) is intentionally reserved for instruments with exceptional characteristics across components and is uncommon; most sound instruments fall in the Good or Neutral range.
+- Structurally low-margin business models may score lower on margin-based profitability inputs despite strong returns on capital; profitability should be read alongside the capital-efficiency signals.
+- ETF Benchmark Relative pairs US equity ETFs to the S&P 500 and international developed / emerging-market ETFs to MSCI-family proxies (MSCI EAFE, MSCI EM). Funds tracking FTSE or S&P index families — which classify markets such as South Korea differently — can legitimately diverge from these MSCI benchmarks over a given period; this reflects index construction, not a data issue.
+- Scoring anchors and label bands are fixed absolute thresholds, validated once against the universe as a sanity check and held constant across refreshes and market regimes; they are not refit to the current universe.
 
 ## Macro/FRED Trend and Theme Scores
 

@@ -10,7 +10,7 @@ export const dynamic = "force-static";
 const toc = [
   { href: "#overview", label: "Overview" },
   { href: "#characteristics-score", label: "Characteristics Score" },
-  { href: "#fundamentals", label: "Fundamentals Score" },
+  { href: "#fundamentals", label: "Fundamentals" },
   { href: "#confidence", label: "Confidence Metric" },
   { href: "#guardrails", label: "Guardrails" },
   { href: "#portfolio-score", label: "Portfolio Score" },
@@ -37,7 +37,7 @@ const componentCalculationRows = [
   ["Theme alignment / Theme fit / Theme score", "Starts at 55 + 5 per canonical or thematic tag, capped at +20. Adds +5 for AI / Automation, Quality, or Global Diversification. Subtracts 5 for High Beta. Clamped to 0-100."],
   ["Macro fit", "Starts at 55. Gold gains +20 when inflation is elevated/rising/sticky or liquidity is stress/tight. Crypto loses 25 under stress/tight liquidity. Long-duration bonds lose 20 in restrictive/rising/high rates. Treasuries gain 15 when growth is weak/slowing/recessionary. Technology loses 8 in restrictive rates. Consumer Staples gains 8 when growth is weak."],
   ["Market Vision alignment", "Starts at 55. Adds +8 if Market Vision text mentions the instrument sector, +8 for theme mentions, +5 for supportive/tailwind language, and subtracts 5 for risk/headwind/stress/caution language. Adds asset-specific term bonuses for bonds (+3), gold (+5), and crypto (+3)."],
-  ["ETF benchmark relative", "Score = 50 + winsorized(excess 1-year return vs external benchmark, +/-50 percentage points) x 100, clamped to 0-100. Benchmark parity scores 50; +25 percentage points of annual excess scores 75, and about +50 percentage points reaches the top of the scale. Map: US broad/sector/style ETFs use sp500; global equity uses global_equities; developed ex-US uses developed_ex_us; emerging markets uses emerging_markets; bonds/cash equivalents use us_aggregate_bonds; commodity/gold uses gold; crypto ETFs use bitcoin. Constants are fixed anchors, not refit per refresh."],
+  ["ETF benchmark relative", "Score = 50 + winsorized(excess 1-year return vs external benchmark, +/-50 percentage points) x 100, clamped to 0-100. Benchmark parity scores 50; +25 percentage points of annual excess scores 75, and about +50 percentage points reaches the top of the scale. Map: US broad/sector/style ETFs use sp500; global equity uses global_equities; developed ex-US and International Dividend use developed_ex_us; emerging markets uses emerging_markets; curated developed single-country ETFs (EWJ, DXJ, JPXN, EWU, EWC) use developed_ex_us; curated emerging single-country ETFs (MCHI, FXI, KWEB, INDA, INDY) use emerging_markets; other single-country ETFs receive no Benchmark Relative component; bonds/cash equivalents use us_aggregate_bonds; commodity/gold uses gold; crypto ETFs use bitcoin. Constants are fixed anchors, not refit per refresh."],
   ["Bond duration fit", "Ultra-short or short duration = 72. Intermediate duration = 62. Long duration = 48."],
   ["Bond rate regime", "Long duration in high/restrictive/rising rates = 35. Ultra-short or short duration in restrictive rates = 75. Other available bond/rate combinations = 58."],
   ["Bond inflation regime", "Inflation-linked bond exposure in elevated/rising inflation = 78. Long duration under elevated inflation = 42. Other available combinations = 58."],
@@ -109,15 +109,6 @@ const instrumentPanels = [
   }
 ];
 
-const fundamentalRows = [
-  ["Growth", "20%"],
-  ["Profitability", "20%"],
-  ["Valuation", "20%"],
-  ["Balance sheet", "15%"],
-  ["Cash flow", "15%"],
-  ["Quality", "10%"]
-];
-
 const businessQualityRows = [
   ["Growth", "25%"],
   ["Profitability", "25%"],
@@ -127,6 +118,7 @@ const businessQualityRows = [
 ];
 
 const fundamentalHelperRows = [
+  ["Annual basis", "Stock fundamental sub-scores use the latest annual ratios and statements, not the latest quarter, so flow-sensitive metrics are measured on an annual basis."],
   ["Positive percent metrics", "scorePositivePercent(value): value <= -10% gives 10; values up to neutral produce 35-50; values from neutral to excellent produce 50-100; final result is clamped to 0-100. Defaults: neutral 5%, excellent 30%."],
   ["Margin metrics", "scoreMargin(value, weak, strong) = ((value - weak) / (strong - weak)) x 70 + 25, clamped to 0-100."],
   ["Return metrics", "scoreReturn(value, weak, strong) = ((value - weak) / (strong - weak)) x 75 + 20, clamped to 0-100."],
@@ -142,7 +134,6 @@ const fundamentalCalculationRows = [
   ["Cash flow", "Average of operating cash flow relative to 25% of revenue, free cash flow relative to 20% of revenue, free cash flow margin scoreMargin(0, 0.25), and free cash flow growth scorePositivePercent(neutral 3%, excellent 25%)."],
   ["Quality", "Weighted average of orthogonal quality signals: earnings stability 30% using margin coefficient-of-variation scoreLowerBetter(0.10, 0.50), cash conversion / accruals 30% using operating cash flow to net income scoreHigherBetter(0.60, 1.10), ROIC durability 25% using the consistency of value-creating annual ROIC over at least three observations, and capital discipline 15% using year-over-year share-count growth scoreLowerBetter(-0.02, 0.10). ROIC durability scores 10 when average ROIC is below the 8% cost-of-capital proxy; otherwise it uses scoreLowerBetter(coefficientOfVariation(roicSeries), 0.15, 0.60). Missing signals are excluded. For balance-sheet financials, cash conversion and ROIC durability are excluded from the denominator. Anchors are fixed economic anchors validated once, not refit per refresh."],
   ["Financial-sector handling", "Balance-sheet financials are detected from financial-sector profiles with bank, capital markets / broker-dealer, insurance, thrift, or mortgage-finance industries. These instruments use adjusted profitability, balance-sheet, cash-flow, and Quality inputs. Fee-based credit-services, payments, and asset-management firms keep the standard industrial inputs. Financial scores do not currently include capital adequacy, reserve quality, or asset-quality measures."],
-  ["Overall fundamentals", "Weighted average of available category scores: growth 20%, profitability 20%, valuation 20%, balance sheet 15%, cash flow 15%, quality 10%. Missing categories are excluded from the denominator."],
   ["Quality valuation adjustment", "For large-cap quality-growth companies with market cap at least $50B in technology, communication, semiconductor, software, internet, healthcare, biotechnology, or pharmaceutical areas, a quality composite of growth/profitability/cash flow/quality at least 70 can add +12 to +22 to raw valuation, plus +4 when growth is at least 70. Adjusted valuation is at least 28 and capped at 55."]
 ];
 
@@ -165,7 +156,7 @@ const confidenceRows = [
 
 const characteristicsConfidenceRows = [
   ["Available ratio", "available component weight / total configured component weight."],
-  ["Base confidence", "Usually 72. Crypto uses 62 because crypto classifications are intentionally conservative in V1."],
+  ["Base confidence", "Usually 72. Crypto uses 62 because crypto classifications are intentionally conservative."],
   ["Completeness bonus", "+8 when available ratio is at least 95%; +4 when at least 80%."],
   ["Agreement bonus", "+5 when component-score dispersion is greater than 0 and below 12."],
   ["Strategic agreement bonus", "+5 when fundamentals, Market Vision alignment, and theme alignment are all at least 70."],
@@ -179,7 +170,10 @@ const guardrailRows = [
   ["Weak business quality cap", "Business Quality score below 35 (stocks)", "Capped at Weak"],
   ["Severely stretched valuation cap", "Valuation score below 15 (stocks)", "Capped at Neutral"],
   ["Excessive instrument risk cap", "Instrument risk score above 75", "Capped at Neutral for Strong or Exceptional Business Quality; otherwise capped at Weak unless already Poor or Significant Concerns"],
-  ["Bond duration and rate regime mismatch cap", "Long-duration bond profile in restrictive, rising, or high-rate regime", "Capped at Neutral"]
+  ["Bond duration and rate regime mismatch cap", "Long-duration bond profile in restrictive, rising, or high-rate regime", "Capped at Neutral"],
+  ["Portfolio concentration cap", "Portfolio-level concentration threshold", "Portfolio Review only; not applied to per-instrument Characteristics Score"],
+  ["Duplicate exposure cap", "Duplicate exposure detected from holdings or look-through data", "Portfolio Review only; not applied to per-instrument Characteristics Score"],
+  ["Crypto allocation cap", "Portfolio-level crypto allocation threshold", "Portfolio Review only; not applied to per-instrument Characteristics Score"]
 ];
 
 const portfolioRows = [
@@ -197,7 +191,7 @@ const portfolioRows = [
 const portfolioDefinitionRows = [
   ["Allocation", "Starts from an 82 baseline and adjusts for equity-heavy exposure, low fixed-income ballast, high cash, and material crypto exposure."],
   ["Concentration", "Uses underlying-company issuer exposure on a total-value basis. Direct single-stock holdings are included; diversified ETF wrappers remain visible as direct positions but do not trigger single-company concentration findings."],
-  ["Diversification", "Uses meaningful direct holding count, asset-class count, sector count, currency count, and average correlation. Concentration is measured in the Concentration section so the two are not double-counted."],
+  ["Diversification", "Uses meaningful direct holding count, asset-class count, sector count, currency count, and average correlation. Concentration is measured in the Concentration section; Diversification measures breadth and correlation as a separate dimension."],
   ["Risk", "Uses portfolio volatility, current drawdown, max drawdown, and risk contribution diagnostics from flow-adjusted return data."],
   ["Macro Fit", "Compares portfolio posture against FRED rates, inflation, growth, liquidity regimes and the latest Market Vision risk context."],
   ["Insight Alignment", "Compares current holdings with the Characteristics Score engine output and measures coverage of scored instruments."],
@@ -437,24 +431,23 @@ export default function MethodologyPage() {
               </Card>
             </Section>
 
-            <Section id="fundamentals" title="Fundamentals Score">
+            <Section id="fundamentals" title="Fundamentals">
               <Card>
                 <CardHeader>
-                  <CardTitle>Fundamentals Score</CardTitle>
-                  <CardDescription>Weighted composite across six categories, with unavailable components excluded from the denominator.</CardDescription>
+                  <CardTitle>Fundamentals</CardTitle>
+                  <CardDescription>Business Quality headline composite with Valuation shown as a separate metric.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <Paragraph>
-                    The Fundamentals Score measures the financial health and quality of a company across six dimensions. A higher score means stronger reported financials across growth, profitability, valuation, balance sheet, cash flow, and quality metrics. It does not predict future performance.
+                    Business Quality is the stock fundamentals headline displayed in ETFVision. It combines growth, profitability, cash flow, balance-sheet strength, and earnings quality. Valuation remains a separate Characteristics component and is shown separately from Business Quality. These scores do not predict future performance.
                   </Paragraph>
                   <div className="space-y-3">
                     <h3 className="text-base font-semibold text-slate-950">Business Quality Score</h3>
                     <Paragraph>
-                      Business Quality is the 40% weighted component for stocks. It excludes Valuation to prevent double-counting valuation as both a sub-score input and a separate top-level component. Sub-scores use the same calculation inputs as the Overall Fundamental Score.
+                      Business Quality is the 40% weighted component for stocks. It combines Growth (25%), Profitability (25%), Cash Flow (20%), Balance Sheet (15%), and Quality (15%). Valuation is measured separately as its own top-level Characteristics component.
                     </Paragraph>
                     <MethodologyTable columns={["Component", "Weight"]} rows={businessQualityRows} />
                   </div>
-                  <MethodologyTable columns={["Component", "Weight"]} rows={fundamentalRows} />
                   <Paragraph>
                     Only available component scores contribute to the weighted average. Missing components are excluded from the denominator, so a missing input does not become a zero score.
                   </Paragraph>
@@ -571,7 +564,7 @@ export default function MethodologyPage() {
                   </Paragraph>
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
                     Diversification Score = holdingScore + assetClassScore + sectorScore + currencyScore + 30 - correlationPenalty.
-                    Holding, asset-class, sector, and currency scores are capped components; correlation reduces the final score. Concentration is measured in the Concentration section; Diversification measures breadth and correlation so the two are not double-counted.
+                    Holding, asset-class, sector, and currency scores are capped components; correlation reduces the final score. Concentration is measured in the Concentration section; Diversification measures breadth and correlation as a separate dimension.
                   </div>
                 </CardContent>
               </Card>
@@ -630,6 +623,15 @@ export default function MethodologyPage() {
                     <li>Covariance risk contribution requires sufficient price-history overlap. When coverage is insufficient, a proxy model is used and flagged in risk diagnostics.</li>
                     <li>Fundamental scores require financial statement data. Companies with limited reporting history or non-standard reporting may have fewer inputs and lower confidence.</li>
                     <li>ETF look-through data reflects cached provider allocations. Allocations may lag actual fund composition.</li>
+                    <li>The Portfolio Score is bounded by its component construction and in practice tops out in the mid-80s rather than 100; a mid-80s score reflects a well-constructed portfolio, not an underperformance signal.</li>
+                    <li>Business Quality is a quality-and-growth composite — it includes a 25% growth weight alongside profitability, cash flow, balance-sheet strength, and earnings quality — not a pure quality measure.</li>
+                    <li>Sub-score thresholds are fixed absolute economic anchors, not sector-relative; capital-light and capital-intensive businesses are measured against the same anchors, so cross-sector comparisons should account for structural differences.</li>
+                    <li>Bond, gold, and crypto component scores are regime-dependent (rates, inflation, liquidity) and shift as the macro regime changes, independent of the instrument.</li>
+                    <li>Geography is computed for context and shown diagnostically but carries 0% weight in the composite score.</li>
+                    <li>The Excellent band (80-100) is intentionally reserved for instruments with exceptional characteristics across components and is uncommon; most sound instruments fall in the Good or Neutral range.</li>
+                    <li>Structurally low-margin business models may score lower on margin-based profitability inputs despite strong returns on capital; profitability should be read alongside the capital-efficiency signals.</li>
+                    <li>ETF Benchmark Relative pairs US equity ETFs to the S&amp;P 500 and international developed / emerging-market ETFs to MSCI-family proxies (MSCI EAFE, MSCI EM). Funds tracking FTSE or S&amp;P index families — which classify markets such as South Korea differently — can legitimately diverge from these MSCI benchmarks over a given period; this reflects index construction, not a data issue.</li>
+                    <li>Scoring anchors and label bands are fixed absolute thresholds, validated once against the universe as a sanity check and held constant across refreshes and market regimes; they are not refit to the current universe.</li>
                   </ul>
                   <Paragraph>
                     Scores do not account for individual tax circumstances, investment horizons, liquidity needs, or personal financial goals. ETFVision does not have knowledge of users&apos; broader financial situation. All outputs should be considered alongside advice from a qualified financial professional.

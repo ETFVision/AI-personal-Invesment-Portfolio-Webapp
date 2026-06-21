@@ -1,3 +1,72 @@
+## 2026-06-21 - Benchmark Disclosure and Methodology Map Cleanup
+
+### Source
+Claude Code
+
+### Objective
+Correct ETF Benchmark Relative disclosure wording and document the exact benchmark map used for International Dividend and curated single-country ETFs.
+
+### Files Changed
+- `src/app/methodology/page.tsx`
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Replaced broad MSCI-family benchmark disclosure wording with scoped wording: US equity ETFs use the S&P 500, while international developed and emerging-market ETFs use MSCI-family proxies.
+- Completed the documented ETF Benchmark Relative map to include International Dividend, curated developed single-country ETFs, curated emerging single-country ETFs, and the no-component treatment for other single-country ETFs.
+- Added a fundamentals helper note that stock fundamental sub-scores use latest annual ratios/statements rather than latest quarter data.
+- No scoring code, weights, constants, schemas, or feature flags changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (330/330)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Documentation-only follow-up to align public methodology and `SCORE_METHODOLOGY.md` with `benchmarkKeyForEtf`.
+
+## 2026-06-21 - Methodology Documentation Business Quality Cleanup
+
+### Source
+Claude Code
+
+### Objective
+Update public and formula-level methodology documentation so Business Quality is the stock fundamentals headline, Valuation is shown separately, and the retired valuation-blended fundamentals display is no longer presented as live.
+
+### Files Changed
+- `src/app/methodology/page.tsx`
+- `src/app/methodology/constants.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Removed the old valuation-blended fundamentals row from the public methodology page.
+- Reframed the Fundamentals section around Business Quality inputs directly: Growth, Profitability, Cash Flow, Balance Sheet, and Quality.
+- Added compliance-safe limitations/disclosures to the public methodology page and `SCORE_METHODOLOGY.md`.
+- Marked portfolio-context guardrails as Portfolio Review only, not per-instrument Characteristics Score guardrails.
+- Cleaned current methodology wording for developer-era phrasing and updated `METHODOLOGY_LAST_UPDATED` to 2026-06-21.
+- Updated Recommendation Insights methodology to refer to Business Quality rather than a generic fundamentals score.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (330/330)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Documentation-only change. No scoring code, weights, anchors, schemas, feature flags, access controls, or user-facing labels outside methodology documentation were changed.
+- `overallFundamentalScore` remains in the data model/computation for compatibility and non-display paths; this task only aligns methodology documentation with the UI display retirement.
+
 ## 2026-06-21 - Fundamentals Display Business Quality Composite
 
 ### Source
