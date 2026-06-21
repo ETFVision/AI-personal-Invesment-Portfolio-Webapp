@@ -86,7 +86,18 @@ named stocks are symptoms). Confirmed via live `fundamental_scores` sub-scores:
 3. **Valuation floors for asset-light / high-margin businesses** — P/S and P/B penalize them structurally
    (V valuation_score 5.4 / MA 3.3 / ASML 1.3). Affects Characteristics, not BQ. *Fix: yield-led valuation mix;
    soften P/B for asset-light.*
-4. **SYSTEMIC PERIOD-SELECTION BUG (do this FIRST — supersedes the ASML cash-flow item).**
+4. **SYSTEMIC PERIOD-SELECTION BUG — ✅ FIXED (commit `7e5f9c0`).** Scoring now uses latest-ANNUAL ratio/
+   statements for growth/profitability/cash-flow/valuation. Validated live: CVX 28.9→52.9, ASML 37.9→79.3,
+   V 43.2→69.0, JNJ 38→68.9 recovered; **EOG 77.5→68.8 normalized DOWN** — so the XOM-vs-EOG inconsistency
+   (finding #1) is **largely resolved by the period fix alone**; valuation un-floored (P/S was 4–5× inflated
+   quarterly); financial exclusions preserved. **Next: force-refresh + recommendation-run → re-run the
+   calibration diagnosis** to see what (if any) through-cycle / growth-anchor work remains (likely much less).
+   **NEW REQUIRED FOLLOW-UP:** annualizing Profitability pushed Quality↔Profitability orthogonality 0.36→**0.573
+   (>0.4)** because both now use annual ROIC *level* → do the `roicDurability` **level→consistency** refinement
+   (was the optional lever; now needed). Also confirm WMT annual cash-flow coverage (its cash-flow signal went
+   null). *Original description (kept for history):*
+
+   **SYSTEMIC PERIOD-SELECTION BUG (do this FIRST — supersedes the ASML cash-flow item).**
    `latestRatio` (`FundamentalScoringService.ts:259`) and `latestStatement` (`:109`) ignore `period` and pick
    the **latest QUARTER**, so growth (25%), profitability (25%), cash-flow (20%) — and valuation — are all
    judged on one quarter instead of annual/TTM. ASML cash_flow_score 2.5 was the visible symptom (negative
