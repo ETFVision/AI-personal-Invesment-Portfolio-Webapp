@@ -69,6 +69,34 @@ running this FIRST** (completes #5 correctly; must precede the Spec 2 methodolog
 - #2 Benchmark-relative → **change** (Spec 3b, ready). #3 Concentration overlap → **done** (#3 shipped). #5 Quality overlap → **done, pending ROIC re-check**.
 - Disclose-only (land in Spec 2): #1 Portfolio-score effective ceiling (~mid-80s); #4 Business Quality includes 25% Growth; #6 absolute (non-sector-relative) thresholds; #7 regime-dependence; #8 Geography 0% weight.
 
+### NEW (2026-06-21) — Stock calibration audit findings (diagnosis done, data-confirmed)
+A stock-classification calibration audit found the engine is **too pessimistic at the top of the quality
+distribution**, but the philosophy (Business Quality = business quality; Characteristics = valuation/risk-aware
+attractiveness) is sound and should NOT be made "quality-led" (that would duplicate Business Quality). The real
+defects are **structural flaws in how metrics are computed** (generalizing fixes, NOT universe-fitting — the
+named stocks are symptoms). Confirmed via live `fundamental_scores` sub-scores:
+
+1. **Point-in-time scoring → cyclicals mis-scored.** Everything uses `latestRatio` (single latest period), so a
+   cyclical at/near a trough gets a triple penalty: growth↓, profitability↓, P/E↑ (looks "Premium"). Data: EOG
+   growth_score **91.8** vs XOM/CVX **19.7** (same sector, similar Quality sub-scores) — pure snapshot timing.
+   *Fix: through-cycle (multi-period / normalized) growth + margins.*
+2. **Growth anchor too demanding** (`scorePositivePercent` excellent = 30%) → steady compounders undervalued
+   (V 38.7 / MA 33.0 / JNJ 36.8 / MSFT 41.7 growth despite top-tier profitability). *Fix: recalibrate excellent
+   to ~15–20% or reward growth consistency.*
+3. **Valuation floors for asset-light / high-margin businesses** — P/S and P/B penalize them structurally
+   (V valuation_score 5.4 / MA 3.3 / ASML 1.3). Affects Characteristics, not BQ. *Fix: yield-led valuation mix;
+   soften P/B for asset-light.*
+4. **ASML cash_flow_score = 2.5 = likely DATA bug** (ASML is highly cash-generative) — spawned as its own task.
+
+Also: **risk-cap softening** (separate, Characteristics-level) — cap severity should scale with BQ
+(Strong/Exceptional → Neutral, not Weak); fixes ANET/MU (Exceptional capped to Weak). Root cause is the
+instrument-risk score weighting upside volatility like downside — the deeper (bigger blast-radius) fix is to
+tilt instrument risk toward downside/semi-deviation.
+
+All of the above are headline-stock-score changes → one deliberate, validated calibration pass (universe
+distribution as a SANITY CHECK not a target; frozen economic anchors), documented in Spec 2, with Med 29
+recalibration QA. **Not yet specced — diagnosis only.**
+
 ### Also open / housekeeping
 - Cosmetic carry-along: exec-summary pluralization ("1 watch areas" → "1 watch area") — see [[portfolio-review-exec-summary-pluralization]].
 - The `7ab03cd` "noop" commit message is a cosmetic mislabel (content correct); branch protection blocked the relabel — leave it.
