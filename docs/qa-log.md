@@ -2,6 +2,54 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-21 SGT - Financial Sector Fundamentals Guard Consistency QA
+
+Scope:
+- Verify balance-sheet financials receive consistent adjusted fundamentals handling, including the new Quality sub-score, while fee-based financials retain standard industrial scoring.
+
+Live Financials industry check:
+
+| Symbol(s) | Industry | Classification Result |
+|---|---|---|
+| JPM, BAC, WFC, USB, C | Banks - Diversified | Balance-sheet financial |
+| PNC | Banks - Regional | Balance-sheet financial |
+| GS, MS, SCHW | Financial - Capital Markets | Balance-sheet financial |
+| CB | Insurance - Property & Casualty | Balance-sheet financial |
+| BRK.B | Insurance - Diversified | Balance-sheet financial |
+| V, MA, AXP, PYPL | Financial - Credit Services | Standard industrial scoring |
+| BLK | Asset Management | Standard industrial scoring |
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Insurers such as CB and BRK.B were missed by the bank/capital-markets-only detector | Fixed; insurance industries now receive the balance-sheet financial exclusions |
+| Quality scoring reintroduced cash conversion and ROIC durability for banks and other balance-sheet financials | Fixed; balance-sheet financials drop both signals from the Quality denominator |
+| Fee-based financials could be over-broadened into bank-style methodology if sector alone was used | Guarded; credit-services/payments and asset-management industries keep standard industrial scoring |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| JPM-style bank receives profitability, balance-sheet, cash-flow, and Quality exclusions | PASS |
+| CB-style insurer receives profitability, balance-sheet, cash-flow, and Quality exclusions | PASS |
+| V/MA-style credit-services financial keeps cash-flow and full Quality inputs | PASS |
+| Live Quality correlation vs Profitability | `0.361` over 81 comparable rows |
+| Live Quality correlation vs Cash Flow | `-0.002` over 72 comparable rows |
+| Live Quality correlation vs Balance Sheet | `-0.116` over 82 comparable rows |
+| Orthogonality target `< ~0.4` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (324/324) |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- Financial stock Fundamentals, Business Quality, Quality, and Characteristics composites may shift after recomputation. This is expected scoring-consistency behavior, not a label or advice-language change.
+
+Residual items:
+- After merge/deploy, run Force refresh fundamentals and the recommendation-run from Admin so stored scores reflect the corrected financial-sector guard.
+- Future methodology enhancement: add financial-specific capital adequacy, asset-quality, reserve-quality, or ROE/ROA durability inputs if provider coverage supports them.
+
 ## 2026-06-20 SGT - Forced Fundamentals Refresh Rotation QA
 
 Scope:

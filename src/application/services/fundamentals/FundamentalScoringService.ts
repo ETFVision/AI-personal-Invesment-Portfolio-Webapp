@@ -62,8 +62,20 @@ function isQualityGrowthSector(profile: CompanyProfile | null) {
 }
 
 function isFinancialSector(profile: CompanyProfile | null): boolean {
+  const sector = (profile?.sector ?? "").toLowerCase();
   const industry = (profile?.industry ?? "").toLowerCase();
-  return ["banks", "capital markets"].some((term) => industry.includes(term));
+  const isFinancialSectorGate = sector.includes("financial");
+  if (!isFinancialSectorGate || !industry) return false;
+
+  return [
+    "bank",
+    "capital markets",
+    "broker",
+    "broker-dealer",
+    "insurance",
+    "thrifts",
+    "mortgage finance"
+  ].some((term) => industry.includes(term));
 }
 
 function qualityAdjustedValuationScore(input: {
@@ -199,11 +211,12 @@ function calculateQualityScore(input: {
   income: FinancialStatement | null;
   cashFlow: FinancialStatement | null;
   balanceSheet: FinancialStatement | null;
+  isFinancial?: boolean;
 }) {
   const margins = marginSeries(input.ratios, input.statements);
   const earningsStabilityCov = coefficientOfVariation(margins);
-  const cashConversion = cashConversionRatio(input.income, input.cashFlow, input.balanceSheet);
-  const averageRoic = latestAnnualRatioAverage(input.ratios, (ratio) => ratio.roic);
+  const cashConversion = input.isFinancial ? null : cashConversionRatio(input.income, input.cashFlow, input.balanceSheet);
+  const averageRoic = input.isFinancial ? null : latestAnnualRatioAverage(input.ratios, (ratio) => ratio.roic);
   const shareGrowth = shareCountGrowth(input.statements);
   const signals = {
     earningsStability: {
@@ -213,12 +226,12 @@ function calculateQualityScore(input: {
     },
     cashConversion: {
       value: cashConversion,
-      score: scoreHigherBetter(cashConversion, 0.6, 1.1),
+      score: input.isFinancial ? null : scoreHigherBetter(cashConversion, 0.6, 1.1),
       weight: 0.3
     },
     roicDurability: {
       value: averageRoic,
-      score: scoreReturn(averageRoic, 0.06, 0.20),
+      score: input.isFinancial ? null : scoreReturn(averageRoic, 0.06, 0.20),
       weight: 0.25
     },
     capitalDiscipline: {
@@ -311,7 +324,8 @@ export class FundamentalScoringService {
       statements: input.statements,
       income,
       cashFlow,
-      balanceSheet
+      balanceSheet,
+      isFinancial
     });
     const qualityScore = quality.score;
     const valuationScore = qualityAdjustedValuationScore({

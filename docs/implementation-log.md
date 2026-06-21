@@ -1,3 +1,44 @@
+## 2026-06-21 - Financial Sector Fundamentals Guard Consistency
+
+### Source
+Claude Code
+
+### Objective
+Make financial-sector fundamentals handling consistent by expanding balance-sheet financial detection to insurers, keeping fee-based financials on industrial scoring, and applying the same financial guard to the Quality sub-score.
+
+### Files Changed
+- `src/application/services/fundamentals/FundamentalScoringService.ts`
+- `tests/fundamentals.test.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `src/app/methodology/page.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Replaced the bank/capital-markets-only financial detector with a financial-sector-gated curated industry detector for banks, capital markets / broker-dealers, insurance, thrifts, and mortgage finance.
+- Left fee-based financial industries such as credit services / payments and asset management on the standard industrial scoring path.
+- Threaded the financial flag into Quality scoring so balance-sheet financials exclude cash conversion / accruals and ROIC durability from the weighted Quality denominator.
+- Added tests proving banks and insurers receive the profitability, balance-sheet, cash-flow, and Quality exclusions, while credit-services financials retain the full industrial and Quality inputs.
+- Updated methodology documentation and the public methodology page to describe the corrected detection and the Quality exclusion.
+
+### Live Read-Only Checks
+- Active Financials industry strings confirmed: JPM/BAC/WFC/USB/C = `Banks - Diversified`; PNC = `Banks - Regional`; GS/MS/SCHW = `Financial - Capital Markets`; CB = `Insurance - Property & Casualty`; BRK.B = `Insurance - Diversified`; V/MA/AXP/PYPL = `Financial - Credit Services`; BLK = `Asset Management`.
+- Quality orthogonality re-check over live active stocks: Quality vs Profitability `0.361` (n=81), vs Cash Flow `-0.002` (n=72), vs Balance Sheet `-0.116` (n=82). All remain below the target `~0.4`.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (324/324)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Data/scoring-consistency fix only; no sector-relative recalibration, scoring labels, recommendation labels, feature flags, access controls, or advisory wording changed.
+- After merge/deploy, run Force refresh fundamentals and then recommendation-run from Admin so financial stocks rescore with the corrected guard.
+- Financial-sector scores remain lower-resolution because ETFVision does not yet include capital adequacy, reserve quality, asset-quality, or regulatory capital measures.
+
 ## 2026-06-20 - Forced Fundamentals Refresh Batch Rotation
 
 ### Source

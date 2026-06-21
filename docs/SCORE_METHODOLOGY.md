@@ -137,17 +137,20 @@ Cash flow score is the average of available scored inputs.
 
 ### Financial Sector Methodology
 
-Financial-sector instruments use adjusted business-quality benchmarks because bank, insurance, and diversified financial balance sheets are structurally different from industrial company balance sheets.
+Balance-sheet financial instruments use adjusted business-quality benchmarks because bank, insurance, and diversified financial balance sheets are structurally different from industrial company balance sheets.
 
-- Gross margin is excluded from profitability inputs for financial-sector instruments because it is not a meaningful operating measure for banks and many financial businesses.
+Detection is intentionally curated: a company must have a financial sector profile and a balance-sheet financial industry such as banks, capital markets / broker-dealers, insurance, thrifts, or mortgage finance. Fee-based financial businesses such as credit services / payments and asset management are not included in this adjusted set, so they retain the standard industrial scoring inputs.
+
+- Profitability is adjusted for balance-sheet financial instruments: gross margin is excluded because it is not a meaningful operating measure for banks, insurers, and similar balance-sheet financial businesses.
 - ROA uses financial-sector thresholds: `scoreReturn(roa, 0.005, 0.02)`, where 0.5% is weak and 2.0% is excellent.
-- Cash flow score is excluded for financial-sector instruments because free cash flow is not directly comparable to operating companies and is not applicable to bank balance sheets in the same way.
+- Cash flow score is excluded because free cash flow is not directly comparable to operating companies and is not applicable to bank and insurer balance sheets in the same way.
 - Balance sheet score is computed from capital-quality proxies:
   - ROE: `scoreReturn(roe, 0.06, 0.18)`
   - ROA: `scoreReturn(roa, 0.004, 0.015)`
   - Price/book: `scoreLowerBetter(priceToBook, 1.0, 3.5)`
 - Debt/equity and net debt/EBITDA are excluded for financial-sector balance sheet scoring because structural banking leverage is not the same as industrial financial risk.
-- CET1 ratio is not included because it is not available from the standard Financial Modeling Prep ratios endpoint currently used by ETFVision.
+- Quality excludes cash conversion / accruals and ROIC durability for balance-sheet financial instruments. Quality is then re-normalized from earnings stability and capital discipline only.
+- ETFVision does not currently score capital adequacy, reserve quality, asset quality, or regulatory capital ratios. Financial-sector scores are therefore lower-resolution than industrial scores. A future enhancement may add ROE/ROA durability signals with financial-specific anchors.
 
 ### Quality Score
 
@@ -161,6 +164,8 @@ Quality measures earnings quality and consistency using fixed economic anchors t
 | Capital discipline | Year-over-year shares outstanding growth | `scoreLowerBetter(shareGrowth, -0.02, 0.10)` | 15% |
 
 The score is intentionally orthogonal to Profitability, Cash Flow and Balance Sheet sub-scores: those categories measure level and scale; Quality measures stability, conversion, durability and dilution discipline.
+
+For balance-sheet financial instruments, cash conversion / accruals and ROIC durability are excluded from the Quality denominator because those signals overlap with cash-flow and efficiency measures that are not comparable for banks, insurers, and similar balance-sheet financial businesses.
 
 ### Fundamentals Confidence
 

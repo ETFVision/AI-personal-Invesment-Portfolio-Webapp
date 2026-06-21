@@ -440,7 +440,7 @@ function qualityInput(input: {
   return { ratios, statements };
 }
 
-function qualityScoreFor(input: Parameters<typeof qualityInput>[0]) {
+function qualityScoreFor(input: Parameters<typeof qualityInput>[0], options?: { isFinancial?: boolean }) {
   const data = qualityInput(input);
   const income = data.statements.find((statement) => statement.statementType === "income_statement" && statement.fiscalYear === 2025) ?? null;
   const cashFlow = data.statements.find((statement) => statement.statementType === "cash_flow") ?? null;
@@ -450,7 +450,8 @@ function qualityScoreFor(input: Parameters<typeof qualityInput>[0]) {
     statements: data.statements,
     income,
     cashFlow,
-    balanceSheet
+    balanceSheet,
+    isFinancial: options?.isFinancial
   });
 }
 
@@ -538,10 +539,10 @@ test("fundamental quality score is more orthogonal than the previous overlapping
   assert.ok(Math.abs(pearson(newQuality, balanceSheet)) < 0.4);
 });
 
-test("financial sector detection matches only bank and capital markets industries", () => {
-  const profile = (sector: string, industry: string): CompanyProfile => ({
+function companyProfile(sector: string, industry: string, symbol = "TEST"): CompanyProfile {
+  return {
     instrumentId: `inst-${industry}`,
-    symbol: "TEST",
+    symbol,
     companyName: "Test Company",
     sector,
     industry,
@@ -558,44 +559,27 @@ test("financial sector detection matches only bank and capital markets industrie
     lastRefreshedAt: null,
     provider: "test",
     providerMetadata: {}
-  });
+  };
+}
 
-  assert.equal(fundamentalScoringInternals.isFinancialSector(profile("Financial Services", "Banks - Diversified")), true);
-  assert.equal(fundamentalScoringInternals.isFinancialSector(profile("Financial Services", "Financial - Capital Markets")), true);
-  assert.equal(fundamentalScoringInternals.isFinancialSector(profile("Financial Services", "Financial - Credit Services")), false);
-  assert.equal(fundamentalScoringInternals.isFinancialSector(profile("Financial Services", "Asset Management")), false);
+test("financial sector detection matches balance-sheet financial industries only", () => {
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Banks - Diversified")), true);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Banks - Regional")), true);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Financial - Capital Markets")), true);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Insurance - Property & Casualty")), true);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Insurance - Diversified")), true);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Financial - Credit Services")), false);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Asset Management")), false);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Technology", "Banks - Diversified")), false);
   assert.equal(fundamentalScoringInternals.isFinancialSector(null), false);
-  assert.equal(fundamentalScoringInternals.isFinancialSector(profile("Financial Services", "")), false);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "")), false);
 });
 
-test("financial sector scoring excludes cash flow and avoids industrial leverage penalty", () => {
+test("financial sector scoring excludes industrial financial metrics for banks and insurers only", () => {
   const service = new FundamentalScoringService();
-  const score = service.calculateScore({
-    instrumentId: "inst-jpm",
-    symbol: "JPM",
-    profile: {
-      instrumentId: "inst-jpm",
-      symbol: "JPM",
-      companyName: "JPMorgan Chase & Co.",
-      sector: "Financial Services",
-      industry: "Banks-Diversified",
-      country: "US",
-      exchange: "NYSE",
-      currency: "USD",
-      marketCap: 600_000_000_000,
-      beta: null,
-      description: null,
-      website: null,
-      ceo: null,
-      ipoDate: null,
-      employees: null,
-      lastRefreshedAt: null,
-      provider: "test",
-      providerMetadata: {}
-    },
-    ratios: [{
-      instrumentId: "inst-jpm",
-      symbol: "JPM",
+  const ratio = (symbol: string): FinancialRatio => ({
+      instrumentId: `inst-${symbol}`,
+      symbol,
       period: "annual",
       fiscalYear: 2025,
       fiscalQuarter: 0,
@@ -610,7 +594,7 @@ test("financial sector scoring excludes cash flow and avoids industrial leverage
       operatingMargin: 0.28,
       netMargin: 0.24,
       roe: 0.14,
-      roic: null,
+      roic: 0.12,
       roa: 0.013,
       debtToEquity: 10,
       netDebtToEbitda: null,
@@ -623,13 +607,56 @@ test("financial sector scoring excludes cash flow and avoids industrial leverage
       freeCashFlowGrowth: null,
       provider: "test",
       providerMetadata: {}
-    }],
-    statements: []
+  });
+  const statements = (symbol: string): FinancialStatement[] => [
+    trendStatement({ symbol, statementType: "income_statement", period: "annual", year: 2024, revenue: 100, operatingIncome: 22, netIncome: 20, sharesOutstanding: 100 }),
+    trendStatement({ symbol, statementType: "income_statement", period: "annual", year: 2025, revenue: 100, operatingIncome: 24, netIncome: 21, sharesOutstanding: 99 }),
+    trendStatement({ symbol, statementType: "cash_flow", period: "annual", year: 2025, operatingCashFlow: 28, freeCashFlow: 24 }),
+    trendStatement({ symbol, statementType: "balance_sheet", period: "annual", year: 2025, totalAssets: 1_000, cashAndEquivalents: 50, totalDebt: 500 })
+  ];
+
+  const bankScore = service.calculateScore({
+    instrumentId: "inst-jpm",
+    symbol: "JPM",
+    profile: companyProfile("Financial Services", "Banks - Diversified", "JPM"),
+    ratios: [ratio("JPM")],
+    statements: statements("JPM")
+  });
+  const insurerScore = service.calculateScore({
+    instrumentId: "inst-cb",
+    symbol: "CB",
+    profile: companyProfile("Financial Services", "Insurance - Property & Casualty", "CB"),
+    ratios: [ratio("CB")],
+    statements: statements("CB")
+  });
+  const feeBasedScore = service.calculateScore({
+    instrumentId: "inst-v",
+    symbol: "V",
+    profile: companyProfile("Financial Services", "Financial - Credit Services", "V"),
+    ratios: [ratio("V")],
+    statements: statements("V")
   });
 
-  assert.equal(score.cashFlowScore, null);
-  assert.ok((score.balanceSheetScore ?? 0) > 60);
-  assert.ok((score.profitabilityScore ?? 0) > 60);
+  for (const score of [bankScore, insurerScore]) {
+    const qualitySignals = score.inputsSnapshot.qualitySignals as {
+      cashConversion: { score: number | null };
+      roicDurability: { score: number | null };
+    };
+    assert.equal(score.cashFlowScore, null);
+    assert.equal(qualitySignals.cashConversion.score, null);
+    assert.equal(qualitySignals.roicDurability.score, null);
+    assert.ok((score.balanceSheetScore ?? 0) > 60);
+    assert.ok((score.profitabilityScore ?? 0) > 60);
+    assert.ok((score.qualityScore ?? 0) > 0);
+  }
+
+  const feeBasedQualitySignals = feeBasedScore.inputsSnapshot.qualitySignals as {
+    cashConversion: { score: number | null };
+    roicDurability: { score: number | null };
+  };
+  assert.notEqual(feeBasedScore.cashFlowScore, null);
+  assert.notEqual(feeBasedQualitySignals.cashConversion.score, null);
+  assert.notEqual(feeBasedQualitySignals.roicDurability.score, null);
 });
 
 test("fundamentals refresh derives missing ratios from financial statements", () => {
