@@ -69,7 +69,20 @@ running this FIRST** (completes #5 correctly; must precede the Spec 2 methodolog
 - #2 Benchmark-relative → **change** (Spec 3b, ready). #3 Concentration overlap → **done** (#3 shipped). #5 Quality overlap → **done, pending ROIC re-check**.
 - Disclose-only (land in Spec 2): #1 Portfolio-score effective ceiling (~mid-80s); #4 Business Quality includes 25% Growth; #6 absolute (non-sector-relative) thresholds; #7 regime-dependence; #8 Geography 0% weight.
 
-### NEW (2026-06-21) — Stock calibration audit findings (diagnosis done, data-confirmed)
+### ✅ RE-DIAGNOSIS (2026-06-21, post period-fix + re-score) — calibration ~5.5→~8/10
+After the annual-basis fix (`7e5f9c0`) + force-refresh + recommendation-run, the live insights confirm the
+period fix **subsumed findings #1 and #2**: cyclicals recovered (XOM Weak 44→Neutral 56, CVX Weak 41→Neutral 58),
+EOG normalized to Solid, BQ corrected (V/MA→Exceptional, JNJ→Strong, ASML→Exceptional), quality large-caps now
+"Good" (GOOGL/AAPL/MSFT/LLY/JNJ/JPM/TSM), and valuation now discriminates (lots of Attractive/Fair). **So
+through-cycle (#1) and growth-anchor (#2b) work is NO LONGER NEEDED.** Remaining scoring work shrank to TWO items:
+- **Risk-cap softening (finding #3) — the clear residual.** High-BQ names still capped to Weak: ASML (Exceptional
+  →Weak 67), ANET (Exceptional→Weak 68), AMD/QCOM/PYPL (Strong→Weak). Fix = cap severity scales with BQ
+  (Strong/Exceptional → Neutral, not Weak). NOW THE TOP CALIBRATION ITEM.
+- **roicDurability level→consistency** — orthogonality fix (Quality↔Profitability 0.573→<0.4); spec written below.
+By-design (NOT bugs): V/MA/AVGO Exceptional-BQ but Neutral/Good Characteristics (Premium valuation) — the
+valuation-aware Characteristics working correctly.
+
+### (history) Stock calibration audit findings (diagnosis done, data-confirmed)
 A stock-classification calibration audit found the engine is **too pessimistic at the top of the quality
 distribution**, but the philosophy (Business Quality = business quality; Characteristics = valuation/risk-aware
 attractiveness) is sound and should NOT be made "quality-led" (that would duplicate Business Quality). The real
