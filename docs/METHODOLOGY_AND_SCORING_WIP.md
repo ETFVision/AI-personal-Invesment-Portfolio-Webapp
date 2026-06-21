@@ -40,7 +40,15 @@ needed (optional future polish only). q_vs_profitability rose from the dormant-R
    - stays **< ~0.4** → #5 is fully validated with all four signals live → mark #5 DONE.
    - rises **above ~0.4** → `roicDurability` (uses ROIC *level*, shared with Profitability) needs redefining to ROIC *consistency/durability over time* (CoV of ROIC, or sustained ROIC>threshold). Small follow-up spec.
 
-### ⚠ NEW (2026-06-20) — Financial-sector scoring fix (do before Spec 2)
+### ✅ DONE (2026-06-20, commit `7a8b5f3`) — Financial-sector scoring fix
+Insurers (CB/BRK.B) now caught (detection gates on Financial sector + banks/capital-markets/insurance/
+broker/thrifts/mortgage industries); #5 Quality excludes cash-conversion + ROIC for balance-sheet
+financials; fee-based (V/MA/PYPL/BLK) stay industrial. Orthogonality re-verified live (Quality vs
+Profitability 0.361 / Cash Flow −0.002 / Balance Sheet −0.116, all < 0.4 — note the 0.361 margin is thinner;
+optional ROE/ROA bank-quality substitute remains a future lever). Needs Admin force-refresh + recommendation-
+run to rescore the ~11 financials. *Original finding/spec below, retained for history:*
+
+### (history) Financial-sector scoring fix — the spec that was run
 Found a gap: `isFinancialSector` (`FundamentalScoringService.ts:64`) = `profile.industry` contains
 "banks"/"capital markets" only → catches 9/16 universe financials but **misses insurers CB & BRK.B**
 (they get industrial debt/equity + FCF scoring the doc says is wrong for financials). Separately, the **#5
