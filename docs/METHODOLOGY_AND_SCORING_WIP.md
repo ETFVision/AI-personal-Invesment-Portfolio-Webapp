@@ -79,10 +79,13 @@ through-cycle (#1) and growth-anchor (#2b) work is NO LONGER NEEDED.** Remaining
   (Strong/Exceptional → Neutral, else Weak), reusing the shared BQ-label thresholds. ASML/ANET (Exceptional) and
   AMD/QCOM/PYPL (Strong) should move Weak→Neutral on the next refresh; Moderate/Solid stay Weak.
 
-  **➡ STOCK CALIBRATION SCORING WORK COMPLETE** (period fix + roicDurability consistency + risk-cap softening).
-  Next: one **force-refresh fundamentals + recommendation-run** → final calibration spot-check (confirm the
-  capped names moved). The remaining programme items are non-scoring: #2 ETF benchmark-relative (Spec 3b),
-  Spec 1 (Business Quality display), Spec 2 (methodology rewrite, last), Med 29 QA, Med 26 golden regression.
+  **➡ STOCK CALIBRATION SCORING WORK COMPLETE + spot-check CONFIRMED (2026-06-21).** Live re-score verified:
+  ASML/ANET (Exceptional) Weak→Neutral, AMD/QCOM/PYPL (Strong) Weak→Neutral, UNH/INTC/NKE (Moderate)/ORCL (Solid)
+  stay Weak. Engine now well-calibrated: quality large-caps differentiate as Good, valuation discriminates,
+  cyclicals sensible, financial fix working (CB Strong/Good). Display nuance: the risk-cap chip only shows when
+  the cap actually lowered the label (ASML/ANET show it; AMD/QCOM/PYPL don't but are Neutral) — not a bug.
+  Remaining programme items are non-scoring: #2 ETF benchmark-relative (Spec 3b), Spec 1 (Business Quality
+  display), Spec 2 (methodology rewrite, last), Med 29 QA, Med 26 golden regression.
 - **roicDurability level→consistency — ✅ DONE (commit `525db54`).** WACC-gated ROIC consistency restored
   Quality↔Profitability to **0.380** (<0.4); Cash Flow 0.008, Balance Sheet −0.181. #5 orthogonality holds with
   all four Quality signals live on the annual basis.
