@@ -98,6 +98,79 @@ named stocks are symptoms). Confirmed via live `fundamental_scores` sub-scores:
    (#1) and growth-anchor (#2b) work is still needed. Expanded Codex prompt written (in chat). Do NOT do anchor
    recalibration before this lands. *(Narrow ASML-only task `task_b9db6375` is superseded by this expanded fix.)*
 
+**Ready-to-hand Codex prompt for the period-selection fix:**
+```
+TASK: Fix a systemic period-selection bug in fundamental scoring. Growth,
+profitability, and cash-flow sub-scores are computed off the LATEST QUARTER
+instead of an annual/TTM basis, distorting Business Quality universe-wide (most
+visibly flooring cash-flow scores for ~18 names with seasonally-negative
+latest-quarter FCF, e.g. ASML 2.5/100). Inputs-only fix — do NOT change any
+anchors, weights, or labels.
+
+ROOT CAUSE
+- The refresh stores BOTH annual and quarterly rows (FundamentalsRefreshService
+  fetches period:"annual" AND period:"quarterly").
+- FundamentalScoringService.calculateScore picks the latest row IGNORING period:
+  * latestRatio (line 259) = sort(input.ratios by reportDate)[0] -> latest
+    quarter -> feeds growth (266-269), profitability (273-285), valuation (287-294).
+  * latestStatement (line 109) = sort by reportDate, no period filter -> latest
+    quarter -> feeds cashFlowInputs + income/balanceSheet (260-262).
+- So ~70% of Business Quality (+ all of Valuation) is judged on ONE quarter.
+  Seasonal swings floor cash-flow for names with negative latest-quarter FCF
+  despite strong annual FCF (verified: ASML, AMZN, WMT, CVX, F, PEP, LMT, HON,
+  NOC, NEE, ...).
+
+IMPLEMENT (FundamentalScoringService.ts — SELECTION ONLY)
+1. Add an annual selector (prefer TTM = trailing 4 quarters when present, else
+   annual) for ratios and statements, filtering period === "annual" (mirror
+   latestStatementsByPeriod at line 141 / the quality-signal code that already
+   filters annual).
+2. Route the FLOW / period-sensitive inputs to that annual(/TTM) basis:
+   - growthInputs (revenue/eps/netIncome/FCF growth) -> annual ratio
+   - profitabilityInputs (margins, ROE/ROIC/ROA) -> annual ratio
+   - cashFlowInputs + freeCashFlowMargin (OCF, FCF, revenue) -> annual statements
+     (pair annual revenue with annual OCF/FCF so the revenue*0.25 / revenue*0.2
+     anchors and the FCF-margin denominator stay on one basis)
+   - balance-sheet -> latest annual for consistency
+3. VALUATION — VERIFY before changing: determine whether the stored quarterly
+   ratio valuation fields (peRatio, priceToSales, priceToBook, evToEbitda,
+   freeCashFlowYield) are TTM-based (correct: recent price / trailing-12m
+   fundamentals) or single-quarter (broken: e.g. price / one quarter's sales =
+   ~4x overstated, likely why V/MA/ASML valuation floored). If single-quarter,
+   fix to a TTM basis; if already TTM, LEAVE valuation on the latest quarter row
+   to keep current price. Document which.
+4. FINANCIAL-SECTOR CONSISTENCY: the annual/TTM selection must feed BOTH the
+   isFinancial and non-financial input branches (both read latestRatio/
+   latestStatement). Do NOT alter any financial-sector exclusions (gross-margin,
+   cash-flow-null, leverage, Quality cash-conversion/ROIC) — only their period
+   basis. Confirm a bank (JPM) and an insurer (CB) keep their exclusions AND now
+   score on the annual basis; their stale pre-fix cash_flow_score rows resolve to
+   null on re-score.
+5. No anchor/threshold/weight changes. No re-fetch (annual rows already stored).
+   Keep financial-sector and quality-signal logic intact (quality already filters
+   annual).
+
+VALIDATION (required — moves headline scores broadly; sanity check, NOT a fit)
+- Before/after table for: XOM, CVX, EOG, ASML, V, MA, JNJ, AMZN, WMT, MSFT, NVDA
+  — each sub-score (growth/profitability/cash_flow/valuation) + overall, old
+  (latest-quarter) vs new (annual/TTM).
+- The ~18 negative-latest-Q cash-flow floor cases should recover; distribution
+  should not peg/collapse.
+- Re-run the Business Quality orthogonality check (Quality vs Profitability/Cash
+  Flow/Balance Sheet < ~0.4) to confirm it still holds.
+
+TESTS: a unit test proving growth/profitability/cash-flow select the ANNUAL (not
+latest-quarter) row when both exist; a seasonally-negative-latest-quarter fixture
+(annual FCF positive, quarter FCF negative) scores cash flow on the annual basis
+(not floored). typecheck/lint/build/test pass.
+
+DOCS/OPS: implementation-log + qa-log (root cause, before/after table, the
+valuation-basis decision, affected-name list). After deploy: force fundamentals
+refresh + recommendation-run from Admin to rescore — prerequisite before
+re-running the stock calibration diagnosis. Business Quality + overall fundamental
+scores will shift broadly — expected (correctness fix, not a methodology change).
+```
+
 Also: **risk-cap softening** (separate, Characteristics-level) — cap severity should scale with BQ
 (Strong/Exceptional → Neutral, not Weak); fixes ANET/MU (Exceptional capped to Weak). Root cause is the
 instrument-risk score weighting upside volatility like downside — the deeper (bigger blast-radius) fix is to
