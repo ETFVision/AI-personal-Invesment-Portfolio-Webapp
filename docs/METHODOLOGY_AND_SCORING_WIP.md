@@ -60,7 +60,16 @@ for balance-sheet financials (drop from denominator; optional future: substitute
 reconcile SCORE_METHODOLOGY §Financial Sector + limitation note; re-run orthogonality check. **Recommend
 running this FIRST** (completes #5 correctly; must precede the Spec 2 methodology rewrite).
 
-### Then — remaining specs (ready). Sequence: Financial-sector fix → Spec 3b (parallel) → Spec 1 → Spec 2 (last)
+### ✅ #2 ETF Benchmark-Relative — DONE (`9199641` + scale re-anchor `abe7315`)
+True relative vs external benchmark (EFA/EEM seeded, migration 114; EM ETFs benchmarked vs EM not SPY),
+momentum de-overlapped, SCALE frozen at 100 (full mark at +50pp excess; p90 78.9, pegged 6.6%). **Op step
+before live numbers: run `benchmark-refresh` from Admin to backfill EFA/EEM snapshots, then recommendation-run.**
+
+**➡ ALL SCORING-QUALITY WORK COMPLETE** (#2/#3/#5 + financial-sector + period fix + roicDurability + risk-cap +
+ETF relative). Remaining is non-scoring: Spec 1 (Business Quality display) → Spec 2 (methodology rewrite +
+all disclosures, LAST) → Med 26 golden regression / Med 29 recalibration QA.
+
+### Then — remaining specs. Sequence: Spec 1 → Spec 2 (last); Med 26/29 validation
 - **Spec 3b (#2)** — ETF "Benchmark Relative" → true relative vs external benchmark. **Written and ready to hand to Codex.** Part 0 seeds EFA (`developed_ex_us`) + EEM (`emerging_markets`) benchmarks — both confirmed FMP-covered. Independent of the ROIC loop; can run any time.
 - **Spec 1** — Fundamentals surfaces (Fundamentals page, instrument detail, directory) → show Business Quality + separate Valuation; retire the valuation-blended six-category "Overall" from the UI (still live in code today). Pre-check internal consumers before retiring.
 - **Spec 2** — Methodology page + docs end-user/compliance rewrite: Fundamentals→Business Quality naming, single Business Quality table, strip dev language, remove stale phase-1, mark dead portfolio-dependent guardrails inactive, **+ the Tier-1/2 calc-audit disclosures** (see below). Do this LAST so it documents the final state of #2/#3/#5.
