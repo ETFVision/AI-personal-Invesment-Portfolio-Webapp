@@ -1,3 +1,136 @@
+## 2026-06-21 - Methodology Financial Terms Glossary
+
+### Source
+Claude Code
+
+### Objective
+Add a public methodology-page financial terms glossary so financial-statement metrics used in formulas are defined in plain English.
+
+### Files Changed
+- `src/app/methodology/page.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `financialTermsRows` with plain-English definitions for margin, EBITDA, valuation multiples, return metrics, cash-flow metrics, leverage/liquidity metrics, issuer, beta, Treasury, high yield, standard deviation, and covariance.
+- Rendered the new Financial terms collapsible block in the Overview section after the existing Key terms / Notation content.
+- Left existing Key terms, Notation, formulas, scoring logic, weights, constants, feature flags, access controls, schema, and methodology values unchanged.
+- Left `METHODOLOGY_LAST_UPDATED` unchanged because it already matches today's date, 2026-06-21.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (330/330)
+- `npm.cmd run build` - PASS
+- Dev-server rendered `/methodology` verification - PASS; KaTeX markup remained present and the Financial terms block plus representative entries rendered.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Documentation/presentation-only change on `src/app/methodology/page.tsx`; no math, scoring, or formula changes.
+
+## 2026-06-21 - Methodology Trend Decision Tree Clarification
+
+### Source
+Claude Code
+
+### Objective
+Clarify the methodology page trend direction decision tree and correct the displayed trend-strength formula notation without changing scoring or calculation code.
+
+### Files Changed
+- `src/app/methodology/page.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Replaced the Trend Direction inputs note with explicit deterministic label logic for Rebounding, Accelerating, Improving, Decelerating, Deteriorating, Volatile, and Stable.
+- Updated the displayed Trend strength formula from `|x_latest - xbar_first|` to `|x_latest - x_first|`.
+- Added that `x_first` is the earliest observation in the window while preserving the stable/volatile strength note.
+- No math/scoring implementation, weights, constants, feature flags, access controls, schema, or methodology values changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (330/330)
+- `npm.cmd run build` - PASS
+- Dev-server rendered `/methodology` verification - PASS; KaTeX markup, explicit trend decision-tree copy, `x_first` formula source, and `x_first` note were present.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Page/log-only clarification; no scoring implementation or methodology values changed.
+
+## 2026-06-21 - Methodology Presentation Clarifications
+
+### Source
+Claude Code
+
+### Objective
+Improve the public methodology page's readability for non-technical users by adding notation definitions, explanatory formula notes, trend classification detail, and component meaning columns without changing scoring formulas, weights, constants, or code paths.
+
+### Files Changed
+- `src/app/methodology/page.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added glossary terms for dispersion, bounded values, tolerance, and magnitude.
+- Added a Notation table under Key terms explaining clamp/bounded, indicator functions, logical symbols, empty values, summation/covariance notation, square roots, deltas, averages, returns, and weights.
+- Added plain-English variable definitions to fundamentals, trend, Insight Alignment, Diversification, and covariance formula notes.
+- Added the requested Trend strength formula row and expanded the trend direction explanation.
+- Added a "What it measures" column to each instrument-type Characteristics Score component table.
+- Clarified the fundamentals confidence sentence and Diversification sub-score wording.
+- Marked Macro fit and Quality valuation adjustment examples as representative examples rather than exhaustive rule sets.
+- Left `METHODOLOGY_LAST_UPDATED` unchanged because it already matches today's date, 2026-06-21.
+- No scoring code, formulas, weights, anchors, constants, feature flags, access controls, schema, or methodology values changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (330/330)
+- `npm.cmd run build` - PASS
+- Dev-server rendered `/methodology` verification - PASS; KaTeX markup, Notation block, "What it measures" column, trend strength row, and new variable notes were present.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Documentation/presentation-only change on the methodology page. Formula rendering remains intact after the prior JSX escaping fix.
+
+## 2026-06-21 - Methodology KaTeX JSX Escaping Fix
+
+### Source
+Claude Code
+
+### Objective
+Fix broken KaTeX rendering on the public methodology page by passing formula strings through JSX expression strings instead of literal JSX string attributes.
+
+### Files Changed
+- `src/app/methodology/page.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Converted methodology page `FormulaDetail` `tex` props from `tex="..."` to `tex={"..."}` so JavaScript resolves LaTeX escapes before KaTeX renders them.
+- Applied the conversion across component, fundamentals, trend, confidence, portfolio, risk, and macro formula rows.
+- Verified `/methodology` through the local dev server; Weighted composite, scoreMargin, Bond duration fit cases, Allocation, and covariance rows contain rendered KaTeX markup.
+- No scoring code, formulas, weights, constants, feature flags, access controls, schema, or user-facing methodology wording changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (330/330)
+- `npm.cmd run build` - PASS
+- Dev-server/browser verification for `/methodology` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Root cause was JSX string-attribute escaping: `tex="\\mathrm{...}"` passed double backslashes to KaTeX. JSX expression strings now pass the intended single-backslash LaTeX.
+
 ## 2026-06-21 - Theme Fit Formula Display Correction
 
 ### Source
@@ -795,7 +928,7 @@ Clear three Portfolio Review backlog items: user-facing Portfolio Balance Review
 - Softened generic finding suffixes from Underweighted Category to Lightly Represented Category while leaving issue-specific titles such as Ballast Underweighted and Recession Hedge Underweighted unchanged.
 - Extracted shared wrapper-exclusion issuer helpers for Concentration Review, Risk Analytics, and Portfolio Review page display without changing score or issuer aggregation behavior.
 - Co-located gap-engine curated sets in `gapCandidateSets.ts` without changing membership.
-- Updated country-count labels to use the `≥` glyph and tightened exchange-suffix cleanup so `BRK.B` is preserved while foreign suffixes such as `.TW` are stripped.
+- Updated country-count labels to use the `â‰¥` glyph and tightened exchange-suffix cleanup so `BRK.B` is preserved while foreign suffixes such as `.TW` are stripped.
 - Added regression tests for wrapper-excluded Concentration/Risk equivalence and curated taxonomy normalization.
 
 ### Tests Run
@@ -1026,7 +1159,7 @@ Rename the Portfolio Review defensive gap finding, exclude narrow healthcare sub
 - `docs/implementation-log.md`
 
 ### Summary
-- Renamed the defensive gap finding to `Defensive Sectors — Underweighted Category` and kept a page-level legacy text rewrite for stored reports still carrying the old title.
+- Renamed the defensive gap finding to `Defensive Sectors â€” Underweighted Category` and kept a page-level legacy text rewrite for stored reports still carrying the old title.
 - Excluded XBI, IBB, and ARKG from `insufficient_defensive_exposure` candidate selection.
 - Added a broad defensive-sector preference so XLV/VHT, XLU/VPU, and XLP/VDC rank ahead of narrower or global variants within the defensive sleeve cap.
 - Added `defensiveGapTooltipCategory()` so defensive finding tooltips use the candidate's actual sleeve category, such as Utilities, Consumer Staples, or Healthcare.
@@ -1547,7 +1680,7 @@ Run in Supabase SQL editor to remove existing self-referential rows from the dat
 ```sql
 DELETE FROM etf_top_holdings WHERE holding_symbol = etf_symbol;
 ```
-This removes rows such as VOO holding VOO (weight 0.18%), VT holding VT (0.82%), QQQ holding QQQ (0.11%), IVV holding IVV (0.19%), and SPY holding SPY (0.20%). These originated from the blank-asset FMP data bug and carry no analytical meaning. Re-refresh is not required — the fix prevents new self-referential rows on next ingestion.
+This removes rows such as VOO holding VOO (weight 0.18%), VT holding VT (0.82%), QQQ holding QQQ (0.11%), IVV holding IVV (0.19%), and SPY holding SPY (0.20%). These originated from the blank-asset FMP data bug and carry no analytical meaning. Re-refresh is not required â€” the fix prevents new self-referential rows on next ingestion.
 
 ### Tests Run
 - `npm.cmd run typecheck` - PASS
@@ -1592,7 +1725,7 @@ This serves as a belt-and-suspenders defence: even if a blank-asset FMP row slip
 Completed.
 
 ---
-## 2026-06-18 - Fix ETF holdings refresh batch ordering — sort by holdings date
+## 2026-06-18 - Fix ETF holdings refresh batch ordering â€” sort by holdings date
 
 ### Source
 Claude (direct)
@@ -1607,9 +1740,9 @@ Fix the ETF look-through refresh job so each batch of 50 ETFs advances through t
 - `docs/implementation-log.md`
 
 ### Summary
-Root cause: `getLatestExposureDateForEtf()` queries `etf_sector_exposures`. After full sector backfill (169/169), every ETF had sector date = "2026-06-18". All 169 passed the stale cutoff check and the first 50 alphabetically were selected every pass — no progress on ETFs missing holdings data.
+Root cause: `getLatestExposureDateForEtf()` queries `etf_sector_exposures`. After full sector backfill (169/169), every ETF had sector date = "2026-06-18". All 169 passed the stale cutoff check and the first 50 alphabetically were selected every pass â€” no progress on ETFs missing holdings data.
 
-Fix: added `getLatestHoldingsDateForEtf()` to `EtfExposureRepository` interface and `SupabaseEtfExposureRepository`, querying `etf_top_holdings` for the latest `as_of_date` per ETF. Changed `EtfLookthroughRefreshService.refresh()` to collect all eligible ETFs first, then sort by `holdingsLatest` ascending (nulls first — ETFs with no holdings data are prioritised), then slice to `maxEtfsPerRun`. Each pass now reliably covers the 50 ETFs furthest from holdings coverage.
+Fix: added `getLatestHoldingsDateForEtf()` to `EtfExposureRepository` interface and `SupabaseEtfExposureRepository`, querying `etf_top_holdings` for the latest `as_of_date` per ETF. Changed `EtfLookthroughRefreshService.refresh()` to collect all eligible ETFs first, then sort by `holdingsLatest` ascending (nulls first â€” ETFs with no holdings data are prioritised), then slice to `maxEtfsPerRun`. Each pass now reliably covers the 50 ETFs furthest from holdings coverage.
 
 ### Tests Run
 - `npm.cmd run typecheck` - PASS
@@ -1621,7 +1754,7 @@ Fix: added `getLatestHoldingsDateForEtf()` to `EtfExposureRepository` interface 
 Completed.
 
 ### Notes for Claude
-- `getLatestExposureDateForEtf()` remains in place and is still used for the stale cutoff check. It is not replaced — the holdings date is only used for priority ordering within the eligible set.
+- `getLatestExposureDateForEtf()` remains in place and is still used for the stale cutoff check. It is not replaced â€” the holdings date is only used for priority ordering within the eligible set.
 
 ---
 ## 2026-06-18 - Fix FMP weightPercentage normalisation (100x weight overstatement)
@@ -1637,7 +1770,7 @@ Fix ETF holdings weights being stored at 100x their correct value for holdings b
 - `docs/implementation-log.md`
 
 ### Summary
-Root cause: FMP's `weightPercentage` field is always on a 0–100 scale (e.g. 7.89 = 7.89%, 0.93 = 0.93%). The existing `normalizeWeight()` function uses a heuristic: `value > 1 ? value / 100 : value`. For holdings below 1%, `weightPercentage` is less than 1 (e.g. 0.93 for XOM at ~0.93%), so `normalizeWeight` treated it as an already-normalised fraction and stored 0.93 (93%) instead of 0.0093 (0.93%). This caused a 100x overstatement for all holdings below 1%.
+Root cause: FMP's `weightPercentage` field is always on a 0â€“100 scale (e.g. 7.89 = 7.89%, 0.93 = 0.93%). The existing `normalizeWeight()` function uses a heuristic: `value > 1 ? value / 100 : value`. For holdings below 1%, `weightPercentage` is less than 1 (e.g. 0.93 for XOM at ~0.93%), so `normalizeWeight` treated it as an already-normalised fraction and stored 0.93 (93%) instead of 0.0093 (0.93%). This caused a 100x overstatement for all holdings below 1%.
 
 Fix: added a `normalizePercentage()` function that always divides by 100, bypassing the `> 1` heuristic. Used `normalizePercentage` specifically for the `weightPercentage` field across holdings, sector, and country exposure ingestion. The generic `normalizeWeight` heuristic is retained for other weight fields (`weight`, `percentage`, `assetPercentage`, `value`) as a fallback.
 
@@ -1649,7 +1782,7 @@ function normalizePercentage(value: number | null) {
 ```
 
 ### Manual follow-up
-After deploying this fix, all 169 ETFs were re-refreshed from the admin panel to replace incorrect weight data. `sync_etf_holding_security_ids()` was re-run to restore `holding_security_id` mappings on the fresh rows (upsert resets `holding_security_id` to null on conflict). Confirmed via cross-check: NVDA weight in VOO = 7.89% (raw from FMP), stored = 0.07899, portfolio review indirect = 30.62% × 7.89% = 2.42% — matches report.
+After deploying this fix, all 169 ETFs were re-refreshed from the admin panel to replace incorrect weight data. `sync_etf_holding_security_ids()` was re-run to restore `holding_security_id` mappings on the fresh rows (upsert resets `holding_security_id` to null on conflict). Confirmed via cross-check: NVDA weight in VOO = 7.89% (raw from FMP), stored = 0.07899, portfolio review indirect = 30.62% Ã— 7.89% = 2.42% â€” matches report.
 
 ### Tests Run
 - `npm.cmd run typecheck` - PASS
@@ -1661,7 +1794,7 @@ After deploying this fix, all 169 ETFs were re-refreshed from the admin panel to
 Completed.
 
 ### Notes for Claude
-- `normalizeWeight` must not be used for FMP `weightPercentage`. The `> 1` heuristic is only valid for weight fields that may be expressed in either 0–1 or 0–100 scale depending on the provider. FMP `weightPercentage` is always 0–100.
+- `normalizeWeight` must not be used for FMP `weightPercentage`. The `> 1` heuristic is only valid for weight fields that may be expressed in either 0â€“1 or 0â€“100 scale depending on the provider. FMP `weightPercentage` is always 0â€“100.
 - Sector and country exposure weights from FMP also use `weightPercentage` and are now correctly normalised.
 
 ---
@@ -1698,38 +1831,38 @@ const linkResults = await Promise.all(chunks(ids).map(async (chunk) => { ... }))
 Completed.
 
 ### Notes for Claude
-- Supabase `.in()` uses GET requests with URL-encoded parameters. Any `.in()` query on UUIDs should be chunked if the ID list can exceed ~150 entries. The Cloudflare URL limit is ~8KB; a UUID is 36 characters, so 150 UUIDs ≈ 5.4KB including encoding.
+- Supabase `.in()` uses GET requests with URL-encoded parameters. Any `.in()` query on UUIDs should be chunked if the ID list can exceed ~150 entries. The Cloudflare URL limit is ~8KB; a UUID is 36 characters, so 150 UUIDs â‰ˆ 5.4KB including encoding.
 - The chunk size of 150 was chosen conservatively. It can be increased to 200 if needed, but 150 avoids the limit with margin.
 
 ---
 ## 2026-06-18 - Security Master backfill and issuer sync for ETF holdings
 
 ### Source
-Claude (direct — SQL editor operations)
+Claude (direct â€” SQL editor operations)
 
 ### Objective
 Map `etf_top_holdings` symbols to `securities_master` entries and create issuer links for company-level portfolio look-through rollup.
 
 ### Files Changed
-- Supabase database (SQL editor operations — no migration file)
+- Supabase database (SQL editor operations â€” no migration file)
 - `docs/implementation-log.md`
 
 ### Summary
 After 169 ETF holdings refresh, 13,626 holding rows existed with `holding_security_id = null` (unmapped). The following operations were run in the Supabase SQL editor:
 
-**Step 1 — Create stubs for new holding symbols:**
+**Step 1 â€” Create stubs for new holding symbols:**
 ```sql
 SELECT * FROM public.backfill_etf_holding_stubs();
 ```
 Created 3,810 `is_internal_only` stubs in `securities_master` for holding symbols not in the selectable universe. Stubs use `identifier_quality_score = 40` and `source_priority = ["etf_holding_stub"]`.
 
-**Step 2 — Stamp security IDs onto holding rows:**
+**Step 2 â€” Stamp security IDs onto holding rows:**
 ```sql
 SELECT * FROM public.sync_etf_holding_security_ids();
 ```
 Result: 13,563 mapped, 63 unmapped, 16 ambiguous. Unmapped/ambiguous are non-material (obscure tickers, non-equity instruments).
 
-**Step 3 — Create issuers and issuer links:**
+**Step 3 â€” Create issuers and issuer links:**
 ```sql
 SELECT * FROM public.sync_security_issuer_links();
 ```
@@ -1740,7 +1873,7 @@ Completed. ETF holdings mapped: 13,563 / 13,626 (99.5%). Company-level look-thro
 
 ### Notes for Claude
 - 63 unmapped and 16 ambiguous holdings remain. These are mostly obscure tickers or non-equity instruments with no FMP profile. Not material for portfolio review accuracy.
-- `sync_security_issuer_links()` is idempotent — safe to re-run after any stub creation or canonical_name update.
+- `sync_security_issuer_links()` is idempotent â€” safe to re-run after any stub creation or canonical_name update.
 - `backfill_etf_holding_stubs()` is also idempotent via `ON CONFLICT DO NOTHING`.
 
 ---
@@ -1916,22 +2049,22 @@ Claude (direct)
 Fix three operational bugs discovered during ETF look-through backfill and close the remaining coverage gap to 169/169 across all exposure types.
 
 ### Files Changed
-- `src/infrastructure/providers/etf/FmpEtfExposureProvider.ts` — deduplicate holdings by symbol before sort/slice (ON CONFLICT fix)
-- `src/application/services/etfLookthrough/EtfLookthroughRefreshService.ts` — collect all eligible ETFs before slicing, sort nulls-first then oldest-date-first so refreshes always progress rather than repeating the same first-50 alphabetically
-- `src/app/(dashboard)/admin/data-sources/page.tsx` — add `force=true` hidden input to ETF refresh form; add "Clear ETF exposure data" destructive button
-- `src/application/ports/repositories/EtfExposureRepository.ts` — add `clearAllExposures(): Promise<void>` to interface
-- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts` — implement `clearAllExposures()` (deletes all 4 ETF exposure tables); fix PostgREST 1000-row cap in all four `listLatest*` methods by replacing single `limit(5000)` queries with paginated `fetchAllExposureRows` helper using `.range()`
-- `src/server/actions/portfolioReviewActions.ts` — add `clearEtfLookthroughExposureAction` server action
-- `src/infrastructure/providers/etf/seededEtfSectorFallback.ts` — new file: seeded single-sector fallback for IYW, VCR, JXI, VOX, PXE
+- `src/infrastructure/providers/etf/FmpEtfExposureProvider.ts` â€” deduplicate holdings by symbol before sort/slice (ON CONFLICT fix)
+- `src/application/services/etfLookthrough/EtfLookthroughRefreshService.ts` â€” collect all eligible ETFs before slicing, sort nulls-first then oldest-date-first so refreshes always progress rather than repeating the same first-50 alphabetically
+- `src/app/(dashboard)/admin/data-sources/page.tsx` â€” add `force=true` hidden input to ETF refresh form; add "Clear ETF exposure data" destructive button
+- `src/application/ports/repositories/EtfExposureRepository.ts` â€” add `clearAllExposures(): Promise<void>` to interface
+- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts` â€” implement `clearAllExposures()` (deletes all 4 ETF exposure tables); fix PostgREST 1000-row cap in all four `listLatest*` methods by replacing single `limit(5000)` queries with paginated `fetchAllExposureRows` helper using `.range()`
+- `src/server/actions/portfolioReviewActions.ts` â€” add `clearEtfLookthroughExposureAction` server action
+- `src/infrastructure/providers/etf/seededEtfSectorFallback.ts` â€” new file: seeded single-sector fallback for IYW, VCR, JXI, VOX, PXE
 - `docs/implementation-log.md`
 
 ### Summary
 - **ON CONFLICT fix:** FMP returns duplicate `holdingSymbol` entries for the same ETF in some cases. Deduplicated via Map (keep highest weight) before sort/slice to prevent upsert conflict errors.
-- **Refresh ordering fix:** With `force=true`, the old early-break loop always selected the first 50 alphabetically on every pass. Changed to collect all eligible, sort by `latest` date ascending (nulls first), then slice — each pass now processes the 50 ETFs furthest from coverage.
+- **Refresh ordering fix:** With `force=true`, the old early-break loop always selected the first 50 alphabetically on every pass. Changed to collect all eligible, sort by `latest` date ascending (nulls first), then slice â€” each pass now processes the 50 ETFs furthest from coverage.
 - **Force=true button fix:** The ETF refresh admin button was missing the `force` hidden input, so it defaulted to false and skipped already-covered ETFs.
 - **Clear ETF exposure data button:** New destructive admin button triggers `clearAllExposures()` across all 4 ETF exposure tables for a clean backfill reset without affecting the refresh button's incremental behaviour.
 - **PostgREST 1000-row cap fix:** `etf_sector_exposures` grew to 1,253 rows. PostgREST's `db-max-rows` cap silently truncated `listLatestSectorExposures` to 1,000 rows, causing 33 ETFs to appear as "missing sector" in the coverage UI despite having data in the DB. Same bug class as `f447bde`. Fixed by paginating all four `listLatest*` methods using `.range()` in a loop until all rows are returned.
-- **Seeded sector fallback:** Direct FMP testing confirmed IYW, VCR, JXI, VOX, and PXE return `[]` from `/etf/sector-weightings` — a data gap in FMP's database (all five do have country and holdings data). All five are pure-play single-sector ETFs; added a seeded 100% weight fallback matching their known sector. Coverage reached 169/169 after backfill.
+- **Seeded sector fallback:** Direct FMP testing confirmed IYW, VCR, JXI, VOX, and PXE return `[]` from `/etf/sector-weightings` â€” a data gap in FMP's database (all five do have country and holdings data). All five are pure-play single-sector ETFs; added a seeded 100% weight fallback matching their known sector. Coverage reached 169/169 after backfill.
 
 ### Tests Run
 - `npm run typecheck` - PASS
@@ -2329,7 +2462,7 @@ Completed.
 Claude Code
 
 ### Objective
-Cache the `getDashboardSummary()` call that was the last uncached DB hit on the market-vision page (~700–760ms on every warm request).
+Cache the `getDashboardSummary()` call that was the last uncached DB hit on the market-vision page (~700â€“760ms on every warm request).
 
 ### Files Changed
 - `src/app/(dashboard)/market-vision/page.tsx`
@@ -2341,13 +2474,13 @@ Cache the `getDashboardSummary()` call that was the last uncached DB hit on the 
 - `MacroContextSection` now receives the pre-fetched cached summary instead of issuing a live DB call on each render.
 
 ### Tests Run
-- `npm.cmd run lint` — PASS.
-- `npm.cmd run typecheck` — PASS.
-- `npm.cmd run test` — PASS (268/268).
-- `npm.cmd run build` — PASS.
+- `npm.cmd run lint` â€” PASS.
+- `npm.cmd run typecheck` â€” PASS.
+- `npm.cmd run test` â€” PASS (268/268).
+- `npm.cmd run build` â€” PASS.
 
 ### Result
-Completed. Market-vision macro-context-data warm timing: 700–760ms → ~12ms.
+Completed. Market-vision macro-context-data warm timing: 700â€“760ms â†’ ~12ms.
 
 ---
 ## 2026-06-17 - Shared-data page caching with tag-based invalidation
@@ -2643,7 +2776,7 @@ Fix three middleware bugs discovered during Task 3 + Task 10 browser QA: alpha m
 - `docs/SECURITY_AND_ACCESS_ARCHITECTURE.md`
 
 ### Summary
-- Added `isAssetRequest` guard in `src/middleware.ts` to skip the alpha mode check for any request starting with `/_next` or matching a file extension. Vercel's image optimization service makes a server-side HTTP fetch of the source image (`/brand/etfvision-light-lockup.png`) which went through the middleware and was blocked by the alpha mode check — the browser-level `_next/image` exclusion is not sufficient because of this internal fetch.
+- Added `isAssetRequest` guard in `src/middleware.ts` to skip the alpha mode check for any request starting with `/_next` or matching a file extension. Vercel's image optimization service makes a server-side HTTP fetch of the source image (`/brand/etfvision-light-lockup.png`) which went through the middleware and was blocked by the alpha mode check â€” the browser-level `_next/image` exclusion is not sufficient because of this internal fetch.
 - Added `"/_next"` and `"/brand"` to `alphaAllowedPrefixes` in `src/config/productMode.ts` as belt-and-suspenders coverage.
 - Three commits: `9e7de98`, `bb9ea0b`, `743cf20`.
 
@@ -2981,7 +3114,7 @@ Completed.
 
 ### Notes for Claude
 - Admin pages still run their own `requireAdmin()` in the nested admin layout for route-level defense-in-depth.
-## 2026-06-16 â€” Admin Authorization Layer
+## 2026-06-16 Ã¢â‚¬â€ Admin Authorization Layer
 
 ### Source
 Claude Code
@@ -3028,11 +3161,11 @@ Add an environment-allowlist admin authorization layer so only designated admins
 - Left `/api/jobs/*` routes unchanged; they continue to use `CRON_SECRET`.
 
 ### Tests Run
-- `npm.cmd run typecheck` â€” PASS
-- `node --test .test-build\\tests\\admin-access.test.js` â€” PASS, 7 tests
-- `npm.cmd run lint` â€” PASS
-- `npm.cmd run build` â€” PASS
-- `npm.cmd test` â€” PARTIAL: new admin-access tests passed, but the existing Portfolio Review test `improvement suggestions map concentration issues to diversifying candidates` failed because it expects `/regulated demand exposure/` while the current app text is `Provides exposure to regulated demand that can behave differently from growth equities.`
+- `npm.cmd run typecheck` Ã¢â‚¬â€ PASS
+- `node --test .test-build\\tests\\admin-access.test.js` Ã¢â‚¬â€ PASS, 7 tests
+- `npm.cmd run lint` Ã¢â‚¬â€ PASS
+- `npm.cmd run build` Ã¢â‚¬â€ PASS
+- `npm.cmd test` Ã¢â‚¬â€ PARTIAL: new admin-access tests passed, but the existing Portfolio Review test `improvement suggestions map concentration issues to diversifying candidates` failed because it expects `/regulated demand exposure/` while the current app text is `Provides exposure to regulated demand that can behave differently from growth equities.`
 
 ### Result
 Completed, with one unrelated existing Portfolio Review wording-test follow-up noted.

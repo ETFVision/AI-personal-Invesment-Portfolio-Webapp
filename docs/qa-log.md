@@ -1,6 +1,120 @@
-# QA Log
+﻿# QA Log
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
+
+## 2026-06-21 SGT - Methodology Financial Terms Glossary QA
+
+Scope:
+- Verify the public methodology page includes the new financial terms glossary and still renders formulas correctly.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Financial-statement metrics used in formulas needed plain-English definitions | Fixed; added a Financial terms collapsible table |
+| Overview glossary needed coverage for valuation, margin, leverage, liquidity, return, issuer, beta, bond, and risk-statistic terms | Fixed; added the requested financial terms entries |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Financial terms accordion renders on `/methodology` | PASS |
+| Representative entries for margins, high yield, and covariance render | PASS |
+| Dev-server `/methodology` render still contains KaTeX markup | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Methodology Trend Decision Tree Clarification QA
+
+Scope:
+- Verify the public methodology page trend-direction wording and displayed trend-strength formula are clearer while preserving formula rendering.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Trend Direction inputs note was too high-level for users to understand the label decision tree | Fixed; note now states the deterministic label logic for each trend label |
+| Trend strength display used first-half average notation where the intended displayed comparison is latest vs earliest observation | Fixed; formula now displays `x_latest - x_first` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Public methodology page includes the explicit trend label decision tree | PASS |
+| Trend strength formula renders with `x_first` notation | PASS |
+| Dev-server `/methodology` render contains KaTeX markup after the copy update | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Methodology Presentation Clarifications QA
+
+Scope:
+- Verify the public methodology page readability updates are present and formula rendering remains intact.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Key mathematical notation needed plain-English definitions for non-technical readers | Fixed; added a Notation table under Key terms |
+| Several formula notes used unexplained symbols and abbreviations | Fixed; added variable definitions for fundamentals, trends, Insight Alignment, Diversification, and covariance |
+| Instrument component weight tables explained weights but not what each component measures | Fixed; added a "What it measures" column for each instrument type |
+| Trend classification rules needed clearer direction and strength explanation | Fixed; expanded direction input notes and added a Trend strength formula row |
+| Macro fit and Quality valuation adjustment examples could be read as exhaustive | Fixed; marked both as representative examples |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Public methodology page includes Notation definitions | PASS |
+| Instrument component tables include "What it measures" | PASS |
+| New formula notes appear for Profitability, Valuation, Balance Sheet, Cash Flow, Quality, Trend, Insight Alignment, Diversification, and covariance | PASS |
+| Dev-server `/methodology` render contains KaTeX markup after the copy updates | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Methodology KaTeX Rendering QA
+
+Scope:
+- Verify public methodology formulas render as KaTeX math instead of raw or garbled LaTeX source.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Formula props used JSX string attributes, causing `\\` to reach KaTeX literally | Fixed; `tex` props now use JSX expression strings |
+| Cases-style formulas could show raw source instead of formatted math | Fixed and spot-checked on Bond duration fit |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Weighted composite renders with KaTeX fraction markup | PASS |
+| scoreMargin renders with KaTeX clamp/fraction markup | PASS |
+| Bond duration fit renders as KaTeX cases markup | PASS |
+| Allocation formula renders through KaTeX on the dev-server methodology page | PASS |
+| Covariance formula renders with KaTeX `w^T Sigma w` markup | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
 
 ## 2026-06-21 SGT - Theme Fit Formula Display Correction QA
 
@@ -764,7 +878,7 @@ QA findings addressed:
 | "Gap Analysis" framing could imply a user action to close a gap | Fixed; user-facing section now reads "Portfolio Balance Review" |
 | Generic "Underweighted Category" suffix was stronger than needed for compliance-safe balance framing | Fixed; generic suffix now reads "Lightly Represented Category" |
 | Wrapper-exclusion issuer logic was duplicated across Concentration, Risk, and page display paths | Fixed; shared helper now owns wrapper exclusion, issuer exposure detection, and issuer key generation |
-| Country-count labels used ASCII comparison text and symbol cleanup stripped US share-class suffixes | Fixed; labels use `≥`, foreign exchange suffixes are stripped, and `BRK.B` is preserved |
+| Country-count labels used ASCII comparison text and symbol cleanup stripped US share-class suffixes | Fixed; labels use `â‰¥`, foreign exchange suffixes are stripped, and `BRK.B` is preserved |
 | Curated taxonomy maps lacked a single regression guard across every approved ETF and stock symbol | Fixed; taxonomy test now covers all curated ETF categories and stock sectors |
 
 Checks performed and results:
@@ -943,7 +1057,7 @@ QA findings addressed:
 
 | Finding | Result |
 |---|---|
-| Finding title still referenced Healthcare & Defensive even though the displayed candidates span Utilities, Consumer Staples, and Healthcare | Fixed; service output and page legacy rewrite now use `Defensive Sectors — Underweighted Category` |
+| Finding title still referenced Healthcare & Defensive even though the displayed candidates span Utilities, Consumer Staples, and Healthcare | Fixed; service output and page legacy rewrite now use `Defensive Sectors â€” Underweighted Category` |
 | Narrow healthcare sub-theme ETFs such as XBI, IBB, and ARKG could appear in a defensive-sector finding | Fixed; those symbols are excluded from `insufficient_defensive_exposure` |
 | Narrow or global utilities variants such as FXU/JXI could rank ahead of broad sector sleeve examples | Fixed; broad sleeve examples such as XLU/VPU, XLP/VDC, and XLV/VHT are preferred within the per-sleeve cap |
 | Defensive tooltip category could be too generic for Utilities or Consumer Staples candidates | Fixed; tooltip category is now derived from the candidate's defensive sleeve |
@@ -1378,7 +1492,7 @@ Checks performed and results:
 | Stale `chatgpt-handover.md` reference removed from gap item | PASS |
 
 Residual items:
-- None. Cron cleanliness is based on the 2026-06-16 architecture audit (`price-refresh` confirmed absent from `cron.job`). If a live Supabase SQL console is available, re-run: `SELECT jobname, command FROM cron.job WHERE command LIKE '%price-refresh%';` — expected: only `instrument-price-refresh` rows.
+- None. Cron cleanliness is based on the 2026-06-16 architecture audit (`price-refresh` confirmed absent from `cron.job`). If a live Supabase SQL console is available, re-run: `SELECT jobname, command FROM cron.job WHERE command LIKE '%price-refresh%';` â€” expected: only `instrument-price-refresh` rows.
 
 ## 2026-06-17 SGT - Task 8: Market Vision v3 Regeneration QA
 
@@ -1397,7 +1511,7 @@ Checks performed and results:
 | Duration logged: 51970ms | PASS |
 | Overall confidence: 78% | PASS |
 | All regime scorecard sections populated (Growth, Inflation, Rates, Yield curve, Liquidity, USD, Commodities, Overall) | PASS |
-| Regime transition tracker populated (prior → current comparison) | PASS |
+| Regime transition tracker populated (prior â†’ current comparison) | PASS |
 | Cross-currents section populated | PASS |
 | Evidence confidence scores populated for all sections | PASS |
 | Portfolio macro impact matrix populated | PASS |
@@ -1413,8 +1527,8 @@ Key regime findings (2026-06-08 to 2026-06-14):
 - Inflation: High and sticky (High confidence).
 - Rates: Falling rate support (High confidence).
 - Yield curve: Mixed / normal with conflicting slope signals (High confidence).
-- USD: Strengthening (Medium confidence) — regime shift from prior report (Weakening → Strengthening).
-- Liquidity: Neutral (Medium confidence) — regime shift from prior report (Tightening → Neutral).
+- USD: Strengthening (Medium confidence) â€” regime shift from prior report (Weakening â†’ Strengthening).
+- Liquidity: Neutral (Medium confidence) â€” regime shift from prior report (Tightening â†’ Neutral).
 - Overall market: Mixed constructive with caution (Medium confidence).
 
 Residual items:
@@ -1441,7 +1555,7 @@ Checks performed and results:
 | Portfolio Assistant drawer suppressed in alpha mode | PASS |
 | Portfolio Assistant drawer visible in full mode | PASS |
 | Signup restriction: "Early access only" message shown when `ALLOWED_SIGNUP_EMAILS` is set | PASS |
-| Logo loads in alpha mode | PASS (after middleware fix — see below) |
+| Logo loads in alpha mode | PASS (after middleware fix â€” see below) |
 | Logo loads in full mode | PASS |
 
 Issues found and resolved during QA:
@@ -1455,7 +1569,7 @@ Issues found and resolved during QA:
    - Fix: added `isAssetRequest` guard in `src/middleware.ts` (skips mode check for `/_next*` and paths with file extensions); added `"/_next"` and `"/brand"` to `alphaAllowedPrefixes` in `src/config/productMode.ts`. Three commits: `9e7de98`, `bb9ea0b`, `743cf20`.
 
 3. Market Vision `ReportActions` buttons not visible in full mode (apparent).
-   - Root cause: the `ReportActions` component only shows a Publish button for draft reports and an Archive button for non-archived reports. With two published reports and no drafts, only the Archive button renders. User expected a Publish/Generate button which is correct behaviour — Publish is draft-only.
+   - Root cause: the `ReportActions` component only shows a Publish button for draft reports and an Archive button for non-archived reports. With two published reports and no drafts, only the Archive button renders. User expected a Publish/Generate button which is correct behaviour â€” Publish is draft-only.
    - No code change required.
 
 Residual manual QA:
@@ -3925,7 +4039,7 @@ What changed:
 - Added latest-as-of macro signal lookup to `MacroIndicatorRepository`.
 - Theme Intelligence now uses latest FRED macro theme signals available as of the weekly period end date.
 - Weekly Reconciliation now includes latest FRED macro theme signals as of period end.
-- Gold headlines such as “Gold gains...” are corrected into the Gold / Commodities bucket even when yields are mentioned.
+- Gold headlines such as â€œGold gains...â€ are corrected into the Gold / Commodities bucket even when yields are mentioned.
 
 Validation performed:
 - `npm.cmd run test` passed: 101 tests.
