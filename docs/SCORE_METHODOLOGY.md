@@ -835,8 +835,8 @@ Benchmark relative compares ETF trailing 1-year return to a stable external asse
 
 - `excessReturn = ETF 1Y return - benchmark 1Y return`
 - Excess return is winsorized at `+/- 0.50`.
-- `score = 50 + excessReturn * 200`, clamped to 0-100.
-- Benchmark parity scores 50; about +25 percentage points of annual excess return reaches the top of the scale.
+- `score = 50 + excessReturn * 100`, clamped to 0-100.
+- Benchmark parity scores 50; +25 percentage points of annual excess return scores 75, and about +50 percentage points reaches the top of the scale. This treats +25pp as strong but not the ceiling because concentrated sector and thematic ETFs can exceed broad asset-class benchmarks by 30-50pp in strong years.
 - Missing benchmark snapshots or missing 1-year returns exclude this component from the weighted denominator.
 
 ETF benchmark map:

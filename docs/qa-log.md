@@ -2,6 +2,76 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-21 SGT - ETF Benchmark Relative Scale Re-Anchor QA
+
+Scope:
+- Verify ETF Benchmark Relative SCALE `100` reduces saturation while preserving the external-benchmark design and neutral benchmark-parity behavior.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| SCALE `200` pegged about 18% of ETFs and pushed p90 to 100 | Fixed; SCALE `100` lowers saturation materially |
+| Scale needed an economic anchor rather than distribution fitting | Fixed; +50pp annual excess return is the full-mark anchor, +25pp scores 75, benchmark parity scores 50 |
+| Benchmark mapping and international/EM fairness must remain unchanged | Preserved |
+
+Live validation gate:
+
+| Check | SCALE 200 | SCALE 100 |
+|---|---:|---:|
+| Scored ETF-like instruments | `201` | `196` |
+| Min | `0` | `0` |
+| p10 | `7.0` | `27.8` |
+| p25 | `28.0` | `38.3` |
+| p50 | `47.9` | `48.8` |
+| p75 | `60.2` | `54.7` |
+| p90 | `100.0` | `78.9` |
+| Max | `100.0` | `100.0` |
+| Pegged at bounds | `17.9%` | `6.6%` |
+
+Benchmark 1Y returns used in the SCALE `100` validation pass:
+
+| Benchmark | 1Y Return |
+|---|---:|
+| `sp500` | `25.65%` |
+| `nasdaq100` | `40.58%` |
+| `global_equities` | `27.41%` |
+| `us_aggregate_bonds` | `0.69%` |
+| `gold` | `24.83%` |
+| `developed_ex_us` | `20.94%` |
+| `emerging_markets` | `52.80%` |
+
+International / EM checks:
+
+| Symbol | Category | Benchmark | Score |
+|---|---|---|---:|
+| VWO | `EMERGING_MARKETS` | `emerging_markets` | `25.0` |
+| EEM | `EMERGING_MARKETS` | `emerging_markets` | `50.0` |
+| INDA | `COUNTRY` | `emerging_markets` | `0.0` |
+| VEA | `DEVELOPED_MARKETS` | `developed_ex_us` | `60.5` |
+| EFA | `DEVELOPED_MARKETS` | `developed_ex_us` | `50.0` |
+| EWJ | `COUNTRY` | `developed_ex_us` | `63.2` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Parity scores 50 | PASS |
+| +25pp excess scores 75 | PASS |
+| +50pp excess scores 100 | PASS |
+| -50pp excess scores 0 | PASS |
+| Missing benchmark return remains null | PASS |
+| Benchmark mapping and EM fairness tests unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply benchmark migration and run benchmark-refresh from Admin to populate EFA/EEM benchmark snapshots.
+- Run recommendation-run from Admin after benchmark-refresh.
+- Run Med 29 recalibration QA after live recommendation scores recompute.
+
 ## 2026-06-21 SGT - ETF Benchmark Relative External Benchmark QA
 
 Scope:

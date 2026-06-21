@@ -3,7 +3,7 @@ import type { RecommendationRulesService, ScoreComponent } from "./Recommendatio
 import type { EtfCategory } from "@/domain/universe/alphaUniverse";
 import type { Instrument } from "@/domain/universe/types";
 
-const BENCHMARK_RELATIVE_SCALE = 200;
+const BENCHMARK_RELATIVE_SCALE = 100;
 const BENCHMARK_EXCESS_RETURN_LIMIT = 0.50;
 
 const SP500_ETF_CATEGORIES = new Set<EtfCategory>([

@@ -1,3 +1,45 @@
+## 2026-06-21 - ETF Benchmark Relative Scale Re-Anchor
+
+### Source
+Claude Code
+
+### Objective
+Re-anchor ETF Benchmark Relative from SCALE `200` to SCALE `100` so the component no longer saturates under current ETF return dispersion while keeping the same external-benchmark structure.
+
+### Files Changed
+- `src/application/services/recommendations/EtfRecommendationService.ts`
+- `tests/recommendations.test.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `src/app/methodology/page.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Changed `BENCHMARK_RELATIVE_SCALE` from `200` to `100`.
+- Kept the existing `+/-0.50` excess-return winsorization and all benchmark mapping logic unchanged.
+- Updated unit expectations: parity scores 50, +25pp excess scores 75, +50pp excess scores 100, -50pp excess scores 0, and missing benchmark data returns null.
+- Updated methodology documentation and the public methodology page to explain that +50pp annual excess is the full-mark anchor because concentrated sector/thematic ETFs can exceed broad benchmarks by 30-50pp in strong years.
+
+### Validation Gate
+- Re-ran the live universe pass using benchmark instrument proxies where benchmark snapshot 1Y history is not yet populated.
+- Benchmark Relative distribution over 196 scored ETF-like instruments: min `0`, p10 `27.8`, p25 `38.3`, p50 `48.8`, p75 `54.7`, p90 `78.9`, max `100`, pegged `6.6%`.
+- Compared with SCALE `200`, pegged-at-bounds fell from `17.9%` to `6.6%`, while the median stayed close to neutral.
+- International/EM checks remain fair: VWO, EEM, and INDA map to `emerging_markets`; VEA, EFA, and EWJ map to `developed_ex_us`.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (330/330)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Scale is now frozen at `100`; no structural scoring, benchmark map, label, guardrail, feature-flag, access-control, or advisory-language change was made.
+- After deploy, run benchmark-refresh from Admin to backfill EFA/EEM benchmark snapshots, then run recommendation-run from Admin. Med 29 recalibration QA should follow.
+- Current live benchmark snapshots lacked full 1Y history for several benchmarks, so validation used benchmark-symbol instrument market metrics as pre-backfill proxies where needed.
+
 ## 2026-06-21 - ETF Benchmark Relative External Benchmark Scoring
 
 ### Source

@@ -614,10 +614,10 @@ test("ETF, bond, gold and crypto services return deterministic labels", () => {
 
 test("ETF benchmark relative scores excess return against mapped external benchmark", () => {
   assert.equal(scoreBenchmarkRelative(0.20, 0.20), 50);
-  assert.equal(scoreBenchmarkRelative(0.30, 0.20), 70);
-  assert.equal(scoreBenchmarkRelative(0.10, 0.20), 30);
-  assert.equal(scoreBenchmarkRelative(0.60, 0.00), 100);
-  assert.equal(scoreBenchmarkRelative(-0.60, 0.00), 0);
+  assert.equal(scoreBenchmarkRelative(0.45, 0.20), 75);
+  assert.equal(scoreBenchmarkRelative(-0.05, 0.20), 25);
+  assert.equal(scoreBenchmarkRelative(0.50, 0.00), 100);
+  assert.equal(scoreBenchmarkRelative(-0.50, 0.00), 0);
   assert.equal(scoreBenchmarkRelative(0.20, null), null);
 
   const service = new EtfRecommendationService(rules);
@@ -643,8 +643,8 @@ test("ETF benchmark relative scores excess return against mapped external benchm
   const beatComponent = beat.scoringBreakdown.components as Array<{ key: string; score: number | null }>;
   const lagComponent = lag.scoringBreakdown.components as Array<{ key: string; score: number | null }>;
   const missingComponent = missing.scoringBreakdown.components as Array<{ key: string; score: number | null }>;
-  assert.equal(beatComponent.find((component) => component.key === "benchmark_relative")?.score, 70);
-  assert.equal(lagComponent.find((component) => component.key === "benchmark_relative")?.score, 30);
+  assert.equal(beatComponent.find((component) => component.key === "benchmark_relative")?.score, 60);
+  assert.equal(lagComponent.find((component) => component.key === "benchmark_relative")?.score, 40);
   assert.equal(missingComponent.find((component) => component.key === "benchmark_relative")?.score, null);
 });
 
