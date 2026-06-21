@@ -78,7 +78,9 @@ through-cycle (#1) and growth-anchor (#2b) work is NO LONGER NEEDED.** Remaining
 - **Risk-cap softening (finding #3) — the clear residual.** High-BQ names still capped to Weak: ASML (Exceptional
   →Weak 67), ANET (Exceptional→Weak 68), AMD/QCOM/PYPL (Strong→Weak). Fix = cap severity scales with BQ
   (Strong/Exceptional → Neutral, not Weak). NOW THE TOP CALIBRATION ITEM.
-- **roicDurability level→consistency** — orthogonality fix (Quality↔Profitability 0.573→<0.4); spec written below.
+- **roicDurability level→consistency — ✅ DONE (commit `525db54`).** WACC-gated ROIC consistency restored
+  Quality↔Profitability to **0.380** (<0.4); Cash Flow 0.008, Balance Sheet −0.181. #5 orthogonality holds with
+  all four Quality signals live on the annual basis.
 By-design (NOT bugs): V/MA/AVGO Exceptional-BQ but Neutral/Good Characteristics (Premium valuation) — the
 valuation-aware Characteristics working correctly.
 
