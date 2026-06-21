@@ -214,6 +214,18 @@ All of the above are headline-stock-score changes → one deliberate, validated 
 distribution as a SANITY CHECK not a target; frozen economic anchors), documented in Spec 2, with Med 29
 recalibration QA. **Not yet specced — diagnosis only.**
 
+### WATCH (not fix) — profitability margin-vs-returns balance for low-margin elites
+The Business Quality profitability sub-score leans on **margins** (gross + operating + net = 3 of 6 inputs), so
+elite **low-margin / high-turnover / high-ROIC** business models — **COST, WMT**, partly **AMZN** — get a notch
+under-credited (e.g. COST "Solid" despite best-in-class quality) because their margins are structurally thin
+even though returns on capital are excellent. **Mild and debatable — NOT a clear bug** (margins are a legitimate
+quality signal, few names affected). Do NOT act now. *Only* if elite low-margin retailers consistently look
+under-rated across future runs, the principled refinement is to **rebalance profitability slightly toward
+returns-on-capital (ROE/ROIC) vs margins** — a real methodology change (moves many scores) requiring the same
+validated-pass discipline, not a casual nudge. Same structural family as the cyclical issue, not universe-fitting.
+(AMZN and UNH themselves reviewed 2026-06-21 = reasonable; UNH "Weak" is the engine correctly flagging a
+genuinely troubled name + a justified downside-risk cap, and the BQ-scaled cap correctly did NOT rescue it.)
+
 ### Also open / housekeeping
 - Cosmetic carry-along: exec-summary pluralization ("1 watch areas" → "1 watch area") — see [[portfolio-review-exec-summary-pluralization]].
 - The `7ab03cd` "noop" commit message is a cosmetic mislabel (content correct); branch protection blocked the relabel — leave it.
