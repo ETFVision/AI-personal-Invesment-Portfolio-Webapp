@@ -86,7 +86,17 @@ named stocks are symptoms). Confirmed via live `fundamental_scores` sub-scores:
 3. **Valuation floors for asset-light / high-margin businesses** — P/S and P/B penalize them structurally
    (V valuation_score 5.4 / MA 3.3 / ASML 1.3). Affects Characteristics, not BQ. *Fix: yield-led valuation mix;
    soften P/B for asset-light.*
-4. **ASML cash_flow_score = 2.5 = likely DATA bug** (ASML is highly cash-generative) — spawned as its own task.
+4. **SYSTEMIC PERIOD-SELECTION BUG (do this FIRST — supersedes the ASML cash-flow item).**
+   `latestRatio` (`FundamentalScoringService.ts:259`) and `latestStatement` (`:109`) ignore `period` and pick
+   the **latest QUARTER**, so growth (25%), profitability (25%), cash-flow (20%) — and valuation — are all
+   judged on one quarter instead of annual/TTM. ASML cash_flow_score 2.5 was the visible symptom (negative
+   seasonal Q1 FCF); confirmed systemic — all 104 stocks scored on one quarter, ~18 non-financials floored by a
+   negative latest-quarter FCF despite strong annual FCF (ASML/AMZN/WMT/CVX/F/PEP/LMT/HON/NOC/NEE/…). **Fix =
+   annual/TTM selection for flow metrics (+ verify valuation field basis: TTM vs single-quarter); no anchor/
+   weight changes; no re-fetch.** This likely **subsumes much of findings #1 and #2b** — so: fix period →
+   force-refresh + recommendation-run → **re-run the calibration diagnosis** → THEN decide whether through-cycle
+   (#1) and growth-anchor (#2b) work is still needed. Expanded Codex prompt written (in chat). Do NOT do anchor
+   recalibration before this lands. *(Narrow ASML-only task `task_b9db6375` is superseded by this expanded fix.)*
 
 Also: **risk-cap softening** (separate, Characteristics-level) — cap severity should scale with BQ
 (Strong/Exceptional → Neutral, not Weak); fixes ANET/MU (Exceptional capped to Weak). Root cause is the
