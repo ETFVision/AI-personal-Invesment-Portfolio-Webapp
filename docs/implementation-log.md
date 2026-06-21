@@ -1,3 +1,74 @@
+## 2026-06-21 - Theme Fit Formula Display Correction
+
+### Source
+Claude Code
+
+### Objective
+Correct the public methodology Theme fit formula display and add the "How scores work" section to the methodology table of contents.
+
+### Files Changed
+- `src/app/methodology/page.tsx`
+- `docs/SCORE_METHODOLOGY.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Corrected the rendered Theme fit formula to show a single +5 bonus when AI / Automation, Quality, or Global Diversification is present.
+- Updated the formula note so it no longer implies separate +5 bonuses for all three positive theme tags.
+- Added the "How scores work" section to the methodology page table of contents.
+- Mirrored the single-bonus wording in `docs/SCORE_METHODOLOGY.md`.
+- No scoring code, weights, formulas, anchors, feature flags, access controls, or schema changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (330/330)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Docs/page-only correction; engine behavior was already correct.
+
+## 2026-06-21 - Methodology Page Comprehension and Math Rendering
+
+### Source
+Claude Code
+
+### Objective
+Improve the public methodology page with comprehension layers, server-rendered formula math, Portfolio Balance Review naming, and Market Vision provenance disclosure without changing any scoring code or numeric methodology.
+
+### Files Changed
+- `src/app/methodology/page.tsx`
+- `docs/SCORE_METHODOLOGY.md`
+- `package.json`
+- `package-lock.json`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added a collapsible Key Terms glossary and a plain-language "How ETFVision scores work" explanation after the Overview.
+- Added one-line "what this tells you" section descriptions across the methodology page.
+- Added a Quality vs Business Quality clarification under the Business Quality table.
+- Added KaTeX and server-rendered formula helpers, then converted collapsed calculation/formula sections to show a plain-English line plus rendered math.
+- Renamed the public page's Gap Analysis section to Portfolio Balance Review and mirrored Portfolio Balance Review terminology in `SCORE_METHODOLOGY.md`.
+- Added Market Vision provenance / AI-assistance disclosure to the page and score methodology document.
+- No scoring code, formulas, weights, anchors, feature flags, access controls, or database schema changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (330/330)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- KaTeX is rendered at build time in the static methodology page with `strict: false` to avoid non-blocking display-line warnings.
+- Formula text was transcribed for presentation only; numerical constants and operations were not intentionally changed.
+
 ## 2026-06-21 - Benchmark Disclosure and Methodology Map Cleanup
 
 ### Source

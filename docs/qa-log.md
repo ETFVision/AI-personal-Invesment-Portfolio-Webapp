@@ -2,6 +2,66 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-21 SGT - Theme Fit Formula Display Correction QA
+
+Scope:
+- Verify the public methodology Theme fit formula matches engine behavior and the new "How scores work" section is reachable from the TOC.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Theme fit formula display implied separate +5 bonuses for AI / Automation, Quality, and Global Diversification | Fixed; rendered formula now uses one indicator bonus for `A or Q or G` |
+| Theme fit note did not clarify the +5 applies once | Fixed |
+| "How ETFVision scores work" section existed but was missing from the TOC | Fixed |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Page formula uses single `5 * 1(A or Q or G)` style bonus | PASS |
+| `SCORE_METHODOLOGY.md` mirrors single-bonus wording | PASS |
+| Methodology TOC includes `#how-scores-fit` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Methodology Page Comprehension and Math Rendering QA
+
+Scope:
+- Verify the public methodology page is easier to understand, renders formulas with KaTeX, and uses Portfolio Balance Review / Market Vision provenance wording without changing scoring logic.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Methodology page lacked a plain-English glossary for technical scoring terms | Fixed; added collapsible Key Terms block after Overview |
+| Users needed a clearer explanation of how instrument and portfolio scores relate | Fixed; added "How ETFVision scores work" two-report-card explanation |
+| Formula sections were dense text only | Fixed; collapsed formula sections now show plain-English context plus server-rendered KaTeX math |
+| Quality sub-score could be confused with Business Quality component | Fixed; added explicit clarification under Business Quality |
+| Page still used Gap Analysis naming | Fixed; renamed public section and TOC entry to Portfolio Balance Review |
+| Market Vision provenance and AI-assistance boundary needed clearer disclosure | Fixed; added page and score-methodology wording |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| KaTeX package installed and formula helper renders at build time | PASS |
+| Portfolio Balance Review wording present on page and score methodology doc | PASS |
+| Market Vision provenance wording present on page and score methodology doc | PASS |
+| No scoring code, weights, anchors, feature flags, access controls, or schema changed | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
 ## 2026-06-21 SGT - Benchmark Disclosure and Methodology Map Cleanup QA
 
 Scope:

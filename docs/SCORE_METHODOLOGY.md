@@ -783,7 +783,7 @@ Recommendation risk score:
 Theme fit:
 
 - Starts at 55 + 5 per theme, capped at +20.
-- +5 if theme includes AI / Automation, Quality, or Global Diversification.
+- Adds a single +5 if theme includes any of AI / Automation, Quality, or Global Diversification.
 - -5 if theme includes High Beta.
 
 Macro fit:
@@ -800,12 +800,13 @@ Market Vision alignment:
 - +5 for supportive/tailwind language.
 - -5 for risk/headwind/stress/caution language.
 - Asset-specific macro term bonuses apply to bonds, gold, and crypto.
+- Market Vision reports are generated weekly from macroeconomic (FRED) regime data and news and theme intelligence, and may be produced with AI assistance. They provide analytical context only, not a forecast, outlook, or CIO opinion.
 
 Portfolio fit:
 
 - Portfolio fit is retained as a standalone diagnostic service outside the stored recommendation scoring pipeline.
 - It is not included in Characteristics Score weights, stored recommendation inputs, score snapshots, or current recommendation run calculations.
-- Portfolio-specific analysis belongs in Portfolio Review scores, gap analysis, and exposure diagnostics, not in universal instrument Characteristics Scores.
+- Portfolio-specific analysis belongs in Portfolio Review scores, Portfolio Balance Review, and exposure diagnostics, not in universal instrument Characteristics Scores.
 
 ### Type-Specific Recommendation Weights
 
@@ -995,6 +996,12 @@ Geography:
 `86 - max(0, usWeight - 0.70) * 80 - max(0, 0.12 - internationalWeight) * 120`
 
 Geography currently has 0% overall weight but is still shown as a diagnostic section.
+
+### Portfolio Balance Review
+
+Portfolio Balance Review is the deterministic screener behind the Portfolio Review page's "Portfolio Balance Review" and "Portfolio Balance Summary" cards. It checks portfolio look-through exposure against a fixed set of category triggers, including low fixed-income, low international exposure, sector/defensive concentration, low real-estate exposure, elevated crypto risk, single-issuer concentration, macro vulnerability, and low inflation hedge.
+
+A finding appears only when a trigger's threshold is met. Where a finding lists example instruments, they appear only if the category is lightly represented, the instrument is in the active approved universe, and it has passed all guardrail filters. Findings and example instruments are mechanical screens, not suggestions to buy, sell, or hold.
 
 ## Limitations / Disclosures
 
