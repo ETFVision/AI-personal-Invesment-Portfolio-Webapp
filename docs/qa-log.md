@@ -2,6 +2,63 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-21 SGT - ROIC Durability Consistency Signal QA
+
+Scope:
+- Verify the Fundamentals Quality `roicDurability` signal measures consistency of value-creating ROIC over time rather than average ROIC level.
+- Confirm the annual-basis Quality vs Profitability correlation returns below the `< ~0.4` orthogonality target.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Annual-basis Quality and Profitability re-coupled because both used ROIC level | Fixed; Quality now uses ROIC consistency after a cost-of-capital gate, while Profitability keeps ROIC level |
+| ROIC durability needed frozen economic anchors rather than per-refresh refitting | Fixed; at least three annual ROIC observations are required, average ROIC below 8% scores 10, otherwise ROIC coefficient of variation uses `scoreLowerBetter(0.15, 0.60)` |
+| Balance-sheet financial exclusions needed to remain in place | Preserved; balance-sheet financials still drop cash conversion and ROIC durability from the Quality denominator |
+
+Live validation:
+
+| Check | Result |
+|---|---|
+| Formulation used | Recommended WACC-gated ROIC consistency; pure-CoV fallback not needed |
+| Previous annual-basis Quality correlation vs Profitability | `0.573` |
+| New Quality correlation vs Profitability | `0.380` over 94 comparable active-stock rows |
+| New Quality correlation vs Cash Flow | `0.008` over 94 comparable active-stock rows |
+| New Quality correlation vs Balance Sheet | `-0.181` over 94 comparable active-stock rows |
+| Active stocks checked | `105` |
+| Stocks with Quality score | `105` |
+| Stocks with available ROIC durability signal | `94` |
+
+Selected stored-to-new Quality samples:
+
+| Symbol | Stored Quality | New Quality | ROIC durability score | ROIC CoV |
+|---|---:|---:|---:|---:|
+| NVDA | `68.4` | `51.8` | `33.5` | `0.524` |
+| MSFT | `98.1` | `98.1` | `100.0` | `0.070` |
+| V | `99.4` | `98.9` | `97.9` | `0.162` |
+| CVX | `70.5` | `76.3` | `54.6` | `0.406` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Steady high-ROIC fixture scores ROIC durability high | PASS |
+| Volatile ROIC fixture scores below steady high-ROIC fixture | PASS |
+| Sub-WACC ROIC fixture receives low durability score | PASS |
+| Sparse ROIC fixture drops the signal from the denominator | PASS |
+| Financial fixture drops ROIC durability | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (326/326) |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- Fundamentals Quality, Business Quality, and stock Characteristics composites can shift after recomputation. This is expected from a scoring-definition refinement and does not change labels or advice framing.
+
+Residual items:
+- After deploy, run Force refresh fundamentals and recommendation-run from Admin so live scores recompute.
+- Rerun stock calibration diagnosis after recomputation.
+
 ## 2026-06-21 SGT - Annual-Basis Fundamental Scoring Inputs QA
 
 Scope:

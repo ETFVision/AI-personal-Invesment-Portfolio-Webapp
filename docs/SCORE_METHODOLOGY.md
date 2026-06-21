@@ -160,10 +160,10 @@ Quality measures earnings quality and consistency using fixed economic anchors t
 |---|---|---|---|
 | Earnings stability | Coefficient of variation across available operating and net margin observations | `scoreLowerBetter(cv, 0.10, 0.50)` | 30% |
 | Cash conversion / accruals | `operatingCashFlow / netIncome`; fallback: `1 - (netIncome - operatingCashFlow) / totalAssets` | `scoreHigherBetter(ratio, 0.60, 1.10)` | 30% |
-| ROIC durability | Average annual ROIC across available periods | `scoreReturn(roic, 0.06, 0.20)` | 25% |
+| ROIC durability | Persistence and consistency of value-creating ROIC over the latest five annual observations, requiring at least three annual ROIC values | If average ROIC is below the 8% cost-of-capital proxy, the signal scores 10; otherwise `scoreLowerBetter(coefficientOfVariation(roicSeries), 0.15, 0.60)` | 25% |
 | Capital discipline | Year-over-year shares outstanding growth | `scoreLowerBetter(shareGrowth, -0.02, 0.10)` | 15% |
 
-The score is intentionally orthogonal to Profitability, Cash Flow and Balance Sheet sub-scores: those categories measure level and scale; Quality measures stability, conversion, durability and dilution discipline.
+The score is intentionally orthogonal to Profitability, Cash Flow and Balance Sheet sub-scores: those categories measure level and scale; Quality measures stability, conversion, through-time value-creation durability and dilution discipline. ROIC durability is therefore not an average ROIC level; it rewards sustained returns above the cost-of-capital proxy with low variation across annual observations.
 
 For balance-sheet financial instruments, cash conversion / accruals and ROIC durability are excluded from the Quality denominator because those signals overlap with cash-flow and efficiency measures that are not comparable for banks, insurers, and similar balance-sheet financial businesses.
 

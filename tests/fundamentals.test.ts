@@ -475,11 +475,12 @@ function qualityInput(input: {
   margins: number[];
   operatingCashFlow: number;
   netIncome: number;
-  roic: number;
+  roic: number | number[];
   latestShares: number;
   previousShares: number;
 }) {
   const years = [2021, 2022, 2023, 2024, 2025].slice(-input.margins.length);
+  const roicSeries = Array.isArray(input.roic) ? input.roic : input.margins.map(() => input.roic as number);
   const ratios = input.margins.map((margin, index): FinancialRatio => ({
     instrumentId: `inst-${input.symbol}`,
     symbol: input.symbol,
@@ -497,7 +498,7 @@ function qualityInput(input: {
     operatingMargin: margin,
     netMargin: margin,
     roe: null,
-    roic: input.roic,
+    roic: roicSeries[index] ?? null,
     roa: null,
     debtToEquity: null,
     netDebtToEbitda: null,
@@ -550,7 +551,7 @@ test("fundamental quality score rewards stability and cash conversion with froze
     margins: [0.30, 0.31, 0.29, 0.30, 0.30],
     operatingCashFlow: 110,
     netIncome: 100,
-    roic: 0.20,
+    roic: [0.19, 0.20, 0.20, 0.21, 0.20],
     latestShares: 98,
     previousShares: 100
   });
@@ -580,18 +581,72 @@ test("fundamental quality score rewards stability and cash conversion with froze
   assert.ok((strong.signals.earningsStability.score ?? 0) > (volatile.signals.earningsStability.score ?? 0));
 });
 
+test("fundamental quality ROIC durability rewards consistency instead of raw level", () => {
+  const steady = qualityScoreFor({
+    symbol: "STEADY",
+    margins: [0.20, 0.20, 0.20, 0.20, 0.20],
+    operatingCashFlow: 100,
+    netIncome: 100,
+    roic: [0.17, 0.18, 0.18, 0.19, 0.18],
+    latestShares: 100,
+    previousShares: 100
+  });
+  const volatile = qualityScoreFor({
+    symbol: "CHOPPY",
+    margins: [0.20, 0.20, 0.20, 0.20, 0.20],
+    operatingCashFlow: 100,
+    netIncome: 100,
+    roic: [0.08, 0.24, 0.09, 0.22, 0.10],
+    latestShares: 100,
+    previousShares: 100
+  });
+  const subWacc = qualityScoreFor({
+    symbol: "LOWRETURN",
+    margins: [0.20, 0.20, 0.20, 0.20, 0.20],
+    operatingCashFlow: 100,
+    netIncome: 100,
+    roic: [0.05, 0.06, 0.07, 0.06, 0.07],
+    latestShares: 100,
+    previousShares: 100
+  });
+  const sparse = qualityScoreFor({
+    symbol: "SPARSE",
+    margins: [0.20, 0.20],
+    operatingCashFlow: 100,
+    netIncome: 100,
+    roic: [0.18, 0.19],
+    latestShares: 100,
+    previousShares: 100
+  });
+  const financial = qualityScoreFor({
+    symbol: "BANK",
+    margins: [0.20, 0.20, 0.20, 0.20, 0.20],
+    operatingCashFlow: 100,
+    netIncome: 100,
+    roic: [0.17, 0.18, 0.18, 0.19, 0.18],
+    latestShares: 100,
+    previousShares: 100
+  }, { isFinancial: true });
+
+  assert.ok((steady.signals.roicDurability.score ?? 0) > 85);
+  assert.ok((volatile.signals.roicDurability.score ?? 0) < (steady.signals.roicDurability.score ?? 0));
+  assert.equal(subWacc.signals.roicDurability.score, 10);
+  assert.equal(sparse.signals.roicDurability.score, null);
+  assert.equal(financial.signals.roicDurability.score, null);
+});
+
 test("fundamental quality score named anchors are pinned", () => {
   const anchors = new Map([
-    ["STABLE", qualityScoreFor({ symbol: "STABLE", margins: [0.30, 0.31, 0.29, 0.30, 0.30], operatingCashFlow: 110, netIncome: 100, roic: 0.20, latestShares: 98, previousShares: 100 }).score],
-    ["DISCIPLINED", qualityScoreFor({ symbol: "DISCIPLINED", margins: [0.20, 0.20, 0.21, 0.20, 0.20], operatingCashFlow: 100, netIncome: 100, roic: 0.14, latestShares: 99, previousShares: 100 }).score],
-    ["DILUTIVE", qualityScoreFor({ symbol: "DILUTIVE", margins: [0.25, 0.25, 0.25, 0.24, 0.25], operatingCashFlow: 90, netIncome: 100, roic: 0.12, latestShares: 110, previousShares: 100 }).score],
-    ["VOLATILE", qualityScoreFor({ symbol: "VOLATILE", margins: [0.05, 0.45, -0.02, 0.30, 0.10], operatingCashFlow: 50, netIncome: 100, roic: 0.04, latestShares: 112, previousShares: 100 }).score]
+    ["STABLE", qualityScoreFor({ symbol: "STABLE", margins: [0.30, 0.31, 0.29, 0.30, 0.30], operatingCashFlow: 110, netIncome: 100, roic: [0.19, 0.20, 0.20, 0.21, 0.20], latestShares: 98, previousShares: 100 }).score],
+    ["DISCIPLINED", qualityScoreFor({ symbol: "DISCIPLINED", margins: [0.20, 0.20, 0.21, 0.20, 0.20], operatingCashFlow: 100, netIncome: 100, roic: [0.13, 0.14, 0.14, 0.15, 0.14], latestShares: 99, previousShares: 100 }).score],
+    ["DILUTIVE", qualityScoreFor({ symbol: "DILUTIVE", margins: [0.25, 0.25, 0.25, 0.24, 0.25], operatingCashFlow: 90, netIncome: 100, roic: [0.11, 0.12, 0.12, 0.13, 0.12], latestShares: 110, previousShares: 100 }).score],
+    ["VOLATILE", qualityScoreFor({ symbol: "VOLATILE", margins: [0.05, 0.45, -0.02, 0.30, 0.10], operatingCashFlow: 50, netIncome: 100, roic: [0.04, 0.05, 0.04, 0.06, 0.04], latestShares: 112, previousShares: 100 }).score]
   ]);
 
-  assert.equal(Math.round(anchors.get("STABLE") ?? 0), 96);
-  assert.equal(Math.round(anchors.get("DISCIPLINED") ?? 0), 82);
-  assert.equal(Math.round(anchors.get("DILUTIVE") ?? 0), 63);
-  assert.equal(Math.round(anchors.get("VOLATILE") ?? 0), 3);
+  assert.equal(Math.round(anchors.get("STABLE") ?? 0), 97);
+  assert.equal(Math.round(anchors.get("DISCIPLINED") ?? 0), 91);
+  assert.equal(Math.round(anchors.get("DILUTIVE") ?? 0), 75);
+  assert.equal(Math.round(anchors.get("VOLATILE") ?? 0), 4);
 });
 
 test("fundamental quality score is more orthogonal than the previous overlapping formula on fixture", () => {
@@ -713,7 +768,11 @@ test("financial sector scoring excludes industrial financial metrics for banks a
     instrumentId: "inst-v",
     symbol: "V",
     profile: companyProfile("Financial Services", "Financial - Credit Services", "V"),
-    ratios: [ratio("V")],
+    ratios: [
+      { ...ratio("V"), fiscalYear: 2023, reportDate: "2023-12-31", roic: 0.11 },
+      { ...ratio("V"), fiscalYear: 2024, reportDate: "2024-12-31", roic: 0.12 },
+      ratio("V")
+    ],
     statements: statements("V")
   });
 

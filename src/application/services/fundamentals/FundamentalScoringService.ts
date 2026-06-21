@@ -169,14 +169,22 @@ function marginSeries(ratios: FinancialRatio[], statements: FinancialStatement[]
     .slice(-5);
 }
 
-function latestAnnualRatioAverage(ratios: FinancialRatio[], selector: (ratio: FinancialRatio) => number | null) {
-  const values = ratios
+function latestAnnualRatioSeries(ratios: FinancialRatio[], selector: (ratio: FinancialRatio) => number | null) {
+  return ratios
     .filter((ratio) => ratio.period === "annual")
     .sort((a, b) => b.reportDate.localeCompare(a.reportDate))
     .slice(0, 5)
     .map(selector)
-    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-  return average(values);
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+    .reverse();
+}
+
+function roicDurabilityScore(roicSeries: number[]) {
+  if (roicSeries.length < 3) return null;
+  const averageRoic = average(roicSeries);
+  if (averageRoic == null) return null;
+  if (averageRoic < 0.08) return 10;
+  return scoreLowerBetter(coefficientOfVariation(roicSeries), 0.15, 0.60);
 }
 
 function latestShareCount(statements: FinancialStatement[]) {
@@ -220,7 +228,8 @@ function calculateQualityScore(input: {
   const margins = marginSeries(input.ratios, input.statements);
   const earningsStabilityCov = coefficientOfVariation(margins);
   const cashConversion = input.isFinancial ? null : cashConversionRatio(input.income, input.cashFlow, input.balanceSheet);
-  const averageRoic = input.isFinancial ? null : latestAnnualRatioAverage(input.ratios, (ratio) => ratio.roic);
+  const roicSeries = input.isFinancial ? [] : latestAnnualRatioSeries(input.ratios, (ratio) => ratio.roic);
+  const roicDurability = roicDurabilityScore(roicSeries);
   const shareGrowth = shareCountGrowth(input.statements);
   const signals = {
     earningsStability: {
@@ -234,8 +243,8 @@ function calculateQualityScore(input: {
       weight: 0.3
     },
     roicDurability: {
-      value: averageRoic,
-      score: input.isFinancial ? null : scoreReturn(averageRoic, 0.06, 0.20),
+      value: input.isFinancial || roicSeries.length === 0 ? null : coefficientOfVariation(roicSeries),
+      score: input.isFinancial ? null : roicDurability,
       weight: 0.25
     },
     capitalDiscipline: {
@@ -247,7 +256,8 @@ function calculateQualityScore(input: {
   return {
     score: weightedAvailableAverage(Object.values(signals)),
     signals,
-    marginObservations: margins
+    marginObservations: margins,
+    roicObservations: roicSeries
   };
 }
 

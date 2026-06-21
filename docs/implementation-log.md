@@ -1,3 +1,46 @@
+## 2026-06-21 - ROIC Durability Consistency Signal
+
+### Source
+Claude Code
+
+### Objective
+Restore Fundamentals Quality orthogonality by redefining the `roicDurability` signal as through-time consistency of value-creating ROIC rather than average ROIC level.
+
+### Files Changed
+- `src/application/services/fundamentals/FundamentalScoringService.ts`
+- `tests/fundamentals.test.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `src/app/methodology/page.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Replaced the Quality `roicDurability` average-level measure with a latest-five-annual-observation consistency measure.
+- Kept Quality signal weights unchanged: ROIC durability remains 25% of Quality, and Quality remains unchanged in the Fundamentals and Business Quality composites.
+- Used the recommended frozen-anchor formulation: require at least three annual ROIC observations; score 10 when average ROIC is below the 8% cost-of-capital proxy; otherwise score `coefficientOfVariation(roicSeries)` with `scoreLowerBetter(0.15, 0.60)`.
+- Kept balance-sheet financials excluded from cash conversion and ROIC durability.
+- Updated the internal methodology document and public methodology page to describe ROIC durability as persistence/consistency of value-creating ROIC, not average ROIC level.
+
+### Live Read-Only Checks
+- Previous annual-basis Quality correlations: vs Profitability `0.573`, vs Cash Flow `0.152`, vs Balance Sheet `0.036`.
+- New Quality correlations over 94 comparable active-stock rows: vs Profitability `0.380`, vs Cash Flow `0.008`, vs Balance Sheet `-0.181`.
+- Active stocks checked: `105`; stocks with Quality score: `105`; stocks with available ROIC durability signal: `94`.
+- Stored-to-new sample Quality scores: NVDA `68.4 -> 51.8`, MSFT `98.1 -> 98.1`, V `99.4 -> 98.9`, CVX `70.5 -> 76.3`.
+
+### Tests Run
+- `npm.cmd run test` - PASS (326/326)
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- The recommended WACC-gated consistency formulation met the `< ~0.4` orthogonality target, so the pure-CoV fallback was not used.
+- Fundamentals Quality, Business Quality, and stock Characteristics composites can shift after recomputation. This is expected from the scoring-definition refinement; no score weights, labels, or advice wording changed.
+- After deploy, run Force refresh fundamentals and then recommendation-run from Admin so live scores recompute with all four Quality signals live.
+
 ## 2026-06-21 - Annual-Basis Fundamental Scoring Inputs
 
 ### Source
