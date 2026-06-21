@@ -2,6 +2,38 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-21 SGT - Fundamentals Business Quality Display QA
+
+Scope:
+- Verify Fundamentals UI surfaces display the Business Quality composite instead of the valuation-blended stored overall fundamentals score, while keeping Valuation visible separately.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Fundamentals UI showed valuation-blended `overallFundamentalScore` as `Overall` | Fixed; display now uses `scoreBusinessQuality(latestScore)` |
+| Valuation needed to remain visible as its own metric | Preserved |
+| Directory cell showed both `Overall` and standalone `Quality`, which could confuse the Quality sub-score with the Business Quality composite | Fixed; cell shows `Business Quality` and `Val` only |
+| Stored `overallFundamentalScore` should remain available for non-display paths | Preserved |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Fundamentals page coverage count uses Business Quality availability | PASS |
+| Fundamentals page first score column is `Business Quality` | PASS |
+| Instrument detail Fundamental Scores card shows `Business Quality` | PASS |
+| Instrument detail trend table `Overall` column remains unchanged | PASS |
+| Instrument directory Fundamentals cell shows `Business Quality` and `Val` | PASS |
+| No schema/model/computation changes | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
 ## 2026-06-21 SGT - Backfill Timeout Fix QA
 
 Scope:

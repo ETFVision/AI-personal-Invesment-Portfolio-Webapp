@@ -5,6 +5,7 @@ import type { FundamentalsSummaryRow } from "@/domain/fundamentals/types";
 import { formatCurrencyWithCode, formatPercent } from "@/lib/utils";
 import { DataFreshnessBadge, InstrumentTypeBadge, ThemeBadgeList } from "./instrument-badges";
 import { instrumentTypeLabel, resolveInstrumentType } from "@/application/services/instruments/InstrumentTypeResolver";
+import { scoreBusinessQuality } from "@/application/services/recommendations/recommendationScoring";
 import { ASSET_CATEGORY_LABELS, ETF_CATEGORY_LABELS } from "@/domain/universe/alphaUniverse";
 
 type InstrumentDirectoryTableProps = {
@@ -103,8 +104,8 @@ export function InstrumentDirectoryTable({ rows, fundamentalsByInstrumentId, emp
                 <td className="p-3">
                   {fundamentals ? (
                     <div className="space-y-1 text-xs">
-                      <p className="font-medium">Overall {score(fundamentals.latestScore?.overallFundamentalScore)}/100</p>
-                      <p className="text-muted-foreground">Val {score(fundamentals.latestScore?.valuationScore)} - Quality {score(fundamentals.latestScore?.qualityScore)}</p>
+                      <p className="font-medium">Business Quality {score(scoreBusinessQuality(fundamentals.latestScore))}/100</p>
+                      <p className="text-muted-foreground">Val {score(fundamentals.latestScore?.valuationScore)}</p>
                       <p className="text-muted-foreground">{fundamentalsFreshness(fundamentals)}</p>
                     </div>
                   ) : "-"}

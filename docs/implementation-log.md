@@ -1,3 +1,38 @@
+## 2026-06-21 - Fundamentals Display Business Quality Composite
+
+### Source
+Claude Code
+
+### Objective
+Retire valuation-blended `overallFundamentalScore` from Fundamentals UI display only, replacing it with the existing Business Quality composite while keeping Valuation as a separate displayed metric.
+
+### Files Changed
+- `src/app/(dashboard)/fundamentals/page.tsx`
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-directory-table.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Updated the Fundamentals page coverage count and table's first score column to use `scoreBusinessQuality(latestScore)`.
+- Renamed the Fundamentals table column from `Overall` to `Business Quality`.
+- Updated the instrument detail Fundamental Scores card to show `Business Quality` instead of the stored overall fundamentals score.
+- Updated the instrument directory Fundamentals cell to show `Business Quality` and separate `Val`, and removed the standalone Quality sub-score snippet to avoid confusing it with the Business Quality composite.
+- Left the trend table's `Overall` trend-direction column unchanged because it is unrelated to the stored fundamentals score.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (330/330)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Presentation-only change. No migrations, schema changes, `FundamentalScore` type changes, computation changes, recommendation-engine changes, feature flags, access controls, methodology docs, or public methodology page changes.
+- `overallFundamentalScore` remains in the data model/computation for dormant phase-1 recommendation paths; it is retired from these UI surfaces only.
+
 ## 2026-06-21 - Complete Backfill Timeout Fix
 
 ### Source
