@@ -214,6 +214,21 @@ All of the above are headline-stock-score changes → one deliberate, validated 
 distribution as a SANITY CHECK not a target; frozen economic anchors), documented in Spec 2, with Med 29
 recalibration QA. **Not yet specced — diagnosis only.**
 
+### SETTLED DECISION (2026-06-21) — label bands are fixed absolute thresholds; do NOT refit
+The Characteristics (80/65/48/35/20), Business Quality (80/65/50/35), and Valuation label bands are **fixed
+absolute cutoffs with fixed meaning** — NOT percentiles, NOT fit to the universe. They therefore generalize:
+adding instruments or a market-regime shift does not move them, and (with the sub-scores now on frozen economic
+anchors) the whole pipeline is stationary and needs no re-tuning. **Do NOT refit bands to the realized
+distribution** — that is the one move that would break generalization and create a perpetual tuning loop.
+- "Excellent" (Characteristics ≥80) being effectively unreached today is **by design, not a bug**: it requires an
+  instrument to be excellent across fundamentals + valuation + risk + context *simultaneously* (rare in an
+  expensive market); it will fire when such an instrument appears. Same family as the Portfolio-Score effective
+  ceiling (calc-audit Tier-1 #1).
+- **Action: DISCLOSE only** — add one line to Spec 2 (methodology rewrite): "Excellent is reserved for
+  instruments excellent across fundamentals, valuation, risk and context simultaneously — rare by design." No
+  code change. A structural ceiling-lift is OPTIONAL and only if a deliberate product decision wants the top label
+  to fire more — and even then it's a one-time frozen-anchor change, not ongoing tuning. **Do not re-open.**
+
 ### WATCH (not fix) — profitability margin-vs-returns balance for low-margin elites
 The Business Quality profitability sub-score leans on **margins** (gross + operating + net = 3 of 6 inputs), so
 elite **low-margin / high-turnover / high-ROIC** business models — **COST, WMT**, partly **AMZN** — get a notch
