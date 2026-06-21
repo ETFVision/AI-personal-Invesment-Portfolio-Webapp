@@ -2,6 +2,80 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-21 SGT - ETF Benchmark Relative External Benchmark QA
+
+Scope:
+- Verify ETF Benchmark Relative now measures 1Y excess return against external asset-class benchmarks.
+- Verify ETF Momentum no longer reuses trailing 1Y return.
+- Check benchmark coverage and score distribution before freezing the seeded scale.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Benchmark Relative used absolute 1Y return, so it was not actually benchmark-relative | Fixed; score now uses ETF 1Y return minus mapped benchmark 1Y return |
+| Trailing 1Y return was counted in both Momentum and Benchmark Relative | Fixed; Momentum now uses YTD and daily return only |
+| Developed ex-US and emerging-market ETFs lacked fair external benchmarks | Fixed structurally; `developed_ex_us` and `emerging_markets` benchmarks are seeded via EFA/EEM and must be backfilled by benchmark-refresh |
+| EM ETFs could otherwise be compared against SPY/global proxies | Guarded by tests; EM categories and EM country ETFs map to `emerging_markets` |
+
+Benchmark map validation:
+
+| Category / Instrument Type | Benchmark |
+|---|---|
+| US broad market, growth, value, dividend, small cap, US sector/thematic ETFs | `sp500` |
+| Global Equity | `global_equities` |
+| Developed Markets, International Dividend, developed-market country funds | `developed_ex_us` |
+| Emerging Markets and emerging-market country funds | `emerging_markets` |
+| Bond / Cash Equivalent | `us_aggregate_bonds` |
+| Commodity / Gold | `gold` |
+| Crypto ETF | `bitcoin` |
+
+Live validation gate:
+
+| Check | Result |
+|---|---|
+| Checked ETF-like instruments | `201` |
+| Score distribution min / p10 / p25 / p50 / p75 / p90 / max | `0 / 7.0 / 28.0 / 47.9 / 60.2 / 100.0 / 100.0` |
+| Pegged at bounds | `17.9%` |
+| Median near 50 target | PASS (`47.9`) |
+| p90 low-70s / not pegged target | FOLLOW-UP (`p90=100.0`, pegged `17.9%`) |
+| VWO / EEM / INDA benchmark | `emerging_markets` |
+| VEA / EFA / EWJ benchmark | `developed_ex_us` |
+| EM ETF benchmark is not SP500 | PASS |
+
+Benchmark 1Y returns used in the validation pass:
+
+| Benchmark | 1Y Return |
+|---|---:|
+| `sp500` | `24.99%` |
+| `nasdaq100` | `40.01%` |
+| `global_equities` | `26.25%` |
+| `us_aggregate_bonds` | `0.78%` |
+| `gold` | `24.75%` |
+| `bitcoin` | `-40.65%` |
+| `developed_ex_us` | `20.94%` |
+| `emerging_markets` | `52.80%` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| ETF beating benchmark scores above 50 | PASS |
+| ETF lagging benchmark scores below 50 | PASS |
+| ETF matching benchmark scores 50 | PASS |
+| Missing benchmark return excludes Benchmark Relative component | PASS |
+| EM ETF maps to EM benchmark, not SP500 | PASS |
+| ETF Momentum ignores trailing 1Y return | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply migration `114_add_international_benchmarks.sql`, then run benchmark-refresh from Admin to populate EFA/EEM benchmark snapshots before relying on live Benchmark Relative scores.
+- Run recommendation-run from Admin after benchmark-refresh.
+- The seeded SCALE `200` was implemented as requested, but validation showed p90 pegging above the target. Claude/product should sign off on keeping the scale or request a calibration follow-up before freezing it.
+
 ## 2026-06-21 SGT - Business Quality-Aware Excessive Risk Cap QA
 
 Scope:

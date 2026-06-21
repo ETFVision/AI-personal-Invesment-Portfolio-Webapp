@@ -1,4 +1,5 @@
 import type { FundamentalsRepository } from "@/application/ports/repositories/FundamentalsRepository";
+import type { BenchmarkRepository } from "@/application/ports/repositories/BenchmarkRepository";
 import type { MacroIndicatorRepository } from "@/application/ports/repositories/MacroIndicatorRepository";
 import type { MarketVisionRepository } from "@/application/ports/repositories/MarketVisionRepository";
 import type { PortfolioRepository } from "@/application/ports/repositories/PortfolioRepository";
@@ -17,6 +18,8 @@ import { GoldRecommendationService } from "./GoldRecommendationService";
 import { CryptoRecommendationService } from "./CryptoRecommendationService";
 import type { RecommendationEvaluation } from "./recommendationScoring";
 import type { TelemetrySnapshotService } from "@/application/services/telemetry/TelemetrySnapshotService";
+import { benchmarkKeyForEtf } from "./EtfRecommendationService";
+import type { BenchmarkSnapshot } from "@/domain/portfolio/types";
 
 type RecommendationServiceOptions = {
   maxInstrumentsPerRun?: number;
@@ -61,12 +64,13 @@ export class RecommendationService {
     private readonly universeRepository: UniverseRepository,
     private readonly fundamentalsRepository: FundamentalsRepository,
     private readonly macroIndicatorRepository: MacroIndicatorRepository,
-    private readonly marketVisionRepository?: MarketVisionRepository,
-    private readonly portfolioRepository?: PortfolioRepository,
-    private readonly portfolioService?: PortfolioService,
-    private readonly telemetrySnapshotService?: TelemetrySnapshotService,
-    private readonly portfolioReviewRepository?: PortfolioReviewRepository,
-    private readonly options: RecommendationServiceOptions = {}
+  private readonly marketVisionRepository?: MarketVisionRepository,
+  private readonly portfolioRepository?: PortfolioRepository,
+  private readonly portfolioService?: PortfolioService,
+  private readonly telemetrySnapshotService?: TelemetrySnapshotService,
+  private readonly portfolioReviewRepository?: PortfolioReviewRepository,
+  private readonly benchmarkRepository?: BenchmarkRepository,
+  private readonly options: RecommendationServiceOptions = {}
   ) {}
 
   async getDashboard(portfolioId?: string | null): Promise<RecommendationDashboard> {
@@ -173,13 +177,14 @@ export class RecommendationService {
 
   private async evaluateInstruments(instruments: Instrument[]) {
     const ids = instruments.map((instrument) => instrument.id);
-    const [marketMetrics, riskMetrics, fundamentalRows, bondProfiles, macroRegime, marketVisionReport] = await Promise.all([
+    const [marketMetrics, riskMetrics, fundamentalRows, bondProfiles, macroRegime, marketVisionReport, benchmarkContext] = await Promise.all([
       this.universeRepository.listInstrumentMarketMetrics(ids),
       this.universeRepository.listInstrumentRiskMetrics(ids),
       this.fundamentalsRepository.listSummaryRows(),
       this.universeRepository.listBondProfiles(),
       this.macroIndicatorRepository.getLatestRegimeSnapshot(),
-      this.marketVisionRepository ? this.marketVisionRepository.getLatestPublishedReport() : Promise.resolve(null)
+      this.marketVisionRepository ? this.marketVisionRepository.getLatestPublishedReport() : Promise.resolve(null),
+      this.loadBenchmarkRelativeContext()
     ]);
     const marketById = new Map(marketMetrics.map((item) => [item.instrumentId, item]));
     const riskById = new Map(riskMetrics.map((item) => [item.instrumentId, item]));
@@ -190,6 +195,7 @@ export class RecommendationService {
       const recommendationInput = {
         instrument,
         marketMetric: marketById.get(instrument.id) ?? null,
+        benchmarkRelative: this.benchmarkRelativeForInstrument(instrument, benchmarkContext),
         riskMetric: riskById.get(instrument.id) ?? null,
         fundamentals: fundamentalsById.get(instrument.id) ?? null,
         bondProfile: bondById.get(instrument.id) ?? null,
@@ -205,4 +211,49 @@ export class RecommendationService {
     });
   }
 
+  private async loadBenchmarkRelativeContext() {
+    if (!this.benchmarkRepository) return new Map<string, number>();
+    const benchmarks = await this.benchmarkRepository.listBenchmarks();
+    const activeBenchmarks = benchmarks.filter((benchmark) => benchmark.isActive);
+    if (activeBenchmarks.length === 0) return new Map<string, number>();
+    const snapshots = await this.benchmarkRepository.listBenchmarkSnapshots(activeBenchmarks.map((benchmark) => benchmark.id), 10_000);
+    const benchmarkKeyById = new Map(activeBenchmarks.map((benchmark) => [benchmark.id, benchmark.benchmarkKey]));
+    const snapshotsByKey = new Map<string, BenchmarkSnapshot[]>();
+    for (const snapshot of snapshots) {
+      const benchmarkKey = snapshot.benchmarkKey || benchmarkKeyById.get(snapshot.benchmarkId);
+      if (!benchmarkKey) continue;
+      const rows = snapshotsByKey.get(benchmarkKey) ?? [];
+      rows.push(snapshot);
+      snapshotsByKey.set(benchmarkKey, rows);
+    }
+    const returnsByKey = new Map<string, number>();
+    for (const [benchmarkKey, rows] of snapshotsByKey.entries()) {
+      const oneYearReturn = oneYearBenchmarkReturn(rows);
+      if (oneYearReturn != null) returnsByKey.set(benchmarkKey, oneYearReturn);
+    }
+    return returnsByKey;
+  }
+
+  private benchmarkRelativeForInstrument(instrument: Instrument, benchmarkReturns: Map<string, number>) {
+    const benchmarkKey = benchmarkKeyForEtf(instrument);
+    if (!benchmarkKey) return null;
+    const benchmarkReturn1y = benchmarkReturns.get(benchmarkKey);
+    if (benchmarkReturn1y == null) return null;
+    return { benchmarkKey, benchmarkReturn1y };
+  }
+
+}
+
+function oneYearBenchmarkReturn(snapshots: BenchmarkSnapshot[]) {
+  const sorted = snapshots
+    .filter((snapshot) => snapshot.levelValue > 0)
+    .sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+  const latest = sorted.at(-1);
+  if (!latest) return null;
+  const target = new Date(`${latest.snapshotDate}T00:00:00Z`);
+  target.setUTCFullYear(target.getUTCFullYear() - 1);
+  const targetDate = target.toISOString().slice(0, 10);
+  const baseline = sorted.filter((snapshot) => snapshot.snapshotDate <= targetDate).at(-1);
+  if (!baseline || baseline.levelValue <= 0) return null;
+  return latest.levelValue / baseline.levelValue - 1;
 }

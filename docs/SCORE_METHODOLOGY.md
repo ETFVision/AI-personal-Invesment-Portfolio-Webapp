@@ -768,9 +768,9 @@ Bonuses/penalties:
 Momentum:
 
 - Starts at 50.
-- 1Y return adds `clamp(oneYearReturn * 60, -25, 25)`.
 - YTD return adds `clamp(ytdReturn * 40, -15, 15)`.
 - Daily return adds `clamp(dailyReturn * 80, -5, 5)`.
+- The trailing 1-year return is intentionally excluded from Momentum for ETFs because 1-year performance is measured in the Benchmark Relative component.
 
 Recommendation risk score:
 
@@ -831,7 +831,27 @@ Business Quality is a composite of the fundamental sub-scores: Growth (25%), Pro
 | Market Vision alignment | 9% |
 | Theme fit | 5% |
 
-Benchmark relative is `50 + oneYearReturn * 50`, clamped to 0-100.
+Benchmark relative compares ETF trailing 1-year return to a stable external asset-class benchmark:
+
+- `excessReturn = ETF 1Y return - benchmark 1Y return`
+- Excess return is winsorized at `+/- 0.50`.
+- `score = 50 + excessReturn * 200`, clamped to 0-100.
+- Benchmark parity scores 50; about +25 percentage points of annual excess return reaches the top of the scale.
+- Missing benchmark snapshots or missing 1-year returns exclude this component from the weighted denominator.
+
+ETF benchmark map:
+
+| ETF category | Benchmark |
+|---|---|
+| US broad market, Growth, Value, Dividend, Small Cap, US sector/thematic categories | `sp500` |
+| Global Equity | `global_equities` |
+| Developed Markets, International Dividend, developed-market country funds | `developed_ex_us` |
+| Emerging Markets, emerging-market country funds | `emerging_markets` |
+| Bond, Cash Equivalent | `us_aggregate_bonds` |
+| Commodity, Gold / Precious Metals | `gold` |
+| Crypto ETF | `bitcoin` |
+
+Relative measures reference external benchmarks. Constants are fixed economic anchors validated once against the universe, not refit per refresh; a score changes when the instrument or market moves, not when universe composition changes.
 
 #### Bond ETFs
 

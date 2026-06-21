@@ -306,7 +306,8 @@ export function createContainer() {
     portfolioRepository,
     portfolioService,
     telemetrySnapshotService,
-    portfolioReviewRepository
+    portfolioReviewRepository,
+    benchmarkRepository
   );
   const portfolioReviewService = new PortfolioReviewService(
     portfolioReviewRepository,

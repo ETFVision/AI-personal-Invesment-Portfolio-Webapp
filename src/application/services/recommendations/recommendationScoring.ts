@@ -10,6 +10,10 @@ import { assessmentLabel } from "./recommendationPresentation";
 export type RecommendationInput = {
   instrument: Instrument;
   marketMetric: InstrumentMarketMetric | null;
+  benchmarkRelative?: {
+    benchmarkKey: string;
+    benchmarkReturn1y: number;
+  } | null;
   riskMetric: InstrumentRiskMetric | null;
   fundamentals: FundamentalsSummaryRow | null;
   bondProfile: BondProfile | null;
@@ -41,14 +45,12 @@ export type RecommendationEvaluation = {
 
 export function scoreMomentum(marketMetric: InstrumentMarketMetric | null) {
   if (!marketMetric) return null;
-  const oneYear = marketMetric.oneYearReturn;
   const ytd = marketMetric.ytdReturn;
   const daily = marketMetric.dailyReturn;
   let score = 50;
-  if (oneYear != null) score += Math.max(-25, Math.min(25, oneYear * 60));
   if (ytd != null) score += Math.max(-15, Math.min(15, ytd * 40));
   if (daily != null) score += Math.max(-5, Math.min(5, daily * 80));
-  if (oneYear == null && ytd == null && daily == null) return null;
+  if (ytd == null && daily == null) return null;
   return Math.max(0, Math.min(100, score));
 }
 

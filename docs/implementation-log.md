@@ -1,3 +1,52 @@
+## 2026-06-21 - ETF Benchmark Relative External Benchmark Scoring
+
+### Source
+Claude Code
+
+### Objective
+Make ETF `benchmark_relative` scoring a true 1Y excess-return measure against stable external asset-class benchmarks, and remove trailing 1Y return from ETF Momentum so the same performance horizon is not counted twice.
+
+### Files Changed
+- `supabase/migrations/114_add_international_benchmarks.sql`
+- `src/application/services/BenchmarkService.ts`
+- `src/application/services/recommendations/EtfRecommendationService.ts`
+- `src/application/services/recommendations/RecommendationService.ts`
+- `src/application/services/recommendations/recommendationScoring.ts`
+- `src/server/container.ts`
+- `tests/recommendations.test.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `src/app/methodology/page.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `developed_ex_us` and `emerging_markets` benchmarks using EFA and EEM so developed ex-US and emerging-market ETFs no longer fall back to US/global benchmarks.
+- Added a curated ETF category-to-benchmark map and a frozen relative score: `50 + winsorizedExcessReturn * 200`, where excess return is ETF 1Y return minus benchmark 1Y return.
+- Excluded Benchmark Relative from the weighted ETF denominator when the benchmark key or benchmark 1Y return is unavailable.
+- Removed trailing 1Y return from ETF Momentum, leaving Momentum as an absolute short-horizon YTD/daily component while Benchmark Relative owns 1Y relative performance.
+- Wired `RecommendationService` to load active benchmark snapshots and pass benchmark 1Y returns into ETF recommendation scoring.
+- Updated methodology documentation and the public methodology page with the benchmark map, scale rationale, missing-benchmark behavior, and fixed-anchor principle.
+
+### Validation Gate
+- Read-only benchmark coverage pass found all checked active ETF-like categories mapped and scored against available or post-backfill benchmark proxies.
+- Benchmark Relative distribution over 201 checked ETF-like instruments: min `0`, p10 `7.0`, p25 `28.0`, p50 `47.9`, p75 `60.2`, p90 `100.0`, max `100.0`, pegged `17.9%`.
+- Target median near 50 was met, but p90 was higher than the low-70s target and pegging was material. SCALE `200` was implemented as requested, but this is flagged for Claude/product sign-off before treating the scale as fully frozen.
+- International/EM checks: VWO, EEM, and INDA map to `emerging_markets`; VEA, EFA, and EWJ map to `developed_ex_us`; EM ETFs do not use `sp500`.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (330/330)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed with calibration follow-up.
+
+### Notes for Claude
+- No recommendation labels, guardrails, access controls, feature flags, or advisory wording changed.
+- After deploy, run benchmark-refresh from Admin so EFA/EEM benchmark snapshots are backfilled before relying on live Benchmark Relative scores, then run recommendation-run from Admin.
+- The validation gate flagged the seed scale as too aggressive in the current live universe (`p90=100`, `17.9%` pegged). A Med 29 recalibration QA/sign-off should decide whether to keep SCALE `200` or adjust before freezing.
+
 ## 2026-06-21 - Business Quality-Aware Excessive Risk Cap
 
 ### Source

@@ -2,13 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { RecommendationRulesService } from "../src/application/services/recommendations/RecommendationRulesService";
 import { StockRecommendationService } from "../src/application/services/recommendations/StockRecommendationService";
-import { EtfRecommendationService } from "../src/application/services/recommendations/EtfRecommendationService";
+import { benchmarkKeyForEtf, EtfRecommendationService, scoreBenchmarkRelative } from "../src/application/services/recommendations/EtfRecommendationService";
 import { BondEtfRecommendationService } from "../src/application/services/recommendations/BondEtfRecommendationService";
 import { GoldRecommendationService } from "../src/application/services/recommendations/GoldRecommendationService";
 import { CryptoRecommendationService } from "../src/application/services/recommendations/CryptoRecommendationService";
 import { PortfolioFitService } from "../src/application/services/recommendations/portfolioFitService";
 import { emptyMarketVisionMetadata } from "../src/application/services/marketVision/MarketVisionGenerationService";
-import { scoreBusinessQuality, type RecommendationInput } from "../src/application/services/recommendations/recommendationScoring";
+import { scoreBusinessQuality, scoreMomentum, type RecommendationInput } from "../src/application/services/recommendations/recommendationScoring";
 import type { Instrument, InstrumentMarketMetric, InstrumentRiskMetric } from "../src/domain/universe/types";
 import type { FundamentalScore, FundamentalsSummaryRow } from "../src/domain/fundamentals/types";
 import type { MarketVisionReport } from "../src/domain/marketVision/types";
@@ -610,6 +610,56 @@ test("ETF, bond, gold and crypto services return deterministic labels", () => {
   })).recommendationLabel, "Not Applicable");
   assert.notEqual(new GoldRecommendationService(rules).evaluate(input({ instrument: instrument({ assetClass: "gold_etf", instrumentType: "gold_etf", canonicalSector: "Commodities / Gold" }), fundamentals: null })).recommendationLabel, "Not Applicable");
   assert.notEqual(new CryptoRecommendationService(rules).evaluate(input({ instrument: instrument({ assetClass: "crypto", instrumentType: "crypto", canonicalSector: "Crypto" }), fundamentals: null })).recommendationLabel, "Not Applicable");
+});
+
+test("ETF benchmark relative scores excess return against mapped external benchmark", () => {
+  assert.equal(scoreBenchmarkRelative(0.20, 0.20), 50);
+  assert.equal(scoreBenchmarkRelative(0.30, 0.20), 70);
+  assert.equal(scoreBenchmarkRelative(0.10, 0.20), 30);
+  assert.equal(scoreBenchmarkRelative(0.60, 0.00), 100);
+  assert.equal(scoreBenchmarkRelative(-0.60, 0.00), 0);
+  assert.equal(scoreBenchmarkRelative(0.20, null), null);
+
+  const service = new EtfRecommendationService(rules);
+  const beat = service.evaluate(input({
+    instrument: instrument({ assetClass: "etf", instrumentType: "etf", etfCategory: "US_BROAD_MARKET" }),
+    marketMetric: { ...marketMetric, oneYearReturn: 0.30 },
+    benchmarkRelative: { benchmarkKey: "sp500", benchmarkReturn1y: 0.20 },
+    fundamentals: null
+  }));
+  const lag = service.evaluate(input({
+    instrument: instrument({ assetClass: "etf", instrumentType: "etf", etfCategory: "US_BROAD_MARKET" }),
+    marketMetric: { ...marketMetric, oneYearReturn: 0.10 },
+    benchmarkRelative: { benchmarkKey: "sp500", benchmarkReturn1y: 0.20 },
+    fundamentals: null
+  }));
+  const missing = service.evaluate(input({
+    instrument: instrument({ assetClass: "etf", instrumentType: "etf", etfCategory: "US_BROAD_MARKET" }),
+    marketMetric: { ...marketMetric, oneYearReturn: 0.30 },
+    benchmarkRelative: null,
+    fundamentals: null
+  }));
+
+  const beatComponent = beat.scoringBreakdown.components as Array<{ key: string; score: number | null }>;
+  const lagComponent = lag.scoringBreakdown.components as Array<{ key: string; score: number | null }>;
+  const missingComponent = missing.scoringBreakdown.components as Array<{ key: string; score: number | null }>;
+  assert.equal(beatComponent.find((component) => component.key === "benchmark_relative")?.score, 70);
+  assert.equal(lagComponent.find((component) => component.key === "benchmark_relative")?.score, 30);
+  assert.equal(missingComponent.find((component) => component.key === "benchmark_relative")?.score, null);
+});
+
+test("ETF benchmark map uses emerging markets benchmark for EM ETFs", () => {
+  assert.equal(benchmarkKeyForEtf(instrument({ symbol: "EEM", assetClass: "etf", instrumentType: "etf", etfCategory: "EMERGING_MARKETS" })), "emerging_markets");
+  assert.equal(benchmarkKeyForEtf(instrument({ symbol: "INDA", assetClass: "etf", instrumentType: "etf", etfCategory: "COUNTRY" })), "emerging_markets");
+  assert.equal(benchmarkKeyForEtf(instrument({ symbol: "EFA", assetClass: "etf", instrumentType: "etf", etfCategory: "DEVELOPED_MARKETS" })), "developed_ex_us");
+  assert.equal(benchmarkKeyForEtf(instrument({ symbol: "EWJ", assetClass: "etf", instrumentType: "etf", etfCategory: "COUNTRY" })), "developed_ex_us");
+  assert.notEqual(benchmarkKeyForEtf(instrument({ symbol: "EEM", assetClass: "etf", instrumentType: "etf", etfCategory: "EMERGING_MARKETS" })), "sp500");
+});
+
+test("ETF momentum excludes trailing one-year return", () => {
+  const highOneYear = scoreMomentum({ ...marketMetric, oneYearReturn: 0.80, ytdReturn: 0.10, dailyReturn: 0.01 });
+  const lowOneYear = scoreMomentum({ ...marketMetric, oneYearReturn: -0.80, ytdReturn: 0.10, dailyReturn: 0.01 });
+  assert.equal(highOneYear, lowOneYear);
 });
 
 test("Market Vision alignment is included for every supported recommendation type", () => {
