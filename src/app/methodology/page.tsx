@@ -178,7 +178,7 @@ const guardrailRows = [
   ["Low confidence cap", "Confidence below 50", "Insufficient Data"],
   ["Weak business quality cap", "Business Quality score below 35 (stocks)", "Capped at Weak"],
   ["Severely stretched valuation cap", "Valuation score below 15 (stocks)", "Capped at Neutral"],
-  ["Excessive instrument risk cap", "Instrument risk score above 75", "Capped at Weak unless already Poor or Significant Concerns"],
+  ["Excessive instrument risk cap", "Instrument risk score above 75", "Capped at Neutral for Strong or Exceptional Business Quality; otherwise capped at Weak unless already Poor or Significant Concerns"],
   ["Bond duration and rate regime mismatch cap", "Long-duration bond profile in restrictive, rising, or high-rate regime", "Capped at Neutral"]
 ];
 

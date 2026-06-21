@@ -316,6 +316,54 @@ test("guardrails cap weak fundamentals and low confidence", () => {
   assert.equal(rules.applyGuardrails({ label: "Strong Buy", confidenceScore: 80, concentrationPercent: 0.3 }).label, "Hold");
 });
 
+test("excessive instrument risk cap scales with business quality", () => {
+  const exceptional = rules.applyGuardrails({
+    label: "Strong Buy",
+    confidenceScore: 80,
+    riskScore: 82,
+    businessQualityScore: 80
+  });
+  const strong = rules.applyGuardrails({
+    label: "Buy",
+    confidenceScore: 80,
+    riskScore: 82,
+    businessQualityScore: 65
+  });
+  const solid = rules.applyGuardrails({
+    label: "Strong Buy",
+    confidenceScore: 80,
+    riskScore: 82,
+    businessQualityScore: 64
+  });
+  const alreadySell = rules.applyGuardrails({
+    label: "Sell",
+    confidenceScore: 80,
+    riskScore: 82,
+    businessQualityScore: 90
+  });
+  const alreadyReduce = rules.applyGuardrails({
+    label: "Reduce",
+    confidenceScore: 80,
+    riskScore: 82,
+    businessQualityScore: 90
+  });
+  const etf = rules.applyGuardrails({
+    label: "Buy",
+    confidenceScore: 80,
+    riskScore: 82,
+    businessQualityScore: null,
+    instrumentType: "ETF"
+  });
+
+  assert.equal(exceptional.label, "Hold");
+  assert.equal(strong.label, "Hold");
+  assert.equal(solid.label, "Watch");
+  assert.equal(alreadySell.label, "Sell");
+  assert.equal(alreadyReduce.label, "Reduce");
+  assert.equal(etf.label, "Watch");
+  assert.deepEqual(exceptional.guardrails, ["Excessive instrument risk cap"]);
+});
+
 test("confidence score reflects completeness and signal conflict", () => {
   const aligned = rules.confidenceScore([
     { key: "a", label: "A", score: 72, weight: 0.5, reason: "Aligned" },

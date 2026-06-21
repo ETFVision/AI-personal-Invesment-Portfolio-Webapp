@@ -1,4 +1,5 @@
 import type { RecommendationLabel } from "@/domain/recommendations/types";
+import { isStrongOrExceptionalBusinessQuality } from "./recommendationPresentation";
 
 const LABEL_ORDER: RecommendationLabel[] = ["Sell", "Reduce", "Watch", "Hold", "Buy", "Strong Buy"];
 
@@ -115,7 +116,8 @@ export class RecommendationRulesService {
       }
     }
     if (input.riskScore != null && input.riskScore > 75) {
-      applyCap(input.label === "Sell" || input.label === "Reduce" ? input.label : "Watch", "Excessive instrument risk cap");
+      const riskCapTarget = isStrongOrExceptionalBusinessQuality(input.businessQualityScore) ? "Hold" : "Watch";
+      applyCap(input.label === "Sell" || input.label === "Reduce" ? input.label : riskCapTarget, "Excessive instrument risk cap");
     }
     if ((input.concentrationPercent ?? 0) > 0.25) {
       applyCap("Hold", "Portfolio concentration cap");

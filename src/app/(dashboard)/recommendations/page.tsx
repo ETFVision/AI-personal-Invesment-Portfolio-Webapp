@@ -8,7 +8,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { runRecommendationsAction } from "@/server/actions/recommendationActions";
 import { formatNumber, formatPercent } from "@/lib/utils";
 import type { InstrumentRecommendation } from "@/domain/recommendations/types";
-import { assessmentLabel, assessmentTone } from "@/application/services/recommendations/recommendationPresentation";
+import { assessmentLabel, assessmentTone, businessQualityLabel } from "@/application/services/recommendations/recommendationPresentation";
 
 type RecommendationsPageProps = {
   searchParams?: Promise<{
@@ -19,15 +19,6 @@ type RecommendationsPageProps = {
 
 function score(value: number | null | undefined) {
   return value == null ? "-" : `${Math.round(value)}/100`;
-}
-
-function businessQualityLabel(bqScore: number | null): { label: string; tone: string } | null {
-  if (bqScore == null) return null;
-  if (bqScore >= 80) return { label: "Exceptional", tone: "positive" };
-  if (bqScore >= 65) return { label: "Strong", tone: "positive" };
-  if (bqScore >= 50) return { label: "Solid", tone: "info" };
-  if (bqScore >= 35) return { label: "Moderate", tone: "warning" };
-  return { label: "Weak", tone: "danger" };
 }
 
 function valuationLabel(valScore: number | null): { label: string; tone: string } | null {

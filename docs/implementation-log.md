@@ -1,3 +1,42 @@
+## 2026-06-21 - Business Quality-Aware Excessive Risk Cap
+
+### Source
+Claude Code
+
+### Objective
+Soften the excessive instrument risk guardrail for Strong or Exceptional Business Quality stocks so elevated volatility caps them at Neutral rather than Weak, while preserving the stricter Weak cap for lower-quality or non-stock instruments.
+
+### Files Changed
+- `src/application/services/recommendations/RecommendationRulesService.ts`
+- `src/application/services/recommendations/recommendationPresentation.ts`
+- `src/app/(dashboard)/recommendations/page.tsx`
+- `tests/recommendations.test.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `src/app/methodology/page.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added a shared Business Quality display helper so the guardrail uses the same Strong / Exceptional thresholds as the Insights table.
+- Updated the `riskScore > 75` guardrail to cap Strong or Exceptional Business Quality stocks at `Hold` / Neutral instead of `Watch` / Weak.
+- Preserved the existing behavior for lower Business Quality names, non-stock instruments with no Business Quality score, and instruments already at `Reduce` or `Sell`.
+- Updated methodology documentation and the public methodology page to describe the quality-aware excessive-risk cap.
+- Added tests covering Exceptional, Strong, Solid, already-`Sell`, already-`Reduce`, and ETF/null-Business-Quality cases.
+
+### Tests Run
+- `npm.cmd run test` - PASS (327/327)
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Guardrail-severity change only; no scoring math, score weights, label bands, risk-score formula, feature flags, access controls, or advisory wording changed.
+- Expected after recommendation rerun: ASML, ANET, AMD, QCOM, and PYPL can move from Weak to Neutral when the excessive-risk cap is the binding guardrail and Business Quality is Strong or Exceptional; UNH, INTC, and NKE are expected to remain Weak if Business Quality is below Strong.
+- After deploy, run Force refresh fundamentals if needed, then recommendation-run from Admin so stored Characteristics assessments recompute.
+
 ## 2026-06-21 - ROIC Durability Consistency Signal
 
 ### Source

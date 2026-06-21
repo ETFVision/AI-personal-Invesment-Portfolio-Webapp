@@ -898,7 +898,7 @@ Liquidity score:
 | Confidence below 50 | Insufficient Data |
 | Business Quality below 35 for stocks | Watch |
 | Valuation below 15 for stocks | Hold |
-| Risk score above 75 | Watch unless already lower |
+| Risk score above 75 | Hold for stocks with Strong or Exceptional Business Quality; otherwise Watch unless already lower |
 | Long-duration bond mismatch with restrictive/rising/high rates | Hold |
 
 The guardrail service still accepts optional concentration and duplicate-exposure inputs for backward compatibility and direct tests. The current stored recommendation scoring pipeline does not pass those portfolio-dependent inputs.

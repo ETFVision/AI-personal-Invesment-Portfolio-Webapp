@@ -2,6 +2,43 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-21 SGT - Business Quality-Aware Excessive Risk Cap QA
+
+Scope:
+- Verify the excessive instrument risk guardrail remains conservative while no longer equating high-volatility, Strong / Exceptional Business Quality stocks with Weak characteristics.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| `riskScore > 75` capped all instruments to Weak regardless of Business Quality | Fixed for Strong / Exceptional Business Quality stocks; cap is now Neutral |
+| Lower-quality high-risk instruments still need the stricter Weak cap | Preserved |
+| Non-stock instruments have no Business Quality score and should remain unchanged | Preserved; null Business Quality still caps at Weak |
+| Instruments already at Poor / Significant Concerns should not be upgraded by the cap | Preserved for internal `Reduce` and `Sell` labels |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Exceptional Business Quality + risk score above 75 caps to Neutral | PASS |
+| Strong Business Quality + risk score above 75 caps to Neutral | PASS |
+| Solid / Moderate Business Quality + risk score above 75 caps to Weak | PASS |
+| Existing `Sell` label remains `Sell` | PASS |
+| Existing `Reduce` label remains `Reduce` | PASS |
+| ETF/null Business Quality + risk score above 75 caps to Weak | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (327/327) |
+| `npm.cmd run build` | PASS |
+
+Expected live impact:
+- ASML, ANET, AMD, QCOM, and PYPL are expected to move from Weak to Neutral when the excessive-risk cap is the binding guardrail and their Business Quality is Strong or Exceptional.
+- UNH, INTC, and NKE are expected to remain Weak if their Business Quality is below Strong.
+
+Residual items:
+- Run the Admin recommendation job after deploy so stored Characteristics assessments update.
+- This is a guardrail-severity change only; no scoring math, risk formula, score weights, label bands, or advice wording changed.
+
 ## 2026-06-21 SGT - ROIC Durability Consistency Signal QA
 
 Scope:
