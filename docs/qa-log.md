@@ -2,6 +2,36 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-22 SGT - Med 26 Scoring Golden Baseline QA
+
+Scope:
+- Add deterministic golden-regression coverage for the current scoring outputs without changing scoring logic or user-facing methodology.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Future scoring changes needed a loud deterministic regression baseline | Fixed; added `tests/scoring-golden.test.ts` |
+| Golden assertions needed to avoid volatile metadata and generated text | Fixed; normalized assertions include only scores, labels, guardrails, and component keys/scores |
+| Stock scoring baseline needed to exercise the canonical phase-2 path | Fixed; stock evaluations are wrapped in `withStockPhase2Flag(true, ...)` |
+| Fundamental scoring needed fixture-level coverage for strong, weak, and financial-sector paths | Fixed; added pinned sub-score snapshots and financial-path exclusions for cash conversion / ROIC durability |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Helper anchor scores are pinned | PASS |
+| Fundamental sub-score snapshots are pinned | PASS |
+| Stock / ETF / bond / gold / crypto normalized recommendation outputs are pinned | PASS |
+| Focused `tests/scoring-golden.test.ts` run | PASS (3/3) |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (333/333) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Future intentional scoring changes should update the golden baseline with an explicit methodology and QA note.
+
 ## 2026-06-21 SGT - Methodology Financial Terms Glossary QA
 
 Scope:

@@ -1,3 +1,37 @@
+## 2026-06-22 - Med 26 Scoring Golden Baseline
+
+### Source
+Claude Code
+
+### Objective
+Create deterministic golden-regression coverage that pins the current ETFVision scoring outputs and fails loudly when future scoring changes move the baseline.
+
+### Files Changed
+- `tests/scoring-golden.test.ts`
+- `package.json`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added a new golden scoring test covering helper anchors, fundamental sub-score fixtures, and normalized recommendation outputs across stock, ETF, bond ETF, gold ETF, and crypto services.
+- Golden tests use pure helper functions and direct `evaluate()` calls only; they do not call `RecommendationService.generate()` or include run-date/free-text output in assertions.
+- Stock recommendation evaluations run under the canonical stock phase-2 feature flag path.
+- Wired the new golden test into `npm test` by adding `.test-build/tests/scoring-golden.test.js` to the explicit Node test list.
+- No scoring source code, weights, labels, methodology, feature flags, access controls, schema, migrations, or user-facing copy changed.
+
+### Tests Run
+- Focused compile/test for `tests/scoring-golden.test.ts` - PASS (3/3)
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (333/333)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- This is the Med 26 golden baseline. Future intentional scoring changes should update this test explicitly alongside methodology/log updates.
+
 ## 2026-06-21 - Methodology Financial Terms Glossary
 
 ### Source
