@@ -1,3 +1,37 @@
+## 2026-06-22 - Admin Price Refresh Uses Bulk EOD
+
+### Source
+Claude Code
+
+### Objective
+Switch the Admin Data Sources "Refresh prices" button from the batch latest-price path to the new FMP bulk-EOD price refresh path.
+
+### Files Changed
+- `src/server/actions/dataRefreshActions.ts`
+- `src/app/(dashboard)/admin/data-sources/page.tsx`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Updated `refreshInstrumentPricesAction` to call `refreshInstrumentPricesFromBulkEod({ skipRiskMetrics: true, skipDerivedMetrics: true })`.
+- Removed the old manual button's `lookbackDays`, `batchSize`, `maxBatches`, and `includeBackfill` arguments because the bulk-EOD path chooses the latest expected EOD date internally.
+- Kept the manual button prices-only and fast; derived metrics still remain on the numbered follow-up buttons.
+- Renamed the button label to `1. Refresh prices (EOD)` and pending label to `Refreshing EOD prices...`.
+- No scoring, methodology, access controls, cron behavior, route behavior, or user-facing compliance wording changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (337/337)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- The manual Admin Data Sources price button now exercises the same bulk-EOD service path as the new scheduled bulk route, but still skips derived and risk metric recomputation.
+- Operators should continue running the numbered derived-metric buttons after price refresh when derived metrics need to be updated.
+
 ## 2026-06-22 - Bulk EOD Daily Price Refresh
 
 ### Source

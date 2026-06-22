@@ -2,6 +2,34 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-22 SGT - Admin Price Refresh Bulk EOD QA
+
+Scope:
+- Verify the Admin Data Sources manual "Refresh prices" control now uses the bulk-EOD price path while remaining prices-only.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Manual `Refresh prices` still used the old batch latest-price path after bulk-EOD support was added | Fixed; action now calls `refreshInstrumentPricesFromBulkEod` |
+| Manual price refresh needed to stay prices-only | Preserved; `skipDerivedMetrics: true` and `skipRiskMetrics: true` remain set |
+| Operator label needed to distinguish the EOD path | Updated; button now reads `1. Refresh prices (EOD)` with pending text `Refreshing EOD prices...` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `refreshInstrumentPricesAction` uses bulk-EOD service path | PASS |
+| Old batch arguments removed from the manual price action | PASS |
+| Derived/risk metric skipping preserved | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (337/337) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- After running the manual EOD price refresh in Admin, run the numbered derived-metric buttons when derived daily returns, anchors, market metrics, or risk metrics need recomputation.
+
 ## 2026-06-22 SGT - Bulk EOD Daily Price Refresh QA
 
 Scope:

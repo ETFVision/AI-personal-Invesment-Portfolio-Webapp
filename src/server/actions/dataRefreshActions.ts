@@ -193,11 +193,7 @@ export async function refreshInstrumentPricesAction(formData?: FormData) {
   let refreshMessage = "";
 
   const job = await container.jobRunService.runManual("instrument-price-refresh", async () => {
-    const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
-      lookbackDays: 30,
-      batchSize: 75,
-      maxBatches: 1,
-      includeBackfill: false,
+    const result = await container.instrumentMarketService.refreshInstrumentPricesFromBulkEod({
       skipRiskMetrics: true,
       skipDerivedMetrics: true
     });

@@ -742,7 +742,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
             </form>
             <form action={refreshInstrumentPricesAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
-              <SubmitButton pendingLabel="Refreshing prices...">1. Refresh prices</SubmitButton>
+              <SubmitButton pendingLabel="Refreshing EOD prices...">1. Refresh prices (EOD)</SubmitButton>
             </form>
             <form action={refreshInstrumentDailyReturnsAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
