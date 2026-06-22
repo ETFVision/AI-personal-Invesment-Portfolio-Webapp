@@ -1,3 +1,68 @@
+## 2026-06-22 - Re-Cascade Refresh Schedule With Single Risk Pass
+
+### Source
+Claude Code
+
+### Objective
+Create a schedule-only Supabase pg_cron migration that re-cascades daily, weekly, and monthly refresh jobs around the US market close and collapses the two daily risk-metric passes into one.
+
+### Files Changed
+- `supabase/migrations/117_recascade_refresh_schedule_single_pass_risk.sql`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added migration 117 with the guarded unschedule loop pattern used by migration 116.
+- Unschedules exactly the requested 27 job names and recreates 26 jobs; the only set difference is the intentional collapse from `app-daily-instrument-risk-refresh-1` and `app-daily-instrument-risk-refresh-2` into `app-daily-instrument-risk-refresh`.
+- Reuses commands from migrations 116, 101, and 082 verbatim except for the new merged risk job command: `/api/jobs/instrument-risk-refresh?batchSize=350&minObservations=30&lockTtlSeconds=600`.
+- Keeps all endpoints and query strings unchanged except for the merged risk job.
+- No application code, TypeScript, scoring, methodology, labels, access controls, or user-facing compliance wording changed.
+
+### New Schedule
+| Cadence | UTC Time | Job |
+|---|---:|---|
+| Daily | 22:30 | `app-daily-instrument-price-refresh` |
+| Daily | 22:35 | `app-daily-instrument-daily-returns-refresh` |
+| Daily | 22:40 | `app-daily-instrument-return-anchors-refresh` |
+| Daily | 22:45 | `app-daily-instrument-market-metrics-refresh` |
+| Daily | 22:50 | `app-daily-instrument-risk-refresh` |
+| Daily | 22:55 | `app-daily-instrument-metadata-refresh` |
+| Daily | 23:00 | `app-daily-benchmark-refresh` |
+| Daily | 23:05 | `app-daily-portfolio-valuation-refresh` |
+| Daily | 23:10 | `app-daily-portfolio-summary-refresh` |
+| Daily | 23:15 | `app-daily-fred-macro-ingestion` |
+| Daily | 23:20 | `app-daily-fmp-news-ingestion` |
+| Daily | 23:25 | `app-daily-newsdata-ingestion` |
+| Weekly Sat | 23:30 | `app-weekly-fundamentals-refresh-1` |
+| Weekly Sat | 23:35 | `app-weekly-fundamentals-refresh-2` |
+| Weekly Sat | 23:40 | `app-weekly-fundamentals-refresh-3` |
+| Weekly Sat | 23:45 | `app-weekly-news-reconciliation` |
+| Weekly Sat | 23:50 | `app-weekly-market-vision` |
+| Weekly Sat | 23:55 | `app-weekly-recommendation-run` |
+| Weekly Sun | 00:00 | `app-weekly-portfolio-review-run` |
+| Weekly Sun | 00:05 | `app-weekly-telemetry-evaluation` |
+| Monthly 1st | 23:30 | `app-monthly-etf-lookthrough-refresh-1` |
+| Monthly 1st | 23:35 | `app-monthly-etf-lookthrough-refresh-2` |
+| Monthly 1st | 23:40 | `app-monthly-etf-lookthrough-refresh-3` |
+| Monthly 1st | 23:45 | `app-monthly-etf-lookthrough-refresh-4` |
+| Monthly 1st | 23:50 | `app-monthly-etf-lookthrough-refresh-5` |
+| Monthly 1st | 23:55 | `app-monthly-universe-validation` |
+
+### Tests Run
+- SQL/job-name verification - PASS (27 unscheduled, 26 scheduled, only risk pair collapsed)
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (337/337)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 117 is valid SQL by inspection and job-name parsing, and must be applied manually to Supabase.
+- The schedule is anchored to the US market close/EOD window: price starts at 22:30 UTC, which is 18:30 EDT / 17:30 EST.
+- Monthly jobs run on the 1st in UTC, which remains the 1st in US Eastern.
+
 ## 2026-06-22 - Chunked Set-Based Risk Metrics Refresh
 
 ### Source

@@ -2,6 +2,56 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-22 SGT - Re-Cascaded Refresh Schedule QA
+
+Scope:
+- Verify migration 117 re-cascades scheduled Supabase pg_cron jobs and collapses the two daily risk-metric passes into one schedule-only change.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Daily refresh chain needed to align around the US market close / EOD publish window | Fixed; daily chain now starts with price refresh at 22:30 UTC |
+| Risk metrics were still scheduled as two passes after set-based chunking shipped | Fixed; migration schedules one `app-daily-instrument-risk-refresh` at 22:50 UTC |
+| Schedule changes must avoid app-code changes | Preserved; only migration 117 and documentation were changed |
+| Existing job commands should stay unchanged except the merged risk job | Verified; commands copied from migrations 116, 101, and 082 except risk batchSize 350 |
+
+New schedule:
+
+| Cadence | UTC Time | Job |
+|---|---:|---|
+| Daily | 22:30 | `app-daily-instrument-price-refresh` |
+| Daily | 22:35 | `app-daily-instrument-daily-returns-refresh` |
+| Daily | 22:40 | `app-daily-instrument-return-anchors-refresh` |
+| Daily | 22:45 | `app-daily-instrument-market-metrics-refresh` |
+| Daily | 22:50 | `app-daily-instrument-risk-refresh` |
+| Daily | 22:55 | `app-daily-instrument-metadata-refresh` |
+| Daily | 23:00 | `app-daily-benchmark-refresh` |
+| Daily | 23:05 | `app-daily-portfolio-valuation-refresh` |
+| Daily | 23:10 | `app-daily-portfolio-summary-refresh` |
+| Daily | 23:15 | `app-daily-fred-macro-ingestion` |
+| Daily | 23:20 | `app-daily-fmp-news-ingestion` |
+| Daily | 23:25 | `app-daily-newsdata-ingestion` |
+| Weekly Sat | 23:30-23:55 | Fundamentals, news reconciliation, Market Vision, recommendation run |
+| Weekly Sun | 00:00-00:05 | Portfolio review and telemetry evaluation |
+| Monthly 1st | 23:30-23:55 | ETF look-through passes and universe validation |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration file is syntactically valid SQL by inspection | PASS |
+| Unschedule list contains exactly the requested 27 job names | PASS |
+| Reschedule list contains 26 jobs with the two old risk jobs collapsed into one new risk job | PASS |
+| No endpoints or query strings changed except the merged risk job | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (337/337) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/117_recascade_refresh_schedule_single_pass_risk.sql` manually to Supabase.
+
 ## 2026-06-22 SGT - Chunked Set-Based Risk Metrics Refresh QA
 
 Scope:
