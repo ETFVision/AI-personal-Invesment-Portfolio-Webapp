@@ -1,12 +1,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PortfolioImprovementSuggestionService } from "../src/application/services/portfolioReview/PortfolioImprovementSuggestionService";
+import {
+  buildPortfolioImprovementSuggestionContext,
+  candidateRole,
+  PortfolioImprovementSuggestionService,
+  rolePriority
+} from "../src/application/services/portfolioReview/PortfolioImprovementSuggestionService";
+import { wrapperExcludedIssuerConcentration } from "../src/application/services/risk/RiskAnalyticsDataService";
 import { PortfolioActionSuggestionService } from "../src/application/services/portfolioReview/PortfolioActionSuggestionService";
 import { AllocationReviewService } from "../src/application/services/portfolioReview/AllocationReviewService";
 import { ConcentrationReviewService } from "../src/application/services/portfolioReview/ConcentrationReviewService";
 import { PortfolioRiskReviewService } from "../src/application/services/portfolioReview/PortfolioRiskReviewService";
 import { MacroFitReviewService } from "../src/application/services/portfolioReview/MacroFitReviewService";
-import { portfolioReviewConfidenceScore } from "../src/application/services/portfolioReview/PortfolioReviewService";
+import { RecommendationAlignmentReviewService } from "../src/application/services/portfolioReview/RecommendationAlignmentReviewService";
+import { GeographyReviewService } from "../src/application/services/portfolioReview/GeographyReviewService";
+import { DiversificationReviewService } from "../src/application/services/portfolioReview/DiversificationReviewService";
+import { portfolioReviewConfidenceScore, portfolioReviewExecutiveSummary } from "../src/application/services/portfolioReview/PortfolioReviewService";
+import {
+  compareGapCandidatesByCategoryFit,
+  defensiveGapTooltipCategory,
+  groupDefensiveGapCandidates,
+  groupInternationalGapCandidates,
+  internationalGapTooltipCategory
+} from "../src/application/services/portfolioReview/gapCandidateDisplay";
+import { cleanHoldingSymbol, portfolioReviewMetricLabel, sharedCompanyDisplayName } from "../src/application/services/portfolioReview/portfolioReviewDisplay";
 import { weightedPortfolioScore } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import type { PortfolioReviewInputContext } from "../src/application/services/portfolioReview/portfolioReviewScoring";
 import { PortfolioLookthroughExposureService } from "../src/application/services/etfLookthrough/PortfolioLookthroughExposureService";
@@ -90,6 +107,7 @@ function context(overrides: Partial<PortfolioReviewInputContext> = {}): Portfoli
     macroRegime: { id: "macro-1", snapshotDate: "2026-06-01", ratesRegime: "stable", inflationRegime: "elevated", growthRegime: "stable", employmentRegime: "stable", yieldCurveRegime: "normal", liquidityRegime: "normal", dollarRegime: "stable", commoditiesRegime: "firm", overallMacroSummary: "", createdAt: "", updatedAt: "" },
     themeIntelligence: null,
     lookthroughReport: null,
+    etfTopHoldings: [],
     ...overrides
   };
 }
@@ -129,12 +147,120 @@ function instrument(input: Partial<Instrument> & Pick<Instrument, "id" | "symbol
   };
 }
 
+function lookthroughReport(holdingExposures: NonNullable<PortfolioReviewInputContext["lookthroughReport"]>["holdingExposures"], sectorWeight = 0.3): NonNullable<PortfolioReviewInputContext["lookthroughReport"]> {
+  return {
+    asOfDate: "2026-06-01",
+    coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+    sectorExposures: [
+      { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: sectorWeight, directWeight: sectorWeight, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+    ],
+    countryExposures: [],
+    topHoldingExposures: [],
+    holdingExposures,
+    currencyExposures: [],
+    themeExposures: [],
+    diagnostics: []
+  };
+}
+
+function insightAlignmentContext(input: { holdingCount: number; constructiveCount: number; weakCount: number }) {
+  const holdings = Array.from({ length: input.holdingCount }, (_, index) => {
+    const symbol = `H${index + 1}`;
+    return {
+      id: `holding-${index + 1}`,
+      portfolioId: "portfolio-1",
+      assetId: `asset-${index + 1}`,
+      assetType: "stock" as const,
+      ticker: symbol,
+      assetName: symbol,
+      accountName: null,
+      brokerName: null,
+      quantity: 1,
+      averageCost: 100,
+      costCurrency: "USD",
+      firstPurchaseDate: "2026-01-01",
+      notes: null,
+      sector: "Technology"
+    };
+  });
+  const recommendationFor = (index: number, recommendationLabel: "Buy" | "Reduce") => ({
+    id: `rec-${index + 1}`,
+    recommendationRunId: "run-1",
+    instrumentId: `instrument-${index + 1}`,
+    symbol: `H${index + 1}`,
+    instrumentType: "Stock",
+    recommendationLabel,
+    overallScore: recommendationLabel === "Buy" ? 76 : 32,
+    confidenceScore: 80,
+    riskLevel: "medium",
+    timeHorizon: "medium_term",
+    recommendationReasoningSummary: "",
+    positiveDrivers: [],
+    negativeDrivers: [],
+    guardrailsApplied: [],
+    dataLimitations: [],
+    recommendationChangeTriggers: { upgrade: [], downgrade: [] },
+    inputsSnapshot: {},
+    scoringBreakdown: {},
+    createdAt: "",
+    updatedAt: ""
+  });
+  const recommendations = [
+    ...Array.from({ length: input.constructiveCount }, (_, index) => recommendationFor(index, "Buy")),
+    ...Array.from({ length: input.weakCount }, (_, index) => recommendationFor(input.constructiveCount + index, "Reduce"))
+  ];
+
+  return context({
+    dashboard: {
+      ...context().dashboard,
+      holdings
+    },
+    recommendations
+  });
+}
+
 test("portfolio review weights calculate a deterministic overall score", () => {
   const score = weightedPortfolioScore([
     { key: "allocation", label: "Allocation", score: 80, weight: 0.5, reason: "" },
     { key: "risk", label: "Risk", score: 60, weight: 0.5, reason: "" }
   ]);
   assert.equal(score, 70);
+});
+
+test("insight alignment score is capped at 94 when weak holdings are present", () => {
+  const review = new RecommendationAlignmentReviewService().review(insightAlignmentContext({
+    holdingCount: 15,
+    constructiveCount: 13,
+    weakCount: 2
+  }));
+
+  assert.equal(review.score, 94);
+  assert.ok(review.findings.some((finding) => finding.title === "Some holdings need review"));
+  assert.equal(review.metrics?.weakHeldCount, 2);
+});
+
+test("insight alignment score is capped at 94 when coverage is incomplete", () => {
+  const review = new RecommendationAlignmentReviewService().review(insightAlignmentContext({
+    holdingCount: 20,
+    constructiveCount: 13,
+    weakCount: 0
+  }));
+
+  assert.equal(review.score, 94);
+  assert.ok(review.findings.some((finding) => finding.title === "Insights coverage is incomplete"));
+  assert.equal(review.metrics?.recommendationCoverage, 0.65);
+});
+
+test("insight alignment score can reach 100 without non-info findings", () => {
+  const review = new RecommendationAlignmentReviewService().review(insightAlignmentContext({
+    holdingCount: 10,
+    constructiveCount: 10,
+    weakCount: 0
+  }));
+
+  assert.equal(review.score, 100);
+  assert.equal(review.findings.length, 0);
+  assert.equal(review.metrics?.recommendationCoverage, 1);
 });
 
 test("allocation review flags equity-heavy and low fixed-income portfolios", () => {
@@ -178,6 +304,77 @@ test("allocation and macro reviews do not treat bond and gold ETFs as equity ETF
   assert.ok(!macroReview.findings.some((finding) => finding.title === "Equity exposure in restrictive rates"));
 });
 
+test("macro fit inflation finding acknowledges existing inflation hedge holdings", () => {
+  const withHedges = new MacroFitReviewService().review(context({
+    dashboard: {
+      ...context().dashboard,
+      holdings: [
+        ...context().dashboard.holdings,
+        { id: "tip", portfolioId: "portfolio-1", assetId: "tip", assetType: "bond_etf", ticker: "TIP", assetName: "iShares TIPS Bond ETF", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Bonds / Fixed Income" },
+        { id: "gld", portfolioId: "portfolio-1", assetId: "gld", assetType: "gold_etf", ticker: "GLD", assetName: "SPDR Gold Shares", accountName: null, brokerName: null, quantity: 1, averageCost: 100, costCurrency: "USD", firstPurchaseDate: "2026-01-01", notes: null, sector: "Commodities / Gold" }
+      ]
+    }
+  }));
+  const withoutHedges = new MacroFitReviewService().review(context());
+
+  assert.match(withHedges.findings.find((finding) => finding.title === "Inflation regime is active")?.detail ?? "", /Existing inflation-sensitive holdings detected: TIP, GLD/);
+  assert.equal(
+    withoutHedges.findings.find((finding) => finding.title === "Inflation regime is active")?.detail,
+    "Inflation-linked, commodity and cash-like sleeves may be useful context for review."
+  );
+});
+
+test("portfolio review metric labels clarify country materiality thresholds", () => {
+  const geographyReview = new GeographyReviewService().review(context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.98, directWeight: 0.98, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "Japan", exposureWeight: 0.005, directWeight: 0.005, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    }
+  }));
+  const diversificationReview = new DiversificationReviewService().review(context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.94, directWeight: 0.94, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "Japan", exposureWeight: 0.02, directWeight: 0.02, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    }
+  }));
+
+  assert.equal(geographyReview.metrics.countryCount, 1);
+  assert.equal(diversificationReview.metrics.lookthroughCountryCount, 1);
+  assert.equal(portfolioReviewMetricLabel("countryCount"), "Countries ≥1%");
+  assert.equal(portfolioReviewMetricLabel("lookthroughCountryCount"), "Look-through countries ≥3%");
+  assert.equal(cleanHoldingSymbol("BRK.B"), "BRK.B");
+  assert.equal(cleanHoldingSymbol("2330.TW"), "2330");
+  assert.equal(cleanHoldingSymbol("005930.KS"), "005930");
+});
+
+test("portfolio review executive summary capitalizes balance findings disclaimer", () => {
+  const summary = portfolioReviewExecutiveSummary(82, 1, 2, 0);
+
+  assert.match(summary, /2 balance findings/);
+  assert.match(summary, /Balance findings are deterministic analytical outputs/);
+  assert.doesNotMatch(summary, /balance findings are deterministic analytical outputs/);
+});
+
 test("concentration review surfaces named direct and indirect top holdings", () => {
   const review = new ConcentrationReviewService().review(context({
     lookthroughReport: {
@@ -202,6 +399,93 @@ test("concentration review surfaces named direct and indirect top holdings", () 
   assert.equal(largestDirect.holdingSymbol, "VOO");
   assert.equal(largestIndirect.holdingSymbol, "MSFT");
   assert.ok(Number(largestIndirect.indirectWeight) > 0);
+});
+
+test("concentration review measures top holding at issuer level when ETF wrapper is largest direct position", () => {
+  const review = new ConcentrationReviewService().review(context({
+    lookthroughReport: lookthroughReport([
+      { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "VOO", holdingName: "Vanguard S&P 500 ETF", directWeight: 0.3, indirectWeight: 0, totalWeight: 0.3, sourceEtfs: [], inputsSnapshot: { instrumentAssetClass: "etf", exposureRole: "direct_position" } },
+      { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "NVDA", holdingName: "NVIDIA", directWeight: 0, indirectWeight: 0.07, totalWeight: 0.07, sourceEtfs: [{ symbol: "VOO", weight: 0.07 }], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "underlying_security" } }
+    ])
+  }));
+  const largestDirect = review.metrics.largestDirectHolding as { holdingSymbol?: string; totalWeight?: number };
+
+  assert.equal(Math.round(Number(review.metrics.topHoldingConcentration) * 100), 7);
+  assert.equal(largestDirect.holdingSymbol, "VOO");
+  assert.equal(review.findings.some((finding) => finding.title === "Single-company concentration"), false);
+  assert.equal(review.score, 90);
+});
+
+test("concentration and risk share wrapper-excluded issuer exposure semantics", () => {
+  const holdingExposures = [
+    { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "VOO", holdingName: "Vanguard S&P 500 ETF", directWeight: 0.3, indirectWeight: 0, totalWeight: 0.3, sourceEtfs: [], inputsSnapshot: { instrumentAssetClass: "etf", exposureRole: "direct_position" } },
+    { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "NVDA", holdingName: "NVIDIA", holdingIssuerId: "issuer-nvda", holdingIssuerName: "NVIDIA Corporation", directWeight: 0, indirectWeight: 0.12, totalWeight: 0.12, sourceEtfs: [{ symbol: "VOO", weight: 0.12 }], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "underlying_security", issuerId: "issuer-nvda", issuerName: "NVIDIA Corporation" } },
+    { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "NVDA", holdingName: "NVIDIA Class A", holdingIssuerId: "issuer-nvda", holdingIssuerName: "NVIDIA Corporation", directWeight: 0.03, indirectWeight: 0, totalWeight: 0.03, sourceEtfs: [], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "direct_position", issuerId: "issuer-nvda", issuerName: "NVIDIA Corporation" } },
+    { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "MSFT", holdingName: "Microsoft", holdingIssuerId: "issuer-msft", holdingIssuerName: "Microsoft Corporation", directWeight: 0, indirectWeight: 0.06, totalWeight: 0.06, sourceEtfs: [{ symbol: "VOO", weight: 0.06 }], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "underlying_security", issuerId: "issuer-msft", issuerName: "Microsoft Corporation" } }
+  ];
+  const concentrationReview = new ConcentrationReviewService().review(context({
+    lookthroughReport: lookthroughReport(holdingExposures)
+  }));
+  const riskIssuerConcentration = wrapperExcludedIssuerConcentration({
+    inputsSnapshot: {
+      lookthroughExposure: { holdingExposures }
+    }
+  });
+
+  assert.equal(Number(concentrationReview.metrics.topHoldingConcentration), riskIssuerConcentration?.topHolding);
+  assert.equal(Number(concentrationReview.metrics.topFiveConcentration), riskIssuerConcentration?.topFive);
+  assert.equal(riskIssuerConcentration?.topHolding, 0.15);
+  assert.equal(riskIssuerConcentration?.topFive, 0.21);
+});
+
+test("concentration review emits watch when a single issuer exceeds 10 percent", () => {
+  const review = new ConcentrationReviewService().review(context({
+    lookthroughReport: lookthroughReport([
+      { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "NVDA", holdingName: "NVIDIA", directWeight: 0, indirectWeight: 0.12, totalWeight: 0.12, sourceEtfs: [{ symbol: "VOO", weight: 0.12 }], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "underlying_security" } }
+    ])
+  }));
+  const finding = review.findings.find((item) => item.title === "Single-company concentration");
+
+  assert.equal(finding?.severity, "watch");
+  assert.match(finding?.detail ?? "", /exceeds 10%/);
+});
+
+test("concentration review emits attention when a single issuer exceeds 20 percent", () => {
+  const review = new ConcentrationReviewService().review(context({
+    lookthroughReport: lookthroughReport([
+      { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "NVDA", holdingName: "NVIDIA", directWeight: 0, indirectWeight: 0.22, totalWeight: 0.22, sourceEtfs: [{ symbol: "VOO", weight: 0.22 }], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "underlying_security" } }
+    ])
+  }));
+  const finding = review.findings.find((item) => item.title === "Single-company concentration");
+
+  assert.equal(finding?.severity, "attention");
+  assert.match(finding?.detail ?? "", /exceeds 20%/);
+});
+
+test("concentration review includes direct single-stock exposure in issuer top holding", () => {
+  const review = new ConcentrationReviewService().review(context({
+    lookthroughReport: lookthroughReport([
+      { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "MSFT", holdingName: "Microsoft", directWeight: 0.3, indirectWeight: 0, totalWeight: 0.3, sourceEtfs: [], inputsSnapshot: { instrumentAssetClass: "stock", exposureRole: "direct_position" } }
+    ])
+  }));
+  const finding = review.findings.find((item) => item.title === "Single-company concentration");
+
+  assert.equal(Number(review.metrics.topHoldingConcentration), 0.3);
+  assert.equal(finding?.severity, "attention");
+});
+
+test("concentration review falls back to direct concentration when look-through has no issuer rows", () => {
+  const review = new ConcentrationReviewService().review(context({
+    riskReport: {
+      ...context().riskReport,
+      concentration: { ...context().riskReport.concentration, topHoldingConcentration: 0.3, topFiveConcentration: 0.4 }
+    } as any,
+    lookthroughReport: lookthroughReport([])
+  }));
+  const finding = review.findings.find((item) => item.title === "Single-company concentration");
+
+  assert.equal(Number(review.metrics.topHoldingConcentration), 0.3);
+  assert.equal(finding?.severity, "attention");
 });
 
 test("portfolio review data coverage falls when ETF top-holding look-through is missing", () => {
@@ -247,6 +531,617 @@ test("improvement suggestions only include approved non-reduce candidates", () =
   const candidates = suggestions.flatMap((suggestion) => suggestion.candidateInstruments);
   assert.ok(candidates.some((candidate) => candidate.symbol === "BND"));
   assert.ok(!candidates.some((candidate) => candidate.symbol === "HYG"));
+  const fixedIncomeSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_fixed_income");
+  assert.match(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BND")?.primaryReason ?? "", /provides exposure to fixed income where bond allocation is 0\.0%/);
+});
+
+test("defensive gap candidates surface diversified ETFs and exclude single stocks", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationBySector: [
+        { label: "Technology", value: 40, percent: 0.4 },
+        { label: "Healthcare", value: 5, percent: 0.05 }
+      ]
+    },
+    instruments: [
+      instrument({ id: "xlv", symbol: "XLV", name: "Health Care Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
+      instrument({ id: "vht", symbol: "VHT", name: "Vanguard Health Care ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
+      instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] }),
+      instrument({ id: "xlp", symbol: "XLP", name: "Consumer Staples Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Consumer Staples", canonicalThemes: ["Defensive Consumer"] }),
+      instrument({ id: "isrg", symbol: "ISRG", name: "Intuitive Surgical", assetClass: "stock", instrumentType: "stock", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
+      instrument({ id: "amgn", symbol: "AMGN", name: "Amgen", assetClass: "stock", instrumentType: "stock", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare"] }),
+      instrument({ id: "gild", symbol: "GILD", name: "Gilead Sciences", assetClass: "stock", instrumentType: "stock", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare"] }),
+      instrument({ id: "bmy", symbol: "BMY", name: "Bristol Myers Squibb", assetClass: "stock", instrumentType: "stock", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare"] }),
+      instrument({ id: "pfe", symbol: "PFE", name: "Pfizer", assetClass: "stock", instrumentType: "stock", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare"] })
+    ]
+  }));
+  const defensiveSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure");
+  const symbols = defensiveSuggestion?.candidateInstruments.map((candidate) => candidate.symbol) ?? [];
+
+  assert.ok(defensiveSuggestion);
+  assert.deepEqual(new Set(symbols), new Set(["XLV", "VHT", "XLU", "XLP"]));
+  assert.ok(defensiveSuggestion.candidateInstruments.every((candidate) => candidate.assetClass !== "stock"));
+  assert.ok(!symbols.some((symbol) => ["ISRG", "AMGN", "GILD", "BMY", "PFE"].includes(symbol)));
+});
+
+test("defensive gap role priority follows the most-underweight defensive sleeve", () => {
+  const issueContext = buildPortfolioImprovementSuggestionContext(context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.4, directWeight: 0.4, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.12, directWeight: 0.12, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Utilities", exposureWeight: 0, directWeight: 0, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Consumer Staples", exposureWeight: 0.04, directWeight: 0.04, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    }
+  }));
+
+  assert.equal(issueContext.utilitiesWeight, 0);
+  assert.equal(issueContext.consumerStaplesWeight, 0.04);
+  assert.deepEqual(rolePriority("insufficient_defensive_exposure", issueContext), [
+    "utilities_defensive",
+    "consumer_staples_defensive",
+    "healthcare_defensive",
+    "short_treasury_cash_like",
+    "core_us_bond"
+  ]);
+});
+
+test("defensive gap tie ordering remains deterministic when sleeve weights are absent", () => {
+  const issueContext = buildPortfolioImprovementSuggestionContext(context());
+
+  assert.equal(issueContext.healthcareWeight, 0);
+  assert.equal(issueContext.utilitiesWeight, 0);
+  assert.equal(issueContext.consumerStaplesWeight, 0);
+  assert.deepEqual(rolePriority("insufficient_defensive_exposure", issueContext), [
+    "healthcare_defensive",
+    "utilities_defensive",
+    "consumer_staples_defensive",
+    "short_treasury_cash_like",
+    "core_us_bond"
+  ]);
+});
+
+test("defensive gap assigns higher issue fit to the most-underweight sleeve", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.4, directWeight: 0.4, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.12, directWeight: 0.12, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Utilities", exposureWeight: 0, directWeight: 0, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Consumer Staples", exposureWeight: 0.04, directWeight: 0.04, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    instruments: [
+      instrument({ id: "xlv", symbol: "XLV", name: "Health Care Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
+      instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] }),
+      instrument({ id: "xlp", symbol: "XLP", name: "Consumer Staples Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Consumer Staples", canonicalThemes: ["Defensive Consumer"] })
+    ]
+  }));
+  const defensiveSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure");
+  const utilitiesCandidate = defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLU");
+  const staplesCandidate = defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLP");
+  const healthcareCandidate = defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV");
+
+  assert.ok(utilitiesCandidate);
+  assert.ok(staplesCandidate);
+  assert.ok(healthcareCandidate);
+  assert.ok((utilitiesCandidate.issueFitScore ?? 0) > (staplesCandidate.issueFitScore ?? 0));
+  assert.ok((staplesCandidate.issueFitScore ?? 0) > (healthcareCandidate.issueFitScore ?? 0));
+});
+
+test("defensive gap candidate selection includes each defensive sleeve with per-sleeve caps", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.4, directWeight: 0.4, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.12, directWeight: 0.12, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Utilities", exposureWeight: 0.01, directWeight: 0.01, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Consumer Staples", exposureWeight: 0.04, directWeight: 0.04, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    instruments: [
+      instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] }),
+      instrument({ id: "vpu", symbol: "VPU", name: "Vanguard Utilities ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification", "Defensive"] }),
+      instrument({ id: "idu", symbol: "IDU", name: "iShares U.S. Utilities ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification", "Defensive"] }),
+      instrument({ id: "fxu", symbol: "FXU", name: "First Trust Utilities AlphaDEX Fund", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] }),
+      instrument({ id: "jxi", symbol: "JXI", name: "iShares Global Utilities ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Global Diversification", "Defensive"] }),
+      instrument({ id: "xlp", symbol: "XLP", name: "Consumer Staples Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Consumer Staples", canonicalThemes: ["Defensive Consumer"] }),
+      instrument({ id: "vdc", symbol: "VDC", name: "Vanguard Consumer Staples ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification", "Defensive Consumer"] }),
+      instrument({ id: "xlv", symbol: "XLV", name: "Health Care Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
+      instrument({ id: "vht", symbol: "VHT", name: "Vanguard Health Care ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Healthcare Innovation"] }),
+      instrument({ id: "xbi", symbol: "XBI", name: "SPDR S&P Biotech ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Biotechnology"] }),
+      instrument({ id: "ibb", symbol: "IBB", name: "iShares Biotechnology ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Biotechnology"] }),
+      instrument({ id: "arkg", symbol: "ARKG", name: "ARK Genomic Revolution ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Genomics", "Healthcare Innovation"] }),
+      instrument({ id: "bnd", symbol: "BND", name: "Vanguard Total Bond Market ETF", assetClass: "bond_etf", instrumentType: "bond_etf", canonicalSector: "Bonds / Fixed Income", canonicalThemes: ["Treasury Bonds"], durationCategory: "intermediate" }),
+      instrument({ id: "govt", symbol: "GOVT", name: "iShares U.S. Treasury Bond ETF", assetClass: "bond_etf", instrumentType: "bond_etf", canonicalSector: "Bonds / Fixed Income", canonicalThemes: ["Treasury Bonds"], durationCategory: "intermediate" })
+    ]
+  }));
+  const defensiveSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure");
+  const symbols = defensiveSuggestion?.candidateInstruments.map((candidate) => candidate.symbol) ?? [];
+  const groups = groupDefensiveGapCandidates(defensiveSuggestion?.candidateInstruments ?? []);
+
+  assert.equal(defensiveSuggestion?.title, "Defensive Sectors — Lightly Represented Category");
+  assert.deepEqual(groups.map((group) => group.key), ["utilities", "consumer_staples", "healthcare"]);
+  assert.deepEqual(groups.map((group) => group.candidates.length), [2, 2, 2]);
+  assert.deepEqual(groups[0]?.candidates.map((candidate) => candidate.symbol), ["XLU", "VPU"]);
+  assert.deepEqual(groups[1]?.candidates.map((candidate) => candidate.symbol), ["XLP", "VDC"]);
+  assert.deepEqual(groups[2]?.candidates.map((candidate) => candidate.symbol), ["XLV", "VHT"]);
+  assert.equal(symbols.includes("FXU"), false);
+  assert.equal(symbols.includes("JXI"), false);
+  assert.equal(symbols.includes("XBI"), false);
+  assert.equal(symbols.includes("IBB"), false);
+  assert.equal(symbols.includes("ARKG"), false);
+  assert.equal(symbols.includes("BND"), false);
+  assert.equal(symbols.includes("GOVT"), false);
+  assert.equal(groups.some((group) => group.label === "Defensive Ballast"), false);
+  assert.ok(groups.every((group) => group.candidates.length <= 2));
+});
+
+test("curated alpha ETF category prevents US sector ETFs from routing to global equity", () => {
+  const fxu = instrument({
+    id: "fxu",
+    symbol: "FXU",
+    name: "First Trust Utilities AlphaDEX Fund",
+    assetClass: "etf",
+    instrumentType: "etf",
+    canonicalSector: "Multi-Asset / Broad Market",
+    canonicalThemes: ["Global Diversification", "Defensive"]
+  });
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.4, directWeight: 0.4, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.08, directWeight: 0.08, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Utilities", exposureWeight: 0, directWeight: 0, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Consumer Staples", exposureWeight: 0.05, directWeight: 0.05, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    instruments: [fxu]
+  }));
+  const defensiveSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure");
+  const fxuCandidate = defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "FXU");
+
+  assert.equal(candidateRole(fxu), "utilities_defensive");
+  assert.ok(fxuCandidate);
+  assert.match(fxuCandidate.primaryReason ?? "", /defensive sector/i);
+  assert.doesNotMatch(fxuCandidate.primaryReason ?? "", /non-US equity/i);
+});
+
+test("international-role instruments cannot enter defensive gap candidates", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationBySector: [
+        { label: "Technology", value: 40, percent: 0.4 },
+        { label: "Healthcare", value: 5, percent: 0.05 }
+      ],
+      allocationByGeography: [
+        { label: "United States", value: 80, percent: 0.8 },
+        { label: "International", value: 20, percent: 0.2 }
+      ]
+    },
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.8, directWeight: 0.8, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    instruments: [
+      instrument({ id: "vxus", symbol: "VXUS", name: "Vanguard Total International Stock ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification", "Defensive"], geography: "International", geoExposure: "International" }),
+      instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] })
+    ]
+  }));
+  const defensiveSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure");
+  const internationalSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_international_exposure");
+
+  assert.equal(candidateRole(instrument({ id: "vxus", symbol: "VXUS", name: "Vanguard Total International Stock ETF", assetClass: "etf", instrumentType: "etf" })), "international_equity");
+  assert.equal(candidateRole(instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities" })), "utilities_defensive");
+  assert.ok(defensiveSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "XLU"));
+  assert.equal(defensiveSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "VXUS"), false);
+  assert.ok(internationalSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "VXUS"));
+});
+
+test("gap candidate display comparator orders by category fit before instrument quality", () => {
+  const ordered = [
+    { symbol: "DXJ", issueFitScore: 70, recommendationScore: 95 },
+    { symbol: "VXUS", issueFitScore: 100, recommendationScore: 60 },
+    { symbol: "VEA", issueFitScore: 100, recommendationScore: 75 }
+  ].sort(compareGapCandidatesByCategoryFit);
+
+  assert.deepEqual(ordered.map((candidate) => candidate.symbol), ["VEA", "VXUS", "DXJ"]);
+});
+
+test("international gap candidates group up to two core representatives per ex-US sub-role", () => {
+  const symbols = ["DXJ", "SCHY", "IDV", "JPXN", "EWJ", "HEFA", "EMXC", "IOO", "VT", "ACWI", "VXUS", "IXUS", "VEA", "SPDW", "SCHF", "VWO", "EEM", "IEMG"];
+  const instruments = symbols.map((symbol) =>
+    instrument({
+      id: symbol.toLowerCase(),
+      symbol,
+      name: `${symbol} ETF`,
+      assetClass: "etf",
+      instrumentType: "etf",
+      canonicalSector: "Multi-Asset / Broad Market",
+      canonicalThemes: ["Global Diversification"],
+      geography: "International",
+      geoExposure: "International"
+    })
+  );
+  const recommendations: PortfolioReviewInputContext["recommendations"] = symbols.map((symbol) => ({
+    id: `r-${symbol.toLowerCase()}`,
+    recommendationRunId: "run-1",
+    instrumentId: symbol.toLowerCase(),
+    symbol,
+    instrumentType: "ETF",
+    recommendationLabel: "Hold",
+    overallScore: ["DXJ", "SCHY", "IDV", "JPXN", "EWJ", "HEFA", "EMXC", "IOO", "VT", "ACWI"].includes(symbol) ? 96 : 62,
+    confidenceScore: 80,
+    riskLevel: "medium",
+    timeHorizon: "medium_term",
+    recommendationReasoningSummary: "",
+    positiveDrivers: [],
+    negativeDrivers: [],
+    guardrailsApplied: [],
+    dataLimitations: [],
+    recommendationChangeTriggers: { upgrade: [], downgrade: [] },
+    inputsSnapshot: {},
+    scoringBreakdown: {},
+    createdAt: "",
+    updatedAt: ""
+  }));
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByGeography: [
+        { label: "United States", value: 78, percent: 0.78 },
+        { label: "International", value: 22, percent: 0.22 }
+      ]
+    },
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.78, directWeight: 0.78, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    instruments,
+    recommendations
+  }));
+  const internationalSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_international_exposure");
+  const selectedSymbols = internationalSuggestion?.candidateInstruments.map((candidate) => candidate.symbol) ?? [];
+  const displaySymbols = [...(internationalSuggestion?.candidateInstruments ?? [])]
+    .sort(compareGapCandidatesByCategoryFit)
+    .map((candidate) => candidate.symbol);
+  const groups = groupInternationalGapCandidates(internationalSuggestion?.candidateInstruments ?? []);
+
+  assert.deepEqual(selectedSymbols, ["VXUS", "IXUS", "VEA", "SPDW", "VWO", "EEM"]);
+  assert.deepEqual(displaySymbols, ["VXUS", "IXUS", "VEA", "SPDW", "VWO", "EEM"]);
+  assert.deepEqual(groups.map((group) => group.label), ["Broad ex-US (all regions)", "Developed markets", "Emerging markets"]);
+  assert.deepEqual(groups.map((group) => group.candidates.length), [2, 2, 2]);
+  assert.deepEqual(groups[0]?.candidates.map((candidate) => candidate.symbol), ["VXUS", "IXUS"]);
+  assert.deepEqual(groups[1]?.candidates.map((candidate) => candidate.symbol), ["VEA", "SPDW"]);
+  assert.deepEqual(groups[2]?.candidates.map((candidate) => candidate.symbol), ["VWO", "EEM"]);
+  assert.match(groups[0]?.note ?? "", /all-in-one ex-US option/);
+  assert.equal(selectedSymbols.some((symbol) => ["IEMG", "HEFA", "EMXC", "IOO", "VT", "ACWI", "DXJ", "SCHY", "IDV", "JPXN", "EWJ"].includes(symbol)), false);
+  assert.equal(candidateRole(instrument({ id: "ixus", symbol: "IXUS", name: "iShares Core MSCI Total International Stock ETF", assetClass: "etf", instrumentType: "etf" })), "international_equity");
+  assert.equal(candidateRole(instrument({ id: "spdw", symbol: "SPDW", name: "SPDR Portfolio Developed World ex-US ETF", assetClass: "etf", instrumentType: "etf" })), "developed_international_equity");
+  assert.equal(candidateRole(instrument({ id: "vt", symbol: "VT", name: "Vanguard Total World Stock ETF", assetClass: "etf", instrumentType: "etf" })), "global_equity");
+
+  const tieredDisplayOrder = [
+    { symbol: "DXJ", categoryRepresentativeScore: 0, issueFitScore: 100, recommendationScore: 96 },
+    { symbol: "IOO", categoryRepresentativeScore: 30, issueFitScore: 74, recommendationScore: 96 },
+    { symbol: "EMXC", categoryRepresentativeScore: 60, issueFitScore: 83, recommendationScore: 96 },
+    { symbol: "VXUS", categoryRepresentativeScore: 100, issueFitScore: 100, recommendationScore: 62 }
+  ].sort(compareGapCandidatesByCategoryFit);
+
+  assert.deepEqual(tieredDisplayOrder.map((candidate) => candidate.symbol), ["VXUS", "EMXC", "IOO", "DXJ"]);
+});
+
+test("gap titles use a consistent dash and overlap labels prefer company names", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "stock", value: 90, percent: 0.9 },
+        { label: "crypto_etf", value: 8, percent: 0.08 },
+        { label: "bond_etf", value: 2, percent: 0.02 }
+      ]
+    },
+    bondReport: { ...context().bondReport, totalBondAllocation: 0.02 } as PortfolioReviewInputContext["bondReport"],
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.78, directWeight: 0.78, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      holdingExposures: [
+        { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "2330.TW", holdingName: "Taiwan Semiconductor Manufacturing", holdingIssuerName: "TSMC", directWeight: 0, indirectWeight: 0.03, totalWeight: 0.03, sourceEtfs: [{ symbol: "VXUS", weight: 0.03 }], inputsSnapshot: {} },
+        { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "ASML.AS", holdingName: null, directWeight: 0, indirectWeight: 0.02, totalWeight: 0.02, sourceEtfs: [{ symbol: "VXUS", weight: 0.02 }], inputsSnapshot: {} }
+      ],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    }
+  }));
+
+  assert.ok(suggestions.some((suggestion) => suggestion.title === "International Equity — Lightly Represented Category"));
+  assert.ok(suggestions.some((suggestion) => suggestion.title === "Crypto / Alternative — Ballast Underweighted"));
+  assert.ok(suggestions.every((suggestion) => !suggestion.title.includes(" - ")));
+  assert.equal(sharedCompanyDisplayName("2330.TW", context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [],
+      topHoldingExposures: [],
+      holdingExposures: [
+        { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "2330.TW", holdingName: "Taiwan Semiconductor Manufacturing", holdingIssuerName: "TSMC", directWeight: 0, indirectWeight: 0.03, totalWeight: 0.03, sourceEtfs: [{ symbol: "VXUS", weight: 0.03 }], inputsSnapshot: {} }
+      ],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    }
+  }).lookthroughReport?.holdingExposures ?? []), "TSMC");
+  assert.equal(sharedCompanyDisplayName("ASML.AS", []), "ASML");
+});
+
+test("defensive gap display grouping buckets sleeves and preserves incoming order", () => {
+  const groups = groupDefensiveGapCandidates([
+    { symbol: "XLU", diversificationType: "Defensive utilities" },
+    { symbol: "VPU", diversificationType: "Defensive utilities" },
+    { symbol: "XLP", diversificationType: "Defensive consumer staples" },
+    { symbol: "XLV", diversificationType: "Healthcare defensive sector" }
+  ]);
+
+  assert.deepEqual(groups.map((group) => group.label), ["Utilities", "Consumer Staples", "Healthcare"]);
+  assert.deepEqual(groups[0]?.candidates.map((candidate) => candidate.symbol), ["XLU", "VPU"]);
+  assert.deepEqual(groups[1]?.candidates.map((candidate) => candidate.symbol), ["XLP"]);
+  assert.deepEqual(groups[2]?.candidates.map((candidate) => candidate.symbol), ["XLV"]);
+});
+
+test("defensive gap tooltip categories follow the candidate sleeve", () => {
+  assert.equal(defensiveGapTooltipCategory({ diversificationType: "Defensive utilities" }), "Utilities");
+  assert.equal(defensiveGapTooltipCategory({ diversificationType: "Defensive consumer staples" }), "Consumer Staples");
+  assert.equal(defensiveGapTooltipCategory({ diversificationType: "Healthcare defensive sector" }), "Healthcare");
+});
+
+test("international gap display grouping buckets sub-roles and tooltip categories", () => {
+  const groups = groupInternationalGapCandidates([
+    { symbol: "VWO", diversificationType: "Emerging-market equity" },
+    { symbol: "VXUS", diversificationType: "International equity" },
+    { symbol: "VEA", diversificationType: "Developed international equity" },
+    { symbol: "IXUS", diversificationType: "International equity" }
+  ]);
+
+  assert.deepEqual(groups.map((group) => group.label), ["Broad ex-US (all regions)", "Developed markets", "Emerging markets"]);
+  assert.deepEqual(groups[0]?.candidates.map((candidate) => candidate.symbol), ["VXUS", "IXUS"]);
+  assert.deepEqual(groups[1]?.candidates.map((candidate) => candidate.symbol), ["VEA"]);
+  assert.deepEqual(groups[2]?.candidates.map((candidate) => candidate.symbol), ["VWO"]);
+  assert.equal(internationalGapTooltipCategory({ diversificationType: "International equity" }), "Broad ex-US (all regions)");
+  assert.equal(internationalGapTooltipCategory({ diversificationType: "Developed international equity" }), "Developed markets");
+  assert.equal(internationalGapTooltipCategory({ diversificationType: "Emerging-market equity" }), "Emerging markets");
+});
+
+test("real estate balance finding leads with broad US REIT representatives", () => {
+  const symbols = ["REM", "VNQI", "REET", "VNQ", "SCHH", "IYR", "USRT", "FREL", "XLRE", "RWR"];
+  const instruments = symbols.map((symbol) =>
+    instrument({
+      id: symbol.toLowerCase(),
+      symbol,
+      name: `${symbol} ETF`,
+      assetClass: "etf",
+      instrumentType: "etf",
+      canonicalSector: "Real Estate",
+      canonicalThemes: ["Real Estate / REITs"],
+      geography: symbol === "VNQI" || symbol === "REET" ? "Global" : "US",
+      geoExposure: symbol === "VNQI" || symbol === "REET" ? "Global" : "United States"
+    })
+  );
+  const recommendations: PortfolioReviewInputContext["recommendations"] = symbols.map((symbol) => ({
+    id: `r-${symbol.toLowerCase()}`,
+    recommendationRunId: "run-1",
+    instrumentId: symbol.toLowerCase(),
+    symbol,
+    instrumentType: "ETF",
+    recommendationLabel: "Hold",
+    overallScore: ["REM", "VNQI", "REET"].includes(symbol) ? 96 : 62,
+    confidenceScore: 80,
+    riskLevel: "medium",
+    timeHorizon: "medium_term",
+    recommendationReasoningSummary: "",
+    positiveDrivers: [],
+    negativeDrivers: [],
+    guardrailsApplied: [],
+    dataLimitations: [],
+    recommendationChangeTriggers: { upgrade: [], downgrade: [] },
+    inputsSnapshot: {},
+    scoringBreakdown: {},
+    createdAt: "",
+    updatedAt: ""
+  }));
+  const baseContext = context({
+    lookthroughReport: {
+      ...lookthroughReport([]),
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.42, directWeight: 0.42, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Real Estate", exposureWeight: 0.01, directWeight: 0.01, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ]
+    },
+    instruments,
+    recommendations
+  });
+  const scoreInputsBefore = JSON.stringify({
+    riskReport: baseContext.riskReport,
+    bondReport: baseContext.bondReport,
+    macroRegime: baseContext.macroRegime,
+    dashboard: {
+      allocationByType: baseContext.dashboard.allocationByType,
+      allocationBySector: baseContext.dashboard.allocationBySector,
+      allocationByGeography: baseContext.dashboard.allocationByGeography
+    }
+  });
+  const suggestions = new PortfolioImprovementSuggestionService().build(baseContext);
+  const realEstateSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_real_estate_exposure");
+
+  assert.equal(realEstateSuggestion?.title, "Real Estate — Lightly Represented Category");
+  assert.equal(realEstateSuggestion?.priority, "low");
+  assert.match(realEstateSuggestion?.rationale ?? "", /Real estate look-through exposure is 1\.0%/);
+  assert.equal((realEstateSuggestion?.candidateInstruments ?? []).length <= 4, true);
+  assert.deepEqual(realEstateSuggestion?.candidateInstruments.map((candidate) => candidate.symbol), ["VNQ", "SCHH", "IYR", "USRT"]);
+  assert.equal(realEstateSuggestion?.candidateInstruments.some((candidate) => ["REM", "VNQI", "REET"].includes(candidate.symbol)), false);
+  const vnqCandidate = realEstateSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "VNQ");
+  assert.match(vnqCandidate?.primaryReason ?? "", /provides exposure to real estate where real-estate look-through is 1\.0%/);
+  assert.doesNotMatch(vnqCandidate?.primaryReason ?? "", /appears for/);
+  assert.doesNotMatch(vnqCandidate?.primaryReason ?? "", /insufficient real estate exposure/);
+  assert.equal(JSON.stringify({
+    riskReport: baseContext.riskReport,
+    bondReport: baseContext.bondReport,
+    macroRegime: baseContext.macroRegime,
+    dashboard: {
+      allocationByType: baseContext.dashboard.allocationByType,
+      allocationBySector: baseContext.dashboard.allocationBySector,
+      allocationByGeography: baseContext.dashboard.allocationByGeography
+    }
+  }), scoreInputsBefore);
+});
+
+test("real estate balance finding does not fire when sleeve is adequately represented", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    lookthroughReport: {
+      ...lookthroughReport([]),
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.34, directWeight: 0.34, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Real Estate", exposureWeight: 0.04, directWeight: 0.04, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ]
+    }
+  }));
+
+  assert.equal(suggestions.some((suggestion) => suggestion.issueCategory === "insufficient_real_estate_exposure"), false);
+});
+
+test("portfolio balance candidate primary reasons do not leak fallback issue text", () => {
+  const instruments = [
+    instrument({ id: "bnd", symbol: "BND", name: "Vanguard Total Bond Market ETF", assetClass: "bond_etf", instrumentType: "bond_etf", canonicalSector: "Bonds / Fixed Income", canonicalThemes: ["Treasury Bonds"], durationCategory: "intermediate", treasuryClassification: "aggregate" }),
+    instrument({ id: "gld", symbol: "GLD", name: "SPDR Gold Shares", assetClass: "gold_etf", instrumentType: "gold_etf", canonicalSector: "Gold / Commodities", canonicalThemes: ["Inflation Hedge"] }),
+    instrument({ id: "vxus", symbol: "VXUS", name: "Vanguard Total International Stock ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Broad Market", canonicalThemes: ["Global Diversification"], geography: "International", geoExposure: "International" }),
+    instrument({ id: "xlv", symbol: "XLV", name: "Health Care Select Sector SPDR Fund", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Defensive"] }),
+    instrument({ id: "xlu", symbol: "XLU", name: "Utilities Select Sector SPDR Fund", assetClass: "etf", instrumentType: "etf", canonicalSector: "Utilities", canonicalThemes: ["Defensive"] }),
+    instrument({ id: "xlp", symbol: "XLP", name: "Consumer Staples Select Sector SPDR Fund", assetClass: "etf", instrumentType: "etf", canonicalSector: "Consumer Staples", canonicalThemes: ["Defensive"] }),
+    instrument({ id: "vnq", symbol: "VNQ", name: "Vanguard Real Estate ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Real Estate", canonicalThemes: ["Real Estate / REITs"] })
+  ];
+  const recommendations: PortfolioReviewInputContext["recommendations"] = instruments.map((item) => ({
+    id: `r-${item.id}`,
+    recommendationRunId: "run-1",
+    instrumentId: item.id,
+    symbol: item.symbol ?? "",
+    instrumentType: item.instrumentType,
+    recommendationLabel: "Hold",
+    overallScore: 70,
+    confidenceScore: 80,
+    riskLevel: "medium",
+    timeHorizon: "medium_term",
+    recommendationReasoningSummary: "",
+    positiveDrivers: [],
+    negativeDrivers: [],
+    guardrailsApplied: [],
+    dataLimitations: [],
+    recommendationChangeTriggers: { upgrade: [], downgrade: [] },
+    inputsSnapshot: {},
+    scoringBreakdown: {},
+    createdAt: "",
+    updatedAt: ""
+  }));
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "stock", value: 84, percent: 0.84 },
+        { label: "crypto_etf", value: 8, percent: 0.08 },
+        { label: "bond_etf", value: 0, percent: 0 },
+        { label: "gold_etf", value: 0, percent: 0 }
+      ],
+      allocationBySector: [{ label: "Technology", value: 90, percent: 0.9 }]
+    },
+    bondReport: {
+      ...context().bondReport,
+      totalBondAllocation: 0,
+      recessionHedgeExposure: 0
+    } as any,
+    macroRegime: {
+      ...context().macroRegime!,
+      growthRegime: "slowdown",
+      inflationRegime: "elevated"
+    },
+    lookthroughReport: {
+      ...lookthroughReport([{ portfolioId: "portfolio-1", holdingSymbol: "MSFT", holdingName: "Microsoft", totalWeight: 0.16, directWeight: 0.16, indirectWeight: 0, sourceEtfs: [], inputsSnapshot: {}, asOfDate: "2026-06-01" }]),
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.42, directWeight: 0.42, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.01, directWeight: 0.01, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Utilities", exposureWeight: 0.01, directWeight: 0.01, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Consumer Staples", exposureWeight: 0.01, directWeight: 0.01, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Real Estate", exposureWeight: 0.01, directWeight: 0.01, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.9, directWeight: 0.9, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ]
+    },
+    instruments,
+    recommendations
+  }));
+
+  assert.ok(suggestions.length > 0);
+  assert.ok(suggestions.some((suggestion) => suggestion.issueCategory === "insufficient_real_estate_exposure"));
+  for (const candidate of suggestions.flatMap((suggestion) => suggestion.candidateInstruments)) {
+    assert.doesNotMatch(candidate.primaryReason ?? "", /appears for/);
+  }
 });
 
 test("improvement suggestions map concentration issues to diversifying candidates", () => {
@@ -314,9 +1209,7 @@ test("improvement suggestions map concentration issues to diversifying candidate
   const fixedIncomeSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_fixed_income");
   const inflationHedgeSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_inflation_hedge");
 
-  assert.ok(sectorSuggestion);
-  assert.ok(!sectorSuggestion.candidateInstruments.some((candidate) => ["XLK", "VGT"].includes(candidate.symbol)));
-  assert.ok(sectorSuggestion.candidateInstruments.some((candidate) => ["VXUS", "XLV", "BND", "GLD"].includes(candidate.symbol)));
+  assert.equal(sectorSuggestion, undefined);
   assert.ok(internationalSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "VXUS"));
   assert.ok(defensiveSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "XLV"));
   assert.ok(defensiveSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "XLU"));
@@ -324,7 +1217,7 @@ test("improvement suggestions map concentration issues to diversifying candidate
   assert.ok(fixedIncomeSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "BND"));
   assert.ok(fixedIncomeSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "BNDX"));
   assert.ok(inflationHedgeSuggestion?.candidateInstruments.some((candidate) => candidate.symbol === "GLD"));
-  assert.ok(sectorSuggestion.candidateInstruments.every((candidate) => typeof candidate.relevanceScore === "number" && typeof candidate.diversificationBenefitScore === "number"));
+  assert.ok(internationalSuggestion?.candidateInstruments.every((candidate) => typeof candidate.relevanceScore === "number" && typeof candidate.diversificationBenefitScore === "number"));
   assert.match(internationalSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "VXUS")?.whyThisCandidate ?? "", /US look-through exposure is 72\.9%/);
   assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.whyThisCandidate ?? "", /Technology at 30\.6%/);
   assert.match(defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.secondaryBenefit ?? "", /pharma, services, devices and care delivery/);
@@ -335,8 +1228,278 @@ test("improvement suggestions map concentration issues to diversifying candidate
   assert.match(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BNDX")?.secondaryBenefit ?? "", /rate, currency and issuer exposure/);
   assert.match(fixedIncomeSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BNDX")?.potentialTradeOff ?? "", /currency and non-US rate-cycle exposure/);
   assert.ok((defensiveSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "XLV")?.diversificationBenefitScore ?? 0) > 60);
-  assert.ok(sectorSuggestion.candidateInstruments.every((candidate) => typeof candidate.issueFitScore === "number" && typeof candidate.overlapPenalty === "number"));
-  assert.ok(new Set(sectorSuggestion.candidateInstruments.map((candidate) => candidate.diversificationBenefitScore)).size > 1);
+  assert.ok(defensiveSuggestion?.candidateInstruments.every((candidate) => typeof candidate.issueFitScore === "number" && typeof candidate.overlapPenalty === "number"));
+  assert.ok(new Set(defensiveSuggestion?.candidateInstruments.map((candidate) => candidate.diversificationBenefitScore)).size > 1);
+});
+
+test("improvement suggestions do not emit duplicate legacy gap categories", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationBySector: [
+        { label: "Technology", value: 40, percent: 0.4 },
+        { label: "Healthcare", value: 5, percent: 0.05 }
+      ],
+      allocationByGeography: [
+        { label: "United States", value: 75, percent: 0.75 },
+        { label: "International", value: 25, percent: 0.25 }
+      ]
+    },
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.4, directWeight: 0.4, etfLookthroughWeight: 0, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.05, directWeight: 0.05, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.75, directWeight: 0.75, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    }
+  }));
+
+  assert.equal(suggestions.filter((suggestion) => suggestion.issueCategory === "sector_concentration").length, 0);
+  assert.equal(suggestions.filter((suggestion) => suggestion.issueCategory === "insufficient_international_exposure").length, 1);
+  assert.equal(suggestions.filter((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure").length, 1);
+  assert.equal(suggestions.filter((suggestion) => suggestion.issueCategory === "concentration_risk").length, 0);
+});
+
+test("improvement suggestions emit crypto ballast observation only when ballast is below crypto exposure", () => {
+  const lowBallast = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "stock", value: 90, percent: 0.9 },
+        { label: "crypto_etf", value: 8, percent: 0.08 },
+        { label: "bond_etf", value: 2, percent: 0.02 }
+      ]
+    },
+    bondReport: { ...context().bondReport, totalBondAllocation: 0.02 } as PortfolioReviewInputContext["bondReport"]
+  }));
+  const adequateBallast = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "stock", value: 72, percent: 0.72 },
+        { label: "crypto_etf", value: 6, percent: 0.06 },
+        { label: "bond_etf", value: 20, percent: 0.2 },
+        { label: "gold_etf", value: 2, percent: 0.02 }
+      ]
+    },
+    bondReport: { ...context().bondReport, totalBondAllocation: 0.2 } as PortfolioReviewInputContext["bondReport"]
+  }));
+  const atThreshold = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "stock", value: 95, percent: 0.95 },
+        { label: "crypto_etf", value: 5, percent: 0.05 },
+        { label: "bond_etf", value: 0, percent: 0 }
+      ]
+    }
+  }));
+  const cryptoSuggestion = lowBallast.find((suggestion) => suggestion.issueCategory === "excessive_crypto_risk");
+  const bondCandidate = cryptoSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BND");
+
+  assert.ok(cryptoSuggestion);
+  assert.equal(cryptoSuggestion.title, "Crypto / Alternative — Ballast Underweighted");
+  assert.ok(bondCandidate);
+  assert.match(bondCandidate?.primaryReason ?? "", /Ballast/);
+  assert.match(bondCandidate?.primaryReason ?? "", /crypto/);
+  assert.match(cryptoSuggestion.rationale, /Crypto and high-risk alternative exposure is 8\.0%, while bond and gold ballast is 2\.0%/);
+  assert.match(cryptoSuggestion.rationale, /Analytical observation only - not a position sizing recommendation\./);
+  assert.equal(adequateBallast.some((suggestion) => suggestion.issueCategory === "excessive_crypto_risk"), false);
+  assert.equal(atThreshold.some((suggestion) => suggestion.issueCategory === "excessive_crypto_risk"), false);
+});
+
+test("international gap does not fire from concentration or diversification side effects without international underweight", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByGeography: [
+        { label: "United States", value: 60, percent: 0.6 },
+        { label: "International", value: 40, percent: 0.4 }
+      ]
+    },
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.6, directWeight: 0.6, etfLookthroughWeight: 0, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      holdingExposures: [],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    riskReport: {
+      ...context().riskReport,
+      concentration: {
+        ...context().riskReport.concentration,
+        topHoldingConcentration: 0.35
+      },
+      diversification: { score: 42 }
+    } as PortfolioReviewInputContext["riskReport"]
+  }));
+
+  assert.equal(suggestions.some((suggestion) => suggestion.issueCategory === "insufficient_international_exposure"), false);
+});
+
+test("improvement suggestions emit single-name look-through concentration only above threshold", () => {
+  const report = (weight: number) => ({
+    asOfDate: "2026-06-01",
+    coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+    sectorExposures: [],
+    countryExposures: [],
+    topHoldingExposures: [],
+    holdingExposures: [
+      { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "MSFT", holdingName: "Microsoft", directWeight: 0.02, indirectWeight: weight - 0.02, totalWeight: weight, sourceEtfs: [{ symbol: "VOO", weight }], inputsSnapshot: {} }
+    ],
+    currencyExposures: [],
+    themeExposures: [],
+    diagnostics: []
+  });
+  const aboveThreshold = new PortfolioImprovementSuggestionService().build(context({ lookthroughReport: report(0.11) }));
+  const atThreshold = new PortfolioImprovementSuggestionService().build(context({ lookthroughReport: report(0.10) }));
+  const concentrationSuggestion = aboveThreshold.find((suggestion) => suggestion.issueCategory === "concentration_risk");
+
+  assert.ok(concentrationSuggestion);
+  assert.equal(concentrationSuggestion.category, "concentration");
+  assert.match(concentrationSuggestion.rationale, /MSFT represents 11\.0%/);
+  assert.match(concentrationSuggestion.rationale, /Analytical observation only - not a position sizing recommendation\./);
+  assert.equal(atThreshold.some((suggestion) => suggestion.issueCategory === "concentration_risk"), false);
+});
+
+test("improvement suggestions emit macro vulnerability only in slowing growth with limited hedges", () => {
+  const slowing = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "equity_etf", value: 85, percent: 0.85 },
+        { label: "bond_etf", value: 10, percent: 0.10 },
+        { label: "gold_etf", value: 2, percent: 0.02 }
+      ]
+    },
+    macroRegime: { ...context().macroRegime!, growthRegime: "slowdown" }
+  }));
+  const expanding = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationByType: [
+        { label: "equity_etf", value: 85, percent: 0.85 },
+        { label: "bond_etf", value: 10, percent: 0.10 },
+        { label: "gold_etf", value: 2, percent: 0.02 }
+      ]
+    },
+    macroRegime: { ...context().macroRegime!, growthRegime: "expansion" }
+  }));
+  const macroSuggestion = slowing.find((suggestion) => suggestion.issueCategory === "macro_vulnerability");
+
+  assert.ok(macroSuggestion);
+  assert.match(macroSuggestion.rationale, /FRED-derived growth regime is slowdown/);
+  assert.match(macroSuggestion.rationale, /Analytical observation only - not a position sizing recommendation\./);
+  assert.equal(expanding.some((suggestion) => suggestion.issueCategory === "macro_vulnerability"), false);
+});
+
+test("concentration risk candidates use diversified funds and exclude stocks", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [],
+      countryExposures: [],
+      topHoldingExposures: [],
+      holdingExposures: [
+        { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "MSFT", holdingName: "Microsoft", directWeight: 0.02, indirectWeight: 0.10, totalWeight: 0.12, sourceEtfs: [{ symbol: "VOO", weight: 0.10 }], inputsSnapshot: {} }
+      ],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    instruments: [
+      instrument({ id: "vxus", symbol: "VXUS", name: "Vanguard Total International Stock ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification"], geography: "International", geoExposure: "International" }),
+      instrument({ id: "vea", symbol: "VEA", name: "Vanguard Developed Markets ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Multi-Asset / Broad Market", canonicalThemes: ["Global Diversification"], geography: "International", geoExposure: "International" }),
+      instrument({ id: "bnd", symbol: "BND", name: "Vanguard Total Bond Market ETF", assetClass: "bond_etf", instrumentType: "bond_etf", canonicalSector: "Bonds / Fixed Income", canonicalThemes: ["Treasury Bonds"] }),
+      instrument({ id: "gld", symbol: "GLD", name: "SPDR Gold Shares", assetClass: "gold_etf", instrumentType: "etf", canonicalSector: "Commodities / Gold", canonicalThemes: ["Inflation Hedge"] }),
+      instrument({ id: "msft", symbol: "MSFT", name: "Microsoft", assetClass: "stock", instrumentType: "stock", canonicalSector: "Technology", canonicalThemes: ["Cloud / Software"] })
+    ],
+    recommendations: []
+  }));
+  const concentrationSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "concentration_risk");
+  const candidateSymbols = concentrationSuggestion?.candidateInstruments.map((candidate) => candidate.symbol) ?? [];
+  const bondCandidate = concentrationSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "BND");
+  const diversifierCandidate = concentrationSuggestion?.candidateInstruments.find((candidate) => candidate.symbol === "VXUS");
+
+  assert.ok(concentrationSuggestion);
+  assert.ok(concentrationSuggestion.candidateInstruments.length > 0);
+  assert.ok(concentrationSuggestion.candidateInstruments.every((candidate) => candidate.assetClass !== "stock"));
+  assert.ok(candidateSymbols.every((symbol) => ["VXUS", "VEA", "BND", "GLD"].includes(symbol)));
+  assert.ok(!candidateSymbols.includes("MSFT"));
+  assert.doesNotMatch(bondCandidate?.primaryReason ?? "", /fixed income where bond allocation is/);
+  assert.match(bondCandidate?.primaryReason ?? "", /lower-correlation|concentration/);
+  assert.match(diversifierCandidate?.primaryReason ?? "", /concentrated single-name look-through exposure/);
+});
+
+test("improvement suggestions calculate ETF top-company overlap for candidates", () => {
+  const suggestions = new PortfolioImprovementSuggestionService().build(context({
+    dashboard: {
+      ...context().dashboard,
+      allocationBySector: [
+        { label: "Technology", value: 30.58, percent: 0.3058 },
+        { label: "Healthcare", value: 5.4, percent: 0.054 }
+      ],
+      allocationByGeography: [
+        { label: "United States", value: 90, percent: 0.9 },
+        { label: "International", value: 10, percent: 0.1 }
+      ]
+    },
+    lookthroughReport: {
+      asOfDate: "2026-06-01",
+      coverage: { etfCount: 1, etfsWithSectorExposure: 1, etfsWithCountryExposure: 1, etfsWithTopHoldings: 1, lookthroughWeight: 1, fallbackWeight: 0 },
+      sectorExposures: [
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Technology", exposureWeight: 0.3058, directWeight: 0.2, etfLookthroughWeight: 0.1058, asOfDate: "2026-06-01" },
+        { portfolioId: "portfolio-1", exposureType: "sector", exposureName: "Healthcare", exposureWeight: 0.054, directWeight: 0, etfLookthroughWeight: 0.054, asOfDate: "2026-06-01" }
+      ],
+      countryExposures: [
+        { portfolioId: "portfolio-1", exposureType: "country", exposureName: "United States", exposureWeight: 0.9, directWeight: 0.6, etfLookthroughWeight: 0.3, asOfDate: "2026-06-01" }
+      ],
+      topHoldingExposures: [],
+      holdingExposures: [
+        { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "JNJ", holdingName: "Johnson & Johnson", directWeight: 0, indirectWeight: 0.04, totalWeight: 0.04, sourceEtfs: [{ symbol: "VOO", weight: 0.04 }], inputsSnapshot: {} },
+        { portfolioId: "portfolio-1", asOfDate: "2026-06-01", holdingSymbol: "UNH", holdingName: "UnitedHealth", directWeight: 0, indirectWeight: 0.03, totalWeight: 0.03, sourceEtfs: [{ symbol: "VOO", weight: 0.03 }], inputsSnapshot: {} }
+      ],
+      currencyExposures: [],
+      themeExposures: [],
+      diagnostics: []
+    },
+    instruments: [
+      instrument({ id: "vht", symbol: "VHT", name: "Vanguard Health Care ETF", assetClass: "etf", instrumentType: "etf", canonicalSector: "Healthcare", canonicalThemes: ["Quality"] })
+    ],
+    recommendations: [
+      { id: "r-vht", recommendationRunId: "run-1", instrumentId: "vht", symbol: "VHT", instrumentType: "ETF", recommendationLabel: "Hold", overallScore: 62, confidenceScore: 70, riskLevel: "medium", timeHorizon: "medium_term", recommendationReasoningSummary: "", positiveDrivers: [], negativeDrivers: [], guardrailsApplied: [], dataLimitations: [], recommendationChangeTriggers: { upgrade: [], downgrade: [] }, inputsSnapshot: {}, scoringBreakdown: {}, createdAt: "", updatedAt: "" }
+    ],
+    etfTopHoldings: [
+      { etfInstrumentId: "vht", etfSymbol: "VHT", holdingSymbol: "JNJ", holdingName: "Johnson & Johnson", holdingWeight: 0.2, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} },
+      { etfInstrumentId: "vht", etfSymbol: "VHT", holdingSymbol: "UNH", holdingName: "UnitedHealth", holdingWeight: 0.16, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} },
+      { etfInstrumentId: "vht", etfSymbol: "VHT", holdingSymbol: "ABT", holdingName: "Abbott", holdingWeight: 0.05, asOfDate: "2026-06-01", sourceProvider: "test", providerMetadata: {} }
+    ]
+  }));
+  const defensiveSuggestion = suggestions.find((suggestion) => suggestion.issueCategory === "insufficient_defensive_exposure");
+  const candidate = defensiveSuggestion?.candidateInstruments.find((item) => item.symbol === "VHT");
+
+  assert.ok(candidate);
+  assert.equal(candidate.sharedCompanyCount, 2);
+  assert.equal(candidate.sharedCompanyWeight, 0.36);
+  assert.deepEqual(candidate.topSharedSymbols, ["JNJ", "UNH"]);
+  assert.ok((candidate.overlapPenalty ?? 0) >= 20);
+  assert.match(candidate.overlapWarning ?? "", /top company holding overlap via ETF look-through/);
 });
 
 test("portfolio look-through combines direct stock and ETF underlying exposures", async () => {

@@ -434,46 +434,17 @@ export class SupabaseUniverseRepository implements UniverseRepository {
   }
 
   async listInstrumentPriceStats(instrumentIds?: string[]) {
-    const stats = new Map<string, { instrumentId: string; earliestPriceDate: string | null; latestPriceDate: string | null; observationCount: number }>();
-
-    for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
-      let query = this.db
-        .from("instrument_prices")
-        .select("instrument_id, price_date")
-        .order("instrument_id", { ascending: true })
-        .order("price_date", { ascending: true })
-        .range(from, from + SUPABASE_PAGE_SIZE - 1);
-      if (instrumentIds && instrumentIds.length > 0) {
-        query = query.in("instrument_id", instrumentIds);
-      }
-
-      const { data, error } = await query;
-      if (isMissingUniverseTable(error)) return [];
-      if (error) throw new Error(error.message);
-
-      for (const row of data ?? []) {
-        const instrumentId = String(row.instrument_id);
-        const priceDate = String(row.price_date);
-        const current = stats.get(instrumentId) ?? {
-          instrumentId,
-          earliestPriceDate: null,
-          latestPriceDate: null,
-          observationCount: 0
-        };
-        current.observationCount += 1;
-        if (!current.earliestPriceDate || priceDate < current.earliestPriceDate) {
-          current.earliestPriceDate = priceDate;
-        }
-        if (!current.latestPriceDate || priceDate > current.latestPriceDate) {
-          current.latestPriceDate = priceDate;
-        }
-        stats.set(instrumentId, current);
-      }
-
-      if ((data ?? []).length < SUPABASE_PAGE_SIZE) break;
-    }
-
-    return Array.from(stats.values());
+    const { data, error } = await this.db.rpc("get_instrument_price_stats", {
+      p_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
+    });
+    if (isMissingUniverseTable(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row: any) => ({
+      instrumentId: String(row.instrument_id),
+      earliestPriceDate: row.earliest_price_date ? String(row.earliest_price_date) : null,
+      latestPriceDate: row.latest_price_date ? String(row.latest_price_date) : null,
+      observationCount: Number(row.observation_count ?? 0)
+    }));
   }
 
   async upsertInstruments(input: UpsertInstrumentInput[]) {

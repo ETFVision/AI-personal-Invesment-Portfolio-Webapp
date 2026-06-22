@@ -16,6 +16,7 @@ import {
   ThemesPanel
 } from "@/components/instruments/instrument-cards";
 import { instrumentTypeLabel, resolveInstrumentType, type CanonicalInstrumentType } from "@/application/services/instruments/InstrumentTypeResolver";
+import { scoreBusinessQuality } from "@/application/services/recommendations/recommendationScoring";
 import type { FundamentalsDetail } from "@/domain/fundamentals/types";
 import type { InstrumentRecommendation } from "@/domain/recommendations/types";
 import type { BondProfile, Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
@@ -98,7 +99,7 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
           <CardDescription>Deterministic company fundamentals only. No buy/sell instructions are generated.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <SummaryMetric label="Overall" value={score(detail.latestScore?.overallFundamentalScore)} />
+          <SummaryMetric label="Business Quality" value={score(scoreBusinessQuality(detail.latestScore))} />
           <SummaryMetric label="Growth" value={score(detail.latestScore?.growthScore)} />
           <SummaryMetric label="Profitability" value={score(detail.latestScore?.profitabilityScore)} />
           <SummaryMetric label="Valuation" value={score(detail.latestScore?.valuationScore)} />

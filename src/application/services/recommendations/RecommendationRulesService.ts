@@ -1,4 +1,5 @@
 import type { RecommendationLabel } from "@/domain/recommendations/types";
+import { isStrongOrExceptionalBusinessQuality } from "./recommendationPresentation";
 
 const LABEL_ORDER: RecommendationLabel[] = ["Sell", "Reduce", "Watch", "Hold", "Buy", "Strong Buy"];
 
@@ -50,7 +51,7 @@ export class RecommendationRulesService {
     const completenessBonus = availableRatio >= 0.95 ? 8 : availableRatio >= 0.8 ? 4 : 0;
     const agreementBonus = dispersion > 0 && dispersion < 12 ? 5 : 0;
     const strategicAgreementBonus =
-      (available.find((component) => component.key === "fundamentals")?.score ?? 0) >= 70 &&
+      (available.find((component) => component.key === "fundamentals" || component.key === "business_quality")?.score ?? 0) >= 70 &&
       (available.find((component) => component.key === "market_vision_alignment")?.score ?? 0) >= 70 &&
       (available.find((component) => component.key === "theme_alignment")?.score ?? 0) >= 70
         ? 5
@@ -62,9 +63,9 @@ export class RecommendationRulesService {
 
   labelFromScore(score: number | null): RecommendationLabel {
     if (score == null) return "Insufficient Data";
-    if (score >= 85) return "Strong Buy";
-    if (score >= 70) return "Buy";
-    if (score >= 50) return "Hold";
+    if (score >= 80) return "Strong Buy";
+    if (score >= 65) return "Buy";
+    if (score >= 48) return "Hold";
     if (score >= 35) return "Watch";
     if (score >= 20) return "Reduce";
     return "Sell";
@@ -75,6 +76,7 @@ export class RecommendationRulesService {
     confidenceScore: number;
     fundamentalScore?: number | null;
     valuationScore?: number | null;
+    businessQualityScore?: number | null;
     riskScore?: number | null;
     concentrationPercent?: number | null;
     duplicateExposure?: boolean;
@@ -84,6 +86,7 @@ export class RecommendationRulesService {
   }): GuardrailResult {
     const guardrails: string[] = [];
     let label = input.label;
+    const phase2Enabled = process.env.ENABLE_STOCK_PHASE2_SCORES === "true" && !input.isCrypto;
     const applyCap = (cap: RecommendationLabel, reason: string) => {
       const capped = capLabel(label, cap);
       if (capped !== label) {
@@ -95,15 +98,26 @@ export class RecommendationRulesService {
     if (input.confidenceScore < 50) {
       return { label: "Insufficient Data", guardrails: ["Data confidence below 50"] };
     }
-    if (input.fundamentalScore != null && input.fundamentalScore < 35) {
-      applyCap("Watch", "Weak fundamentals cap");
-    }
-    if (input.valuationScore != null && input.valuationScore < 25) {
-      const qualityAwareCap = input.fundamentalScore != null && input.fundamentalScore >= 70 ? "Hold" : "Watch";
-      applyCap(qualityAwareCap, qualityAwareCap === "Hold" ? "Poor valuation quality-aware cap" : "Poor valuation cap");
+    if (phase2Enabled) {
+      const qualityScore = input.businessQualityScore ?? input.fundamentalScore;
+      if (qualityScore != null && qualityScore < 35) {
+        applyCap("Watch", input.businessQualityScore != null ? "Weak business quality cap" : "Weak fundamentals cap");
+      }
+      if (input.valuationScore != null && input.valuationScore < 15) {
+        applyCap("Hold", "Severely stretched valuation characteristics cap");
+      }
+    } else {
+      if (input.fundamentalScore != null && input.fundamentalScore < 35) {
+        applyCap("Watch", "Weak fundamentals cap");
+      }
+      if (input.valuationScore != null && input.valuationScore < 25) {
+        const qualityAwareCap = input.fundamentalScore != null && input.fundamentalScore >= 70 ? "Hold" : "Watch";
+        applyCap(qualityAwareCap, qualityAwareCap === "Hold" ? "Poor valuation quality-aware cap" : "Poor valuation cap");
+      }
     }
     if (input.riskScore != null && input.riskScore > 75) {
-      applyCap(input.label === "Sell" || input.label === "Reduce" ? input.label : "Watch", "Excessive instrument risk cap");
+      const riskCapTarget = isStrongOrExceptionalBusinessQuality(input.businessQualityScore) ? "Hold" : "Watch";
+      applyCap(input.label === "Sell" || input.label === "Reduce" ? input.label : riskCapTarget, "Excessive instrument risk cap");
     }
     if ((input.concentrationPercent ?? 0) > 0.25) {
       applyCap("Hold", "Portfolio concentration cap");

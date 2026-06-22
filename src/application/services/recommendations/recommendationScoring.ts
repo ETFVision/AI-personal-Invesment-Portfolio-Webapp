@@ -1,22 +1,24 @@
-import type { FundamentalsSummaryRow } from "@/domain/fundamentals/types";
+import type { FundamentalScore, FundamentalsSummaryRow } from "@/domain/fundamentals/types";
 import type { MacroRegimeSnapshot } from "@/domain/macro/types";
 import type { MarketVisionReport } from "@/domain/marketVision/types";
 import type { RecommendationLabel, RecommendationTimeHorizon } from "@/domain/recommendations/types";
 import type { BondProfile, Instrument, InstrumentMarketMetric, InstrumentRiskMetric } from "@/domain/universe/types";
 import { instrumentTypeLabel, resolveInstrumentType } from "../instruments/InstrumentTypeResolver";
-import type { PortfolioFitResult } from "./portfolioFitService";
 import type { RecommendationRulesService, ScoreComponent } from "./RecommendationRulesService";
 import { assessmentLabel } from "./recommendationPresentation";
 
 export type RecommendationInput = {
   instrument: Instrument;
   marketMetric: InstrumentMarketMetric | null;
+  benchmarkRelative?: {
+    benchmarkKey: string;
+    benchmarkReturn1y: number;
+  } | null;
   riskMetric: InstrumentRiskMetric | null;
   fundamentals: FundamentalsSummaryRow | null;
   bondProfile: BondProfile | null;
   macroRegime: MacroRegimeSnapshot | null;
   marketVisionReport: MarketVisionReport | null;
-  portfolioFit: PortfolioFitResult;
 };
 
 export type RecommendationEvaluation = {
@@ -43,14 +45,12 @@ export type RecommendationEvaluation = {
 
 export function scoreMomentum(marketMetric: InstrumentMarketMetric | null) {
   if (!marketMetric) return null;
-  const oneYear = marketMetric.oneYearReturn;
   const ytd = marketMetric.ytdReturn;
   const daily = marketMetric.dailyReturn;
   let score = 50;
-  if (oneYear != null) score += Math.max(-25, Math.min(25, oneYear * 60));
   if (ytd != null) score += Math.max(-15, Math.min(15, ytd * 40));
   if (daily != null) score += Math.max(-5, Math.min(5, daily * 80));
-  if (oneYear == null && ytd == null && daily == null) return null;
+  if (ytd == null && daily == null) return null;
   return Math.max(0, Math.min(100, score));
 }
 
@@ -66,6 +66,20 @@ export function scoreThemeFit(instrument: Instrument) {
   if (themes.has("AI / Automation") || themes.has("Quality") || themes.has("Global Diversification")) score += 5;
   if (themes.has("High Beta")) score -= 5;
   return Math.max(0, Math.min(100, score));
+}
+
+export function scoreBusinessQuality(score: FundamentalScore | null): number | null {
+  const components = [
+    { value: score?.growthScore ?? null, weight: 0.25 },
+    { value: score?.profitabilityScore ?? null, weight: 0.25 },
+    { value: score?.cashFlowScore ?? null, weight: 0.20 },
+    { value: score?.balanceSheetScore ?? null, weight: 0.15 },
+    { value: score?.qualityScore ?? null, weight: 0.15 }
+  ].filter((component) => component.value != null && Number.isFinite(component.value));
+  if (components.length === 0) return null;
+  const totalWeight = components.reduce((sum, component) => sum + component.weight, 0);
+  const weighted = components.reduce((sum, component) => sum + (component.value as number) * component.weight, 0);
+  return Math.max(0, Math.min(100, weighted / totalWeight));
 }
 
 export function scoreMacroFit(instrument: Instrument, regime: MacroRegimeSnapshot | null, bondProfile?: BondProfile | null) {
@@ -167,6 +181,7 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
   dataLimitations?: string[];
   fundamentalScore?: number | null;
   valuationScore?: number | null;
+  businessQualityScore?: number | null;
   changeTriggers?: {
     upgrade?: string[];
     downgrade?: string[];
@@ -180,9 +195,8 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
     confidenceScore: confidence,
     fundamentalScore: extras.fundamentalScore,
     valuationScore: extras.valuationScore,
+    businessQualityScore: extras.businessQualityScore,
     riskScore: input.riskMetric?.riskScore,
-    concentrationPercent: input.portfolioFit.concentrationPercent,
-    duplicateExposure: input.portfolioFit.duplicateExposure,
     isCrypto: input.instrument.assetClass === "crypto",
     durationMismatch: durationMismatch(input.bondProfile, input.macroRegime),
     instrumentType: input.instrument.instrumentType
@@ -190,17 +204,14 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
   const instrumentType = instrumentTypeLabel(resolveInstrumentType(input.instrument));
   const dataLimitations = [
     ...components.filter((component) => component.score == null).map((component) => `${component.label} unavailable`),
-    ...input.portfolioFit.dataLimitations,
     ...(extras.dataLimitations ?? [])
   ];
   const positiveDrivers = [
     ...components.filter((component) => (component.score ?? 0) >= 70).map((component) => component.reason),
-    ...input.portfolioFit.positiveDrivers,
     ...(extras.positiveDrivers ?? [])
   ].filter(Boolean);
   const negativeDrivers = [
     ...components.filter((component) => component.score != null && (component.score ?? 0) < 45).map(componentReasonForScore),
-    ...input.portfolioFit.negativeDrivers,
     ...(extras.negativeDrivers ?? [])
   ].filter(Boolean);
   const assessment = assessmentLabel(guardrail.label);
@@ -211,7 +222,6 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
   const recommendationChangeTriggers = {
     upgrade: Array.from(new Set([
       ...weakComponents.slice(0, 4).map((component) => `${component.label} improves`),
-      ...(input.portfolioFit.concentrationPercent != null && input.portfolioFit.concentrationPercent > 0.15 ? ["Portfolio concentration falls"] : []),
       ...(guardrail.guardrails.some((item) => item.toLowerCase().includes("valuation")) ? ["Valuation improves"] : []),
       ...(extras.changeTriggers?.upgrade ?? [])
     ])).slice(0, 8),
@@ -253,7 +263,6 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
       } : null,
       marketMetric: input.marketMetric,
       riskMetric: input.riskMetric,
-      portfolioFit: input.portfolioFit,
       fundamentalScore: input.fundamentals?.latestScore ?? null,
       trendSummary: input.fundamentals?.latestTrendSummary ?? null,
       bondProfile: input.bondProfile
@@ -267,7 +276,8 @@ export function buildEvaluation(input: RecommendationInput, rules: Recommendatio
         reason: componentReasonForScore(component)
       })),
       baseLabel,
-      finalLabel: guardrail.label
+      finalLabel: guardrail.label,
+      businessQualityScore: extras.businessQualityScore ?? null
     }
   } satisfies RecommendationEvaluation;
 }

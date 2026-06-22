@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-17 SGT
+Last updated: 2026-06-19 SGT (Prioritized Execution Order added; Medium 36 verified — no service-role leak)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -11,9 +11,9 @@ An independent deep architecture audit with live read-only database verification
 | Priority | Total items | Open | Closed |
 |---|---|---|---|
 | High | 10 | 8 | 2 |
-| Medium | 39 | 24 | 15 |
+| Medium | 41 | 26 | 15 |
 | Low | 13 | 13 | 0 |
-| **Total** | **62** | **45** | **17** |
+| **Total** | **64** | **47** | **17** |
 
 **Open blockers — before public alpha:**
 
@@ -48,6 +48,112 @@ An independent deep architecture audit with live read-only database verification
 |---|---|
 | High 5 | Set `ALLOWED_SIGNUP_EMAILS` and `ASSISTANT_DAILY_LIMIT` in Vercel before alpha invites |
 | Medium 37 | Test Supabase auth email delivery end-to-end before first invite is sent |
+
+---
+
+## Prioritized Execution Order (2026-06-19)
+
+Consolidated, deduplicated execution order across this document and `COMMERCIALIZATION_AUDIT_PLAN.md`,
+grouped by the milestone each item gates. Within each phase, items are in execution order (dependencies
+respected). Tags: **[ops]** = configuration/operations, not code; **[build]** = implementation task;
+**[external]** = legal/vendor/third-party; **[review]** = analysis/QA pass. IDs reference this document
+unless prefixed otherwise.
+
+### Phase A — Gate the first alpha invite
+1. Set Vercel env vars `ALLOWED_SIGNUP_EMAILS`, `ASSISTANT_DAILY_LIMIT` (High 5) **[ops]**
+2. Email deliverability test — signup/reset to Gmail+Outlook, SPF/DKIM (Med 37) **[ops]** — *hard gate*
+3. Sentry error monitoring + job-failure alerting + `server-only` guard on `supabaseAdmin.ts` (Med 38 + High 4 + Med 36) **[build]** — *highest-leverage build*
+4. New-user onboarding / empty state on `/portfolio` (Med 39) **[build]**
+5. Alpha UX walkthrough — fresh-account end-to-end (Med 32) **[review]** — depends on #4
+6. Route access matrix + alpha branch audit (High 2) **[review/doc]**
+
+### Phase B — During alpha (correctness confidence; finish before paid)
+7. Calculation golden regression suite + manual/Excel validation (Med 26) **[build]** — *existential for a calc product; start as soon as Phase A is in flight*
+8. AI output regression tests — hallucination / no-advice / missing-data (Med 27) **[build]**
+9. Data provider full-universe coverage matrix (Med 24) **[build/review]**
+10. Recommendation calibration QA after one full production weekly run (Med 29) **[review]**
+11. Market Vision evidence traceability audit (Med 28) **[review]**
+12. Observability / reproducibility matrix (Med 30) **[review/doc]**
+13. Data-freshness UX product audit (Med 33) **[review]**
+14. Security Master auto-setup on new-instrument add (Med 41) **[build]** — data-quality gap the first time the universe grows post-launch
+15. Migration tracking/numbering + safety review — ledger, dedupe `052/061/062`, timestamped naming (High 7 + Low 7) **[build/ops]**
+
+### Phase C — Before first paying user
+16. Legal & compliance review — ToS, privacy, disclaimers, PDPA (High 8) **[external]**
+17. Data licensing confirmation — FMP/FRED/NewsData/GDELT (High 9) **[external]**
+18. User privacy lifecycle — retention, export, account deletion (High 10) **[build]**
+19. DB index audit + backup policy + restore test (Med 31) **[review/ops]**
+20. Cost control — provider quota register + budget alerting (Med 34) **[build/ops]**
+21. Error-handling / empty-state full inventory (Med 35) **[review/build]**
+22. Support operations — contact, bug/triage, dispute path (Low 12) **[ops]**
+23. Incident response playbook (Low 9) **[ops/doc]**
+24. Commercial readiness — pricing, payments, subscription, refunds (Low 13) **[build]** — biggest net-new product surface
+- **Performance & rendering audit** — slow-route identification, summary-table refresh correctness, over-fetch/pagination, lazy-loaded admin diagnostics (`COMMERCIALIZATION_AUDIT_PLAN.md` Section 13, *in progress*) **[review/build]**. Placed in Phase C to match the audit plan's before-paid timing; intentionally left unnumbered so the existing item references (#4, #5, #7, #13, #21, #25, #30, #31, #44) stay stable. The only DOCUMENTATION_GAPS item tracking it today is Low 2 (render-timing baseline).
+
+### Phase D — Analytics correctness/quality (schedule by user impact)
+25. Benchmark total-return vs price-return labeling (Med 11) **[build]** — quick win, do early
+26. Portfolio volatility distorted by deposits/withdrawals — document or switch to cash-flow-adjusted returns (Med 10) **[build]**
+27. XIRR / money-weighted return (Med 12) **[build]**
+28. FX conversion for multi-currency portfolios (Med 9) **[build]** — largest of these
+
+### Phase E — Before scaling to 100+ users
+29. External code review, external calculation review, penetration test, PDPA review, incident drill (`COMMERCIALIZATION_AUDIT_PLAN.md` "100+" list) **[external]**
+30. Accessibility audit (Low 10) **[review]**
+31. Browser/device compatibility audit (Low 11) **[review]**
+
+### Phase F — Governance, docs, and lower backlog
+32. Branch/deployment governance policy (Low 6) **[doc]**
+33. Model/prompt governance policy + regression suite (Low 8) **[doc/build]**
+34. News classification formula doc (Med 5) **[doc]**
+35. Assistant table/cost schema confirmation (Med 4) **[review]**
+36. Security Master provider-observation automation (Med 7) **[build]** — future, after provider-priority rules approved
+37. Security Master stub-promotion workflow (Med 40) **[build]** — low until the universe grows often
+38. ETF holdings provider-plan expansion monitoring (Med 25 remaining) **[review]**
+39. Provider endpoint inventory completion — FMP market/news, FRED, NewsData, GDELT, OpenAI (Low 1) **[doc]**
+40. Render-timing baseline table (Low 2) **[review]**
+41. Job schedule drift check vs live `cron.job` (Low 3) **[review]**
+42. Old docs cleanup / archive pass (Low 4) **[doc]** — needs user approval
+43. Future ETF universe additions — mid-cap (MDY/IJH/VO), factor, option-income, ESG, balanced (Low 5) **[build]**
+44. Executive-summary count pluralization ("1 watch area") — cosmetic carry-along (Portfolio Review WIP) **[build]**
+
+### Cross-cutting — UI/UX improvement track (ongoing)
+General visual/interaction polish for commercial credibility — an **iterative track**, not a one-time audit
+(the same way the Portfolio Review balance-engine polish was run). Distinct from the *functional* UX items
+already in the phases above, which it complements and should not duplicate: onboarding/empty state (#4),
+alpha UX walkthrough (#5), data-freshness UX (#13), error/empty-state inventory (#21), accessibility (#30),
+browser/device compatibility (#31).
+
+Scope (run as small, reviewable batches):
+- Visual consistency — spacing, typography scale, color tokens, card/chip/badge styling across pages.
+- Responsive / mobile + tablet layout for the primary dashboard, portfolio, holdings, and review pages.
+- Chart readability — axis labels, legends, tooltips, empty/insufficient-data chart states.
+- Loading / skeleton states and perceived-performance polish on slower routes.
+- Table readability — column alignment, number formatting, pagination/overflow on dense tables.
+- Interaction affordances — focus/hover states, disabled states, consistent iconography.
+- Copy/microcopy consistency (e.g. observational, non-advisory tone already established in Portfolio Review).
+
+Timing: opportunistic during alpha for credibility; **substantially complete before first paying user**
+(Phase C gate). Accessibility (#30) and browser/device (#31) are the formal review counterparts and remain
+in their phases. Capture each batch as its own implementation-log entry.
+
+**Sequencing notes:**
+- Calculation golden regression (#7) is ranked #1 in `COMMERCIALIZATION_AUDIT_PLAN.md`'s generic audit
+  ranking, but it does **not** gate the alpha *invite* (methodology is already documented), so it sits in
+  Phase B. It is a hard gate before *paid*.
+- #25 (benchmark return labeling) and #44 (pluralization) are tiny; pull them forward opportunistically
+  whenever Portfolio/Risk pages are next touched.
+- The UI/UX improvement track (above) is cross-cutting and iterative; schedule its batches alongside the
+  phased items rather than as a single blocking task.
+- **Methodology page + scoring refinements** are tracked in detail in `docs/METHODOLOGY_AND_SCORING_WIP.md`
+  (page-vs-code audit result, Fundamentals→Business Quality decision, calc-audit findings, and the spec
+  sequence #3 → Spec 1 → Spec 2 → Spec 3). The Spec 3 validation script doubles as the **Med 26** golden
+  regression, and a **Med 29** recalibration QA should follow it.
+- **Relationship to `COMMERCIALIZATION_AUDIT_PLAN.md` timing:** that doc's "Before Public Alpha" bucket is
+  the set needed for a *complete* alpha and is broader than Phase A here. Phase A is deliberately the
+  narrower *invite-gating* subset; the remaining "before alpha" audit-plan items (Calculation #7, AI
+  regression #8, provider coverage matrix #9, observability matrix #12, data-freshness UX #13) are placed in
+  Phase B as "finish during alpha, before paid." Item content and source IDs are identical across both docs;
+  only the alpha boundary differs. The audit plan's before-paid / 100+ / 500+ buckets map to Phases C / E.
 
 ---
 
@@ -151,10 +257,28 @@ An independent deep architecture audit with live read-only database verification
    - Future metadata refresh should write provider observations and conflict rows once provider-priority rules are approved.
    - Do not auto-resolve identifier conflicts until the review queue has been validated.
 
+40. Security Master — `is_internal_only` stub promotion when a symbol enters the universe
+   - When a holding symbol that exists only as an `is_internal_only` stub in `securities_master` is later added as a user-selectable instrument, two active `securities_master` entries exist for the same symbol: the original stub (UUID_A) and the new instrument-linked security (UUID_B).
+   - `sync_etf_holding_security_ids()` sees two candidate security IDs and flags all matching `etf_top_holdings` rows as `ambiguous` rather than `mapped`. ETF holdings mapping breaks for that symbol until resolved.
+   - Migration 092 (`repair_security_master_links`) runs once at deployment and does not re-run when new instruments are added, so the new instrument gets `security_id = UUID_B` rather than reusing UUID_A.
+   - Resolution requires a manual one-off operation: deactivate the stub (`UPDATE securities_master SET is_active = false WHERE id = UUID_A`), then re-run `sync_etf_holding_security_ids()` and `sync_security_issuer_links()`. This clears the ambiguity and re-maps holdings to the user-selectable security.
+   - Long-term resolution: implement an admin "promote instrument" workflow that automates stub deactivation and re-sync when a new instrument is added. The Phase 6 corporate-action lifecycle tables (`104_security_master_phase6_corporate_actions.sql`) are the designed home for this — a `UNIVERSE_PROMOTION` lifecycle link from UUID_A → UUID_B.
+   - The `stubCollisionCount` field proposed for the Security Master health snapshot (migration 113 scope) will surface this condition in the Admin QA panel as an amber warning when greater than zero.
+   - Priority: low for current universe size; becomes operational debt if ETFVision regularly adds instruments that previously appeared only as ETF holdings.
+
+41. Security Master — no automatic setup when a new instrument is added to the universe
+   - Migrations 091 and 092 ran once against the full active universe at Security Master setup time. They are not re-run when new instruments are added via `seedUniverseAction` or any other mechanism.
+   - `UniverseManagementService` has no references to `securities_master`, `security_id`, or any sync function. A new instrument is inserted into `instruments` with `security_id = null` and receives no Security Master setup automatically.
+   - Impact: any instrument added after migrations 091/092 is invisible to all Security Master-dependent features until manually set up — issuer-level concentration rollup in Portfolio Review, top underlying company exposure, recommendation and telemetry stable identity, and the `selectableWithSecurityId` count in the Admin Security Master QA panel will all be incorrect for the new instrument.
+   - Resolution per instrument: (1) insert a `securities_master` row for the new instrument; (2) register identifiers in `security_identifiers`; (3) set `instruments.security_id`; (4) run `sync_security_issuer_links()`. This is the same logic as migrations 091/092 applied incrementally.
+   - Long-term resolution: extend `UniverseManagementService.ensureSeededUniverse()` (or the instrument-add path) to call an incremental Security Master upsert after inserting each new instrument, mirroring the one-time migration 091/092 backfill logic.
+   - Priority: medium — silent data quality gap that will surface as incorrect Security Master health metrics and missing issuer rollup the first time a new instrument is added to the universe post-launch.
+
 8. Score methodology maintenance
    - Formula-level score documentation now exists in `docs/SCORE_METHODOLOGY.md`.
    - Public `/methodology` now presents the formula-level methodology with neutral labels and collapsible technical sections.
    - Future scoring changes must update that document in the same commit.
+   - **Updated 2026-06-17:** Universal scoring model change (remove portfolio-dependent components) updated `docs/SCORE_METHODOLOGY.md`, `docs/RECOMMENDATION_INSIGHTS_METHODOLOGY.md`, and `src/app/methodology/page.tsx` in the same session. All five instrument type weight tables, the portfolio-fit formula section, and the three portfolio-dependent guardrail rows were corrected. The methodology page `METHODOLOGY_LAST_UPDATED` constant was set to `2026-06-17`.
 
 9. FX conversion not implemented
    - All multi-currency portfolio calculations return native-currency estimates when FX conversion is not performed.
@@ -219,8 +343,10 @@ An independent deep architecture audit with live read-only database verification
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 2.
 
 25. ETF holdings provider plan expansion monitoring
-    - Top holdings are limited under the current FMP plan for many ETFs. Portfolio indirect-holding overlap is partial.
-    - Remaining: evaluate FMP plan expansion for richer top-holdings data; monitor ETF-to-security mapping coverage after any plan change. Document which ETFs have complete versus partial top-holdings coverage.
+    - **Updated 2026-06-18:** Top holdings coverage is now 169/169 eligible equity ETFs. Portfolio indirect-holding company overlap is fully operational (Task B). Five ETFs (IYW, VCR, JXI, VOX, PXE) have no FMP sector data — confirmed as a FMP data gap, not a plan limitation; seeded single-sector fallback covers all five.
+    - **Updated 2026-06-18:** FMP `weightPercentage` normalisation bug fixed (100× overstatement for sub-1% holdings). All 169 ETFs re-refreshed after fix; security ID mappings and issuer links re-synced. Stored weights are now correct.
+    - **Closed 2026-06-19:** Systemic instrument taxonomy data-quality gap closed in code and documentation. ETF `canonical_sector` is now curated-authoritative from `ALPHA_ETF_CATEGORIES`, stock `canonical_sector` is re-checked from `ALPHA_STOCK_SECTORS`, generic ETF labels no longer blanket-apply `Global Diversification`, and the metadata job exposes `taxonomyBackfill=true` for re-normalizing active rows.
+    - Remaining: evaluate whether FMP plan expansion would increase the number of top holdings returned per ETF (currently capped at 100 by the provider service, but FMP may return fewer under the current plan for some ETFs); monitor ETF-to-security mapping coverage in the Security Master after any plan change.
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 5.
 
 26. Calculation golden regression suite and manual validation pack
@@ -276,6 +402,8 @@ An independent deep architecture audit with live read-only database verification
 36. Service-role key client component audit
     - Migration 109 user-scoped RLS policies assume the service-role key is only used server-side. If it appears in any client component or is exposed via a public env var, all RLS is bypassed for those users and migration 109 is rendered ineffective.
     - Remaining: grep `src/` for `SUPABASE_SERVICE_ROLE_KEY` and `createSupabaseAdminClient` usage; confirm every call site is a server component, server action, or API route — never a client component or any `NEXT_PUBLIC_` variable. Verify this before alpha invites.
+    - **Verified 2026-06-19 — no leak found.** All 23 `service_role` / `createSupabaseAdminClient` references are server-side: the `infrastructure/repositories/*` data layer, `server/jobs/*`, API routes, and `admin/data-sources/page.tsx` (a **server** component — no `"use client"`; calls `createSupabaseAdminClient()` at server render). The key is `SUPABASE_SERVICE_ROLE_KEY` with **no `NEXT_PUBLIC_` prefix**, so Next.js does not ship it to the browser. RLS (migration 109) is not being bypassed.
+    - **Downgraded to a 1-line hardening:** `src/infrastructure/db/supabaseAdmin.ts` has no `import "server-only"` guard, so server-only usage is enforced by convention rather than at build time. Add `import "server-only";` to that module so any future client-component import fails the build. Folded into Phase A item 3 (Sentry/alerting infra bundle).
     - Related: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 11 remaining items.
 
 37. Email deliverability and Supabase auth email configuration
@@ -366,6 +494,147 @@ An independent deep architecture audit with live read-only database verification
     - Not started. Pricing page, payment flow, subscription enforcement, onboarding, and refund/cancellation process are not yet productized.
     - Not required for private alpha. Required before paid launch.
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 20.
+
+## Pending Implementation Tasks
+
+These tasks have been fully scoped and are ready to execute. They are not documentation gaps — they are the next development items in the backlog, recorded here so the session can be resumed without re-deriving context.
+
+---
+
+### Task B — ETF Holdings Integration into Portfolio Review
+
+**Status:** Completed 2026-06-18. See implementation-log.md entry "ETF Holdings Integration into Portfolio Review Gap Analysis".
+
+**Why this is needed:**
+The Gap Analysis section in Portfolio Review currently uses a sector/ticker-level proxy (overlapPenalty) to detect candidate overlap with the user's existing holdings. It cannot see what companies are inside each ETF. For example, if the user holds VOO (which contains JNJ, ABT, UNH indirectly) and the gap analysis suggests VHT as a healthcare candidate (which also holds JNJ, UNH, ABT as top positions), the current system has no idea those funds share companies. It treats VHT as if it has zero company overlap. This task wires the existing etf_top_holdings data into the portfolio review computation so overlap is based on real company-level data.
+
+**Architecture note:**
+- The etf_top_holdings table already exists in the database.
+- SupabaseEtfExposureRepository.listLatestTopHoldings() already exists.
+- The FMP provider already calls the etf/holdings endpoint and stores results. The only fix needed there is sorting by holdingWeight and capping at 100 before storage.
+- No new migrations, no new jobs, no new tables required.
+- PortfolioReviewService currently does NOT fetch etf_top_holdings in buildContext(). That is the missing link.
+
+**Files to change (7 files):**
+
+1. `src/infrastructure/providers/etf/FmpEtfExposureProvider.ts`
+   - After the flatMap that builds topHoldings from the FMP holdings payload, sort by holdingWeight descending and slice to 100.
+   - Apply the cap to both the live FMP path and the seeded fallback path so behavior is consistent regardless of data source.
+
+2. `src/application/services/portfolioReview/portfolioReviewScoring.ts`
+   - Add `etfTopHoldings: EtfTopHolding[]` to the PortfolioReviewInputContext type.
+   - Add `import type { EtfTopHolding } from "@/domain/etfLookthrough/types"`.
+
+3. `src/application/services/portfolioReview/PortfolioReviewService.ts`
+   - Add `private readonly etfExposureRepository: EtfExposureRepository` as a constructor parameter immediately after `portfolioLookthroughExposureService` (line 93), before the defaulted service parameters.
+   - In buildContext(), add `this.etfExposureRepository.listLatestTopHoldings(instruments.map(i => i.id))` to the existing Promise.all.
+   - Add etfTopHoldings to the returned context object.
+
+4. `src/domain/portfolioReview/types.ts`
+   - Add to PortfolioReviewCandidate: `sharedCompanyCount: number | null`, `sharedCompanyWeight: number | null`, `topSharedSymbols: string[]`.
+
+5. `src/application/services/portfolioReview/PortfolioImprovementSuggestionService.ts`
+   - In the candidate() function, before calling diversificationBenefitService.evaluate(), compute company overlap:
+     - Filter context.etfTopHoldings by instrument.id to get this candidate's holdings.
+     - Build a Set of the user's company symbols from context.lookthroughReport.holdingExposures.
+     - Intersect: sum holdingWeight of candidate holdings whose holdingSymbol is in the user's company set → companyOverlapWeight.
+     - Collect top 3 shared symbols by weight for topSharedSymbols.
+     - Pass companyOverlapWeight into the DiversificationBenefitService call.
+     - Populate sharedCompanyCount, sharedCompanyWeight, topSharedSymbols on the returned candidate object.
+   - When etfTopHoldings is empty (before backfill), companyOverlapWeight is 0 and behavior is identical to today.
+
+6. `src/application/services/portfolioReview/DiversificationBenefitService.ts`
+   - Add `companyOverlapWeight?: number` to the DiversificationBenefitContext input type.
+   - After the existing overlapPenalty calculations, add: if companyOverlapWeight >= 0.35 add 20 to overlapPenalty; else if companyOverlapWeight >= 0.15 add 10.
+   - Extend the overlapWarning string when companyOverlapWeight >= 0.15 to include "including top company holding overlap via ETF look-through".
+
+7. `src/server/container.ts`
+   - etfExposureRepository is already instantiated at line 122. Add it as a constructor argument to PortfolioReviewService at line 311, immediately after portfolioLookthroughExposureService.
+
+**What does NOT change:**
+- No migrations.
+- portfolioFitService.ts — not touched.
+- DiversificationReviewService, ConcentrationReviewService, and all other portfolio review section services — unchanged.
+- Recommendation labels, guardrails, compliance wording, telemetry — unchanged.
+- Portfolio Review score weights — unchanged.
+- Gap Analysis UI (portfolio-review/page.tsx) — NOT changed in this task. UI redesign is the separate task below.
+
+**Tests:** npm.cmd run typecheck, lint, build, test must all pass. The known pre-existing Portfolio Review wording failure (improvement suggestions map concentration issues to diversifying candidates) is unrelated.
+
+**After deployment — required manual steps before new overlap logic produces output:**
+
+Step 1: Run `POST /api/jobs/etf-lookthrough-refresh?force=true` from Admin > Jobs.
+- This bypasses the stale cutoff and re-fetches top 100 holdings per ETF.
+- Each pass covers up to maxEtfsPerRun ETFs. Check job log topHoldingRows to monitor progress.
+- Repeat until etfsRefreshed = 0 (all ETFs are now fresh). Expect 3–5 passes for the full 201-ETF universe.
+
+Step 2: Run `POST /api/jobs/portfolio-review-run` from Admin > Jobs.
+- This regenerates the stored portfolio review report using real company overlap data.
+- Until step 1 is complete, etfTopHoldings is an empty array, companyOverlapWeight is 0, and behavior is identical to today.
+
+**Implementation log:** Add entry titled "ETF Holdings Integration into Portfolio Review Gap Analysis" covering objective, files changed, summary of each change, test results, and the backfill steps required post-deployment.
+
+---
+
+### Task C — Gap Analysis UI Redesign
+
+**Status:** Completed 2026-06-18. See implementation-log.md entry "Gap Analysis UI Redesign".
+
+**Why this is needed:**
+The current Gap Analysis card layout ranks candidates using a composite score that blends portfolio-specific signals (sector overlap, ticker match) with quality signals. This composite produces a #1/#2/#3 ranked list that reads as "ETFVision is telling the user which instrument is best for their portfolio" — which is the robo-advice compliance risk.
+
+The redesign separates the two concerns:
+- Candidates are ordered by universal Characteristics Score (recommendationScore) only — the same score whether the user holds 0 or 50 instruments. This is analytically defensible as instrument classification, not a portfolio recommendation.
+- Portfolio-specific signals (exposure impact, holdings overlap) are presented as factual observations about the portfolio — descriptive, not prescriptive.
+- The user sees the facts and draws their own conclusion. The platform does not synthesise a recommendation.
+
+**Reference:** A mockup of the target output was reviewed on 2026-06-18 and confirmed as the target design. The mockup shows:
+- Category title + "Underweighted category" badge.
+- Disclaimer: "Instruments below pass all guardrail filters and belong to an underweighted category. Ordered by instrument quality score only. Portfolio impact indicators are factual observations — not a recommendation to buy, sell, or hold."
+- Column indicator strip: "Ordered by: Instrument quality — universal · not portfolio-specific" (left), "Impact indicators: Exposure | Overlap — factual · your portfolio" (right).
+- Per-candidate card: rank badge (#N) + quality score + ticker + name + characteristics label chip + Exposure impact bar and text (left) + Holdings overlap label and shared company count (right).
+- Overlap label: Low / Moderate / High with green / amber / red colour coding, sourced from sharedCompanyWeight thresholds after Task B.
+
+**File to change:** `src/app/(dashboard)/portfolio-review/page.tsx` only. No backend changes.
+
+**Specific changes to the Suggestions component (around lines 345–435):**
+
+1. **Sort candidates by recommendationScore descending** before rendering, not by candidateRankScore. The internal candidateRankScore computation remains in the service — this is a display-only sort change.
+
+2. **Replace the existing candidate card layout** with a two-column card:
+   - Left column: "Exposure impact" — an issueFitScore bar (0–100 mapped to bar width %) and primaryReason text below it.
+   - Right column: "Holdings overlap" — a Low/Moderate/High label chip coloured green/amber/red based on sharedCompanyWeight thresholds (< 0.15 = Low green, 0.15–0.35 = Moderate amber, > 0.35 = High red), and detail text:
+     - If sharedCompanyCount > 0: "N shared companies via [topSharedSymbols joined] look-through".
+     - If sharedCompanyCount is null or 0: overlapWarning text or "No material company overlap detected".
+
+3. **Update the card header area:**
+   - Keep the rank badge (#N) and quality score number.
+   - Keep the characteristics label chip (mapped through assessmentLabel — already done).
+   - Keep the "Shown because category is underweighted — not a buy recommendation" disclaimer chip.
+
+4. **Add a column indicator strip** above the candidate list (inside the card, below the category title and disclaimer paragraph):
+   - Left: "Ordered by" label + "Instrument quality" in a highlighted style + "universal · not portfolio-specific" in muted text.
+   - Right: "Impact indicators" label + "Exposure" and "Overlap" chips + "factual · your portfolio" in muted text.
+
+5. **Update the card description text** (CardDescription in the Suggestions component, line 351):
+   - Current: "Instruments below belong to categories where look-through exposure is below median in the approved universe and have passed all guardrail filters. This is a deterministic filter output only. Not a recommendation to buy, sell, or hold any instrument."
+   - New: "Instruments below pass all guardrail filters and belong to an underweighted category. Ordered by instrument quality score only. Portfolio impact indicators are factual observations — not a recommendation to buy, sell, or hold."
+
+6. **Remove** the following fields from the candidate card that are no longer shown in the redesign:
+   - relevanceScore ("Rel XX")
+   - diversificationBenefitScore ("Diversification XX")
+   - overlapPenalty ("Overlap penalty XX")
+   - diversificationType text
+   - secondaryBenefit / expectedPortfolioBenefit "Context:" line
+   Keep: assessmentLabel, recommendationScore, confidenceScore (optional small chip), primaryReason (now the exposure text).
+
+7. **Keep unchanged:** sanitizeGapText on all rendered text, the suggestion-level title and rationale section, the "Analytical context" and "Trade-off" panels on the suggestion card (above the candidate list), and all other compliance language and disclaimer chips.
+
+**Tests:** npm.cmd run typecheck, lint, build, test must all pass.
+
+**Implementation log:** Add entry titled "Gap Analysis UI Redesign — instrument quality ordering and impact indicators" covering objective, files changed, summary of each UI change, test results, and a note that this completes the compliance improvement cycle for the Gap Analysis section.
+
+---
 
 ## Recently Closed Documentation Gaps
 

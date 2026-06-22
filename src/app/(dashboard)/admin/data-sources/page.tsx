@@ -9,9 +9,10 @@ import {
 } from "@/server/actions/newsActions";
 import { backfillMacroIndicatorsAction, refreshMacroIndicatorsAction } from "@/server/actions/macroActions";
 import { refreshFundamentalsAction } from "@/server/actions/fundamentalsActions";
-import { refreshEtfLookthroughExposureAction } from "@/server/actions/portfolioReviewActions";
+import { clearEtfLookthroughExposureAction, refreshEtfLookthroughExposureAction } from "@/server/actions/portfolioReviewActions";
 import {
   backfillUniverseHistoryAction,
+  refreshBenchmarksAction,
   refreshInstrumentDailyReturnsAction,
   refreshInstrumentMarketMetricsAction,
   refreshInstrumentMetadataAction,
@@ -36,6 +37,10 @@ import type { EtfCountryExposure, EtfSectorExposure, EtfTopHolding } from "@/dom
 import type { Instrument } from "@/domain/universe/types";
 import type { JobRun } from "@/domain/jobs/types";
 import type { ReactNode } from "react";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const maxDuration = 300;
 
 function statusLabel(enabled: boolean, configured = true) {
   if (!configured) return { label: "Missing key", className: "text-destructive" };
@@ -649,6 +654,8 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
               <StatBox label="Active securities" value={healthNumber(securityMasterHealth, "securityMasterRecords")} />
               <StatBox label="Issuer records" value={healthNumber(securityMasterHealth, "issuerRecords")} />
               <StatBox label="Linked securities" value={healthNumber(securityMasterHealth, "linkedSecurities")} />
+              <StatBox label="Internal-only securities" value={healthNumber(securityMasterHealth, "internalOnlySecurities")} />
+              <StatBox label="Stub collisions" value={healthNumber(securityMasterHealth, "stubCollisionCount")} className={healthNumber(securityMasterHealth, "stubCollisionCount") > 0 ? "text-amber-600" : undefined} />
               <StatBox label="ISIN coverage" value={healthRatio(securityMasterHealth, "selectableWithIsin", "selectableInstruments")} />
               <StatBox label="CUSIP coverage" value={healthRatio(securityMasterHealth, "selectableWithCusip", "selectableInstruments")} />
               <StatBox label="ETF holdings mapped" value={healthRatio(securityMasterHealth, "etfTopHoldingsMapped", "etfTopHoldingRows")} />
@@ -735,7 +742,7 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
             </form>
             <form action={refreshInstrumentPricesAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
-              <SubmitButton pendingLabel="Refreshing prices...">1. Refresh prices</SubmitButton>
+              <SubmitButton pendingLabel="Refreshing EOD prices...">1. Refresh prices (EOD)</SubmitButton>
             </form>
             <form action={refreshInstrumentDailyReturnsAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
@@ -761,9 +768,18 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
               <SubmitButton variant="secondary" pendingLabel="Backfilling market history...">Backfill market history</SubmitButton>
             </form>
+            <form action={refreshBenchmarksAction}>
+              <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <SubmitButton variant="secondary" pendingLabel="Refreshing benchmarks...">Refresh benchmarks</SubmitButton>
+            </form>
             <form action={refreshEtfLookthroughExposureAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <input type="hidden" name="force" value="true" />
               <SubmitButton variant="secondary" pendingLabel="Refreshing ETF exposure...">Refresh ETF exposure</SubmitButton>
+            </form>
+            <form action={clearEtfLookthroughExposureAction}>
+              <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <SubmitButton variant="destructive" pendingLabel="Clearing ETF exposure...">Clear ETF exposure data</SubmitButton>
             </form>
           </>
         }
@@ -932,10 +948,17 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
         description="FMP fundamentals refresh status for stock profiles, statements, ratios, scores and trend metrics."
         whereUsed="fundamentals overview, instrument detail pages, insights"
         actions={
+          <>
             <form action={refreshFundamentalsAction}>
               <input type="hidden" name="returnTo" value="/admin/data-sources" />
               <SubmitButton pendingLabel="Refreshing fundamentals...">Refresh fundamentals</SubmitButton>
             </form>
+            <form action={refreshFundamentalsAction}>
+              <input type="hidden" name="returnTo" value="/admin/data-sources" />
+              <input type="hidden" name="force" value="true" />
+              <SubmitButton variant="secondary" pendingLabel="Force refreshing fundamentals...">Force refresh fundamentals</SubmitButton>
+            </form>
+          </>
         }
       >
         <div className="grid gap-3 md:grid-cols-4">
@@ -962,6 +985,9 @@ export default async function DataSourcesPage({ searchParams }: DataSourcesPageP
             {fundamentalsCoverage.missingComplete === 0 && fundamentalsCoverage.staleCount === 0
               ? "Fundamentals coverage is complete and current for eligible stocks."
               : `${fundamentalsCoverage.missingComplete} stock${fundamentalsCoverage.missingComplete === 1 ? "" : "s"} are incomplete and ${fundamentalsCoverage.staleCount} stock${fundamentalsCoverage.staleCount === 1 ? "" : "s"} are stale. Run Refresh fundamentals until incomplete and stale reach zero.`}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Force refresh fundamentals re-fetches all active stocks, including fresh and complete names. Use it after provider-mapping fixes; it can use more provider calls and may need a few passes.
           </p>
         </div>
         <div className="mt-4 space-y-2 text-sm">

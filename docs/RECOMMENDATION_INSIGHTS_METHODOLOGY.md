@@ -1,6 +1,6 @@
 # Recommendation Insights Methodology
 
-Last updated: 2026-06-15
+Last updated: 2026-06-21
 
 ## Purpose
 
@@ -13,26 +13,26 @@ Public surfaces should describe these outputs as Insights, Characteristics Score
 - `src/application/services/recommendations/RecommendationService.ts`
 - `src/application/services/recommendations/recommendationScoring.ts`
 - `src/application/services/recommendations/RecommendationRulesService.ts`
-- `src/application/services/recommendations/portfolioFitService.ts`
 - Type-specific services: stock, ETF, bond ETF, gold, crypto.
 - Presentation mapping: `recommendationPresentation.ts`
+
+`src/application/services/recommendations/portfolioFitService.ts` remains in the codebase as a standalone diagnostic service and for direct tests. It is not called by the stored recommendation scoring pipeline.
 
 ## Score Components
 
 Recommendation inputs can include:
 
-- Fundamentals score.
+- Business Quality score.
 - Trend score.
 - Valuation score.
 - Risk analytics score.
-- Portfolio fit score.
 - Theme alignment score.
 - Macro fit score.
 - Market Vision alignment score.
 - Bond profile where applicable.
 - Market metrics and risk metrics.
 
-Available components are weighted by instrument type. Missing components reduce confidence and may create data limitations.
+Available components are weighted by instrument type. Missing components reduce confidence and may create data limitations. Current stored recommendation scores are universal instrument Characteristics Scores and do not include portfolio fit, allocation fit, duplicate exposure, concentration, or any other user-portfolio-dependent component.
 
 Formula-level component weights by instrument type are documented in [Score Methodology](SCORE_METHODOLOGY.md).
 
@@ -81,10 +81,9 @@ Guardrails can cap labels:
 - Weak fundamentals below 35 -> cap at `Watch`.
 - Poor valuation below 25 -> cap at `Watch`, or `Hold` if fundamentals are at least 70.
 - Risk score above 75 -> cap at `Watch` unless already lower.
-- Portfolio concentration above 25% -> cap at `Hold`.
-- Duplicate exposure -> cap at `Hold`.
-- Crypto concentration above 5% -> cap at `Watch`.
 - Bond duration/rate regime mismatch -> cap at `Hold`.
+
+The guardrail service still accepts optional concentration and duplicate-exposure inputs for backward compatibility and direct tests. The current stored recommendation scoring pipeline no longer supplies those portfolio-dependent fields.
 
 ## Market Vision Alignment
 
@@ -92,7 +91,9 @@ Market Vision alignment is a deterministic text/theme overlap score using the la
 
 ## Portfolio Fit
 
-Portfolio fit checks concentration and duplicate/overlapping exposure. It should use ETF look-through exposure where possible so broad-market ETFs are not treated only by product category.
+Portfolio fit is retained as a standalone diagnostic service outside the stored recommendation scoring pipeline. It checks concentration and duplicate/overlapping exposure and should use ETF look-through exposure where possible so broad-market ETFs are not treated only by product category.
+
+Portfolio fit is no longer included in recommendation score weights, stored recommendation input snapshots, positive or negative drivers, data limitations, or guardrails for scheduled recommendation runs. Portfolio-dependent analysis belongs in Portfolio Review scores, gap analysis, and exposure diagnostics.
 
 After Security Master Phase 4C/4D, portfolio fit should prefer issuer-level look-through exposure where available:
 

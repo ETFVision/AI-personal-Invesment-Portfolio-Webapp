@@ -20,6 +20,15 @@ import type {
 import type { PortfolioLookthroughExposure, PortfolioLookthroughHolding, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
 import { assessmentLabel } from "@/application/services/recommendations/recommendationPresentation";
+import {
+  compareGapCandidatesByCategoryFit,
+  defensiveGapTooltipCategory,
+  groupDefensiveGapCandidates,
+  groupInternationalGapCandidates,
+  internationalGapTooltipCategory
+} from "@/application/services/portfolioReview/gapCandidateDisplay";
+import { instrumentAssetClass, isFundWrapper, isUnderlyingExposure, issuerKey as issuerExposureKey } from "@/application/services/portfolioReview/portfolioIssuerExposure";
+import { portfolioReviewMetricLabel, sharedCompanyDisplayName } from "@/application/services/portfolioReview/portfolioReviewDisplay";
 
 type PortfolioReviewPageProps = {
   searchParams?: Promise<{
@@ -51,10 +60,7 @@ function severityTone(severity: PortfolioReviewFinding["severity"]) {
 }
 
 function metricLabel(value: string) {
-  return value
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return portfolioReviewMetricLabel(value);
 }
 
 function normalizeDisplayRatio(value: number) {
@@ -70,11 +76,16 @@ function formatPctOneDecimal(value: number) {
 function sanitizeGapText(value: string | null | undefined) {
   if (!value) return value;
   return value
-    .replace(/\bPortfolio Improvement Observations\b/gi, "Gap Analysis — Instruments in Underweighted Categories")
-    .replace(/\bPotential Review Actions\b/gi, "Analytical Gap Summary")
-    .replace(/\bimprovement suggestions\b/gi, "gap findings")
-    .replace(/\bReview healthcare and defensive diversification\b/gi, "Healthcare & Defensive — Underweighted Category")
-    .replace(/\bReview diversification candidates\b/gi, "International Equity — Underweighted Category")
+    .replace(/\bPortfolio Improvement Observations\b/gi, "Portfolio Balance Review")
+    .replace(/\bPotential Review Actions\b/gi, "Portfolio Balance Summary")
+    .replace(/\bimprovement suggestions\b/gi, "balance findings")
+    .replace(/\bgap findings\b/gi, "balance findings")
+    .replace(/\bGap findings\b/g, "Balance findings")
+    .replace(/\bReview healthcare and defensive diversification\b/gi, "Defensive Sectors — Lightly Represented Category")
+    .replace(/\bHealthcare & Defensive — Underweighted Category\b/gi, "Defensive Sectors — Lightly Represented Category")
+    .replace(/\bDefensive Sectors — Underweighted Category\b/gi, "Defensive Sectors — Lightly Represented Category")
+    .replace(/\bReview diversification candidates\b/gi, "International Equity — Lightly Represented Category")
+    .replace(/\bInternational Equity — Underweighted Category\b/gi, "International Equity — Lightly Represented Category")
     .replace(/\byou should consider\b/gi, "context for review:")
     .replace(/\bAdds ([^.]+?) exposure\b/gi, "Provides exposure to $1")
     .replace(/\bAdds a differentiated exposure driver\b/gi, "Provides a differentiated exposure driver")
@@ -89,7 +100,7 @@ function sanitizeGapText(value: string | null | undefined) {
     )
     .replace(
       /\bSuggestions are review prompts only and do not recommend exact trades or position sizes\./gi,
-      "Gap findings are deterministic analytical outputs and do not constitute investment advice, trade instructions, or position sizing guidance."
+      "Balance findings are deterministic analytical outputs and do not constitute investment advice, trade instructions, or position sizing guidance."
     );
 }
 
@@ -99,9 +110,9 @@ function exposureWeight(rows: PortfolioLookthroughExposure[], name: string) {
 
 function gapCategoryForTooltip(suggestion: PortfolioImprovementSuggestion, candidate: PortfolioReviewCandidate) {
   const title = sanitizeGapText(suggestion.title) ?? suggestion.title;
-  if (suggestion.issueCategory === "insufficient_defensive_exposure" || title.includes("Healthcare")) return "Healthcare";
-  if (suggestion.issueCategory === "insufficient_international_exposure" || title.includes("International Equity")) return "International equity";
-  return candidate.diversificationType?.replace(/ sector$/i, "") ?? title.replace(" — Underweighted Category", "");
+  if (suggestion.issueCategory === "insufficient_defensive_exposure" || title.includes("Defensive Sectors")) return defensiveGapTooltipCategory(candidate);
+  if (suggestion.issueCategory === "insufficient_international_exposure" || title.includes("International Equity")) return internationalGapTooltipCategory(candidate);
+  return candidate.diversificationType?.replace(/ sector$/i, "") ?? title.replace(" — Lightly Represented Category", "");
 }
 
 function whyThisAppearedText(
@@ -138,7 +149,8 @@ function isRatioMetric(key: string) {
     "exposure",
     "volatility",
     "percent",
-    "correlation"
+    "correlation",
+    "coverage"
   ].some((term) => normalized.includes(term));
 }
 
@@ -347,15 +359,91 @@ function Suggestions({ suggestions, lookthrough }: { suggestions: PortfolioImpro
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Gap Analysis — Instruments in Underweighted Categories</CardTitle>
-        <CardDescription>Instruments below belong to categories where look-through exposure is below median in the approved universe and have passed all guardrail filters. This is a deterministic filter output only. Not a recommendation to buy, sell, or hold any instrument.</CardDescription>
+        <CardTitle>Portfolio Balance Review</CardTitle>
+        <CardDescription>Instruments below pass all guardrail filters and belong to a lightly represented category. Ordered by how closely each instrument matches the category; this reflects the category, not your specific holdings. Portfolio impact indicators are factual observations {"\u2014"} not a recommendation to buy, sell, or hold.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {safeSuggestions.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No gap finding generated for the latest review.</p>
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No balance finding generated for the latest review.</p>
         ) : safeSuggestions.map((suggestion) => {
           const candidates = Array.isArray(suggestion.candidateInstruments) ? suggestion.candidateInstruments : [];
+          const sortedCandidates = [...candidates].sort(compareGapCandidatesByCategoryFit);
+          const isDefensiveGap = suggestion.issueCategory === "insufficient_defensive_exposure";
+          const isInternationalGap = suggestion.issueCategory === "insufficient_international_exposure";
+          const candidateGroups = isDefensiveGap
+            ? groupDefensiveGapCandidates(candidates)
+            : isInternationalGap
+              ? groupInternationalGapCandidates(candidates)
+              : [];
           const title = sanitizeGapText(suggestion.title) ?? suggestion.title;
+          const renderCandidate = (candidate: PortfolioReviewCandidate, candidateIndex: number) => {
+            const tooltip = whyThisAppearedText(suggestion, candidate, lookthrough);
+            const issueFitWidth = Math.min(100, Math.max(0, candidate.issueFitScore ?? 0));
+            const sharedCompanyWeight = candidate.sharedCompanyWeight ?? 0;
+            const overlapLevel = sharedCompanyWeight > 0.35 ? "High" : sharedCompanyWeight >= 0.15 ? "Moderate" : "Low";
+            const overlapClasses =
+              overlapLevel === "High"
+                ? "bg-red-100 text-red-800"
+                : overlapLevel === "Moderate"
+                  ? "bg-amber-100 text-amber-800"
+                  : "bg-emerald-100 text-emerald-800";
+            const sharedCompanyCount = candidate.sharedCompanyCount ?? 0;
+            const etfList = candidate.topSharedSymbols?.length > 0
+              ? ` via ${candidate.topSharedSymbols.slice(0, 3).map((symbol) => sharedCompanyDisplayName(symbol, lookthrough?.holdingExposures ?? [])).join(", ")} look-through`
+              : "";
+            const overlapDetail = sharedCompanyCount > 0
+              ? `${sharedCompanyCount} shared ${sharedCompanyCount === 1 ? "company" : "companies"}${etfList}`
+              : candidate.overlapWarning
+                ? sanitizeGapText(candidate.overlapWarning)
+                : "No material company overlap detected";
+            return (
+              <div
+                key={`${suggestion.title}-${candidate.instrumentId}`}
+                className="rounded-md border p-3 text-xs transition-colors hover:bg-muted"
+              >
+                <div className="flex flex-wrap items-start gap-2">
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px]">#{candidateIndex + 1}</span>
+                  <span className="text-xs font-medium">Quality {Math.round(candidate.recommendationScore ?? candidate.score ?? 0)}</span>
+                  <div className="min-w-0 shrink-0">
+                    <Link
+                      href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
+                      className="font-medium text-slate-900 underline-offset-4 hover:underline"
+                    >
+                      {candidate.symbol}
+                    </Link>
+                    <p className="mt-1 inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                      Shown because category is lightly represented — not a buy recommendation
+                    </p>
+                  </div>
+                  <div className="flex min-w-0 flex-1 items-center gap-1">
+                    <Link
+                      href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
+                      className="truncate font-medium text-slate-800 underline-offset-4 hover:underline"
+                    >
+                      {candidate.name}
+                    </Link>
+                    <GapAnalysisTooltip text={tooltip} />
+                  </div>
+                  <span>{assessmentLabel(candidate.recommendationLabel)}</span>
+                  {candidate.confidenceScore != null ? <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Conf {formatPercent(candidate.confidenceScore / 100)}</span> : null}
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="mb-1 text-[10px] font-medium uppercase text-muted-foreground">Exposure impact</p>
+                    <div className="h-1.5 w-full overflow-hidden rounded bg-muted">
+                      <div className="h-full rounded bg-blue-500" style={{ width: `${issueFitWidth}%` }} />
+                    </div>
+                    <p className="mt-1 text-muted-foreground">{sanitizeGapText(candidate.primaryReason ?? candidate.whyThisCandidate ?? candidate.reason)}</p>
+                  </div>
+                  <div>
+                    <p className="mb-1 text-[10px] font-medium uppercase text-muted-foreground">Holdings overlap</p>
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${overlapClasses}`}>{overlapLevel}</span>
+                    <p className="mt-1 text-muted-foreground">{overlapDetail}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          };
           return <div key={`${suggestion.category}-${suggestion.title}`} className="rounded-md border p-4">
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-medium">{title}</p>
@@ -380,52 +468,31 @@ function Suggestions({ suggestions, lookthrough }: { suggestions: PortfolioImpro
               </div>
             ) : null}
             {candidates.length > 0 ? (
+              <div className="mt-3 flex flex-wrap justify-between gap-3 border-t pt-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] uppercase text-muted-foreground">Ordered by:</span>
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">Category fit</span>
+                  <span className="text-[10px] text-muted-foreground">category-relevant {"\u00b7"} not portfolio-specific</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] uppercase text-muted-foreground">Impact indicators:</span>
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Exposure</span>
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Overlap</span>
+                  <span className="text-[10px] text-muted-foreground">factual {"\u00b7"} your portfolio</span>
+                </div>
+              </div>
+            ) : null}
+            {candidates.length > 0 ? (
               <div className="mt-3 grid gap-2">
-                {candidates.map((candidate) => {
-                  const tooltip = whyThisAppearedText(suggestion, candidate, lookthrough);
-                  return (
-                  <div
-                    key={`${suggestion.title}-${candidate.instrumentId}`}
-                    className="rounded-md border p-3 text-xs transition-colors hover:bg-muted"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <Link
-                          href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
-                          className="font-medium text-slate-900 underline-offset-4 hover:underline"
-                        >
-                          {candidate.symbol}
-                        </Link>
-                        <p className="mt-1 inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-                          Shown because category is underweighted — not a buy recommendation
-                        </p>
-                      </div>
-                      <div className="flex min-w-0 flex-1 items-center justify-end gap-1 text-right">
-                        <Link
-                          href={`/instruments/${encodeURIComponent(candidate.symbol)}`}
-                          className="truncate font-medium text-slate-800 underline-offset-4 hover:underline"
-                        >
-                          {candidate.name}
-                        </Link>
-                        <GapAnalysisTooltip text={tooltip} />
-                      </div>
+                {candidateGroups.length > 0 ? candidateGroups.map((group) => (
+                  <div key={`${suggestion.title}-${group.key}`} className="space-y-2 rounded-md border border-dashed p-2">
+                    <p className="text-xs font-medium text-slate-700">{group.label}</p>
+                    {group.note ? <p className="text-[10px] text-muted-foreground">{group.note}</p> : null}
+                    <div className="grid gap-2">
+                      {group.candidates.map((candidate, candidateIndex) => renderCandidate(candidate, candidateIndex))}
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span>{assessmentLabel(candidate.recommendationLabel)}</span>
-                      <span>Characteristics {score(candidate.recommendationScore ?? candidate.score)}</span>
-                      {candidate.confidenceScore != null ? <span>Conf {formatPercent(candidate.confidenceScore / 100)}</span> : null}
-                      {candidate.relevanceScore != null ? <span>Rel {score(candidate.relevanceScore)}</span> : null}
-                      {candidate.diversificationBenefitScore != null ? <span>Diversification {score(candidate.diversificationBenefitScore)}</span> : null}
-                      {candidate.overlapPenalty != null && candidate.overlapPenalty > 0 ? <span>Overlap penalty {score(candidate.overlapPenalty)}</span> : null}
-                      {candidate.diversificationType ? <span>{candidate.diversificationType}</span> : null}
-                    </div>
-                    <p className="mt-1 text-muted-foreground">{sanitizeGapText(candidate.primaryReason ?? candidate.whyThisCandidate ?? candidate.reason)}</p>
-                    {candidate.secondaryBenefit ? <p className="mt-1">Context: {sanitizeGapText(candidate.secondaryBenefit)}</p> : candidate.expectedPortfolioBenefit ? <p className="mt-1">Context: {sanitizeGapText(candidate.expectedPortfolioBenefit)}</p> : null}
-                    {candidate.overlapWarning ? <p className="mt-1 text-muted-foreground">Overlap: {candidate.overlapWarning}</p> : null}
-                    {candidate.potentialTradeOff ? <p className="mt-1 text-muted-foreground">Trade-off: {sanitizeGapText(candidate.potentialTradeOff)}</p> : null}
                   </div>
-                );
-                })}
+                )) : sortedCandidates.map((candidate, candidateIndex) => renderCandidate(candidate, candidateIndex))}
               </div>
             ) : null}
           </div>;
@@ -520,25 +587,6 @@ function rawSymbols(row: PortfolioLookthroughHolding) {
   return Array.from(new Set(values.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim().toUpperCase())));
 }
 
-function instrumentAssetClass(row: PortfolioLookthroughHolding) {
-  const value = holdingSnapshot(row).instrumentAssetClass;
-  return typeof value === "string" ? value : null;
-}
-
-function exposureRole(row: PortfolioLookthroughHolding) {
-  const value = holdingSnapshot(row).exposureRole;
-  return typeof value === "string" ? value : null;
-}
-
-function isFundWrapper(row: PortfolioLookthroughHolding) {
-  const assetClass = instrumentAssetClass(row);
-  return row.directWeight > 0 && row.indirectWeight === 0 && ["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"].includes(assetClass ?? "");
-}
-
-function isUnderlyingExposure(row: PortfolioLookthroughHolding) {
-  return row.indirectWeight > 0 || exposureRole(row) === "underlying_security";
-}
-
 function normalizeIssuerName(name: string | null | undefined, fallback: string) {
   const base = (name ?? fallback)
     .replace(/\s+Class\s+[A-Z0-9]+$/i, "")
@@ -549,12 +597,6 @@ function normalizeIssuerName(name: string | null | undefined, fallback: string) 
     .replace(/\s+/g, " ")
     .trim();
   return base || fallback;
-}
-
-function issuerKey(row: PortfolioLookthroughHolding) {
-  const snapshot = holdingSnapshot(row);
-  const snapshotIssuerId = typeof snapshot.issuerId === "string" ? snapshot.issuerId : null;
-  return row.holdingIssuerId ?? snapshotIssuerId ?? normalizeIssuerName(row.holdingIssuerName ?? row.holdingName, row.holdingSymbol).toUpperCase();
 }
 
 function issuerDisplayName(row: PortfolioLookthroughHolding) {
@@ -596,7 +638,7 @@ function aggregateByIssuer(rows: PortfolioLookthroughHolding[], mode: "underlyin
     if (isFundWrapper(row)) continue;
     if (mode === "underlying" && !isUnderlyingExposure(row)) continue;
     if (mode === "indirect" && row.indirectWeight <= 0) continue;
-    const key = issuerKey(row);
+    const key = issuerExposureKey(row);
     const symbols = rawSymbols(row);
     const current = map.get(key) ?? {
       ...row,
@@ -651,15 +693,18 @@ function DirectPositionExposureTable({ rows }: { rows: PortfolioLookthroughHoldi
         {shownRows.length === 0 ? (
           <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No direct position exposure available.</p>
         ) : (
-          <HorizontalExposureBars
-            max={Math.max(...shownRows.map((row) => row.directWeight), 0.01)}
-            items={shownRows.map((row) => ({
-              label: `${row.holdingSymbol}${row.holdingName ? ` - ${row.holdingName}` : ""}`,
-              value: row.directWeight,
-              valueLabel: formatPercent(row.directWeight),
-              detail: instrumentAssetClass(row) ? `Type: ${metricLabel(instrumentAssetClass(row) ?? "")}` : undefined
-            }))}
-          />
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Weights shown as % of total portfolio value (including cash).</p>
+            <HorizontalExposureBars
+              max={Math.max(...shownRows.map((row) => row.directWeight), 0.01)}
+              items={shownRows.map((row) => ({
+                label: `${row.holdingSymbol}${row.holdingName ? ` - ${row.holdingName}` : ""}`,
+                value: row.directWeight,
+                valueLabel: formatPercent(row.directWeight),
+                detail: instrumentAssetClass(row) ? `Type: ${metricLabel(instrumentAssetClass(row) ?? "")}` : undefined
+              }))}
+            />
+          </div>
         )}
       </CardContent>
     </Card>
@@ -679,6 +724,7 @@ function HoldingExposureTable({ rows }: { rows: PortfolioLookthroughHolding[] })
           <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Underlying company exposure unavailable.</p>
         ) : (
           <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Weights shown as % of total portfolio value (including cash).</p>
             {shownRows.map((row) => (
               <StackedExposureBar
                 key={`${row.holdingSymbol}-${row.holdingName}`}
@@ -735,12 +781,12 @@ function Actions({ actions }: { actions: PortfolioPotentialAction[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Analytical Gap Summary</CardTitle>
-        <CardDescription>Deterministic summary of gap findings. Not investment advice, trade instructions, or a recommendation to buy, sell, or hold any instrument.</CardDescription>
+        <CardTitle>Portfolio Balance Summary</CardTitle>
+        <CardDescription>Deterministic summary of balance findings. Not investment advice, trade instructions, or a recommendation to buy, sell, or hold any instrument.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         {safeActions.length === 0 ? (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No analytical gap summary generated.</p>
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No portfolio balance summary generated.</p>
         ) : safeActions.map((action) => (
           <div key={`${action.actionType}-${action.title}`} className="rounded-md border p-3 text-sm">
             <p className="font-medium">{sanitizeGapText(action.title)}</p>

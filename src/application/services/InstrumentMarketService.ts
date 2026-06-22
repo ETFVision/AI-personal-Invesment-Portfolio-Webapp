@@ -618,6 +618,104 @@ export class InstrumentMarketService {
     };
   }
 
+  async refreshInstrumentPricesEod(input?: {
+    lookbackDays?: number;
+    concurrency?: number;
+    skipRiskMetrics?: boolean;
+    skipDerivedMetrics?: boolean;
+  }): Promise<RefreshInstrumentPricesResult> {
+    const lookbackDays = Math.max(1, input?.lookbackDays ?? 7);
+    const concurrency = Math.max(1, input?.concurrency ?? 12);
+    const from = daysAgoIso(lookbackDays);
+    const to = todayIsoDate();
+    const instruments = (await this.repository.listInstruments({ isActive: true })).filter((instrument) => instrument.isActive);
+    const refreshItems = instruments.map((instrument) => ({
+      instrument,
+      providerSymbol: providerSymbolForInstrument(instrument)
+    }));
+    const providerSymbols = uniqueSymbols(refreshItems.map((item) => item.providerSymbol));
+
+    if (providerSymbols.length === 0) {
+      return {
+        requestedSymbols: [],
+        updatedCount: 0,
+        missingSymbols: [],
+        errors: [],
+        message: "No active instrument symbols were found for adjusted EOD price refresh."
+      };
+    }
+
+    const rows: Array<{
+      instrumentId: string;
+      provider: string;
+      symbol: string;
+      priceDate: string;
+      closePrice: number;
+      currency: string | null;
+      rawPayload: unknown;
+    }> = [];
+    const missingSymbols: string[] = [];
+    const errors: string[] = [];
+
+    for (let index = 0; index < refreshItems.length; index += concurrency) {
+      const chunk = refreshItems.slice(index, index + concurrency);
+      const results = await Promise.all(
+        chunk.map(async ({ instrument, providerSymbol }) => {
+          try {
+            const quotes = await this.provider.getHistoricalPrices(providerSymbol, from, to, { assetClass: instrument.assetClass });
+            return { instrument, providerSymbol, quotes, error: null };
+          } catch (error) {
+            return {
+              instrument,
+              providerSymbol,
+              quotes: [],
+              error: error instanceof Error ? error.message : "Historical EOD price refresh failed."
+            };
+          }
+        })
+      );
+
+      for (const { instrument, providerSymbol, quotes, error } of results) {
+        if (error) errors.push(`${providerSymbol}: ${error}`);
+        if (quotes.length === 0) {
+          missingSymbols.push(providerSymbol);
+          continue;
+        }
+
+        for (const quote of quotes) {
+          rows.push({
+            instrumentId: instrument.id,
+            provider: this.provider.name,
+            symbol: quote.symbol.toUpperCase(),
+            priceDate: quote.asOfDate,
+            closePrice: quote.price,
+            currency: quote.currency ?? instrument.currency ?? "USD",
+            rawPayload: quote.raw
+          });
+        }
+      }
+    }
+
+    if (rows.length > 0) {
+      const updatedInstrumentIds = Array.from(new Set(rows.map((row) => row.instrumentId)));
+      await this.repository.upsertInstrumentPrices(rows);
+      if (!input?.skipDerivedMetrics) {
+        await refreshDerivedMetrics(this.repository, updatedInstrumentIds, { skipRiskMetrics: Boolean(input?.skipRiskMetrics) });
+      }
+    }
+
+    return {
+      requestedSymbols: providerSymbols,
+      updatedCount: rows.length,
+      missingSymbols,
+      errors,
+      message:
+        errors.length === 0
+          ? `Stored ${rows.length} adjusted EOD price row${rows.length === 1 ? "" : "s"} over the trailing ${lookbackDays}-day window across ${providerSymbols.length} active instrument${providerSymbols.length === 1 ? "" : "s"}.`
+          : `Stored ${rows.length} adjusted EOD price row${rows.length === 1 ? "" : "s"} over the trailing ${lookbackDays}-day window with ${errors.length} issue${errors.length === 1 ? "" : "s"}.`
+    };
+  }
+
   async refreshInstrumentMarketMetricsInBatches(input?: { batchSize?: number; maxBatches?: number }): Promise<RefreshInstrumentPricesResult> {
     const batchSize = Math.max(1, input?.batchSize ?? 25);
     const maxBatches = Math.max(1, input?.maxBatches ?? 3);
@@ -771,9 +869,11 @@ export class InstrumentMarketService {
 
   async refreshInstrumentRiskMetricsInBatches(input?: {
     batchSize?: number;
+    chunkSize?: number;
     minObservations?: number;
   }): Promise<RefreshInstrumentRiskMetricsResult> {
     const batchSize = Math.max(1, input?.batchSize ?? 10);
+    const chunkSize = Math.max(1, input?.chunkSize ?? 25);
     const minObservations = Math.max(1, input?.minObservations ?? 30);
     const instruments = await this.repository.listInstruments({ isActive: true });
     const instrumentIds = instruments.map((instrument) => instrument.id);
@@ -813,13 +913,32 @@ export class InstrumentMarketService {
     const requestedSymbols: string[] = [];
     let updatedCount = 0;
 
-    for (const instrument of selected) {
+    for (let index = 0; index < selected.length; index += chunkSize) {
+      const chunk = selected.slice(index, index + chunkSize);
       try {
-        await this.refreshInstrumentRiskMetricsForInstrument(instrument);
-        if (instrument.symbol) requestedSymbols.push(instrument.symbol);
-        updatedCount += 1;
+        await this.repository.refreshInstrumentRiskMetricsOnly(chunk.map((instrument) => instrument.id));
+        for (const instrument of chunk) {
+          if (instrument.symbol) requestedSymbols.push(instrument.symbol);
+        }
+        updatedCount += chunk.length;
       } catch (error) {
-        errors.push(`${instrument.symbol}: ${error instanceof Error ? error.message : "Risk metrics refresh failed."}`);
+        if (!isStatementTimeoutError(error)) {
+          const message = error instanceof Error ? error.message : "Risk metrics refresh failed.";
+          for (const instrument of chunk) {
+            errors.push(`${instrument.symbol}: ${message}`);
+          }
+          continue;
+        }
+
+        for (const instrument of chunk) {
+          try {
+            await this.refreshInstrumentRiskMetricsForInstrument(instrument);
+            if (instrument.symbol) requestedSymbols.push(instrument.symbol);
+            updatedCount += 1;
+          } catch (fallbackError) {
+            errors.push(`${instrument.symbol}: ${fallbackError instanceof Error ? fallbackError.message : "Risk metrics refresh failed."}`);
+          }
+        }
       }
     }
 

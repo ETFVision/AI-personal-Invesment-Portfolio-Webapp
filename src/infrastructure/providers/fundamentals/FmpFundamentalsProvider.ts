@@ -147,7 +147,30 @@ function normalizeStatement(
   };
 }
 
-function normalizeRatio(symbol: string, item: Record<string, unknown>, provider: string, period: FinancialPeriod): ProviderFinancialRatio {
+function fmpMetricLookupKey(item: Record<string, unknown>, period: FinancialPeriod) {
+  const date = dateOrNull(item.date ?? item.reportDate);
+  if (date) return date;
+  const fiscalYear = numberOrNull(item.calendarYear ?? item.fiscalYear);
+  if (fiscalYear == null) return null;
+  return `${fiscalYear}|${period}`;
+}
+
+function buildKeyMetricsLookup(rows: Record<string, unknown>[], period: FinancialPeriod) {
+  const lookup = new Map<string, Record<string, unknown>>();
+  for (const row of rows) {
+    const key = fmpMetricLookupKey(row, period);
+    if (key && !lookup.has(key)) lookup.set(key, row);
+  }
+  return lookup;
+}
+
+function normalizeRatio(
+  symbol: string,
+  item: Record<string, unknown>,
+  provider: string,
+  period: FinancialPeriod,
+  keyMetric?: Record<string, unknown>
+): ProviderFinancialRatio {
   const reportDate = dateOrNull(item.date ?? item.reportDate) ?? new Date().toISOString().slice(0, 10);
   return {
     symbol,
@@ -165,7 +188,7 @@ function normalizeRatio(symbol: string, item: Record<string, unknown>, provider:
     operatingMargin: numberOrNull(item.operatingProfitMargin ?? item.operatingMargin),
     netMargin: numberOrNull(item.netProfitMargin ?? item.netMargin),
     roe: numberOrNull(item.returnOnEquity ?? item.roe),
-    roic: numberOrNull(item.returnOnInvestedCapital ?? item.roic),
+    roic: numberOrNull(item.returnOnInvestedCapital ?? item.roic ?? keyMetric?.returnOnInvestedCapital ?? keyMetric?.roic),
     roa: numberOrNull(item.returnOnAssets ?? item.roa),
     debtToEquity: numberOrNull(item.debtEquityRatio ?? item.debtToEquity),
     netDebtToEbitda: numberOrNull(item.netDebtToEBITDA ?? item.netDebtToEbitda),
@@ -191,13 +214,15 @@ export class FmpFundamentalsProvider implements FundamentalsProvider {
     const period = options.period ?? "annual";
     const limit = String(options.limit ?? 5);
 
-    const [profileRows, incomeRows, balanceRows, cashFlowRows, ratioRows] = await Promise.all([
+    const [profileRows, incomeRows, balanceRows, cashFlowRows, ratioRows, keyMetricRows] = await Promise.all([
       getJsonArray("profile", normalizedSymbol, apiKey),
       getJsonArray("income-statement", normalizedSymbol, apiKey, { period, limit }),
       getJsonArray("balance-sheet-statement", normalizedSymbol, apiKey, { period, limit }),
       getJsonArray("cash-flow-statement", normalizedSymbol, apiKey, { period, limit }),
-      getJsonArray("ratios", normalizedSymbol, apiKey, { period, limit })
+      getJsonArray("ratios", normalizedSymbol, apiKey, { period, limit }),
+      getJsonArray("key-metrics", normalizedSymbol, apiKey, { period, limit })
     ]);
+    const keyMetricsByDate = buildKeyMetricsLookup(keyMetricRows, period);
 
     return {
       profile: normalizeProfile(normalizedSymbol, profileRows[0], this.name),
@@ -206,7 +231,13 @@ export class FmpFundamentalsProvider implements FundamentalsProvider {
         ...balanceRows.map((item) => normalizeStatement(normalizedSymbol, item, this.name, "balance_sheet", period)),
         ...cashFlowRows.map((item) => normalizeStatement(normalizedSymbol, item, this.name, "cash_flow", period))
       ],
-      ratios: ratioRows.map((item) => normalizeRatio(normalizedSymbol, item, this.name, period))
+      ratios: ratioRows.map((item) => normalizeRatio(
+        normalizedSymbol,
+        item,
+        this.name,
+        period,
+        keyMetricsByDate.get(fmpMetricLookupKey(item, period) ?? "")
+      ))
     };
   }
 }
@@ -216,5 +247,7 @@ export const fmpFundamentalsInternals = {
   normalizeProfile,
   normalizeStatement,
   normalizeRatio,
+  buildKeyMetricsLookup,
+  fmpMetricLookupKey,
   numberOrNull
 };

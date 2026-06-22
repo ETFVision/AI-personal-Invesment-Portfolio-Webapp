@@ -32,3 +32,17 @@ export function assessmentClassName(label: string) {
   if (tone === "danger") return "border-red-200 bg-red-50 text-red-900";
   return "border-border bg-muted text-muted-foreground";
 }
+
+export function businessQualityLabel(businessQualityScore: number | null | undefined): { label: string; tone: string } | null {
+  if (businessQualityScore == null) return null;
+  if (businessQualityScore >= 80) return { label: "Exceptional", tone: "positive" };
+  if (businessQualityScore >= 65) return { label: "Strong", tone: "positive" };
+  if (businessQualityScore >= 50) return { label: "Solid", tone: "info" };
+  if (businessQualityScore >= 35) return { label: "Moderate", tone: "warning" };
+  return { label: "Weak", tone: "danger" };
+}
+
+export function isStrongOrExceptionalBusinessQuality(businessQualityScore: number | null | undefined) {
+  const label = businessQualityLabel(businessQualityScore)?.label;
+  return label === "Strong" || label === "Exceptional";
+}

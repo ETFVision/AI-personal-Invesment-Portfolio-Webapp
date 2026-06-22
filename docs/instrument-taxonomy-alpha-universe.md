@@ -16,6 +16,20 @@ The Alpha instrument universe is now represented by ETFVision-owned taxonomy fie
 - `asset_category`: high-level calculation/listing category such as `EQUITY`, `BOND`, `COMMODITY`, `REAL_ESTATE`, `CASH`, `CRYPTO`, `MULTI_ASSET`, `UNKNOWN`.
 - `etf_category`: ETF product category such as `US_BROAD_MARKET`, `GLOBAL_EQUITY`, `TECHNOLOGY`, `BOND`, `CASH_EQUIVALENT`, `GOLD_PRECIOUS_METALS`, or `CRYPTO_ETF`.
 - `sector` / `canonical_sector`: stock sector taxonomy and broad instrument classification.
+- `canonical_themes`: independent, additive theme tags (e.g. `AI / Automation`, `Quality`, `Defensive`, `Global Diversification`). Many-to-many and overlapping — not a sector.
+
+## Canonical Sector And Theme Derivation (curated-authoritative)
+
+As of 2026-06-19, `canonical_sector` and `canonical_themes` are derived **authoritatively from the curated alpha-universe maps**, taking precedence over provider (FMP) sector/industry for instruments in the universe. This is implemented in `TaxonomyService` and applies on metadata refresh.
+
+- **ETF sector:** resolved from `ALPHA_ETF_CATEGORIES` (symbol → `EtfCategory`) via an explicit `EtfCategory → canonical_sector` mapping, **before** any provider raw-sector fallback. Sector categories map to their sector (e.g. `UTILITIES → Utilities`, `HEALTHCARE → Healthcare`, `FINANCIALS → Financials`); thematic-tech categories (`SEMICONDUCTOR`, `AI_ROBOTICS`, `CYBERSECURITY`, `CLOUD_COMPUTING`, `TECHNOLOGY`) collapse to `Technology`; genuinely broad / geo / style / single-country / dividend categories (`US_BROAD_MARKET`, `GLOBAL_EQUITY`, `DEVELOPED_MARKETS`, `EMERGING_MARKETS`, `COUNTRY`, `DIVIDEND`, `GROWTH`, `VALUE`, `SMALL_CAP`, `INTERNATIONAL_DIVIDEND`) map to `Multi-Asset / Broad Market`; asset-class categories map to their canonical bucket (`BOND → Bonds / Fixed Income`, `COMMODITY`/`GOLD_PRECIOUS_METALS → Commodities / Gold`, `CASH_EQUIVALENT → Cash / Money Market`, `CRYPTO_ETF → Crypto`).
+- **Stock sector:** resolved from `ALPHA_STOCK_SECTORS` (symbol → sector) as the source of truth, before provider fallback (e.g. a provider mislabel cannot override `MSFT → Technology`).
+- **Themes are independent of sector.** They come from curated per-category theme sets and seeded tags — never blanket-applied and never derived mechanically from the sector. `Global Diversification` is applied **only** to genuinely global/ex-US categories (`GLOBAL_EQUITY`, `DEVELOPED_MARKETS`, `EMERGING_MARKETS`, `COUNTRY`, `INTERNATIONAL_DIVIDEND`), not to US sector or US broad-market ETFs.
+- **Sector is never inferred from a theme.** Classification consumers (e.g. Portfolio Review `candidateRole`) use sector + asset class + the curated category, not theme tags.
+- **Backfill:** existing rows are re-normalized via the CRON-protected, override-respecting, idempotent taxonomy backfill at `/api/jobs/instrument-metadata-refresh?taxonomyBackfill=true` (`MetadataRefreshService.backfillCanonicalTaxonomy`). It skips `taxonomy_is_manual_override` rows. Because the derivation lives in shared `TaxonomyService`, scheduled metadata refreshes stay correct going forward.
+- **Coverage caveat:** the curated maps cover the approved alpha universe (201 ETFs, 105 stocks). Any instrument outside those lists still falls back to provider sector and should be spot-checked.
+
+See `docs/DATA_INGESTION_AND_PROVIDERS.md` and `docs/PORTFOLIO_REVIEW_METHODOLOGY.md` for consumer-side detail.
 
 ## Important Allocation Rule
 

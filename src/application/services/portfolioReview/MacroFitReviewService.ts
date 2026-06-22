@@ -5,6 +5,13 @@ function textIncludes(value: string | null | undefined, terms: string[]) {
   return terms.some((term) => text.includes(term));
 }
 
+function heldInflationHedges({ holdings }: PortfolioReviewInputContext["dashboard"]) {
+  const hedgeSymbols = new Set(["TIP", "STIP", "GLD", "IAU", "SGOL", "DBC", "PDBC", "COMT"]);
+  return holdings
+    .map((holding) => holding.ticker?.toUpperCase())
+    .filter((symbol): symbol is string => Boolean(symbol && hedgeSymbols.has(symbol)));
+}
+
 export class MacroFitReviewService {
   review({ macroRegime, marketVisionReport, dashboard }: PortfolioReviewInputContext) {
     const equityAllocation = allocationPercent(dashboard.allocationByType, isEquityAllocationLabel);
@@ -17,9 +24,13 @@ export class MacroFitReviewService {
       marketVisionReport?.portfolioImplications.riskImplication,
       ...(marketVisionReport?.risks ?? [])
     ].filter(Boolean).join(" ").toLowerCase();
+    const inflationHedges = heldInflationHedges(dashboard);
+    const inflationDetail = inflationHedges.length > 0
+      ? `Existing inflation-sensitive holdings detected: ${inflationHedges.join(", ")}. Inflation-linked, commodity and cash-like sleeves may still be useful context for review.`
+      : "Inflation-linked, commodity and cash-like sleeves may be useful context for review.";
     const findings = [
       ratesRestrictive && equityAllocation > 0.75 ? finding("watch", "Equity exposure in restrictive rates", "Higher rates can pressure long-duration growth assets and broad equity multiples.") : null,
-      inflationElevated ? finding("info", "Inflation regime is active", "Inflation-linked, commodity and cash-like sleeves may be useful context for review.") : null,
+      inflationElevated ? finding("info", "Inflation regime is active", inflationDetail) : null,
       growthWeak ? finding("watch", "Growth regime is weak", "Defensive quality, cash-like and treasury exposures deserve closer review.") : null,
       marketVisionRiskText.includes("risk") ? finding("info", "Market Vision risk context available", "The latest CIO-style report includes risk language that is captured in this review.") : null
     ].filter((item): item is NonNullable<typeof item> => Boolean(item));

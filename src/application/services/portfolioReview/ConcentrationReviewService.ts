@@ -1,41 +1,7 @@
 import { finding, section, type PortfolioReviewInputContext } from "./portfolioReviewScoring";
+import { holdingSnapshot, isIssuerExposure, issuerKey } from "./portfolioIssuerExposure";
 
 type HoldingExposure = NonNullable<PortfolioReviewInputContext["lookthroughReport"]>["holdingExposures"][number];
-
-function holdingSnapshot(row: HoldingExposure) {
-  return row.inputsSnapshot && typeof row.inputsSnapshot === "object" ? row.inputsSnapshot as Record<string, unknown> : {};
-}
-
-function instrumentAssetClass(row: HoldingExposure) {
-  const value = holdingSnapshot(row).instrumentAssetClass;
-  return typeof value === "string" ? value : null;
-}
-
-function exposureRole(row: HoldingExposure) {
-  const value = holdingSnapshot(row).exposureRole;
-  return typeof value === "string" ? value : null;
-}
-
-function isFundWrapper(row: HoldingExposure) {
-  const assetClass = instrumentAssetClass(row);
-  return row.directWeight > 0 && row.indirectWeight === 0 && ["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"].includes(assetClass ?? "");
-}
-
-function isUnderlyingExposure(row: HoldingExposure) {
-  return row.indirectWeight > 0 || exposureRole(row) === "underlying_security";
-}
-
-function normalizeIssuerName(name: string | null | undefined, fallback: string) {
-  return (name ?? fallback)
-    .replace(/\s+Class\s+[A-Z0-9]+$/i, "")
-    .replace(/\s+Ordinary\s+Shares?$/i, "")
-    .replace(/\s+Common\s+Stock$/i, "")
-    .replace(/\s+Sponsored\s+ADR$/i, "")
-    .replace(/\s+ADR$/i, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toUpperCase() || fallback.toUpperCase();
-}
 
 function issuerName(row: HoldingExposure) {
   const snapshot = holdingSnapshot(row);
@@ -43,16 +9,10 @@ function issuerName(row: HoldingExposure) {
   return row.holdingIssuerName ?? snapshotIssuerName ?? row.holdingName ?? row.holdingSymbol;
 }
 
-function issuerKey(row: HoldingExposure) {
-  const snapshot = holdingSnapshot(row);
-  const snapshotIssuerId = typeof snapshot.issuerId === "string" ? snapshot.issuerId : null;
-  return row.holdingIssuerId ?? snapshotIssuerId ?? normalizeIssuerName(row.holdingName, row.holdingSymbol);
-}
-
 function issuerGroupedUnderlying(rows: HoldingExposure[]) {
   const map = new Map<string, HoldingExposure>();
   for (const row of rows) {
-    if (isFundWrapper(row) || !isUnderlyingExposure(row)) continue;
+    if (!isIssuerExposure(row)) continue;
     const key = issuerKey(row);
     const current = map.get(key);
     if (!current) {
@@ -103,18 +63,23 @@ export class ConcentrationReviewService {
     const topCombinedFive = underlyingExposures.length
       ? underlyingExposures.slice(0, 5).reduce((sum, item) => sum + item.totalWeight, 0)
       : topFive;
+    const topIssuerConcentration = underlyingExposures[0]?.totalWeight ?? topHolding;
     const sectorTop = lookthroughReport?.sectorExposures[0]?.exposureWeight ?? riskReport.concentration.bySector[0]?.percent ?? 0;
     const findings = [
-      topHolding > 0.25 ? finding("attention", "Top holding concentration", "The largest holding exceeds 25% of invested assets.") : null,
-      topCombinedFive > 0.65 ? finding("attention", "Top five concentration", "The top five direct and indirect holdings account for a large share of invested assets.") : null,
+      topIssuerConcentration > 0.20
+        ? finding("attention", "Single-company concentration", "A single underlying company exceeds 20% of look-through exposure.")
+        : topIssuerConcentration > 0.10
+          ? finding("watch", "Single-company concentration", "A single underlying company exceeds 10% of look-through exposure.")
+          : null,
+      topCombinedFive > 0.50 ? finding("watch", "Top five company concentration", "The top five underlying companies account for a large share of look-through exposure.") : null,
       sectorTop > 0.5 ? finding("watch", "Sector concentration", "One sector is more than half of portfolio value.") : null,
       lookthroughReport && lookthroughReport.coverage.etfCount > 0 && lookthroughReport.coverage.etfsWithTopHoldings === 0
         ? finding("info", "Indirect holding exposure unavailable", "ETF top-holding data is unavailable, so indirect holdings are not inferred from ETF tickers.")
         : null
     ].filter((item): item is NonNullable<typeof item> => Boolean(item));
-    const score = 90 - Math.max(0, topHolding - 0.15) * 120 - Math.max(0, topCombinedFive - 0.5) * 80 - Math.max(0, sectorTop - 0.4) * 60;
-    return section(score, "Concentration is assessed from direct holdings plus ETF look-through top holding and sector exposure.", findings, {
-      topHoldingConcentration: topHolding,
+    const score = 90 - Math.max(0, topIssuerConcentration - 0.10) * 150 - Math.max(0, topCombinedFive - 0.40) * 80 - Math.max(0, sectorTop - 0.40) * 60;
+    return section(score, "Concentration is assessed from issuer-level company exposure plus ETF look-through top-five and sector exposure on a total-value basis.", findings, {
+      topHoldingConcentration: topIssuerConcentration,
       topFiveConcentration: topCombinedFive,
       largestDirectHolding: topDirectHolding,
       largestIndirectHolding: topIndirectHolding,

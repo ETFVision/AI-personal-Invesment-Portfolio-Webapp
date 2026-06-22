@@ -1,7 +1,10 @@
 import type { PortfolioImprovementIssueCategory, PortfolioImprovementSuggestion, PortfolioReviewCandidate } from "@/domain/portfolioReview/types";
 import type { InstrumentRecommendation } from "@/domain/recommendations/types";
 import type { Instrument } from "@/domain/universe/types";
+import type { EtfTopHolding, PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
+import { alphaEtfCategoryForSymbol, type EtfCategory } from "../../../domain/universe/alphaUniverse";
 import { DiversificationBenefitService } from "./DiversificationBenefitService";
+import { broadDefensiveSectorEtfs, broadInternationalEtfCategories, broadReitEtfs, coreInternationalEtfs, globalIncludingUsEtfs, nonDefensiveSectorEtfs } from "./gapCandidateSets";
 import { type PortfolioReviewInputContext } from "./portfolioReviewScoring";
 
 const blockedLabels = new Set(["Reduce", "Sell", "Insufficient Data", "Not Applicable"]);
@@ -33,22 +36,65 @@ const roleLabels = {
   other: "Diversifying exposure"
 } as const;
 
-type CandidateRole = keyof typeof roleLabels;
+export type CandidateRole = keyof typeof roleLabels;
+
+const alphaEtfCategoryRoles: Partial<Record<EtfCategory, CandidateRole>> = {
+  GLOBAL_EQUITY: "global_equity",
+  DEVELOPED_MARKETS: "developed_international_equity",
+  EMERGING_MARKETS: "emerging_market_equity",
+  HEALTHCARE: "healthcare_defensive",
+  UTILITIES: "utilities_defensive",
+  CONSUMER_STAPLES: "consumer_staples_defensive",
+  ENERGY: "energy_inflation_equity",
+  FINANCIALS: "financials_cyclical",
+  INDUSTRIALS: "industrials_cyclical",
+  REAL_ESTATE: "real_estate",
+  INTERNATIONAL_DIVIDEND: "international_equity",
+  COUNTRY: "international_equity"
+};
+
+const internationalCandidateRoles = new Set<CandidateRole>([
+  "international_equity",
+  "developed_international_equity",
+  "emerging_market_equity",
+  "global_equity"
+]);
+
+const exUsInternationalCandidateRoles: CandidateRole[] = [
+  "international_equity",
+  "developed_international_equity",
+  "emerging_market_equity"
+];
+
+const defensiveEquitySleeveRoles = new Set<CandidateRole>([
+  "healthcare_defensive",
+  "utilities_defensive",
+  "consumer_staples_defensive"
+]);
 
 function recommendationMap(recommendations: InstrumentRecommendation[]) {
   return new Map(recommendations.map((recommendation) => [recommendation.instrumentId, recommendation]));
 }
 
-type SuggestionContext = {
+export type SuggestionContext = {
   dominantSector: string | null;
   dominantSectorWeight: number;
   technologyWeight: number;
   healthcareWeight: number;
+  utilitiesWeight: number;
+  consumerStaplesWeight: number;
+  realEstateWeight: number;
   usExposure: number;
   internationalExposure: number;
   bondAllocation: number;
   goldAllocation: number;
+  cryptoAllocation: number;
+  growthRegime: string | null;
+  recessionHedgeAllocation: number;
+  concentratedLookthroughHoldings: Array<{ symbol: string; totalWeight: number }>;
   heldSymbols: Set<string>;
+  etfTopHoldings: EtfTopHolding[];
+  lookthroughReport: PortfolioLookthroughReport | null;
 };
 
 function normalizedSector(instrument: Instrument) {
@@ -59,15 +105,10 @@ function hasTheme(instrument: Instrument, themeName: string) {
   return instrument.canonicalThemes.some((theme) => theme.toLowerCase() === themeName);
 }
 
-function hasAnyTheme(instrument: Instrument, themes: string[]) {
-  const canonicalThemes = instrument.canonicalThemes.map((theme) => theme.toLowerCase());
-  return themes.some((theme) => canonicalThemes.includes(theme));
-}
-
 function instrumentIsInternationalDiversifier(instrument: Instrument) {
   const symbol = instrument.symbol?.toUpperCase() ?? "";
   const geography = (instrument.geography ?? instrument.geoExposure ?? "").toLowerCase();
-  return internationalSymbols.has(symbol) || hasTheme(instrument, "global diversification") || geography.includes("international") || geography.includes("global") || geography.includes("emerging");
+  return internationalSymbols.has(symbol) || geography.includes("international") || geography.includes("global") || geography.includes("emerging");
 }
 
 function instrumentIsDefensiveDiversifier(instrument: Instrument) {
@@ -80,7 +121,14 @@ function instrumentIsSameDominantSector(instrument: Instrument, context: Suggest
   return Boolean(dominantSector && normalizedSector(instrument) === dominantSector);
 }
 
-function candidateRole(instrument: Instrument): CandidateRole {
+function alphaEtfRole(instrument: Instrument): CandidateRole | null {
+  const isEtf = instrument.assetClass === "etf" || instrument.instrumentType.toLowerCase().includes("etf");
+  if (!isEtf) return null;
+  const category = alphaEtfCategoryForSymbol(instrument.symbol);
+  return category ? alphaEtfCategoryRoles[category] ?? null : null;
+}
+
+export function candidateRole(instrument: Instrument): CandidateRole {
   const symbol = instrument.symbol?.toUpperCase() ?? "";
   const sector = normalizedSector(instrument);
   const themes = instrument.canonicalThemes.map((theme) => theme.toLowerCase());
@@ -88,8 +136,8 @@ function candidateRole(instrument: Instrument): CandidateRole {
   const classification = instrument.treasuryClassification?.toLowerCase() ?? "";
   const creditQuality = instrument.creditQuality?.toLowerCase() ?? "";
 
-  if (["VXUS"].includes(symbol)) return "international_equity";
-  if (["VEA"].includes(symbol)) return "developed_international_equity";
+  if (["VXUS", "IXUS"].includes(symbol)) return "international_equity";
+  if (["VEA", "SPDW"].includes(symbol)) return "developed_international_equity";
   if (["VWO", "IEMG"].includes(symbol)) return "emerging_market_equity";
   if (["VT", "ACWI"].includes(symbol)) return "global_equity";
   if (["BNDX"].includes(symbol)) return "international_bond";
@@ -108,18 +156,20 @@ function candidateRole(instrument: Instrument): CandidateRole {
   if (sector === "energy") return "energy_inflation_equity";
   if (sector === "financials") return "financials_cyclical";
   if (sector === "industrials") return "industrials_cyclical";
+  const curatedEtfRole = alphaEtfRole(instrument);
+  if (curatedEtfRole) return curatedEtfRole;
   if (instrument.assetClass === "crypto") return "crypto_alternative";
   if (instrument.assetClass === "bond_etf") {
     if (duration === "long") return "long_duration_treasury";
     if (duration === "ultra-short" || duration === "short") return "short_treasury_cash_like";
     return "core_us_bond";
   }
-  if (hasAnyTheme(instrument, ["global diversification"]) || instrumentIsInternationalDiversifier(instrument)) return "global_equity";
+  if (instrumentIsInternationalDiversifier(instrument)) return "global_equity";
   if (instrument.assetClass === "etf" && normalizedSector(instrument) === "multi-asset / broad market") return "broad_market";
   return "other";
 }
 
-function rolePriority(issueCategory: PortfolioImprovementIssueCategory, context: SuggestionContext): CandidateRole[] {
+export function rolePriority(issueCategory: PortfolioImprovementIssueCategory, context: SuggestionContext): CandidateRole[] {
   if (issueCategory === "insufficient_international_exposure") {
     return ["international_equity", "developed_international_equity", "emerging_market_equity", "global_equity", "international_bond"];
   }
@@ -136,16 +186,22 @@ function rolePriority(issueCategory: PortfolioImprovementIssueCategory, context:
     return ["gold_hedge", "intermediate_treasury", "long_duration_treasury", "short_treasury_cash_like", "utilities_defensive", "consumer_staples_defensive"];
   }
   if (issueCategory === "insufficient_defensive_exposure") {
-    return ["healthcare_defensive", "utilities_defensive", "consumer_staples_defensive", "short_treasury_cash_like", "core_us_bond"];
+    const defensiveRoles: Array<{ role: CandidateRole; weight: number; defaultOrder: number }> = [
+      { role: "healthcare_defensive", weight: context.healthcareWeight, defaultOrder: 0 },
+      { role: "utilities_defensive", weight: context.utilitiesWeight, defaultOrder: 1 },
+      { role: "consumer_staples_defensive", weight: context.consumerStaplesWeight, defaultOrder: 2 }
+    ];
+    return defensiveRoles
+      .sort((left, right) => left.weight - right.weight || left.defaultOrder - right.defaultOrder)
+      .map((item) => item.role)
+      .concat(["short_treasury_cash_like", "core_us_bond"]);
   }
-  if (issueCategory === "sector_concentration" || issueCategory === "theme_concentration") {
-    if (context.technologyWeight > 0.25) {
-      return ["healthcare_defensive", "utilities_defensive", "consumer_staples_defensive", "international_equity", "developed_international_equity", "emerging_market_equity", "core_us_bond", "international_bond", "gold_hedge"];
-    }
-    return ["international_equity", "healthcare_defensive", "utilities_defensive", "consumer_staples_defensive", "core_us_bond", "gold_hedge", "real_estate"];
+  if (issueCategory === "insufficient_real_estate_exposure") {
+    return ["real_estate"];
   }
+  // theme_concentration is a reserved issue category with no active gap-analysis trigger.
   if (issueCategory === "concentration_risk") {
-    return ["international_equity", "developed_international_equity", "emerging_market_equity", "international_bond", "core_us_bond", "gold_hedge", "healthcare_defensive", "utilities_defensive", "consumer_staples_defensive"];
+    return ["international_equity", "developed_international_equity", "core_us_bond", "gold_hedge", "intermediate_treasury", "international_bond"];
   }
   if (issueCategory === "excessive_crypto_risk") {
     return ["short_treasury_cash_like", "core_us_bond", "gold_hedge"];
@@ -172,7 +228,13 @@ function issueFit(instrument: Instrument, issueCategory: PortfolioImprovementIss
   if (issueCategory === "insufficient_inflation_hedge") return roleFit(role, issueCategory, context) || (instrument.assetClass === "gold_etf" || themes.includes("inflation hedge") ? 35 : 0);
   if (issueCategory === "insufficient_geopolitical_hedge") return roleFit(role, issueCategory, context) || (instrument.assetClass === "gold_etf" || themes.includes("recession hedge") ? 30 : 0);
   if (issueCategory === "insufficient_international_exposure") return roleFit(role, issueCategory, context);
-  if (issueCategory === "insufficient_defensive_exposure") return roleFit(role, issueCategory, context) || (instrumentIsDefensiveDiversifier(instrument) ? 24 : 0);
+  if (issueCategory === "insufficient_real_estate_exposure") return roleFit(role, issueCategory, context);
+  if (issueCategory === "insufficient_defensive_exposure") {
+    if (instrument.assetClass === "stock") return 0;
+    if (nonDefensiveSectorEtfs.has((instrument.symbol ?? "").toUpperCase())) return 0;
+    if (internationalCandidateRoles.has(role)) return 0;
+    return roleFit(role, issueCategory, context) || (instrumentIsDefensiveDiversifier(instrument) ? 24 : 0);
+  }
   if (issueCategory === "sector_concentration" || issueCategory === "theme_concentration") {
     if (instrumentIsSameDominantSector(instrument, context)) return 0;
     if (context.dominantSector === "Technology" && sector === "technology") return 0;
@@ -181,6 +243,7 @@ function issueFit(instrument: Instrument, issueCategory: PortfolioImprovementIss
     return 0;
   }
   if (issueCategory === "concentration_risk") {
+    if (instrument.assetClass === "stock") return 0;
     if (instrumentIsSameDominantSector(instrument, context)) return 0;
     return roleFit(role, issueCategory, context);
   }
@@ -291,6 +354,33 @@ function candidateRankScore(candidate: PortfolioReviewCandidate) {
   );
 }
 
+function internationalRepresentativeScore(instrument: Instrument) {
+  const symbol = instrument.symbol?.toUpperCase() ?? "";
+  const category = alphaEtfCategoryForSymbol(symbol);
+  if (!category || !broadInternationalEtfCategories.has(category)) return 0;
+  if (coreInternationalEtfs.has(symbol)) return 100;
+  if (globalIncludingUsEtfs.has(symbol)) return 30;
+  return 60;
+}
+
+function categoryRepresentativeScore(instrument: Instrument, issueCategory: PortfolioImprovementIssueCategory) {
+  const symbol = instrument.symbol?.toUpperCase() ?? "";
+  if (issueCategory === "insufficient_defensive_exposure" && broadDefensiveSectorEtfs.has(symbol)) return 100;
+  if (issueCategory === "insufficient_international_exposure") return internationalRepresentativeScore(instrument);
+  if (issueCategory === "insufficient_real_estate_exposure") return broadReitEtfs.has(symbol) ? 100 : candidateRole(instrument) === "real_estate" ? 30 : 0;
+  return 0;
+}
+
+function categoryRemedyCandidateRankScore(candidate: PortfolioReviewCandidate) {
+  return (
+    (candidate.categoryRepresentativeScore ?? 0) * 10 +
+    (candidate.recommendationScore ?? 0) * 10 +
+    (candidate.issueFitScore ?? candidate.relevanceScore ?? 0) +
+    (candidate.confidenceScore ?? 0) * 0.1 +
+    (candidate.macroFitScore ?? 50) * 0.05
+  );
+}
+
 const diversificationBenefitService = new DiversificationBenefitService();
 
 function candidate(
@@ -306,7 +396,19 @@ function candidate(
   const recommendationScore = recommendation?.overallScore ?? 55;
   const confidenceScore = recommendation?.confidenceScore ?? 50;
   const candidateRelevanceScore = relevanceScore(fit);
+  const candidateRepresentativeScore = categoryRepresentativeScore(instrument, issueCategory);
   const type = diversificationType(instrument);
+  const candidateHoldings = context.etfTopHoldings
+    .filter((holding) => holding.etfInstrumentId === instrument.id);
+  const userHoldingSymbols = new Set(
+    (context.lookthroughReport?.holdingExposures ?? [])
+      .map((holding) => holding.holdingSymbol?.toUpperCase())
+      .filter((symbol): symbol is string => Boolean(symbol))
+  );
+  const overlappingHoldings = candidateHoldings
+    .filter((holding) => userHoldingSymbols.has(holding.holdingSymbol?.toUpperCase() ?? ""));
+  const companyOverlapWeight = overlappingHoldings
+    .reduce((sum, holding) => sum + (holding.holdingWeight ?? 0), 0);
   const benefit = diversificationBenefitService.evaluate({
     roleLabel: type,
     issueCategory,
@@ -320,8 +422,10 @@ function candidate(
     internationalExposure: context.internationalExposure,
     bondAllocation: context.bondAllocation,
     goldAllocation: context.goldAllocation,
+    realEstateWeight: context.realEstateWeight,
     heldSymbols: context.heldSymbols,
-    symbol: instrument.symbol
+    symbol: instrument.symbol,
+    companyOverlapWeight
   });
   const explanation = benefit.primaryReason || roleExplanation(instrument, issueCategory, context);
   const macroFitScore = recommendationComponentScore(recommendation, ["macro_fit", "market_vision_alignment", "theme_alignment"]);
@@ -336,9 +440,16 @@ function candidate(
     confidenceScore,
     relevanceScore: candidateRelevanceScore,
     issueFitScore: candidateRelevanceScore,
+    categoryRepresentativeScore: candidateRepresentativeScore,
     diversificationBenefitScore: benefit.score,
     macroFitScore,
     overlapPenalty: benefit.overlapPenalty,
+    sharedCompanyCount: overlappingHoldings.length,
+    sharedCompanyWeight: companyOverlapWeight,
+    topSharedSymbols: overlappingHoldings
+      .sort((a, b) => b.holdingWeight - a.holdingWeight)
+      .slice(0, 3)
+      .map((holding) => holding.holdingSymbol),
     primaryReason: benefit.primaryReason,
     secondaryBenefit: benefit.secondaryBenefit,
     overlapWarning: benefit.overlapWarning,
@@ -356,13 +467,54 @@ function candidate(
 
 function rankedCandidates(context: PortfolioReviewInputContext, issueContext: SuggestionContext, issueCategory: PortfolioImprovementIssueCategory, limit = 5) {
   const recs = recommendationMap(context.recommendations);
+  const rankScore = issueCategory === "insufficient_international_exposure" || issueCategory === "insufficient_real_estate_exposure" ? categoryRemedyCandidateRankScore : candidateRankScore;
   return context.instruments
     .map((instrument) => candidate(instrument, recs.get(instrument.id), issueCategory, issueContext))
     .filter((item): item is PortfolioReviewCandidate => Boolean(item))
     .sort((a, b) => {
-      return candidateRankScore(b) - candidateRankScore(a);
+      return rankScore(b) - rankScore(a);
     })
     .slice(0, limit);
+}
+
+function rankedInternationalCandidates(context: PortfolioReviewInputContext, issueContext: SuggestionContext, perRoleLimit = 2) {
+  const recs = recommendationMap(context.recommendations);
+  const byRole = new Map<CandidateRole, PortfolioReviewCandidate[]>();
+  for (const instrument of context.instruments) {
+    const role = candidateRole(instrument);
+    if (!exUsInternationalCandidateRoles.includes(role)) continue;
+    const item = candidate(instrument, recs.get(instrument.id), "insufficient_international_exposure", issueContext);
+    if (!item || (item.categoryRepresentativeScore ?? 0) < 60) continue;
+    const candidates = byRole.get(role) ?? [];
+    candidates.push(item);
+    byRole.set(role, candidates);
+  }
+  return exUsInternationalCandidateRoles
+    .flatMap((role) =>
+      (byRole.get(role) ?? [])
+        .sort((left, right) => categoryRemedyCandidateRankScore(right) - categoryRemedyCandidateRankScore(left))
+        .slice(0, perRoleLimit)
+    );
+}
+
+function rankedDefensiveCandidates(context: PortfolioReviewInputContext, issueContext: SuggestionContext, perSleeveLimit = 2) {
+  const recs = recommendationMap(context.recommendations);
+  const byRole = new Map<CandidateRole, PortfolioReviewCandidate[]>();
+  for (const instrument of context.instruments) {
+    const role = candidateRole(instrument);
+    const item = candidate(instrument, recs.get(instrument.id), "insufficient_defensive_exposure", issueContext);
+    if (!item) continue;
+    const candidates = byRole.get(role) ?? [];
+    candidates.push(item);
+    byRole.set(role, candidates);
+  }
+  return rolePriority("insufficient_defensive_exposure", issueContext)
+    .filter((role) => defensiveEquitySleeveRoles.has(role))
+    .flatMap((role) =>
+      (byRole.get(role) ?? [])
+        .sort((left, right) => categoryRemedyCandidateRankScore(right) - categoryRemedyCandidateRankScore(left))
+        .slice(0, perSleeveLimit)
+    );
 }
 
 function suggestion(input: {
@@ -391,33 +543,68 @@ function suggestion(input: {
   };
 }
 
+function sectorExposureWeight(sectorExposures: Array<{ exposureName: string; exposureWeight: number }>, sectorName: string) {
+  return sectorExposures.find((item) => item.exposureName.toLowerCase() === sectorName)?.exposureWeight ?? 0;
+}
+
+export function buildPortfolioImprovementSuggestionContext(context: PortfolioReviewInputContext): SuggestionContext {
+  const bondAllocation = context.bondReport.totalBondAllocation;
+  const topSector = context.lookthroughReport?.sectorExposures[0];
+  const sectorExposures = context.lookthroughReport?.sectorExposures ?? context.dashboard.allocationBySector.map((item) => ({
+    exposureName: item.label,
+    exposureWeight: item.percent
+  }));
+  const usExposure = context.lookthroughReport?.countryExposures.find((item) => ["us", "usa", "united states"].includes(item.exposureName.toLowerCase()))?.exposureWeight ?? 0;
+  const internationalExposure = Math.max(0, 1 - usExposure);
+  const goldAllocation = context.dashboard.allocationByType
+    .filter((item) => item.label.toLowerCase().includes("gold"))
+    .reduce((sum, item) => sum + item.percent, 0);
+  const cryptoAllocation = context.dashboard.allocationByType
+    .filter((item) => item.label.toLowerCase().includes("crypto"))
+    .reduce((sum, item) => sum + item.percent, 0);
+
+  return {
+    dominantSector: topSector?.exposureName ?? context.dashboard.allocationBySector[0]?.label ?? null,
+    dominantSectorWeight: topSector?.exposureWeight ?? context.dashboard.allocationBySector[0]?.percent ?? 0,
+    technologyWeight: sectorExposureWeight(sectorExposures, "technology"),
+    healthcareWeight: sectorExposureWeight(sectorExposures, "healthcare"),
+    utilitiesWeight: sectorExposureWeight(sectorExposures, "utilities"),
+    consumerStaplesWeight: sectorExposureWeight(sectorExposures, "consumer staples"),
+    realEstateWeight: sectorExposureWeight(sectorExposures, "real estate"),
+    usExposure,
+    internationalExposure,
+    bondAllocation,
+    goldAllocation,
+    cryptoAllocation,
+    growthRegime: context.macroRegime?.growthRegime?.toLowerCase() ?? null,
+    recessionHedgeAllocation: bondAllocation + goldAllocation,
+    concentratedLookthroughHoldings: (() => {
+      const etfAssetClasses = new Set(["etf", "bond_etf", "gold_etf", "crypto_etf", "cash_proxy"]);
+      const instrumentAssetClassBySymbol = new Map(
+        context.instruments.map((i) => [i.symbol?.toUpperCase() ?? "", i.assetClass])
+      );
+      return (context.lookthroughReport?.holdingExposures ?? [])
+        .filter((h) => {
+          if (!h.holdingSymbol || h.totalWeight <= 0.10) return false;
+          const ac = instrumentAssetClassBySymbol.get(h.holdingSymbol.toUpperCase());
+          if (ac && etfAssetClasses.has(ac)) return false;
+          return true;
+        })
+        .sort((a, b) => b.totalWeight - a.totalWeight)
+        .slice(0, 3)
+        .map((h) => ({ symbol: h.holdingSymbol, totalWeight: h.totalWeight }));
+    })(),
+    heldSymbols: new Set(context.dashboard.holdings.map((holding) => holding.ticker?.toUpperCase()).filter((symbol): symbol is string => Boolean(symbol))),
+    etfTopHoldings: context.etfTopHoldings,
+    lookthroughReport: context.lookthroughReport
+  };
+}
+
 export class PortfolioImprovementSuggestionService {
   build(context: PortfolioReviewInputContext): PortfolioImprovementSuggestion[] {
     const suggestions: PortfolioImprovementSuggestion[] = [];
-    const bondAllocation = context.bondReport.totalBondAllocation;
-    const topHolding = context.riskReport.concentration.topHoldingConcentration;
-    const diversificationScore = context.riskReport.diversification.score;
-    const topSector = context.lookthroughReport?.sectorExposures[0];
-    const sectorExposures = context.lookthroughReport?.sectorExposures ?? context.dashboard.allocationBySector.map((item) => ({
-      exposureName: item.label,
-      exposureWeight: item.percent
-    }));
-    const usExposure = context.lookthroughReport?.countryExposures.find((item) => ["us", "usa", "united states"].includes(item.exposureName.toLowerCase()))?.exposureWeight ?? 0;
-    const internationalExposure = Math.max(0, 1 - usExposure);
-    const goldAllocation = context.dashboard.allocationByType
-      .filter((item) => item.label.toLowerCase().includes("gold"))
-      .reduce((sum, item) => sum + item.percent, 0);
-    const issueContext: SuggestionContext = {
-      dominantSector: topSector?.exposureName ?? context.dashboard.allocationBySector[0]?.label ?? null,
-      dominantSectorWeight: topSector?.exposureWeight ?? context.dashboard.allocationBySector[0]?.percent ?? 0,
-      technologyWeight: sectorExposures.find((item) => item.exposureName.toLowerCase() === "technology")?.exposureWeight ?? 0,
-      healthcareWeight: sectorExposures.find((item) => item.exposureName.toLowerCase() === "healthcare")?.exposureWeight ?? 0,
-      usExposure,
-      internationalExposure,
-      bondAllocation,
-      goldAllocation,
-      heldSymbols: new Set(context.dashboard.holdings.map((holding) => holding.ticker?.toUpperCase()).filter((symbol): symbol is string => Boolean(symbol)))
-    };
+    const issueContext = buildPortfolioImprovementSuggestionContext(context);
+    const bondAllocation = issueContext.bondAllocation;
 
     if (bondAllocation < 0.05) {
       suggestions.push(suggestion({
@@ -432,59 +619,89 @@ export class PortfolioImprovementSuggestionService {
       }));
     }
 
-    if (issueContext.dominantSectorWeight > 0.35 || issueContext.technologyWeight > 0.3) {
-      suggestions.push(suggestion({
-        category: "theme_exposure",
-        issueCategory: "sector_concentration",
-        priority: issueContext.dominantSectorWeight > 0.45 ? "medium" : "low",
-        title: "Review sector concentration alternatives",
-        rationale: `${issueContext.dominantSector ?? "One sector"} is the largest look-through sector exposure; candidates are filtered for categories away from that sector.`,
-        candidates: rankedCandidates(context, issueContext, "sector_concentration", 5),
-        benefit: "Can reduce dependency on a single sector driver.",
-        tradeOff: "May dilute exposure to the portfolio's strongest current theme."
-      }));
-    }
-
-    if (usExposure > 0.7 || internationalExposure < 0.3) {
+    if (issueContext.usExposure > 0.7 || issueContext.internationalExposure < 0.3) {
       suggestions.push(suggestion({
         category: "diversification",
         issueCategory: "insufficient_international_exposure",
-        priority: usExposure > 0.8 ? "medium" : "low",
-        title: "Review international diversification",
-        rationale: "Look-through country exposure is US-oriented relative to a globally diversified baseline.",
-        candidates: rankedCandidates(context, issueContext, "insufficient_international_exposure", 5),
+        priority: issueContext.usExposure > 0.85 ? "high" : issueContext.usExposure > 0.7 ? "medium" : "low",
+        title: "International Equity — Lightly Represented Category",
+        rationale: `Look-through country exposure is US-oriented relative to a globally diversified baseline. US look-through is ${(issueContext.usExposure * 100).toFixed(1)}%.`,
+        candidates: rankedInternationalCandidates(context, issueContext),
         benefit: "Can reduce US home bias and add regional diversification.",
-        tradeOff: "Introduces currency and non-US market risks."
+        tradeOff: "Introduces currency and non-US market risks. Broad ETFs already held may continue to carry US look-through exposure."
       }));
     }
 
-    if (issueContext.healthcareWeight < 0.08 && issueContext.technologyWeight > 0.25) {
+    if (issueContext.dominantSectorWeight > 0.35 || issueContext.technologyWeight > 0.3 || (issueContext.healthcareWeight < 0.08 && issueContext.technologyWeight > 0.25)) {
       suggestions.push(suggestion({
         category: "diversification",
         issueCategory: "insufficient_defensive_exposure",
         priority: "low",
-        title: "Healthcare & Defensive — Underweighted Category",
-        rationale: "Healthcare and defensive sectors are modest relative to technology exposure.",
-        candidates: rankedCandidates(context, issueContext, "insufficient_defensive_exposure", 5),
+        title: "Defensive Sectors — Lightly Represented Category",
+        rationale: `Technology is the largest look-through sector at ${(issueContext.technologyWeight * 100).toFixed(1)}%. Defensive sleeve look-through is Healthcare ${(issueContext.healthcareWeight * 100).toFixed(1)}%, Utilities ${(issueContext.utilitiesWeight * 100).toFixed(1)}%, and Consumer Staples ${(issueContext.consumerStaplesWeight * 100).toFixed(1)}%.`,
+        candidates: rankedDefensiveCandidates(context, issueContext),
         benefit: "May relate to sector balance without relying only on broad-market ETFs.",
         tradeOff: "Defensive sectors may lag during high-beta technology-led rallies."
       }));
     }
 
-    if (topHolding > 0.25 || diversificationScore < 55) {
+    if (issueContext.realEstateWeight < 0.03) {
+      const candidates = rankedCandidates(context, issueContext, "insufficient_real_estate_exposure", 4);
+      if (candidates.length > 0) {
+        suggestions.push(suggestion({
+          category: "diversification",
+          issueCategory: "insufficient_real_estate_exposure",
+          priority: "low",
+          title: "Real Estate — Lightly Represented Category",
+          rationale: `Real estate look-through exposure is ${(issueContext.realEstateWeight * 100).toFixed(1)}%, below the 3.0% balance threshold. Analytical observation only - not a position sizing recommendation.`,
+          candidates,
+          benefit: "May add property-income and real-asset sensitivity context to the portfolio balance review.",
+          tradeOff: "REIT funds can be sensitive to interest rates, financing conditions, and property-market cycles."
+        }));
+      }
+    }
+
+    if (issueContext.cryptoAllocation > 0.05 && issueContext.recessionHedgeAllocation < issueContext.cryptoAllocation) {
       suggestions.push(suggestion({
-        category: "diversification",
-        issueCategory: "concentration_risk",
-        priority: topHolding > 0.3 ? "high" : "medium",
-        title: "International Equity — Underweighted Category",
-        rationale: "Concentration and diversification metrics indicate the portfolio has below-median exposure in the international equity category.",
-        candidates: rankedCandidates(context, issueContext, "concentration_risk", 5),
-        benefit: "May affect direct or indirect concentration risk.",
-        tradeOff: "May add overlap with broad ETFs already held."
+        category: "risk",
+        issueCategory: "excessive_crypto_risk",
+        priority: issueContext.cryptoAllocation > 0.1 ? "high" : "medium",
+        title: "Crypto / Alternative — Ballast Underweighted",
+        rationale: `Crypto and high-risk alternative exposure is ${(issueContext.cryptoAllocation * 100).toFixed(1)}%, while bond and gold ballast is ${(issueContext.recessionHedgeAllocation * 100).toFixed(1)}%. Analytical observation only - not a position sizing recommendation.`,
+        candidates: rankedCandidates(context, issueContext, "excessive_crypto_risk", 5),
+        benefit: "May add ballast characteristics around high-volatility alternative exposure.",
+        tradeOff: "Ballast assets can lag high-risk alternatives during strong risk-on markets."
       }));
     }
 
-    if (goldAllocation < 0.03 && context.macroRegime?.inflationRegime.toLowerCase().includes("elevated")) {
+    if (issueContext.concentratedLookthroughHoldings.length > 0) {
+      const topLookthroughHolding = issueContext.concentratedLookthroughHoldings[0];
+      suggestions.push(suggestion({
+        category: "concentration",
+        issueCategory: "concentration_risk",
+        priority: topLookthroughHolding.totalWeight > 0.15 ? "high" : "medium",
+        title: "Top Look-Through Positions — Single-Name Concentration Watch",
+        rationale: `Top look-through holding ${topLookthroughHolding.symbol} represents ${(topLookthroughHolding.totalWeight * 100).toFixed(1)}% of portfolio exposure after ETF holdings are included. Analytical observation only - not a position sizing recommendation.`,
+        candidates: rankedCandidates(context, issueContext, "concentration_risk", 5),
+        benefit: "May provide context for reviewing single-name concentration within ETF look-through exposure.",
+        tradeOff: "Alternative exposures may overlap with broad ETFs already held."
+      }));
+    }
+
+    if ((issueContext.growthRegime?.includes("contraction") || issueContext.growthRegime?.includes("slowdown")) && issueContext.recessionHedgeAllocation < 0.25) {
+      suggestions.push(suggestion({
+        category: "macro_fit",
+        issueCategory: "macro_vulnerability",
+        priority: "medium",
+        title: "Growth Regime Watch — Recession Hedge Underweighted",
+        rationale: `FRED-derived growth regime is ${issueContext.growthRegime}, while bond and gold recession-hedge exposure is ${(issueContext.recessionHedgeAllocation * 100).toFixed(1)}%. Analytical observation only - not a position sizing recommendation.`,
+        candidates: rankedCandidates(context, issueContext, "macro_vulnerability", 5),
+        benefit: "May provide context for macro-regime sensitivity review.",
+        tradeOff: "Recession-hedge assets may lag during renewed growth acceleration."
+      }));
+    }
+
+    if (issueContext.goldAllocation < 0.03 && context.macroRegime?.inflationRegime.toLowerCase().includes("elevated")) {
       suggestions.push(suggestion({
         category: "macro_fit",
         issueCategory: "insufficient_inflation_hedge",

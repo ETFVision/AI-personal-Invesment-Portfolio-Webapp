@@ -128,31 +128,20 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
   const job = await container.jobRunService.runManual("backfill_market_history", async () => {
     const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
       lookbackDays: 1825,
-      batchSize: 8,
+      batchSize: 50,
       maxBatches: 1,
-      includeBackfill: true
+      includeBackfill: true,
+      skipDerivedMetrics: true
     });
 
-    let benchmarkSummary: Awaited<ReturnType<typeof container.jobs.refreshBenchmarkData.run>> | null = null;
-    if (result.requestedSymbols.length === 0) {
-      benchmarkSummary = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 1825 });
-      if (!benchmarkSummary.ok) errors.push(benchmarkSummary.message);
-    }
-
-    refreshMessage = benchmarkSummary
-      ? `History backfill: ${result.message} Benchmarks: ${benchmarkSummary.message}`
-      : `History backfill: ${result.message} Benchmarks will run after instrument history backfill is complete.`;
+    refreshMessage = `History backfill: ${result.message} After history is complete, run the numbered derived-metric buttons (2 Daily returns through 5 Risk metrics) and Refresh benchmarks.`;
     errors.push(...result.errors);
 
     return {
       ok: errors.length === 0,
       message: refreshMessage,
       errors,
-      metadata: {
-        instrumentBackfill: result,
-        benchmarks: benchmarkSummary,
-        skippedBenchmarksUntilInstrumentHistoryComplete: benchmarkSummary == null
-      }
+      metadata: { instrumentBackfill: result }
     };
   });
   if (job.errors.length > 0 && errors.length === 0) errors.push(...job.errors);
@@ -171,6 +160,31 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
   redirect(`${destination}?${params.toString()}`);
 }
 
+export async function refreshBenchmarksAction(formData?: FormData) {
+  const container = createContainer();
+  await container.authProvider.requireAdmin();
+  const destination = returnPath(formData);
+  const errors: string[] = [];
+  let refreshMessage = "";
+
+  const job = await container.jobRunService.runManual("benchmark-refresh", async () => {
+    const result = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 1825 });
+    refreshMessage = result.message;
+    if (!result.ok) errors.push(result.message);
+    return { ok: result.ok, message: refreshMessage, errors, metadata: result };
+  });
+  if (job.errors.length > 0 && errors.length === 0) errors.push(...job.errors);
+  if (!refreshMessage && job.errors.length > 0) refreshMessage = "Benchmark refresh failed.";
+
+  revalidatePath("/admin/data-sources");
+  revalidatePath("/portfolio");
+  revalidatePath("/risk");
+
+  const params = new URLSearchParams({ refreshMessage });
+  if (errors.length > 0) params.set("refreshError", errors.join(" | "));
+  redirect(`${destination}?${params.toString()}`);
+}
+
 export async function refreshInstrumentPricesAction(formData?: FormData) {
   const container = createContainer();
   await container.authProvider.requireAdmin();
@@ -179,11 +193,7 @@ export async function refreshInstrumentPricesAction(formData?: FormData) {
   let refreshMessage = "";
 
   const job = await container.jobRunService.runManual("instrument-price-refresh", async () => {
-    const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
-      lookbackDays: 30,
-      batchSize: 75,
-      maxBatches: 1,
-      includeBackfill: false,
+    const result = await container.instrumentMarketService.refreshInstrumentPricesEod({
       skipRiskMetrics: true,
       skipDerivedMetrics: true
     });

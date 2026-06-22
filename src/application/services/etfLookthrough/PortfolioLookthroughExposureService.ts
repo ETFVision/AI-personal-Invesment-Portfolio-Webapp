@@ -230,6 +230,63 @@ function topHoldingExposureRows(portfolioId: string, asOfDate: string, holdings:
   }));
 }
 
+function mergeSourceEtfs(a: PortfolioLookthroughHoldingSourceEtf[], b: PortfolioLookthroughHoldingSourceEtf[]): PortfolioLookthroughHoldingSourceEtf[] {
+  const merged = new Map<string, number>();
+  for (const etf of [...a, ...b]) merged.set(etf.symbol, (merged.get(etf.symbol) ?? 0) + etf.weight);
+  return Array.from(merged.entries())
+    .map(([symbol, weight]) => ({ symbol, weight }))
+    .sort((a, b) => b.weight - a.weight);
+}
+
+function deduplicateHoldingsBySymbol(holdings: PortfolioLookthroughHolding[]): PortfolioLookthroughHolding[] {
+  const seen = new Map<string, PortfolioLookthroughHolding>();
+  for (const holding of holdings) {
+    const key = holding.holdingSymbol.toUpperCase();
+    const existing = seen.get(key);
+    if (!existing) {
+      seen.set(key, holding);
+    } else {
+      const merged: PortfolioLookthroughHolding = {
+        ...existing,
+        holdingIssuerId: existing.holdingIssuerId ?? holding.holdingIssuerId,
+        holdingIssuerName: existing.holdingIssuerName ?? holding.holdingIssuerName,
+        holdingSecurityId: existing.holdingSecurityId ?? holding.holdingSecurityId,
+        holdingName: existing.holdingName ?? holding.holdingName,
+        mappingStatus: existing.holdingSecurityId ? existing.mappingStatus : holding.mappingStatus,
+        mappingConfidenceScore: Math.max(existing.mappingConfidenceScore ?? 0, holding.mappingConfidenceScore ?? 0),
+        directWeight: existing.directWeight + holding.directWeight,
+        indirectWeight: existing.indirectWeight + holding.indirectWeight,
+        totalWeight: existing.totalWeight + holding.totalWeight,
+        sourceEtfs: mergeSourceEtfs(existing.sourceEtfs, holding.sourceEtfs)
+      };
+      seen.set(key, merged);
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) => b.totalWeight - a.totalWeight);
+}
+
+function deduplicateExposuresByName(exposures: PortfolioLookthroughExposure[]): PortfolioLookthroughExposure[] {
+  const seen = new Map<string, PortfolioLookthroughExposure>();
+  for (const exposure of exposures) {
+    const key = exposure.exposureName.toUpperCase();
+    const existing = seen.get(key);
+    if (!existing) {
+      seen.set(key, exposure);
+    } else {
+      seen.set(key, {
+        ...existing,
+        exposureIssuerId: existing.exposureIssuerId ?? exposure.exposureIssuerId,
+        exposureIssuerName: existing.exposureIssuerName ?? exposure.exposureIssuerName,
+        exposureSecurityId: existing.exposureSecurityId ?? exposure.exposureSecurityId,
+        exposureWeight: existing.exposureWeight + exposure.exposureWeight,
+        directWeight: existing.directWeight + exposure.directWeight,
+        etfLookthroughWeight: existing.etfLookthroughWeight + exposure.etfLookthroughWeight
+      });
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) => b.exposureWeight - a.exposureWeight);
+}
+
 function groupByInstrument<T extends { etfInstrumentId: string }>(items: T[]) {
   const grouped = new Map<string, T[]>();
   for (const item of items) {
@@ -294,6 +351,7 @@ export class PortfolioLookthroughExposureService {
     const asOfDate = dashboard.latestPriceDate ?? today();
     const instrumentBySymbol = buildInstrumentBySymbol(instruments);
     const etfIds = instruments.filter(hasEquityLookthrough).map((instrument) => instrument.id);
+    const equityEtfSymbols = new Set(instruments.filter(hasEquityLookthrough).map((i) => i.symbol?.toUpperCase()).filter(Boolean));
     const [sectorRows, countryRows, topHoldingRows, themeRows] = await Promise.all([
       this.repository.listLatestSectorExposures(etfIds),
       this.repository.listLatestCountryExposures(etfIds),
@@ -385,6 +443,7 @@ export class PortfolioLookthroughExposureService {
         if (etfHoldings.length) {
           etfsWithTopHoldings += 1;
           for (const holding of etfHoldings) {
+            if (equityEtfSymbols.has(holding.holdingSymbol?.toUpperCase())) continue;
             addHolding(
               holdings,
               holding.holdingSymbol,
@@ -411,26 +470,28 @@ export class PortfolioLookthroughExposureService {
     }
 
     const holdingExposures = holdingRows(portfolioId, asOfDate, holdings);
+    const deduplicatedHoldingExposures = deduplicateHoldingsBySymbol(holdingExposures);
     const report: PortfolioLookthroughReport = {
       asOfDate,
       sectorExposures: rows(portfolioId, asOfDate, "sector", sectors),
       countryExposures: rows(portfolioId, asOfDate, "country", countries),
       currencyExposures: rows(portfolioId, asOfDate, "currency", currencies),
       themeExposures: rows(portfolioId, asOfDate, "theme", themes),
-      topHoldingExposures: topHoldingExposureRows(portfolioId, asOfDate, holdingExposures),
-      holdingExposures,
+      topHoldingExposures: topHoldingExposureRows(portfolioId, asOfDate, deduplicatedHoldingExposures),
+      holdingExposures: deduplicatedHoldingExposures,
       coverage: { etfCount, etfsWithSectorExposure, etfsWithCountryExposure, etfsWithTopHoldings, lookthroughWeight, fallbackWeight },
       diagnostics
     };
 
+    const deduplicatedTopHoldingExposures = deduplicateExposuresByName(report.topHoldingExposures);
     await this.repository.upsertPortfolioLookthroughExposures([
       ...report.sectorExposures,
       ...report.countryExposures,
       ...report.currencyExposures,
       ...report.themeExposures,
-      ...report.topHoldingExposures
+      ...deduplicatedTopHoldingExposures
     ]);
-    await this.repository.upsertPortfolioLookthroughHoldings(report.holdingExposures);
+    await this.repository.upsertPortfolioLookthroughHoldings(deduplicatedHoldingExposures);
     return report;
   }
 }

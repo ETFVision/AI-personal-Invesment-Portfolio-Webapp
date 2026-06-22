@@ -3,6 +3,7 @@ import type { MarketVisionRepository } from "@/application/ports/repositories/Ma
 import type { MacroIndicatorRepository } from "@/application/ports/repositories/MacroIndicatorRepository";
 import type { RecommendationRepository } from "@/application/ports/repositories/RecommendationRepository";
 import type { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
+import type { EtfExposureRepository } from "@/application/ports/repositories/EtfExposureRepository";
 import type { PortfolioService } from "@/application/services/PortfolioService";
 import type { BondService } from "@/application/services/bonds/BondService";
 import type { RiskAnalyticsDataService } from "@/application/services/risk/RiskAnalyticsDataService";
@@ -58,6 +59,16 @@ export function portfolioReviewConfidenceScore(context: PortfolioReviewInputCont
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
+export function portfolioReviewExecutiveSummary(score: number | null, watchAreaCount: number, suggestionCount: number, limitationCount: number) {
+  const scoreText = score == null ? "insufficient data" : `${score}/100`;
+  const posture =
+    score == null ? "cannot yet be scored reliably" :
+    score >= 75 ? "is broadly healthy" :
+    score >= 60 ? "is workable but has review areas" :
+    "needs attention before it can be considered well balanced";
+  return `Portfolio review score is ${scoreText}. The portfolio ${posture}. ${watchAreaCount} watch areas, ${suggestionCount} balance findings and ${limitationCount} data limitations were identified. Balance findings are deterministic analytical outputs and do not constitute investment advice, trade instructions, or position sizing guidance.`;
+}
+
 function dataLimitations(context: PortfolioReviewInputContext) {
   return [
     context.dashboard.holdings.length === 0 ? "No holdings are available for portfolio review." : null,
@@ -91,6 +102,7 @@ export class PortfolioReviewService {
     private readonly macroIndicatorRepository: MacroIndicatorRepository,
     private readonly themeIntelligenceService: ThemeIntelligenceService,
     private readonly portfolioLookthroughExposureService: PortfolioLookthroughExposureService,
+    private readonly etfExposureRepository: EtfExposureRepository,
     private readonly allocationReviewService = new AllocationReviewService(),
     private readonly concentrationReviewService = new ConcentrationReviewService(),
     private readonly diversificationReviewService = new DiversificationReviewService(),
@@ -208,8 +220,11 @@ export class PortfolioReviewService {
     const periodEnd = dashboard.latestPriceDate ?? today();
     const periodStartDate = new Date(`${periodEnd}T00:00:00.000Z`);
     periodStartDate.setUTCDate(periodStartDate.getUTCDate() - 6);
-    const themeIntelligence = await this.themeIntelligenceService.getThemeIntelligence(periodStartDate.toISOString().slice(0, 10), periodEnd);
-    const lookthroughReport = await this.portfolioLookthroughExposureService.calculateAndStore(portfolioId, dashboard, instruments);
+    const [themeIntelligence, lookthroughReport, etfTopHoldings] = await Promise.all([
+      this.themeIntelligenceService.getThemeIntelligence(periodStartDate.toISOString().slice(0, 10), periodEnd),
+      this.portfolioLookthroughExposureService.calculateAndStore(portfolioId, dashboard, instruments),
+      this.etfExposureRepository.listLatestTopHoldings(instruments.map((instrument) => instrument.id))
+    ]);
     return {
       dashboard,
       riskReport,
@@ -219,17 +234,12 @@ export class PortfolioReviewService {
       marketVisionReport,
       macroRegime,
       themeIntelligence,
-      lookthroughReport
+      lookthroughReport,
+      etfTopHoldings
     };
   }
 
   private executiveSummary(score: number | null, watchAreaCount: number, suggestionCount: number, limitationCount: number) {
-    const scoreText = score == null ? "insufficient data" : `${score}/100`;
-    const posture =
-      score == null ? "cannot yet be scored reliably" :
-      score >= 75 ? "is broadly healthy" :
-      score >= 60 ? "is workable but has review areas" :
-      "needs attention before it can be considered well balanced";
-    return `Portfolio review score is ${scoreText}. The portfolio ${posture}. ${watchAreaCount} watch areas, ${suggestionCount} gap findings and ${limitationCount} data limitations were identified. Gap findings are deterministic analytical outputs and do not constitute investment advice, trade instructions, or position sizing guidance.`;
+    return portfolioReviewExecutiveSummary(score, watchAreaCount, suggestionCount, limitationCount);
   }
 }

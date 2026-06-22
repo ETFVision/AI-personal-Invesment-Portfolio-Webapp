@@ -34,6 +34,25 @@ export async function runPortfolioReviewAction(formData?: FormData) {
   redirect(`${destination.startsWith("/") ? destination : "/portfolio-review"}?${params.toString()}`);
 }
 
+export async function clearEtfLookthroughExposureAction(formData?: FormData) {
+  const container = createContainer();
+  await container.authProvider.requireAdmin();
+  const destination = String(formData?.get("returnTo") ?? "/admin/data-sources");
+  const target = destination.startsWith("/") ? destination : "/admin/data-sources";
+
+  try {
+    await container.etfExposureRepository.clearAllExposures();
+    revalidatePath("/admin/data-sources");
+  } catch (error) {
+    const params = new URLSearchParams({
+      portfolioReviewError: error instanceof Error ? error.message : "ETF exposure clear failed."
+    });
+    redirect(`${target}?${params.toString()}`);
+  }
+
+  redirect(target);
+}
+
 export async function refreshEtfLookthroughExposureAction(formData?: FormData) {
   const container = createContainer();
   await container.authProvider.requireAdmin();

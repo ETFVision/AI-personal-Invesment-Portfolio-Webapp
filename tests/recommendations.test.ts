@@ -2,18 +2,36 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { RecommendationRulesService } from "../src/application/services/recommendations/RecommendationRulesService";
 import { StockRecommendationService } from "../src/application/services/recommendations/StockRecommendationService";
-import { EtfRecommendationService } from "../src/application/services/recommendations/EtfRecommendationService";
+import { benchmarkKeyForEtf, EtfRecommendationService, scoreBenchmarkRelative } from "../src/application/services/recommendations/EtfRecommendationService";
 import { BondEtfRecommendationService } from "../src/application/services/recommendations/BondEtfRecommendationService";
 import { GoldRecommendationService } from "../src/application/services/recommendations/GoldRecommendationService";
 import { CryptoRecommendationService } from "../src/application/services/recommendations/CryptoRecommendationService";
 import { PortfolioFitService } from "../src/application/services/recommendations/portfolioFitService";
 import { emptyMarketVisionMetadata } from "../src/application/services/marketVision/MarketVisionGenerationService";
-import type { RecommendationInput } from "../src/application/services/recommendations/recommendationScoring";
+import { scoreBusinessQuality, scoreMomentum, type RecommendationInput } from "../src/application/services/recommendations/recommendationScoring";
 import type { Instrument, InstrumentMarketMetric, InstrumentRiskMetric } from "../src/domain/universe/types";
-import type { FundamentalsSummaryRow } from "../src/domain/fundamentals/types";
+import type { FundamentalScore, FundamentalsSummaryRow } from "../src/domain/fundamentals/types";
 import type { MarketVisionReport } from "../src/domain/marketVision/types";
 
 const rules = new RecommendationRulesService();
+
+function withStockPhase2Flag<T>(enabled: boolean, callback: () => T): T {
+  const previous = process.env.ENABLE_STOCK_PHASE2_SCORES;
+  if (enabled) {
+    process.env.ENABLE_STOCK_PHASE2_SCORES = "true";
+  } else {
+    delete process.env.ENABLE_STOCK_PHASE2_SCORES;
+  }
+  try {
+    return callback();
+  } finally {
+    if (previous == null) {
+      delete process.env.ENABLE_STOCK_PHASE2_SCORES;
+    } else {
+      process.env.ENABLE_STOCK_PHASE2_SCORES = previous;
+    }
+  }
+}
 
 function instrument(overrides: Partial<Instrument> = {}): Instrument {
   return {
@@ -249,15 +267,31 @@ function input(overrides: Partial<RecommendationInput> = {}): RecommendationInpu
       updatedAt: ""
     },
     marketVisionReport: marketVisionReport(),
-    portfolioFit: {
-      score: 70,
-      concentrationPercent: 0.02,
-      duplicateExposure: false,
-      positiveDrivers: ["Adds a new sleeve"],
-      negativeDrivers: [],
-      dataLimitations: []
-    },
     ...overrides
+  };
+}
+
+function phase2QualityFundamentals(overrides: Partial<FundamentalScore> = {}): FundamentalsSummaryRow {
+  const row = fundamentals(62, 20);
+  return {
+    ...row,
+    latestScore: row.latestScore ? {
+      ...row.latestScore,
+      growthScore: 90,
+      profitabilityScore: 92,
+      balanceSheetScore: 86,
+      cashFlowScore: 88,
+      qualityScore: 90,
+      overallFundamentalScore: 62,
+      valuationScore: 20,
+      ...overrides
+    } : null,
+    latestTrendSummary: row.latestTrendSummary ? {
+      ...row.latestTrendSummary,
+      overallTrendScore: 90,
+      overallConfidenceScore: 90,
+      overallTrendDirection: "improving"
+    } : null
   };
 }
 
@@ -268,12 +302,66 @@ test("recommendation thresholds map scores deterministically", () => {
   assert.equal(rules.labelFromScore(40), "Watch");
   assert.equal(rules.labelFromScore(25), "Reduce");
   assert.equal(rules.labelFromScore(10), "Sell");
+  assert.equal(rules.labelFromScore(80), "Strong Buy");
+  assert.equal(rules.labelFromScore(79), "Buy");
+  assert.equal(rules.labelFromScore(65), "Buy");
+  assert.equal(rules.labelFromScore(64), "Hold");
+  assert.equal(rules.labelFromScore(48), "Hold");
+  assert.equal(rules.labelFromScore(47), "Watch");
 });
 
 test("guardrails cap weak fundamentals and low confidence", () => {
   assert.equal(rules.applyGuardrails({ label: "Buy", confidenceScore: 45 }).label, "Insufficient Data");
   assert.equal(rules.applyGuardrails({ label: "Buy", confidenceScore: 80, fundamentalScore: 25 }).label, "Watch");
   assert.equal(rules.applyGuardrails({ label: "Strong Buy", confidenceScore: 80, concentrationPercent: 0.3 }).label, "Hold");
+});
+
+test("excessive instrument risk cap scales with business quality", () => {
+  const exceptional = rules.applyGuardrails({
+    label: "Strong Buy",
+    confidenceScore: 80,
+    riskScore: 82,
+    businessQualityScore: 80
+  });
+  const strong = rules.applyGuardrails({
+    label: "Buy",
+    confidenceScore: 80,
+    riskScore: 82,
+    businessQualityScore: 65
+  });
+  const solid = rules.applyGuardrails({
+    label: "Strong Buy",
+    confidenceScore: 80,
+    riskScore: 82,
+    businessQualityScore: 64
+  });
+  const alreadySell = rules.applyGuardrails({
+    label: "Sell",
+    confidenceScore: 80,
+    riskScore: 82,
+    businessQualityScore: 90
+  });
+  const alreadyReduce = rules.applyGuardrails({
+    label: "Reduce",
+    confidenceScore: 80,
+    riskScore: 82,
+    businessQualityScore: 90
+  });
+  const etf = rules.applyGuardrails({
+    label: "Buy",
+    confidenceScore: 80,
+    riskScore: 82,
+    businessQualityScore: null,
+    instrumentType: "ETF"
+  });
+
+  assert.equal(exceptional.label, "Hold");
+  assert.equal(strong.label, "Hold");
+  assert.equal(solid.label, "Watch");
+  assert.equal(alreadySell.label, "Sell");
+  assert.equal(alreadyReduce.label, "Reduce");
+  assert.equal(etf.label, "Watch");
+  assert.deepEqual(exceptional.guardrails, ["Excessive instrument risk cap"]);
 });
 
 test("confidence score reflects completeness and signal conflict", () => {
@@ -353,7 +441,39 @@ test("portfolio fit uses issuer-level look-through exposure for duplicate exposu
   assert.ok(result.negativeDrivers.some((driver) => /issuer-level exposure/i.test(driver)));
 });
 
-test("stock recommendation uses fundamentals, trends, risk and portfolio fit", () => {
+test("scoreBusinessQuality returns weighted average of non-valuation fundamentals", () => {
+  const score: FundamentalScore = {
+    instrumentId: "instrument-1",
+    symbol: "TEST",
+    asOfDate: "2026-06-01",
+    growthScore: 80,
+    profitabilityScore: 75,
+    valuationScore: 20,
+    balanceSheetScore: 65,
+    cashFlowScore: 70,
+    qualityScore: 72,
+    overallFundamentalScore: 62,
+    scoreConfidence: 88,
+    explanation: "Test score.",
+    inputsSnapshot: {}
+  };
+
+  const businessQuality = scoreBusinessQuality(score);
+  assert.ok(businessQuality != null);
+  assert.ok(Math.abs(businessQuality - 73.3) < 0.0001);
+  assert.notEqual(businessQuality, score.overallFundamentalScore);
+  assert.equal(scoreBusinessQuality({
+    ...score,
+    growthScore: null,
+    profitabilityScore: null,
+    balanceSheetScore: null,
+    cashFlowScore: null,
+    qualityScore: null,
+    valuationScore: 95
+  }), null);
+});
+
+test("stock recommendation uses fundamentals, trends, risk and market signals", () => {
   const result = new StockRecommendationService(rules).evaluate(input());
   assert.ok((result.overallScore ?? 0) >= 70);
   assert.match(result.recommendationReasoningSummary, /deterministic score/i);
@@ -363,21 +483,63 @@ test("stock recommendation uses fundamentals, trends, risk and portfolio fit", (
   assert.ok(result.recommendationChangeTriggers.upgrade.length > 0);
   assert.ok(result.recommendationChangeTriggers.downgrade.length > 0);
   assert.ok((result.scoringBreakdown.components as Array<{ key: string }>).some((component) => component.key === "market_vision_alignment"));
+  assert.equal((result.scoringBreakdown as { businessQualityScore?: number | null }).businessQualityScore != null, true);
+});
+
+test("stock Phase 2 scoring uses business quality not overall fundamentals", () => {
+  const testInput = input({
+    fundamentals: phase2QualityFundamentals(),
+    riskMetric: { ...riskMetric, riskScore: 12 },
+    marketMetric: { ...marketMetric, dailyReturn: 0.02, ytdReturn: 0.2, oneYearReturn: 0.3 },
+    marketVisionReport: marketVisionReport({
+      executiveSummary: "Technology and AI / Automation have supportive tailwind and constructive opportunity."
+    })
+  });
+
+  const phase1 = withStockPhase2Flag(false, () => new StockRecommendationService(rules).evaluate(testInput));
+  const phase2 = withStockPhase2Flag(true, () => new StockRecommendationService(rules).evaluate(testInput));
+  const components = phase2.scoringBreakdown.components as Array<{ key: string }>;
+
+  assert.ok(components.some((component) => component.key === "business_quality"));
+  assert.ok(!components.some((component) => component.key === "fundamentals"));
+  assert.ok((phase2.overallScore ?? 0) > (phase1.overallScore ?? 0));
+  assert.equal((phase2.scoringBreakdown as { businessQualityScore?: number | null }).businessQualityScore != null, true);
+});
+
+test("stock Phase 2 valuation guardrail only caps at valuation below 15", () => {
+  const result = withStockPhase2Flag(true, () => new StockRecommendationService(rules).evaluate(input({
+    fundamentals: phase2QualityFundamentals({ valuationScore: 22, overallFundamentalScore: 62 }),
+    riskMetric: { ...riskMetric, riskScore: 12 },
+    marketMetric: { ...marketMetric, dailyReturn: 0.02, ytdReturn: 0.2, oneYearReturn: 0.3 },
+    marketVisionReport: marketVisionReport({
+      executiveSummary: "Technology and AI / Automation have supportive tailwind and constructive opportunity."
+    })
+  })));
+
+  assert.notEqual(result.recommendationLabel, "Watch");
+  assert.ok(!result.guardrailsApplied.includes("Poor valuation cap"));
+  assert.ok(!result.guardrailsApplied.includes("Poor valuation quality-aware cap"));
+});
+
+test("stock Phase 2 valuation below 15 caps at Hold", () => {
+  const result = withStockPhase2Flag(true, () => new StockRecommendationService(rules).evaluate(input({
+    fundamentals: phase2QualityFundamentals({ valuationScore: 10, overallFundamentalScore: 95 }),
+    riskMetric: { ...riskMetric, riskScore: 5 },
+    marketMetric: { ...marketMetric, dailyReturn: 0.04, ytdReturn: 0.5, oneYearReturn: 0.8 },
+    marketVisionReport: marketVisionReport({
+      executiveSummary: "Technology and AI / Automation have supportive tailwind and constructive opportunity."
+    })
+  })));
+
+  assert.equal(result.recommendationLabel, "Hold");
+  assert.ok(result.guardrailsApplied.includes("Severely stretched valuation characteristics cap"));
 });
 
 test("stock recommendation caps poor valuation", () => {
   const result = new StockRecommendationService(rules).evaluate(input({
     fundamentals: highQualityExpensiveFundamentals(),
     riskMetric: { ...riskMetric, riskScore: 5 },
-    marketMetric: { ...marketMetric, dailyReturn: 0.04, ytdReturn: 0.5, oneYearReturn: 0.8 },
-    portfolioFit: {
-      score: 95,
-      concentrationPercent: 0.02,
-      duplicateExposure: false,
-      positiveDrivers: ["Adds a new sleeve"],
-      negativeDrivers: [],
-      dataLimitations: []
-    }
+    marketMetric: { ...marketMetric, dailyReturn: 0.04, ytdReturn: 0.5, oneYearReturn: 0.8 }
   }));
   assert.equal(result.recommendationLabel, "Hold");
   assert.ok(result.guardrailsApplied.includes("Poor valuation quality-aware cap"));
@@ -406,14 +568,6 @@ test("Market Vision cannot override hard guardrails", () => {
     fundamentals: highQualityExpensiveFundamentals(),
     riskMetric: { ...riskMetric, riskScore: 5 },
     marketMetric: { ...marketMetric, dailyReturn: 0.04, ytdReturn: 0.5, oneYearReturn: 0.8 },
-    portfolioFit: {
-      score: 95,
-      concentrationPercent: 0.02,
-      duplicateExposure: false,
-      positiveDrivers: ["Adds a new sleeve"],
-      negativeDrivers: [],
-      dataLimitations: []
-    },
     marketVisionReport: marketVisionReport({
       executiveSummary: "Technology and AI / Automation have a powerful opportunity and supportive tailwind."
     })
@@ -456,6 +610,56 @@ test("ETF, bond, gold and crypto services return deterministic labels", () => {
   })).recommendationLabel, "Not Applicable");
   assert.notEqual(new GoldRecommendationService(rules).evaluate(input({ instrument: instrument({ assetClass: "gold_etf", instrumentType: "gold_etf", canonicalSector: "Commodities / Gold" }), fundamentals: null })).recommendationLabel, "Not Applicable");
   assert.notEqual(new CryptoRecommendationService(rules).evaluate(input({ instrument: instrument({ assetClass: "crypto", instrumentType: "crypto", canonicalSector: "Crypto" }), fundamentals: null })).recommendationLabel, "Not Applicable");
+});
+
+test("ETF benchmark relative scores excess return against mapped external benchmark", () => {
+  assert.equal(scoreBenchmarkRelative(0.20, 0.20), 50);
+  assert.equal(scoreBenchmarkRelative(0.45, 0.20), 75);
+  assert.equal(scoreBenchmarkRelative(-0.05, 0.20), 25);
+  assert.equal(scoreBenchmarkRelative(0.50, 0.00), 100);
+  assert.equal(scoreBenchmarkRelative(-0.50, 0.00), 0);
+  assert.equal(scoreBenchmarkRelative(0.20, null), null);
+
+  const service = new EtfRecommendationService(rules);
+  const beat = service.evaluate(input({
+    instrument: instrument({ assetClass: "etf", instrumentType: "etf", etfCategory: "US_BROAD_MARKET" }),
+    marketMetric: { ...marketMetric, oneYearReturn: 0.30 },
+    benchmarkRelative: { benchmarkKey: "sp500", benchmarkReturn1y: 0.20 },
+    fundamentals: null
+  }));
+  const lag = service.evaluate(input({
+    instrument: instrument({ assetClass: "etf", instrumentType: "etf", etfCategory: "US_BROAD_MARKET" }),
+    marketMetric: { ...marketMetric, oneYearReturn: 0.10 },
+    benchmarkRelative: { benchmarkKey: "sp500", benchmarkReturn1y: 0.20 },
+    fundamentals: null
+  }));
+  const missing = service.evaluate(input({
+    instrument: instrument({ assetClass: "etf", instrumentType: "etf", etfCategory: "US_BROAD_MARKET" }),
+    marketMetric: { ...marketMetric, oneYearReturn: 0.30 },
+    benchmarkRelative: null,
+    fundamentals: null
+  }));
+
+  const beatComponent = beat.scoringBreakdown.components as Array<{ key: string; score: number | null }>;
+  const lagComponent = lag.scoringBreakdown.components as Array<{ key: string; score: number | null }>;
+  const missingComponent = missing.scoringBreakdown.components as Array<{ key: string; score: number | null }>;
+  assert.equal(beatComponent.find((component) => component.key === "benchmark_relative")?.score, 60);
+  assert.equal(lagComponent.find((component) => component.key === "benchmark_relative")?.score, 40);
+  assert.equal(missingComponent.find((component) => component.key === "benchmark_relative")?.score, null);
+});
+
+test("ETF benchmark map uses emerging markets benchmark for EM ETFs", () => {
+  assert.equal(benchmarkKeyForEtf(instrument({ symbol: "EEM", assetClass: "etf", instrumentType: "etf", etfCategory: "EMERGING_MARKETS" })), "emerging_markets");
+  assert.equal(benchmarkKeyForEtf(instrument({ symbol: "INDA", assetClass: "etf", instrumentType: "etf", etfCategory: "COUNTRY" })), "emerging_markets");
+  assert.equal(benchmarkKeyForEtf(instrument({ symbol: "EFA", assetClass: "etf", instrumentType: "etf", etfCategory: "DEVELOPED_MARKETS" })), "developed_ex_us");
+  assert.equal(benchmarkKeyForEtf(instrument({ symbol: "EWJ", assetClass: "etf", instrumentType: "etf", etfCategory: "COUNTRY" })), "developed_ex_us");
+  assert.notEqual(benchmarkKeyForEtf(instrument({ symbol: "EEM", assetClass: "etf", instrumentType: "etf", etfCategory: "EMERGING_MARKETS" })), "sp500");
+});
+
+test("ETF momentum excludes trailing one-year return", () => {
+  const highOneYear = scoreMomentum({ ...marketMetric, oneYearReturn: 0.80, ytdReturn: 0.10, dailyReturn: 0.01 });
+  const lowOneYear = scoreMomentum({ ...marketMetric, oneYearReturn: -0.80, ytdReturn: 0.10, dailyReturn: 0.01 });
+  assert.equal(highOneYear, lowOneYear);
 });
 
 test("Market Vision alignment is included for every supported recommendation type", () => {

@@ -186,9 +186,9 @@ This document maps ETFVision product routes to their route files, direct server 
 - `fundamentals_overview_metrics` - fundamentals overview view.
 
 **Refresh job dependency:**
-- `app-daily-instrument-price-refresh-1..5` -> `/api/jobs/instrument-price-refresh` -> daily batched passes.
+- `app-daily-instrument-price-refresh` -> `/api/jobs/instrument-price-refresh?source=eod` -> daily single end-of-day pass.
 - `app-daily-instrument-market-metrics-refresh` -> `/api/jobs/instrument-market-metrics-refresh` -> daily.
-- `app-daily-instrument-risk-refresh-1..2` -> `/api/jobs/instrument-risk-refresh` -> daily.
+- `app-daily-instrument-risk-refresh` -> `/api/jobs/instrument-risk-refresh` -> daily single full-universe pass.
 - `app-weekly-fundamentals-refresh-1..3` -> `/api/jobs/fundamentals-refresh` -> weekly.
 - `app-monthly-universe-validation` -> `/api/jobs/universe-validation` -> monthly.
 

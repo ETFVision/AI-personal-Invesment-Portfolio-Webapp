@@ -1,4 +1,4 @@
-import {
+import type {
   AllocationItem,
   BenchmarkSnapshot,
   DailyPrice,
@@ -8,11 +8,11 @@ import {
   PortfolioSnapshot,
   Transaction
 } from "@/domain/portfolio/types";
-import { calculateReturns, concentrationRatio, covarianceRiskContributions, syntheticPortfolioDrawdown } from "@/application/services/risk/riskMath";
-import { CorrelationService } from "@/application/services/risk/CorrelationService";
-import { DiversificationService } from "@/application/services/risk/DiversificationService";
-import { DrawdownService } from "@/application/services/risk/DrawdownService";
-import { VolatilityService } from "@/application/services/risk/VolatilityService";
+import { calculateReturns, concentrationRatio, covarianceRiskContributions, syntheticPortfolioDrawdown } from "./riskMath";
+import { CorrelationService } from "./CorrelationService";
+import { DiversificationService } from "./DiversificationService";
+import { DrawdownService } from "./DrawdownService";
+import { VolatilityService } from "./VolatilityService";
 
 export const RISK_TAXONOMY_VERSION = "canonical-taxonomy-v4-lookthrough-exposure";
 export type RiskAnalyticsReport = ReturnType<RiskAnalyticsService["calculateRiskAnalytics"]>;
@@ -93,6 +93,7 @@ export class RiskAnalyticsService {
     dailyPrices: DailyPrice[];
     transactions?: Transaction[];
     benchmarkSnapshots?: BenchmarkSnapshot[];
+    issuerConcentration?: { topHolding: number; topFive: number } | null;
   }) {
     const { dashboard } = input;
     const investedValuations = dashboard.holdingValuations.filter((valuation) => valuation.value > 0);
@@ -115,9 +116,7 @@ export class RiskAnalyticsService {
       assetClasses: dashboard.allocationByType,
       sectors: dashboard.allocationBySector,
       currencies: dashboard.currencyExposure,
-      averageCorrelation: correlations.averageCorrelation,
-      topHoldingConcentration,
-      topFiveConcentration
+      averageCorrelation: correlations.averageCorrelation
     });
     const volatility = this.volatilityService.calculatePortfolioVolatility(input.portfolioSnapshots, input.transactions);
     const drawdown = this.drawdownService.calculatePortfolioDrawdown(input.portfolioSnapshots, input.transactions);
