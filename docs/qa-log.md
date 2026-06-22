@@ -2,6 +2,30 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-22 SGT - Med 29 Recalibration QA (sign-off)
+
+Scope: distribution-level QA of the recalibrated recommendation engine across the full live universe (306 instruments) after the scoring programme (#2/#3/#5, period-fix, financial-sector, risk-cap, roicDurability). Review-only; no code change.
+
+Result: **PASS / signed off.** Combined with Med 26 (drift lock), the scoring programme is QA-complete.
+
+Checks and results:
+
+| Check | Result |
+|---|---|
+| No score saturation | PASS — max 77.9 stock / 67.1 ETF / 63.7 bond; p90 67.5 stock / 60.1 ETF. No pegging. |
+| Stock label spread | PASS — 27 Good / 70 Neutral / 8 Weak across 105 stocks. |
+| Component coverage | PASS — essentially complete; **ETF benchmark_relative 172/172** (EFA/EEM backfill confirmed universe-wide). Only 1 stock missing fundamental_trends (104/105, limited history, excluded from denominator). |
+| Orthogonality — Q vs CashFlow / BalanceSheet | PASS — 0.008 / −0.178. |
+| Economic spot-checks | PASS — NVDA/AAPL/MSFT/JPM Good; SPY ≈ benchmark-neutral; EEM 54.3 > VWO 50.7 (Korea/index-family effect intact); XOM recovered; COST not over-penalized; crypto appropriately low. Ordering intuitive. |
+
+Residual / watch items (monitor; do NOT re-tune — frozen-anchor discipline):
+
+| Item | Detail |
+|---|---|
+| Q↔Profitability corr = 0.409 | Marginally above the ~0.40 target (was 0.380 mid-programme; both share ROIC level vs durability). ~17% shared variance — within tolerance, but crept up. If it exceeds ~0.45 in a future run, revisit roicDurability. |
+| ETF / Bond compression | ETFs 92% Neutral (158/172), Bond ETFs 100% Neutral. Benchmark/risk components do discriminate (2 Good, 12 Weak exist) but near-constant default components damp spread. Inherent characteristic of diversified-instrument scoring, not a defect. Only a deliberate future model decision should touch ETF/bond weights. |
+| Zero Excellent (≥80) across the universe | Expected and already disclosed (composite effective ceiling ~mid-80s; Excellent reserved/uncommon). Not a defect. |
+
 ## 2026-06-22 SGT - Med 26 Scoring Golden Baseline QA
 
 Scope:
