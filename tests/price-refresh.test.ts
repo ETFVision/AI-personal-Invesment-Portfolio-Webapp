@@ -696,11 +696,11 @@ test("instrument risk refresh batches missing and stale risk metrics only", asyn
   const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
 
   const service = new InstrumentMarketService(repository, provider);
-  const result = await service.refreshInstrumentRiskMetricsInBatches({ batchSize: 2, minObservations: 30 });
+  const result = await service.refreshInstrumentRiskMetricsInBatches({ batchSize: 2, chunkSize: 2, minObservations: 30 });
 
   assert.equal(result.updatedCount, 2);
   assert.deepEqual(result.requestedSymbols, ["MISS", "STALE"]);
-  assert.deepEqual(refreshedIds, [["inst-MISS"], ["inst-STALE"]]);
+  assert.deepEqual(refreshedIds, [["inst-MISS", "inst-STALE"]]);
 });
 
 test("instrument risk refresh skips when all eligible metrics are current", async () => {
@@ -729,16 +729,20 @@ test("instrument risk refresh skips when all eligible metrics are current", asyn
   assert.equal(result.message, "All eligible instrument risk metrics are current.");
 });
 
-test("instrument risk refresh falls back to stored prices when database risk RPC times out", async () => {
+test("instrument risk refresh falls back per instrument when a chunked risk RPC times out", async () => {
   const timeoutInstrument = instrument("STIP", { assetClass: "etf", instrumentType: "etf", assetCategory: "BOND" });
+  const timeoutInstrumentTwo = instrument("VGIT", { assetClass: "etf", instrumentType: "etf", assetCategory: "BOND" });
   const refreshedIds: string[][] = [];
   const fallbackMetrics: Array<{ instrumentId: string; observationCount?: number | null }> = [];
   const repository = {
     async listInstruments() {
-      return [timeoutInstrument];
+      return [timeoutInstrument, timeoutInstrumentTwo];
     },
     async listInstrumentReturnAnchors() {
-      return [{ instrumentId: timeoutInstrument.id, asOfDate: "2026-04-01", observationCount: 80 }];
+      return [
+        { instrumentId: timeoutInstrument.id, asOfDate: "2026-04-01", observationCount: 80 },
+        { instrumentId: timeoutInstrumentTwo.id, asOfDate: "2026-04-01", observationCount: 80 }
+      ];
     },
     async listInstrumentRiskMetrics() {
       return [];
@@ -748,8 +752,8 @@ test("instrument risk refresh falls back to stored prices when database risk RPC
       throw new Error("canceling statement due to statement timeout");
     },
     async listInstrumentPrices(ids: string[]) {
-      assert.deepEqual(ids, [timeoutInstrument.id]);
-      return riskPriceRows(timeoutInstrument.id, 80);
+      assert.equal(ids.length, 1);
+      return riskPriceRows(ids[0] ?? "", 80);
     },
     async upsertInstrumentRiskMetrics(input: Array<{ instrumentId: string; observationCount?: number | null }>) {
       fallbackMetrics.push(...input);
@@ -758,13 +762,15 @@ test("instrument risk refresh falls back to stored prices when database risk RPC
   const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
 
   const service = new InstrumentMarketService(repository, provider);
-  const result = await service.refreshInstrumentRiskMetricsInBatches({ batchSize: 1, minObservations: 30 });
+  const result = await service.refreshInstrumentRiskMetricsInBatches({ batchSize: 2, chunkSize: 2, minObservations: 30 });
 
-  assert.equal(result.updatedCount, 1);
-  assert.deepEqual(result.requestedSymbols, ["STIP"]);
+  assert.equal(result.updatedCount, 2);
+  assert.deepEqual(result.requestedSymbols, ["STIP", "VGIT"]);
   assert.deepEqual(result.errors, []);
-  assert.deepEqual(refreshedIds, [[timeoutInstrument.id]]);
-  assert.equal(fallbackMetrics.length, 1);
+  assert.deepEqual(refreshedIds, [[timeoutInstrument.id, timeoutInstrumentTwo.id], [timeoutInstrument.id], [timeoutInstrumentTwo.id]]);
+  assert.equal(fallbackMetrics.length, 2);
   assert.equal(fallbackMetrics[0]?.instrumentId, timeoutInstrument.id);
   assert.equal(fallbackMetrics[0]?.observationCount, 80);
+  assert.equal(fallbackMetrics[1]?.instrumentId, timeoutInstrumentTwo.id);
+  assert.equal(fallbackMetrics[1]?.observationCount, 80);
 });

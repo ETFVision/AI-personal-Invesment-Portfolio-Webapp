@@ -2,6 +2,34 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-22 SGT - Chunked Set-Based Risk Metrics Refresh QA
+
+Scope:
+- Verify instrument risk-metric refresh batches use set-based RPC chunks instead of sequential single-instrument RPC calls.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Risk-metric refresh called the risk RPC one instrument at a time | Fixed; selected instruments are refreshed by chunk through `refreshInstrumentRiskMetricsOnly(chunkIds)` |
+| Statement timeouts still need resilient fallback | Preserved; timeout chunks fall back to the existing per-instrument JS calculation path |
+| Stale-aware selection and result shape should not change | Preserved; batch selection, requested symbols, updated count, errors, and message format remain aligned with existing behavior |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Chunked happy path calls one set-based RPC for the selected chunk | PASS |
+| Simulated chunk statement timeout falls back to per-instrument refresh | PASS |
+| Per-instrument fallback uses stored prices and upserts calculated risk metrics | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (337/337) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- After observing production timings, the two scheduled risk-metric passes (`200 + 150`) can likely be collapsed into one later.
+
 ## 2026-06-22 SGT - Adjusted Historical EOD Daily Price Refresh QA
 
 Scope:

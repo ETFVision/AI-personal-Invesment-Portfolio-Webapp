@@ -869,9 +869,11 @@ export class InstrumentMarketService {
 
   async refreshInstrumentRiskMetricsInBatches(input?: {
     batchSize?: number;
+    chunkSize?: number;
     minObservations?: number;
   }): Promise<RefreshInstrumentRiskMetricsResult> {
     const batchSize = Math.max(1, input?.batchSize ?? 10);
+    const chunkSize = Math.max(1, input?.chunkSize ?? 25);
     const minObservations = Math.max(1, input?.minObservations ?? 30);
     const instruments = await this.repository.listInstruments({ isActive: true });
     const instrumentIds = instruments.map((instrument) => instrument.id);
@@ -911,13 +913,32 @@ export class InstrumentMarketService {
     const requestedSymbols: string[] = [];
     let updatedCount = 0;
 
-    for (const instrument of selected) {
+    for (let index = 0; index < selected.length; index += chunkSize) {
+      const chunk = selected.slice(index, index + chunkSize);
       try {
-        await this.refreshInstrumentRiskMetricsForInstrument(instrument);
-        if (instrument.symbol) requestedSymbols.push(instrument.symbol);
-        updatedCount += 1;
+        await this.repository.refreshInstrumentRiskMetricsOnly(chunk.map((instrument) => instrument.id));
+        for (const instrument of chunk) {
+          if (instrument.symbol) requestedSymbols.push(instrument.symbol);
+        }
+        updatedCount += chunk.length;
       } catch (error) {
-        errors.push(`${instrument.symbol}: ${error instanceof Error ? error.message : "Risk metrics refresh failed."}`);
+        if (!isStatementTimeoutError(error)) {
+          const message = error instanceof Error ? error.message : "Risk metrics refresh failed.";
+          for (const instrument of chunk) {
+            errors.push(`${instrument.symbol}: ${message}`);
+          }
+          continue;
+        }
+
+        for (const instrument of chunk) {
+          try {
+            await this.refreshInstrumentRiskMetricsForInstrument(instrument);
+            if (instrument.symbol) requestedSymbols.push(instrument.symbol);
+            updatedCount += 1;
+          } catch (fallbackError) {
+            errors.push(`${instrument.symbol}: ${fallbackError instanceof Error ? fallbackError.message : "Risk metrics refresh failed."}`);
+          }
+        }
       }
     }
 

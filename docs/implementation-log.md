@@ -1,3 +1,37 @@
+## 2026-06-22 - Chunked Set-Based Risk Metrics Refresh
+
+### Source
+Claude Code
+
+### Objective
+Speed up `refreshInstrumentRiskMetricsInBatches` by replacing sequential single-instrument risk RPC calls with chunked set-based RPC calls while preserving timeout fallback behavior.
+
+### Files Changed
+- `src/application/services/InstrumentMarketService.ts`
+- `tests/price-refresh.test.ts`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added optional `chunkSize` input to `refreshInstrumentRiskMetricsInBatches`, defaulting to 25.
+- Replaced the per-instrument happy path with chunked calls to `refreshInstrumentRiskMetricsOnly(chunkIds)`.
+- Preserved stale-aware instrument selection, `batchSize`, result shape, requested symbols, and updated-count semantics.
+- Preserved timeout resilience: a chunk-level statement timeout falls back to the existing per-instrument refresh path for that chunk only.
+- Added tests proving the happy path calls one set-based RPC per chunk and that a simulated chunk timeout falls back per instrument.
+- No scoring, methodology, labels, access controls, cron schedule, or user-facing compliance wording changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (337/337)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- With chunked set-based RPC calls, the current two scheduled risk-metric passes (`200 + 150`) can likely collapse to one later after production timing is observed.
+
 ## 2026-06-22 - Adjusted Historical EOD Daily Price Refresh
 
 ### Source
