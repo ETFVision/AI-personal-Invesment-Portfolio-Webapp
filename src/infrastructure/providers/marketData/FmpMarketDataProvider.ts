@@ -13,6 +13,15 @@ type FmpEodLight = {
   volume?: number;
 };
 
+type FmpBulkEod = {
+  symbol?: string;
+  date?: string;
+  adjClose?: number;
+  close?: number;
+  price?: number;
+  volume?: number;
+};
+
 type FmpHistoricalPriceFull = {
   symbol?: string;
   historical?: Array<{
@@ -188,6 +197,49 @@ export class FmpMarketDataProvider implements MarketDataProvider {
     }
 
     return [];
+  }
+
+  async getBulkEodPrices(date: string): Promise<MarketPriceQuote[]> {
+    if (!env.FMP_API_KEY) {
+      throw new Error("FMP_API_KEY is not configured.");
+    }
+
+    const url = new URL(`${FMP_BASE_URL}/eod-bulk`);
+    url.searchParams.set("date", date);
+    url.searchParams.set("apikey", env.FMP_API_KEY);
+
+    const response = await fetchWithRetry(url);
+
+    if (response.status === 402 || response.status === 403 || response.status === 404) {
+      return [];
+    }
+
+    if (!response.ok) {
+      throw new Error(`FMP bulk EOD request for ${date} failed with status ${response.status}.`);
+    }
+
+    const payload = (await response.json()) as FmpBulkEod[] | { "Error Message"?: string };
+    if (!Array.isArray(payload)) {
+      throw new Error(payload["Error Message"] ?? `FMP returned an unexpected bulk EOD response for ${date}.`);
+    }
+
+    return payload
+      .map((item) => {
+        const price =
+          typeof item.adjClose === "number"
+            ? item.adjClose
+            : typeof item.close === "number"
+              ? item.close
+              : Number(item.price ?? NaN);
+        return {
+          symbol: item.symbol?.trim().toUpperCase() ?? "",
+          price,
+          currency: null,
+          asOfDate: date,
+          raw: item
+        };
+      })
+      .filter((quote) => quote.symbol && Number.isFinite(quote.price));
   }
 
   private async tryGetRealtimeQuotes(uniqueSymbols: string[], apiKey: string) {

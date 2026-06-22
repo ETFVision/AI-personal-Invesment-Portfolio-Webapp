@@ -2,6 +2,39 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-22 SGT - Bulk EOD Daily Price Refresh QA
+
+Scope:
+- Verify the daily instrument price refresh can use FMP Ultimate bulk-EOD pricing instead of the five batch quote passes.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Daily price refresh required five scheduled passes | Fixed; migration 116 replaces the five cron entries with one `source=bulk_eod` route call |
+| Latest-price path wrote `asOfDate` as today's date rather than the real EOD date | Fixed for the bulk path; stored `priceDate` comes from the requested bulk EOD date |
+| Daily bulk refresh should not spend time scanning price history coverage | Fixed; bulk path does not call `listInstrumentPriceStats` |
+| Omitted symbols still need coverage | Preserved; a non-empty bulk response falls back to the existing latest-price path for omitted active symbols |
+| Non-trading or unavailable bulk dates should not write mismatched current prices | Guarded; empty bulk responses return no updates and do not fall back |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| FMP bulk parser uses adjusted-close precedence to match historical parsing | PASS |
+| Route default behavior unchanged when `source` is absent | PASS |
+| `source=bulk_eod` supports optional `date=YYYY-MM-DD` | PASS |
+| Bulk service stores the requested EOD date | PASS |
+| Bulk service avoids `listInstrumentPriceStats` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (337/337) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/116_bulk_eod_instrument_price_refresh_schedule.sql` manually to Supabase.
+- After deploy, spot-check several symbols where the bulk-EOD daily close and adjusted historical backfill overlap to confirm price/date continuity on live FMP data.
+
 ## 2026-06-22 SGT - History Backfill Batch Size QA
 
 Scope:

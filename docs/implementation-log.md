@@ -1,3 +1,43 @@
+## 2026-06-22 - Bulk EOD Daily Price Refresh
+
+### Source
+Claude Code
+
+### Objective
+Replace the five-pass daily latest-price refresh with FMP Ultimate bulk-EOD pricing, preserving the actual EOD date and avoiding the daily price-stat scan.
+
+### Files Changed
+- `src/application/ports/providers/MarketDataProvider.ts`
+- `src/infrastructure/providers/marketData/FmpMarketDataProvider.ts`
+- `src/application/services/InstrumentMarketService.ts`
+- `src/app/api/jobs/instrument-price-refresh/route.ts`
+- `supabase/migrations/116_bulk_eod_instrument_price_refresh_schedule.sql`
+- `tests/price-refresh.test.ts`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `getBulkEodPrices(date)` to the market data provider contract and implemented FMP `eod-bulk` ingestion with adjusted-close precedence matching historical price parsing.
+- Added `refreshInstrumentPricesFromBulkEod({ date })`, which pulls one bulk EOD file, filters to active instruments, upserts the real EOD `priceDate`, avoids `listInstrumentPriceStats`, and falls back to latest-price lookup only for symbols omitted from a non-empty bulk response.
+- Updated `/api/jobs/instrument-price-refresh` to support `?source=bulk_eod` plus optional `date=YYYY-MM-DD`, while preserving the existing default path when `source` is absent.
+- Added migration `116_bulk_eod_instrument_price_refresh_schedule.sql` to unschedule the five daily price-refresh passes and schedule one daily bulk-EOD call.
+- Added tests covering EOD-date storage, omitted-symbol fallback, no price-stat scan, and no fallback on empty/non-trading bulk responses.
+- No scoring, methodology, labels, user-facing compliance wording, feature flags, or access controls changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (337/337)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration `116_bulk_eod_instrument_price_refresh_schedule.sql` must be applied manually to Supabase before cron changes take effect.
+- Live FMP verification is still required after deploy: compare a few bulk-EOD rows against historical backfill rows for the same symbols/date to confirm adjusted-close continuity and correct EOD dating.
+- If the target bulk EOD date returns no rows, the service intentionally does not fall back to latest prices, preventing a one-off historical resync from writing mismatched current prices.
+
 ## 2026-06-22 - Raise History Backfill Batch Size
 
 ### Source

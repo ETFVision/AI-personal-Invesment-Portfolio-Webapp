@@ -618,6 +618,120 @@ export class InstrumentMarketService {
     };
   }
 
+  async refreshInstrumentPricesFromBulkEod(input?: {
+    date?: string;
+    skipRiskMetrics?: boolean;
+    skipDerivedMetrics?: boolean;
+  }): Promise<RefreshInstrumentPricesResult> {
+    const priceDate = input?.date ?? latestExpectedEodDate();
+    const instruments = (await this.repository.listInstruments({ isActive: true })).filter((instrument) => instrument.isActive);
+    const providerSymbols = uniqueSymbols(instruments.map(providerSymbolForInstrument));
+
+    if (providerSymbols.length === 0) {
+      return {
+        requestedSymbols: [],
+        updatedCount: 0,
+        missingSymbols: [],
+        errors: [],
+        message: "No active instrument symbols were found for bulk EOD price refresh."
+      };
+    }
+
+    const instrumentBySymbol = new Map(
+      instruments.flatMap((instrument) => {
+        const localSymbol = instrument.symbol?.toUpperCase() ?? "";
+        const providerSymbol = providerSymbolForInstrument(instrument);
+        return [
+          [localSymbol, instrument],
+          [providerSymbol, instrument]
+        ];
+      })
+    );
+    const rows: Array<{
+      instrumentId: string;
+      provider: string;
+      symbol: string;
+      priceDate: string;
+      closePrice: number;
+      currency: string | null;
+      rawPayload: unknown;
+    }> = [];
+    const missingSymbols = new Set<string>();
+    const errors: string[] = [];
+
+    try {
+      const bulkQuotes = await this.provider.getBulkEodPrices(priceDate);
+      if (bulkQuotes.length === 0) {
+        return {
+          requestedSymbols: providerSymbols,
+          updatedCount: 0,
+          missingSymbols: providerSymbols,
+          errors,
+          message: `No bulk EOD prices were returned for ${priceDate}. The date may be a non-trading day or unavailable from the provider.`
+        };
+      }
+
+      const returnedSymbols = new Set<string>();
+      for (const quote of bulkQuotes) {
+        const quoteSymbol = quote.symbol.toUpperCase();
+        const instrument = instrumentBySymbol.get(quoteSymbol);
+        if (!instrument) continue;
+        returnedSymbols.add(providerSymbolForInstrument(instrument));
+        rows.push({
+          instrumentId: instrument.id,
+          provider: this.provider.name,
+          symbol: quoteSymbol,
+          priceDate: quote.asOfDate,
+          closePrice: quote.price,
+          currency: quote.currency ?? instrument.currency ?? "USD",
+          rawPayload: quote.raw
+        });
+      }
+
+      const omittedSymbols = providerSymbols.filter((symbol) => !returnedSymbols.has(symbol));
+      if (omittedSymbols.length > 0) {
+        const fallbackQuotes = await this.provider.getLatestPrices(omittedSymbols);
+        const fallbackReturnedSymbols = new Set(fallbackQuotes.map((quote) => quote.symbol.toUpperCase()));
+        for (const quote of fallbackQuotes) {
+          const instrument = instrumentBySymbol.get(quote.symbol.toUpperCase());
+          if (!instrument) continue;
+          rows.push({
+            instrumentId: instrument.id,
+            provider: this.provider.name,
+            symbol: quote.symbol.toUpperCase(),
+            priceDate: quote.asOfDate,
+            closePrice: quote.price,
+            currency: quote.currency ?? instrument.currency ?? "USD",
+            rawPayload: quote.raw
+          });
+        }
+        omittedSymbols.filter((symbol) => !fallbackReturnedSymbols.has(symbol)).forEach((symbol) => missingSymbols.add(symbol));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Instrument bulk EOD price refresh failed.";
+      errors.push(message);
+    }
+
+    if (rows.length > 0) {
+      const updatedInstrumentIds = Array.from(new Set(rows.map((row) => row.instrumentId)));
+      await this.repository.upsertInstrumentPrices(rows);
+      if (!input?.skipDerivedMetrics) {
+        await refreshDerivedMetrics(this.repository, updatedInstrumentIds, { skipRiskMetrics: Boolean(input?.skipRiskMetrics) });
+      }
+    }
+
+    return {
+      requestedSymbols: providerSymbols,
+      updatedCount: rows.length,
+      missingSymbols: Array.from(missingSymbols),
+      errors,
+      message:
+        errors.length === 0
+          ? `Stored ${rows.length} bulk EOD instrument price row${rows.length === 1 ? "" : "s"} for ${priceDate} across ${providerSymbols.length} active instrument${providerSymbols.length === 1 ? "" : "s"}.`
+          : `Stored ${rows.length} bulk EOD instrument price row${rows.length === 1 ? "" : "s"} for ${priceDate} with ${errors.length} issue${errors.length === 1 ? "" : "s"}.`
+    };
+  }
+
   async refreshInstrumentMarketMetricsInBatches(input?: { batchSize?: number; maxBatches?: number }): Promise<RefreshInstrumentPricesResult> {
     const batchSize = Math.max(1, input?.batchSize ?? 25);
     const maxBatches = Math.max(1, input?.maxBatches ?? 3);
