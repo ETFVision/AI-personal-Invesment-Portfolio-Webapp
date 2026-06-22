@@ -1,3 +1,35 @@
+## 2026-06-22 - Raise History Backfill Batch Size
+
+### Source
+Claude Code
+
+### Objective
+Increase the Admin Data Sources "Backfill market history" batch size now that instrument price-stat aggregation no longer consumes most of the serverless execution budget.
+
+### Files Changed
+- `src/server/actions/dataRefreshActions.ts`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Changed `backfillUniverseHistoryAction` from `batchSize: 5` to `batchSize: 50`.
+- Left `lookbackDays: 1825`, `maxBatches: 1`, `includeBackfill: true`, and `skipDerivedMetrics: true` unchanged.
+- Context: the prior size of 5 was chosen while `listInstrumentPriceStats` spent most of the 300-second budget; Optimization B / migration 115 moved that work into a grouped SQL RPC, and `upsertInstrumentPrices` already chunks writes.
+- No scoring, labels, methodology, access controls, cron routes, derived-metric buttons, or user-facing compliance wording changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (335/335)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Operational check after deploy: click "Backfill market history" once and run `select duration_ms from job_runs where job_name='backfill_market_history' order by started_at desc limit 1;`.
+- If duration approaches ~250s+ or the run shows FMP throttling / partial errors, reduce `batchSize` to about 25 and consider a bounded-concurrency historical-fetch wave of about 10 as a follow-up.
+
 ## 2026-06-22 - Instrument Price Stats RPC Optimization
 
 ### Source

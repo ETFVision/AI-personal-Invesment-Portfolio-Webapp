@@ -2,6 +2,35 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-22 SGT - History Backfill Batch Size QA
+
+Scope:
+- Verify the Admin Data Sources history backfill action uses the larger post-Optimization-B batch size without changing the rest of the backfill behavior.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| `Backfill market history` still used `batchSize: 5` after price-stat aggregation moved to SQL RPC | Fixed; changed the action to `batchSize: 50` |
+| Backfill behavior needed to remain prices-only | Preserved; `skipDerivedMetrics: true` remains unchanged |
+| Runtime risk needs an operational check after deploy | Logged; check latest `backfill_market_history` `duration_ms` and lower to about 25 if it approaches ~250s+ or throttles |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `lookbackDays: 1825` unchanged | PASS |
+| `maxBatches: 1` unchanged | PASS |
+| `includeBackfill: true` unchanged | PASS |
+| `skipDerivedMetrics: true` unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (335/335) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- After deploy, run the backfill once and inspect `job_runs.duration_ms` for the latest `backfill_market_history` row.
+
 ## 2026-06-22 SGT - Instrument Price Stats RPC Optimization QA
 
 Scope:
