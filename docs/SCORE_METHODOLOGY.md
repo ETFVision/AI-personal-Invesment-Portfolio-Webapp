@@ -1,6 +1,6 @@
 # ETFVision Score Methodology
 
-Last updated: 2026-06-15 20:15:00 +08:00
+Last updated: 2026-06-21 00:00:00 +08:00
 
 Authoritative status: formula-level handover snapshot based on current code and migrations. This document explains how the main derived scores are calculated. If a score is later recalibrated, update this file in the same commit.
 
@@ -11,26 +11,29 @@ Authoritative status: formula-level handover snapshot based on current code and 
 - Scores are generally clamped to 0-100.
 - Missing inputs are usually excluded from weighted averages rather than treated as zero, unless a service explicitly defines a fallback.
 
-## Fundamentals Score
+## Fundamentals
 
 Primary code: `src/application/services/fundamentals/FundamentalScoringService.ts`
 
 Stored table: `fundamental_scores`
 
-### Overall Weights
+### Business Quality Headline Composite
 
-| Component | Weight |
+Business Quality is the canonical stock fundamentals headline displayed in ETFVision. It uses the stored fundamental sub-scores and excludes Valuation, which remains a separate 20% top-level component in stock Characteristics scoring. The stored `overallFundamentalScore` field remains available for compatibility and non-display paths, but it is not the live Fundamentals headline shown in the UI.
+
+| Component | Business Quality weight |
 |---|---:|
-| Growth | 20% |
-| Profitability | 20% |
-| Valuation | 20% |
+| Growth | 25% |
+| Profitability | 25% |
+| Cash flow | 20% |
 | Balance sheet | 15% |
-| Cash flow | 15% |
-| Quality | 10% |
+| Quality | 15% |
 
-Only available component scores are included in the denominator.
+Only available Business Quality component scores are included in the denominator. Missing components are excluded rather than treated as zero.
 
 ### Helper Formulas
+
+Stock fundamental sub-scores use the latest annual ratios and statements, not the latest quarter, so flow-sensitive metrics are measured on an annual basis.
 
 `scorePositivePercent(value, neutral = 0.05, excellent = 0.30)`:
 
@@ -135,21 +138,43 @@ Inputs:
 
 Cash flow score is the average of available scored inputs.
 
+### Financial Sector Methodology
+
+Balance-sheet financial instruments use adjusted business-quality benchmarks because bank, insurance, and diversified financial balance sheets are structurally different from industrial company balance sheets.
+
+Detection is intentionally curated: a company must have a financial sector profile and a balance-sheet financial industry such as banks, capital markets / broker-dealers, insurance, thrifts, or mortgage finance. Fee-based financial businesses such as credit services / payments and asset management are not included in this adjusted set, so they retain the standard industrial scoring inputs.
+
+- Profitability is adjusted for balance-sheet financial instruments: gross margin is excluded because it is not a meaningful operating measure for banks, insurers, and similar balance-sheet financial businesses.
+- ROA uses financial-sector thresholds: `scoreReturn(roa, 0.005, 0.02)`, where 0.5% is weak and 2.0% is excellent.
+- Cash flow score is excluded because free cash flow is not directly comparable to operating companies and is not applicable to bank and insurer balance sheets in the same way.
+- Balance sheet score is computed from capital-quality proxies:
+  - ROE: `scoreReturn(roe, 0.06, 0.18)`
+  - ROA: `scoreReturn(roa, 0.004, 0.015)`
+  - Price/book: `scoreLowerBetter(priceToBook, 1.0, 3.5)`
+- Debt/equity and net debt/EBITDA are excluded for financial-sector balance sheet scoring because structural banking leverage is not the same as industrial financial risk.
+- Quality excludes cash conversion / accruals and ROIC durability for balance-sheet financial instruments. Quality is then re-normalized from earnings stability and capital discipline only.
+- ETFVision does not currently score capital adequacy, reserve quality, asset quality, or regulatory capital ratios. Financial-sector scores are therefore lower-resolution than industrial scores. A future enhancement may add ROE/ROA durability signals with financial-specific anchors.
+
 ### Quality Score
 
-Average of:
+Quality measures earnings quality and consistency using fixed economic anchors that are validated once against the investable universe and are not refit on each refresh. Missing signals are excluded from the denominator.
 
-- Profitability score
-- Cash flow score
-- Balance sheet score
-- ROIC score
-- Operating margin score
+| Signal | Measure | Anchor | Weight |
+|---|---|---|---|
+| Earnings stability | Coefficient of variation across available operating and net margin observations | `scoreLowerBetter(cv, 0.10, 0.50)` | 30% |
+| Cash conversion / accruals | `operatingCashFlow / netIncome`; fallback: `1 - (netIncome - operatingCashFlow) / totalAssets` | `scoreHigherBetter(ratio, 0.60, 1.10)` | 30% |
+| ROIC durability | Persistence and consistency of value-creating ROIC over the latest five annual observations, requiring at least three annual ROIC values | If average ROIC is below the 8% cost-of-capital proxy, the signal scores 10; otherwise `scoreLowerBetter(coefficientOfVariation(roicSeries), 0.15, 0.60)` | 25% |
+| Capital discipline | Year-over-year shares outstanding growth | `scoreLowerBetter(shareGrowth, -0.02, 0.10)` | 15% |
+
+The score is intentionally orthogonal to Profitability, Cash Flow and Balance Sheet sub-scores: those categories measure level and scale; Quality measures stability, conversion, through-time value-creation durability and dilution discipline. ROIC durability is therefore not an average ROIC level; it rewards sustained returns above the cost-of-capital proxy with low variation across annual observations.
+
+For balance-sheet financial instruments, cash conversion / accruals and ROIC durability are excluded from the Quality denominator because those signals overlap with cash-flow and efficiency measures that are not comparable for banks, insurers, and similar balance-sheet financial businesses.
 
 ### Fundamentals Confidence
 
 `scoreConfidence = clamp((availableInputs / 16) * 100)`
 
-Availability count includes growth, profitability, valuation, balance sheet, and cash-flow data points listed in the scoring service.
+Availability count includes growth, profitability, valuation, balance-sheet, cash-flow and quality-signal data points listed in the scoring service.
 
 ## Fundamental Trend Scores
 
@@ -476,7 +501,7 @@ Primary code: `diversificationScore` in `riskMath.ts`
 
 Formula:
 
-`score = holdingScore + assetClassScore + sectorScore + currencyScore + 30 - correlationPenalty - concentrationPenalty`
+`score = holdingScore + assetClassScore + sectorScore + currencyScore + 30 - correlationPenalty`
 
 Where:
 
@@ -485,7 +510,8 @@ Where:
 - `sectorScore = min(sectorCount / 8, 1) * 20`
 - `currencyScore = min(currencyCount / 3, 1) * 10`
 - `correlationPenalty = averageCorrelation == null ? 5 : max(0, averageCorrelation) * 15`
-- `concentrationPenalty = topHoldingConcentration * 20 + max(0, topFiveConcentration - 0.5) * 30`
+
+Concentration is measured in the Concentration section; Diversification measures breadth and correlation as a separate dimension. Correlation is the primary risk signal inside this score, while holding count, asset-class spread, sector spread, and currency spread measure breadth.
 
 Final score is rounded and clamped to 0-100.
 
@@ -657,6 +683,8 @@ Primary code:
 - `src/application/services/recommendations/recommendationScoring.ts`
 - Type-specific recommendation services.
 
+Recommendation scores are universal instrument Characteristics Scores. They use instrument quality, market metrics, risk analytics, macro context, Market Vision alignment, fundamentals, themes, and bond profile data where applicable. They do not use a user's current holdings, portfolio concentration, duplicate exposure, allocation fit, or portfolio-fit score.
+
 ### Generic Weighted Score
 
 `overallScore = weighted average of available finite component scores`
@@ -669,10 +697,10 @@ Internal labels are kept for scoring, guardrails, telemetry, and historical comp
 
 | Score | Internal label |
 |---:|---|
-| 85+ | Strong Buy |
-| 70-84.99 | Buy |
-| 50-69.99 | Hold |
-| 35-49.99 | Watch |
+| 80+ | Strong Buy |
+| 65-79.99 | Buy |
+| 48-64.99 | Hold |
+| 35-47.99 | Watch |
 | 20-34.99 | Reduce |
 | Below 20 | Sell |
 | Missing | Insufficient Data |
@@ -712,6 +740,7 @@ Current presentation rules:
 - The page shows Characteristics Score assessment ranges using user-facing labels only.
 - Internal labels such as Strong Buy, Buy, Hold, Watch, Reduce, and Sell remain internal compatibility labels and should not appear in public assessment tables.
 - Formula-level details for Characteristics components, fundamentals normalization, fundamentals sub-scores, confidence, Portfolio Review formulas, and macro/Market Vision inputs remain available for transparency.
+- Characteristics Score methodology is presented as universal instrument methodology, separate from the personalized Portfolio Review methodology.
 - Dense formula tables are collapsed behind formula-detail accordions by default so non-technical users can skim the page before opening technical detail.
 - The page includes compliance positioning that scores are deterministic analytical outputs, not investment advice, trade instructions, securities ratings, or predictions of future performance.
 
@@ -742,9 +771,9 @@ Bonuses/penalties:
 Momentum:
 
 - Starts at 50.
-- 1Y return adds `clamp(oneYearReturn * 60, -25, 25)`.
 - YTD return adds `clamp(ytdReturn * 40, -15, 15)`.
 - Daily return adds `clamp(dailyReturn * 80, -5, 5)`.
+- The trailing 1-year return is intentionally excluded from Momentum for ETFs because 1-year performance is measured in the Benchmark Relative component.
 
 Recommendation risk score:
 
@@ -754,7 +783,7 @@ Recommendation risk score:
 Theme fit:
 
 - Starts at 55 + 5 per theme, capped at +20.
-- +5 if theme includes AI / Automation, Quality, or Global Diversification.
+- Adds a single +5 if theme includes any of AI / Automation, Quality, or Global Diversification.
 - -5 if theme includes High Beta.
 
 Macro fit:
@@ -771,15 +800,13 @@ Market Vision alignment:
 - +5 for supportive/tailwind language.
 - -5 for risk/headwind/stress/caution language.
 - Asset-specific macro term bonuses apply to bonds, gold, and crypto.
+- Market Vision reports are generated weekly from macroeconomic (FRED) regime data and news and theme intelligence, and may be produced with AI assistance. They provide analytical context only, not a forecast, outlook, or CIO opinion.
 
 Portfolio fit:
 
-- Starts at 65.
-- +10 if not already directly held.
-- +5 if sector allocation is below 15%.
-- -25 if sector allocation is above 35%.
-- -20 if existing direct concentration is above 15%.
-- Duplicate exposure is true if directly held or sector allocation is above 35%.
+- Portfolio fit is retained as a standalone diagnostic service outside the stored recommendation scoring pipeline.
+- It is not included in Characteristics Score weights, stored recommendation inputs, score snapshots, or current recommendation run calculations.
+- Portfolio-specific analysis belongs in Portfolio Review scores, Portfolio Balance Review, and exposure diagnostics, not in universal instrument Characteristics Scores.
 
 ### Type-Specific Recommendation Weights
 
@@ -787,41 +814,62 @@ Portfolio fit:
 
 | Component | Weight |
 |---|---:|
-| Fundamentals | 30% |
-| Fundamental trends | 20% |
-| Valuation | 10% |
-| Market Vision alignment | 10% |
-| Theme alignment | 10% |
-| Risk analytics | 10% |
-| Portfolio fit | 5% |
-| Momentum | 5% |
+| Business Quality | 40% |
+| Valuation | 20% |
+| Fundamental Trends | 15% |
+| Risk Analytics | 10% |
+| Market Vision alignment | 7% |
+| Theme alignment | 5% |
+| Momentum | 3% |
+
+Business Quality is a composite of the fundamental sub-scores: Growth (25%), Profitability (25%), Cash Flow (20%), Balance Sheet (15%), and Quality (15%). Valuation is measured separately as its own top-level component. Missing sub-scores are excluded from both numerator and denominator.
 
 #### ETFs
 
 | Component | Weight |
 |---|---:|
-| Allocation fit | 25% |
-| Diversification benefit | 20% |
-| Risk analytics | 15% |
-| Macro fit | 10% |
-| Market Vision alignment | 5% |
-| Momentum | 10% |
-| Benchmark relative | 10% |
+| Risk analytics | 30% |
+| Momentum | 20% |
+| Macro fit | 18% |
+| Benchmark relative | 18% |
+| Market Vision alignment | 9% |
 | Theme fit | 5% |
 
-ETF diversification benefit is currently 72 unless duplicate exposure is true, then 40. Benchmark relative is `50 + oneYearReturn * 50`, clamped to 0-100.
+Benchmark relative compares ETF trailing 1-year return to a stable external asset-class benchmark:
+
+- `excessReturn = ETF 1Y return - benchmark 1Y return`
+- Excess return is winsorized at `+/- 0.50`.
+- `score = 50 + excessReturn * 100`, clamped to 0-100.
+- Benchmark parity scores 50; +25 percentage points of annual excess return scores 75, and about +50 percentage points reaches the top of the scale. This treats +25pp as strong but not the ceiling because concentrated sector and thematic ETFs can exceed broad asset-class benchmarks by 30-50pp in strong years.
+- Missing benchmark snapshots or missing 1-year returns exclude this component from the weighted denominator.
+
+ETF benchmark map:
+
+| ETF category | Benchmark |
+|---|---|
+| US broad market, Growth, Value, Dividend, Small Cap, US sector/thematic categories | `sp500` |
+| Global Equity | `global_equities` |
+| Developed Markets and International Dividend | `developed_ex_us` |
+| Emerging Markets | `emerging_markets` |
+| Curated developed single-country ETFs: EWJ, DXJ, JPXN, EWU, EWC | `developed_ex_us` |
+| Curated emerging single-country ETFs: MCHI, FXI, KWEB, INDA, INDY | `emerging_markets` |
+| Other single-country ETFs | No Benchmark Relative component |
+| Bond, Cash Equivalent | `us_aggregate_bonds` |
+| Commodity, Gold / Precious Metals | `gold` |
+| Crypto ETF | `bitcoin` |
+
+Relative measures reference external benchmarks. Constants are fixed economic anchors validated once against the universe, not refit per refresh; a score changes when the instrument or market moves, not when universe composition changes.
 
 #### Bond ETFs
 
 | Component | Weight |
 |---|---:|
-| Duration fit | 20% |
-| Rate regime | 20% |
-| Inflation regime | 15% |
-| Yield curve | 12% |
-| Credit risk | 10% |
-| Portfolio stability | 10% |
-| Diversification | 8% |
+| Duration fit | 22% |
+| Rate regime | 22% |
+| Inflation regime | 16% |
+| Yield curve | 13% |
+| Credit risk | 11% |
+| Portfolio stability | 11% |
 | Market Vision alignment | 5% |
 
 Duration fit:
@@ -845,13 +893,11 @@ Stability:
 
 | Component | Weight |
 |---|---:|
-| Inflation hedge | 25% |
-| Geopolitical hedge | 20% |
-| Diversification | 20% |
-| Rates context | 10% |
-| Market Vision alignment | 5% |
-| Portfolio fit | 10% |
-| Momentum | 10% |
+| Inflation hedge | 36% |
+| Geopolitical hedge | 29% |
+| Rates context | 14% |
+| Momentum | 14% |
+| Market Vision alignment | 7% |
 
 Inflation hedge is 78 when inflation regime includes elevated/rising, otherwise 55. Geopolitical hedge is 72 when liquidity regime includes stress/tight, otherwise 55.
 
@@ -859,17 +905,12 @@ Inflation hedge is 78 when inflation regime includes elevated/rising, otherwise 
 
 | Component | Weight |
 |---|---:|
-| Risk | 30% |
-| Portfolio concentration | 25% |
-| Momentum | 15% |
-| Liquidity regime | 15% |
-| Macro risk appetite | 7% |
-| Market Vision alignment | 3% |
-| Theme score | 5% |
-
-Crypto concentration score:
-
-`max(0, min(100, 70 - concentrationPercent * 500))`
+| Risk | 40% |
+| Momentum | 20% |
+| Liquidity regime | 20% |
+| Macro risk appetite | 9% |
+| Theme score | 7% |
+| Market Vision alignment | 4% |
 
 Liquidity score:
 
@@ -882,14 +923,15 @@ Liquidity score:
 | Condition | Cap |
 |---|---|
 | Confidence below 50 | Insufficient Data |
-| Fundamentals below 35 | Watch |
-| Valuation below 25 and fundamentals below 70 | Watch |
-| Valuation below 25 and fundamentals at least 70 | Hold |
-| Risk score above 75 | Watch unless already lower |
-| Portfolio concentration above 25% | Hold |
-| Duplicate exposure | Hold |
-| Crypto concentration above 5% | Watch |
+| Business Quality below 35 for stocks | Watch |
+| Valuation below 15 for stocks | Hold |
+| Risk score above 75 | Hold for stocks with Strong or Exceptional Business Quality; otherwise Watch unless already lower |
 | Long-duration bond mismatch with restrictive/rising/high rates | Hold |
+| Portfolio concentration cap | Portfolio Review only; not applied to per-instrument Characteristics Score |
+| Duplicate exposure cap | Portfolio Review only; not applied to per-instrument Characteristics Score |
+| Crypto allocation cap | Portfolio Review only; not applied to per-instrument Characteristics Score |
+
+Portfolio-context guardrails such as concentration, duplicate exposure, and crypto allocation are handled in Portfolio Review and exposure diagnostics. They are not applied to per-instrument Characteristics Score because they require holdings context.
 
 ## Portfolio Review Scores
 
@@ -917,12 +959,15 @@ Allocation:
 
 Concentration:
 
-`90 - max(0, topHolding - 0.15) * 120 - max(0, topCombinedFive - 0.50) * 80 - max(0, sectorTop - 0.40) * 60`
+`90 - max(0, topIssuerConcentration - 0.10) * 150 - max(0, topCombinedFive - 0.40) * 80 - max(0, sectorTop - 0.40) * 60`
+
+Concentration is measured at the underlying-company (issuer look-through) level on a total-value basis, including cash in the denominator. Direct single-stock holdings are included in issuer exposure; diversified ETF wrappers are retained as direct-position metadata but do not trigger single-company concentration findings.
 
 Diversification:
 
 - Starts from Risk Analytics diversification score.
 - If ETF look-through exists, adds `min(8, sectorCount + countryCount)`.
+- Concentration is measured in the Concentration section; Diversification measures breadth and correlation so the two are not double-counted.
 
 Portfolio risk:
 
@@ -935,6 +980,8 @@ Macro fit:
 Insight alignment:
 
 `60 + constructiveHeldCount * 4 - weakHeldCount * 8 + coverage * 12`
+
+The section score is capped at 94 when the section has any incomplete-coverage or weak-holding finding. The cap does not change the formula terms; it prevents a perfect section score from displaying alongside a watch or attention finding.
 
 Fixed income:
 
@@ -949,6 +996,24 @@ Geography:
 `86 - max(0, usWeight - 0.70) * 80 - max(0, 0.12 - internationalWeight) * 120`
 
 Geography currently has 0% overall weight but is still shown as a diagnostic section.
+
+### Portfolio Balance Review
+
+Portfolio Balance Review is the deterministic screener behind the Portfolio Review page's "Portfolio Balance Review" and "Portfolio Balance Summary" cards. It checks portfolio look-through exposure against a fixed set of category triggers, including low fixed-income, low international exposure, sector/defensive concentration, low real-estate exposure, elevated crypto risk, single-issuer concentration, macro vulnerability, and low inflation hedge.
+
+A finding appears only when a trigger's threshold is met. Where a finding lists example instruments, they appear only if the category is lightly represented, the instrument is in the active approved universe, and it has passed all guardrail filters. Findings and example instruments are mechanical screens, not suggestions to buy, sell, or hold.
+
+## Limitations / Disclosures
+
+- The Portfolio Score is bounded by its component construction and in practice tops out in the mid-80s rather than 100; a mid-80s score reflects a well-constructed portfolio, not an underperformance signal.
+- Business Quality is a quality-and-growth composite — it includes a 25% growth weight alongside profitability, cash flow, balance-sheet strength, and earnings quality — not a pure quality measure.
+- Sub-score thresholds are fixed absolute economic anchors, not sector-relative; capital-light and capital-intensive businesses are measured against the same anchors, so cross-sector comparisons should account for structural differences.
+- Bond, gold, and crypto component scores are regime-dependent (rates, inflation, liquidity) and shift as the macro regime changes, independent of the instrument.
+- Geography is computed for context and shown diagnostically but carries 0% weight in the composite score.
+- The Excellent band (80-100) is intentionally reserved for instruments with exceptional characteristics across components and is uncommon; most sound instruments fall in the Good or Neutral range.
+- Structurally low-margin business models may score lower on margin-based profitability inputs despite strong returns on capital; profitability should be read alongside the capital-efficiency signals.
+- ETF Benchmark Relative pairs US equity ETFs to the S&P 500 and international developed / emerging-market ETFs to MSCI-family proxies (MSCI EAFE, MSCI EM). Funds tracking FTSE or S&P index families — which classify markets such as South Korea differently — can legitimately diverge from these MSCI benchmarks over a given period; this reflects index construction, not a data issue.
+- Scoring anchors and label bands are fixed absolute thresholds, validated once against the universe as a sanity check and held constant across refreshes and market regimes; they are not refit to the current universe.
 
 ## Macro/FRED Trend and Theme Scores
 

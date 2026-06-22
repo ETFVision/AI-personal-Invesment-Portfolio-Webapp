@@ -45,7 +45,11 @@ export type PortfolioReviewCandidate = {
   macroFitScore?: number | null;
   diversificationType?: string | null;
   issueFitScore?: number | null;
+  categoryRepresentativeScore?: number | null;
   overlapPenalty?: number | null;
+  sharedCompanyCount: number | null;
+  sharedCompanyWeight: number | null;
+  topSharedSymbols: string[];
   primaryReason?: string;
   secondaryBenefit?: string;
   overlapWarning?: string | null;
@@ -68,6 +72,7 @@ export type PortfolioImprovementIssueCategory =
   | "insufficient_geopolitical_hedge"
   | "insufficient_international_exposure"
   | "insufficient_defensive_exposure"
+  | "insufficient_real_estate_exposure"
   | "excessive_crypto_risk"
   | "high_correlation"
   | "weak_recommendation_alignment"

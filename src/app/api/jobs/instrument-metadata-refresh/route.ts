@@ -8,13 +8,16 @@ export async function POST(request: NextRequest) {
   const maxBatches = Number(request.nextUrl.searchParams.get("maxBatches") ?? 14);
   const lockTtlSeconds = Number(request.nextUrl.searchParams.get("lockTtlSeconds") ?? 10 * 60);
   const forceIdentifierRefresh = request.nextUrl.searchParams.get("forceIdentifierRefresh") === "true";
+  const taxonomyBackfill = request.nextUrl.searchParams.get("taxonomyBackfill") === "true";
 
   return runCronJob(request, { jobName: "instrument-metadata-refresh", lockTtlSeconds, onSuccess: () => revalidateTag("market-data") }, () =>
-    createContainer().metadataRefreshService.refreshUniverseMetadataInBatches({
-      batchSize,
-      maxBatches,
-      forceIdentifierRefresh
-    })
+    taxonomyBackfill
+      ? createContainer().metadataRefreshService.backfillCanonicalTaxonomy()
+      : createContainer().metadataRefreshService.refreshUniverseMetadataInBatches({
+          batchSize,
+          maxBatches,
+          forceIdentifierRefresh
+        })
   );
 }
 

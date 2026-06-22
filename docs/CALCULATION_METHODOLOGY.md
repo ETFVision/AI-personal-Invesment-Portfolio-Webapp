@@ -208,7 +208,7 @@ Formula-level scoring details are documented in [Score Methodology](SCORE_METHOD
 - Fundamentals score.
 - Fundamental trend score.
 - Instrument risk score.
-- Portfolio risk and diversification scores.
+- Portfolio risk and diversification scores. Diversification measures breadth and correlation; issuer concentration is measured separately in the Concentration section to avoid double-counting.
 - Recommendation score and confidence.
 - Portfolio Review section scores.
 - Macro/FRED trend and theme scores.

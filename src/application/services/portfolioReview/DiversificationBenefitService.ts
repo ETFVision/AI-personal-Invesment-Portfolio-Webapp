@@ -13,8 +13,10 @@ export type DiversificationBenefitContext = {
   internationalExposure: number;
   bondAllocation: number;
   goldAllocation: number;
+  realEstateWeight: number;
   heldSymbols: Set<string>;
   symbol: string;
+  companyOverlapWeight?: number;
 };
 
 export type DiversificationBenefitResult = {
@@ -99,6 +101,25 @@ export class DiversificationBenefitService {
       secondaryBenefit = "May relate to resilience to inflation, real-rate and geopolitical shocks.";
     }
 
+    if (hasAny(role, ["real estate"])) {
+      gapScore += clampRange((0.03 - input.realEstateWeight) * 520, 0, 18);
+      correlationScore += 6;
+      primaryReason = `${input.symbol} provides exposure to real estate where real-estate look-through is ${pct(input.realEstateWeight)}.`;
+      secondaryBenefit = "May add property-income and real-asset sensitivity context to the portfolio balance review.";
+    }
+
+    if (input.issueCategory === "excessive_crypto_risk" && hasAny(role, ["bond", "treasury", "fixed income", "credit"])) {
+      primaryReason = `${input.symbol} is a bond or treasury instrument. Ballast characteristics such as these may differ from crypto and high-volatility alternative exposure.`;
+    }
+
+    if (input.issueCategory === "concentration_risk") {
+      if (hasAny(role, ["international equity", "developed international", "emerging-market", "global equity"])) {
+        primaryReason = `${input.symbol} adds geographic and issuer diversification that may differ from concentrated single-name look-through exposure.`;
+      } else if (hasAny(role, ["bond", "treasury", "fixed income", "credit", "gold", "inflation hedge"])) {
+        primaryReason = `${input.symbol} provides ballast that is generally lower-correlation to the concentrated equity positions flagged in look-through analysis.`;
+      }
+    }
+
     if (input.issueCategory === "sector_concentration" || input.issueCategory === "theme_concentration" || input.issueCategory === "concentration_risk") {
       if (input.candidateSector && input.dominantSector && input.candidateSector.toLowerCase() !== input.dominantSector.toLowerCase()) {
         concentrationScore += clampRange(input.dominantSectorWeight * 45, 0, 18);
@@ -113,10 +134,16 @@ export class DiversificationBenefitService {
     if (input.heldSymbols.has(input.symbol.toUpperCase())) overlapPenalty += 12;
     if (input.candidateSector && input.dominantSector && input.candidateSector.toLowerCase() === input.dominantSector.toLowerCase()) overlapPenalty += 25;
     if (hasAny(role, ["broad-market equity", "global equity"])) overlapPenalty += 6;
+    const companyOverlapWeight = input.companyOverlapWeight ?? 0;
+    if (companyOverlapWeight >= 0.35) {
+      overlapPenalty += 20;
+    } else if (companyOverlapWeight >= 0.15) {
+      overlapPenalty += 10;
+    }
 
     const overlapWarning =
       overlapPenalty >= 45 ? "Material overlap with the current dominant exposure; review before treating as a diversifier." :
-      overlapPenalty >= 15 ? "Some overlap with existing holdings or broad-market ETF exposure." :
+      overlapPenalty >= 15 ? `Some overlap with existing holdings or broad-market ETF exposure${companyOverlapWeight >= 0.15 ? ", including top company holding overlap via ETF look-through" : ""}.` :
       null;
 
     score += gapScore + concentrationScore + correlationScore - overlapPenalty;

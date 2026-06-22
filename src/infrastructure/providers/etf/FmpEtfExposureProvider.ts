@@ -3,6 +3,7 @@ import type { EtfExposureProviderSnapshot } from "@/domain/etfLookthrough/types"
 import { env } from "@/infrastructure/config/env";
 import { normalizeExposureName } from "../../../domain/etfLookthrough/exposureNormalization";
 import { seededEtfTopHoldings } from "./seededEtfHoldingsFallback";
+import { seededEtfSectorExposures } from "./seededEtfSectorFallback";
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/stable";
 
@@ -35,6 +36,13 @@ function normalizeWeight(value: number | null) {
   return value > 1 ? value / 100 : value;
 }
 
+// FMP weightPercentage is always on a 0–100 scale (e.g. 0.93 = 0.93%, 7.89 = 7.89%).
+// normalizeWeight's >1 heuristic breaks for holdings below 1% — always divide by 100.
+function normalizePercentage(value: number | null) {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  return value / 100;
+}
+
 async function fetchJson(path: string, symbol: string) {
   if (!env.FMP_API_KEY) throw new Error("FMP_API_KEY is not configured.");
   const url = new URL(`${FMP_BASE_URL}/${path}`);
@@ -63,32 +71,54 @@ export class FmpEtfExposureProvider implements EtfExposureProvider {
       textField(holdingsPayload[0] ?? {}, ["date", "asOfDate"]) ??
       todayIsoDate();
 
-    const topHoldings = holdingsPayload.flatMap((item) => {
-      const holdingSymbol = textField(item, ["symbol", "holdingSymbol", "asset", "ticker"]);
+    const rawTopHoldings = holdingsPayload.flatMap((item) => {
+      const holdingSymbol = textField(item, ["asset", "ticker", "holdingSymbol"]);
       const holdingName = textField(item, ["name", "holdingName", "securityName"]);
-      const holdingWeight = normalizeWeight(numberField(item, ["weightPercentage", "weight", "percentage", "assetPercentage", "value"]));
+      const rawWp = numberField(item, ["weightPercentage"]);
+      const holdingWeight = rawWp != null
+        ? normalizePercentage(rawWp)
+        : normalizeWeight(numberField(item, ["weight", "percentage", "assetPercentage", "value"]));
       if (!holdingSymbol || holdingWeight == null) return [];
       return [{ etfSymbol: normalizedSymbol, holdingSymbol: holdingSymbol.toUpperCase(), holdingName, holdingWeight, asOfDate, providerMetadata: item }];
     });
+    const holdingsBySymbol = new Map<string, typeof rawTopHoldings[0]>();
+    for (const h of rawTopHoldings) {
+      const existing = holdingsBySymbol.get(h.holdingSymbol);
+      if (!existing || h.holdingWeight > existing.holdingWeight) holdingsBySymbol.set(h.holdingSymbol, h);
+    }
+    const topHoldings = Array.from(holdingsBySymbol.values());
 
     return {
       symbol: normalizedSymbol,
       asOfDate,
-      sectorExposures: sectorPayload.flatMap((item) => {
-        const sector = normalizeExposureName("sector", textField(item, ["sector", "sectorName", "name"]));
-        const exposureWeight = normalizeWeight(numberField(item, ["weightPercentage", "weight", "percentage", "assetPercentage", "value"]));
-        if (!sector || exposureWeight == null) return [];
-        return [{ etfSymbol: normalizedSymbol, sector, exposureWeight, asOfDate, providerMetadata: item }];
-      }),
+      sectorExposures: (() => {
+        const live = sectorPayload.flatMap((item) => {
+          const sector = normalizeExposureName("sector", textField(item, ["sector", "sectorName", "name"]));
+          const rawWp = numberField(item, ["weightPercentage"]);
+          const exposureWeight = rawWp != null
+            ? normalizePercentage(rawWp)
+            : normalizeWeight(numberField(item, ["weight", "percentage", "assetPercentage", "value"]));
+          if (!sector || exposureWeight == null) return [];
+          return [{ etfSymbol: normalizedSymbol, sector, exposureWeight, asOfDate, providerMetadata: item }];
+        });
+        return live.length > 0
+          ? live
+          : seededEtfSectorExposures(normalizedSymbol, asOfDate, "FMP ETF sector-weightings endpoint returned no data.");
+      })(),
       countryExposures: countryPayload.flatMap((item) => {
         const country = normalizeExposureName("country", textField(item, ["country", "countryName", "name"]));
-        const exposureWeight = normalizeWeight(numberField(item, ["weightPercentage", "weight", "percentage", "assetPercentage", "value"]));
+        const rawWp = numberField(item, ["weightPercentage"]);
+        const exposureWeight = rawWp != null
+          ? normalizePercentage(rawWp)
+          : normalizeWeight(numberField(item, ["weight", "percentage", "assetPercentage", "value"]));
         if (!country || exposureWeight == null) return [];
         return [{ etfSymbol: normalizedSymbol, country, exposureWeight, asOfDate, providerMetadata: item }];
       }),
-      topHoldings: topHoldings.length
+      topHoldings: (topHoldings.length
         ? topHoldings
-        : seededEtfTopHoldings(normalizedSymbol, asOfDate, "FMP ETF holdings endpoint returned no usable rows.")
+        : seededEtfTopHoldings(normalizedSymbol, asOfDate, "FMP ETF holdings endpoint returned no usable rows."))
+        .sort((a, b) => b.holdingWeight - a.holdingWeight)
+        .slice(0, 100)
     };
   }
 }

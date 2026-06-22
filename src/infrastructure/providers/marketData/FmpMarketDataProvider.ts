@@ -104,7 +104,7 @@ async function fetchWithRetry(url: URL) {
       const response = await fetch(url, {
         next: { revalidate: 0 },
         signal: AbortSignal.timeout(10_000)
-      });
+      } as RequestInit & { next: { revalidate: number } });
 
       if (response.status === 429 || response.status >= 500) {
         lastError = new Error(`FMP request failed with status ${response.status}.`);

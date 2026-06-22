@@ -2,6 +2,8 @@
 
 Last updated: 2026-06-12 22:55:00 +08:00
 
+> **Update 2026-06-19:** Canonical sector/theme derivation is now **curated-authoritative** — ETF sector resolves from `ALPHA_ETF_CATEGORIES` and stock sector from `ALPHA_STOCK_SECTORS` (taking precedence over provider sector), `Global Diversification` is no longer blanket-applied to US ETFs, and sector is never inferred from a theme. A one-time backfill corrected existing rows (mis-sectored mapped ETFs 67→0; US sector ETFs with `Global Diversification` 91→0). The provider-sector notes below describe the pre-update state and are retained for history. See `docs/instrument-taxonomy-alpha-universe.md` → "Canonical Sector And Theme Derivation".
+
 ## Audit Result
 
 Status: completed for the current commercialisation checkpoint.

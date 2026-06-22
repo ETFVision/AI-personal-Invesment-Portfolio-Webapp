@@ -40,13 +40,13 @@ Provider-specific tables store deeper diagnostics.
 
 ## Current Daily Schedule Summary
 
-Daily starts around 5:20 AM Singapore time and runs dependent derived layers with wider spacing:
+Since migration `117` the daily chain is anchored to the US market close: it starts at `22:30` UTC (6:30 AM Singapore time) and cascades dependent derived layers at 5-minute intervals, finishing by `23:25` UTC (7:25 AM Singapore time):
 
-1. Five instrument price passes.
+1. Instrument prices (single end-of-day pass).
 2. Daily returns.
 3. Return anchors.
 4. Market metrics.
-5. Risk metrics.
+5. Risk metrics (single full-universe pass, `batchSize=350`; previously two passes).
 6. Metadata.
 7. Benchmarks.
 8. Portfolio valuation.

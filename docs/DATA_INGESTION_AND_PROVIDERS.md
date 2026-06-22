@@ -1,6 +1,6 @@
 # Data Ingestion and Providers
 
-Last updated: 2026-06-13 14:58:29 +08:00
+Last updated: 2026-06-18
 
 ## Provider Map
 
@@ -81,10 +81,81 @@ Exact schedule is in `docs/scheduled-jobs.md`.
 
 - FMP is the core market/fundamentals provider. Some tickers can have limited endpoint coverage or delayed end-of-day updates.
 - FMP profile metadata is also used as the primary source for normalized identifiers feeding Security Master.
+- Instrument metadata refresh preserves raw FMP sector/industry fields, but canonical ETFVision taxonomy is curated-authoritative: ETF `canonical_sector` comes from `ALPHA_ETF_CATEGORIES` where mapped, stock `canonical_sector` comes from `ALPHA_STOCK_SECTORS` where mapped, and provider sector is only a fallback. Canonical themes are independent descriptors and are not blanket-applied from generic ETF labels such as `ETF`, `Sector ETF`, `Broad Market`, or `US Broad Market`.
 - NewsData.io is preferred for scheduled macro/world news because it is less rate-limit fragile than GDELT.
 - GDELT should remain manual-only unless future rate-limit behavior is stabilized.
 - ETF top-holding availability depends on provider coverage. When top holdings are unavailable, portfolio exposure should fall back to sector/country exposure and mark coverage as limited.
 - FRED is stable for macro indicators but economic data updates at different publication cadences.
+
+## Instrument Taxonomy Backfill
+
+The normal metadata job refreshes stale or incomplete provider metadata. When taxonomy rules change but provider metadata is still fresh, run the existing protected metadata job with `taxonomyBackfill=true` to re-normalize active instruments from stored raw fields and curated universe maps without refetching FMP metadata:
+
+```text
+POST /api/jobs/instrument-metadata-refresh?taxonomyBackfill=true
+```
+
+This path uses the same cron/job authorization wrapper as the standard metadata refresh and writes an `instrument_taxonomy_backfill` metadata refresh log. It should be followed by Portfolio Review refresh when QA depends on stored report snapshots.
+
+## FMP ETF Holdings API Behaviour
+
+**Primary file:** `src/infrastructure/providers/etf/FmpEtfExposureProvider.ts`
+
+**Endpoint:** `GET /stable/etf/holdings?symbol={TICKER}`
+
+### Weight Field Scale
+
+FMP's `weightPercentage` field is always on a 0–100 scale, regardless of the holding's weight:
+
+| Example | `weightPercentage` value | Correct decimal |
+|---|---|---|
+| NVDA in VOO at 7.89% | `7.89` | `0.0789` |
+| XOM in VOO at 0.93% | `0.93` | `0.0093` |
+
+The provider uses a dedicated `normalizePercentage()` function that always divides by 100. The generic `normalizeWeight()` heuristic (`> 1 ? value / 100 : value`) must not be used for `weightPercentage` because it misidentifies values below 1.0 as already-normalised fractions, causing a 100× overstatement for sub-1% holdings.
+
+```typescript
+// Always divide by 100 — not conditional on value > 1.
+function normalizePercentage(value: number | null) {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  return value / 100;
+}
+```
+
+If `weightPercentage` is absent, the provider falls back to `normalizeWeight()` for the fields `weight`, `percentage`, `assetPercentage`, `value`. These fields may arrive in either scale depending on the endpoint variant, so the heuristic is appropriate only there.
+
+### Blank-Asset Rows
+
+FMP includes rows with `asset: ""` (empty string) for cash positions, money-market instruments, securities-lending collateral, and derivative positions. Examples from real ETF payloads:
+
+| `asset` | `name` | Meaning |
+|---|---|---|
+| `""` | `"US Dollar"` | Cash position |
+| `""` | `"MKTLIQ 12/31/2049"` | Vanguard market-liquidity fund |
+| `""` | `"SLBBH1142"` | Securities-lending collateral |
+| `""` | `"CME E-Mini NASDAQ 100"` | Futures contract |
+
+VT has hundreds of such rows due to its broad international mandate. These rows do not represent equity positions and must not be stored in `etf_top_holdings`.
+
+### holdingSymbol Field Priority
+
+`holdingSymbol` is resolved using `textField(item, ["asset", "ticker", "holdingSymbol"])`.
+
+The key `"symbol"` is intentionally excluded. In FMP's ETF holdings response, `symbol` is always set to the parent ETF ticker (e.g. `"VOO"` for all rows of VOO's holdings), not the holding's ticker. Including `"symbol"` as a fallback caused blank-asset rows to be stored as self-referential holdings (VOO appearing to hold VOO).
+
+When all three keys are empty or absent, `holdingSymbol` resolves to `null` and the row is dropped by the `if (!holdingSymbol || holdingWeight == null) return []` guard.
+
+**Rule:** never add `"symbol"` back to the holdingSymbol field priority list.
+
+### Deduplication
+
+FMP occasionally returns the same `holdingSymbol` more than once (e.g. share-class variants with slightly different weights). The provider deduplicates by symbol, keeping the row with the highest `holdingWeight`. The result is capped at 100 holdings per ETF, sorted descending by weight.
+
+### Seeded Fallback
+
+When no usable holdings rows survive after filtering, the provider returns `seededEtfTopHoldings(symbol, asOfDate, reason)` — a static fallback containing approximate holdings for the handful of ETFs that FMP does not cover under the current plan. This prevents downstream look-through from treating the ETF as zero-holding. The fallback is logged in `providerMetadata.seededReason`.
+
+---
 
 ## FMP Fundamentals Data Lineage
 
@@ -108,6 +179,7 @@ Base URL:
 | `balance-sheet-statement` | `financial_statements` rows with `statement_type = balance_sheet` |
 | `cash-flow-statement` | `financial_statements` rows with `statement_type = cash_flow` |
 | `ratios` | `financial_ratios` |
+| `key-metrics` | ROIC enrichment for `financial_ratios.roic` |
 
 The refresh service pulls annual and quarterly fundamentals separately:
 
@@ -172,7 +244,7 @@ All statement rows map `date`, `reportDate`, or `fillingDate` into `report_date`
 | `operating_margin` | `operatingProfitMargin`, `operatingMargin` |
 | `net_margin` | `netProfitMargin`, `netMargin` |
 | `roe` | `returnOnEquity`, `roe` |
-| `roic` | `returnOnInvestedCapital`, `roic` |
+| `roic` | `key-metrics.returnOnInvestedCapital`, `key-metrics.roic`; ratios-row `returnOnInvestedCapital` / `roic` still wins if ever supplied |
 | `roa` | `returnOnAssets`, `roa` |
 | `debt_to_equity` | `debtEquityRatio`, `debtToEquity` |
 | `net_debt_to_ebitda` | `netDebtToEBITDA`, `netDebtToEbitda` |
@@ -184,6 +256,8 @@ All statement rows map `date`, `reportDate`, or `fillingDate` into `report_date`
 | `net_income_growth` | `netIncomeGrowth` |
 | `free_cash_flow_growth` | `freeCashFlowGrowth` |
 | `provider_metadata` | Raw provider item |
+
+FMP stable `ratios` does not currently carry ROIC on the configured API response. ROIC is sourced by joining `key-metrics` rows to `ratios` rows by `date` with a `fiscalYear|period` fallback. ROE and ROA may also be absent from the stable ratios response and remain subject to existing provider/derived-data availability; this task does not change their sourcing.
 
 ### Derived Ratio Fallbacks
 

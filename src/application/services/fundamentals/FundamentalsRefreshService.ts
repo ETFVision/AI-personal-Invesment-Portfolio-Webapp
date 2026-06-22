@@ -65,6 +65,22 @@ function mergeRatio(current: number | null | undefined, derived: number | null) 
   return current == null ? derived : current;
 }
 
+function refreshTimestamp(profile: CompanyProfile | undefined) {
+  if (!profile?.lastRefreshedAt) return Number.NEGATIVE_INFINITY;
+  const timestamp = new Date(profile.lastRefreshedAt).getTime();
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
+}
+
+function oldestFundamentalsProfileFirst<T extends { id: string; symbol?: string | null }>(
+  left: T,
+  right: T,
+  profileByInstrument: Map<string, CompanyProfile>
+) {
+  const timestampDelta = refreshTimestamp(profileByInstrument.get(left.id)) - refreshTimestamp(profileByInstrument.get(right.id));
+  if (timestampDelta !== 0) return timestampDelta;
+  return String(left.symbol ?? "").localeCompare(String(right.symbol ?? ""));
+}
+
 function createEmptyDerivedRatio(input: {
   instrumentId: string;
   symbol: string;
@@ -244,6 +260,7 @@ export class FundamentalsRefreshService {
         const hasCompleteDerivedCoverage = Boolean(scoreByInstrument.get(instrument.id) && trendByInstrument.get(instrument.id));
         return !existing || !hasCompleteDerivedCoverage || daysBetween(existing.lastRefreshedAt ?? null) >= this.config.refreshFrequencyDays;
       })
+      .sort((left, right) => oldestFundamentalsProfileFirst(left, right, profileByInstrument))
       .slice(0, this.config.maxStocksPerRefresh);
 
     let profilesUpdated = 0;
@@ -376,5 +393,6 @@ export class FundamentalsRefreshService {
 
 export const fundamentalsRefreshInternals = {
   daysBetween,
-  deriveMissingRatios
+  deriveMissingRatios,
+  oldestFundamentalsProfileFirst
 };

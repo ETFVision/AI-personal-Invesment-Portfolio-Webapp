@@ -1,6 +1,1695 @@
-# QA Log
+﻿# QA Log
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
+
+## 2026-06-22 SGT - Re-Cascaded Refresh Schedule QA
+
+Scope:
+- Verify migration 117 re-cascades scheduled Supabase pg_cron jobs and collapses the two daily risk-metric passes into one schedule-only change.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Daily refresh chain needed to align around the US market close / EOD publish window | Fixed; daily chain now starts with price refresh at 22:30 UTC |
+| Risk metrics were still scheduled as two passes after set-based chunking shipped | Fixed; migration schedules one `app-daily-instrument-risk-refresh` at 22:50 UTC |
+| Schedule changes must avoid app-code changes | Preserved; only migration 117 and documentation were changed |
+| Existing job commands should stay unchanged except the merged risk job | Verified; commands copied from migrations 116, 101, and 082 except risk batchSize 350 |
+
+New schedule:
+
+| Cadence | UTC Time | Job |
+|---|---:|---|
+| Daily | 22:30 | `app-daily-instrument-price-refresh` |
+| Daily | 22:35 | `app-daily-instrument-daily-returns-refresh` |
+| Daily | 22:40 | `app-daily-instrument-return-anchors-refresh` |
+| Daily | 22:45 | `app-daily-instrument-market-metrics-refresh` |
+| Daily | 22:50 | `app-daily-instrument-risk-refresh` |
+| Daily | 22:55 | `app-daily-instrument-metadata-refresh` |
+| Daily | 23:00 | `app-daily-benchmark-refresh` |
+| Daily | 23:05 | `app-daily-portfolio-valuation-refresh` |
+| Daily | 23:10 | `app-daily-portfolio-summary-refresh` |
+| Daily | 23:15 | `app-daily-fred-macro-ingestion` |
+| Daily | 23:20 | `app-daily-fmp-news-ingestion` |
+| Daily | 23:25 | `app-daily-newsdata-ingestion` |
+| Weekly Sat | 23:30-23:55 | Fundamentals, news reconciliation, Market Vision, recommendation run |
+| Weekly Sun | 00:00-00:05 | Portfolio review and telemetry evaluation |
+| Monthly 1st | 23:30-23:55 | ETF look-through passes and universe validation |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration file is syntactically valid SQL by inspection | PASS |
+| Unschedule list contains exactly the requested 27 job names | PASS |
+| Reschedule list contains 26 jobs with the two old risk jobs collapsed into one new risk job | PASS |
+| No endpoints or query strings changed except the merged risk job | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (337/337) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/117_recascade_refresh_schedule_single_pass_risk.sql` manually to Supabase.
+
+## 2026-06-22 SGT - Chunked Set-Based Risk Metrics Refresh QA
+
+Scope:
+- Verify instrument risk-metric refresh batches use set-based RPC chunks instead of sequential single-instrument RPC calls.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Risk-metric refresh called the risk RPC one instrument at a time | Fixed; selected instruments are refreshed by chunk through `refreshInstrumentRiskMetricsOnly(chunkIds)` |
+| Statement timeouts still need resilient fallback | Preserved; timeout chunks fall back to the existing per-instrument JS calculation path |
+| Stale-aware selection and result shape should not change | Preserved; batch selection, requested symbols, updated count, errors, and message format remain aligned with existing behavior |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Chunked happy path calls one set-based RPC for the selected chunk | PASS |
+| Simulated chunk statement timeout falls back to per-instrument refresh | PASS |
+| Per-instrument fallback uses stored prices and upserts calculated risk metrics | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (337/337) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- After observing production timings, the two scheduled risk-metric passes (`200 + 150`) can likely be collapsed into one later.
+
+## 2026-06-22 SGT - Adjusted Historical EOD Daily Price Refresh QA
+
+Scope:
+- Verify the daily and manual EOD price refresh use adjusted-close historical prices instead of the abandoned FMP `eod-bulk` path.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| FMP `eod-bulk` was unsuitable for the daily ETFVision universe refresh | Superseded; bulk-EOD provider method and CSV helper removed |
+| Daily refresh needed true EOD dates and adjusted close values consistent with backfill | Fixed; historical-price quotes store `quote.asOfDate` and adjusted `quote.price` |
+| Daily EOD refresh should not spend time scanning full price history coverage | Fixed; the EOD path does not call `listInstrumentPriceStats` |
+| Manual Admin `Refresh prices (EOD)` button needed to use the surviving EOD path | Fixed; action now calls `refreshInstrumentPricesEod` with derived/risk metrics skipped |
+| Scheduled refresh needed to call the new source | Fixed in migration 116; cron route now uses `source=eod` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Historical price provider mocked for adjusted EOD rows | PASS |
+| Stored rows use the returned real EOD date rather than today's date | PASS |
+| Stored rows use adjusted close from the historical quote price | PASS |
+| Fetches run in bounded concurrency waves | PASS |
+| EOD path avoids `listInstrumentPriceStats` | PASS |
+| Missing symbols are reported without falling back to latest-price quotes | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (337/337) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply migration 116 manually in Supabase so the scheduled daily cron uses `source=eod`.
+- Adjusted close is retroactive. The trailing 7-day refresh self-heals recent dividends/splits, but older adjusted-history changes still require the existing full `Backfill market history` operation or a future monthly full-backfill cron.
+
+## 2026-06-22 SGT - FMP Bulk EOD CSV Parsing QA
+
+Scope:
+- Verify FMP `eod-bulk` responses are parsed as CSV and no longer fail through JSON parsing.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| `getBulkEodPrices` called `response.json()` against FMP `eod-bulk` | Fixed; provider now reads `response.text()` and parses CSV |
+| Bulk EOD calls failed with JSON parse errors | Fixed; CSV body is parsed by header names |
+| Adjusted close and true EOD date needed to be preserved | Covered; parser uses `adjClose` before `close` / `price` and uses the row date or requested date fallback |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| CSV parser handles `symbol,date,open,high,low,close,adjClose,volume` sample | PASS |
+| Parser returns adjusted close as price | PASS |
+| Parser returns the EOD row date as `asOfDate` | PASS |
+| Empty/non-data bodies still return `[]` | PASS by implementation guard |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (338/338) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- After deploy, run the Admin `Refresh prices (EOD)` button or the bulk route and confirm live FMP rows are stored with the expected EOD date.
+
+## 2026-06-22 SGT - Admin Price Refresh Bulk EOD QA
+
+Scope:
+- Verify the Admin Data Sources manual "Refresh prices" control now uses the bulk-EOD price path while remaining prices-only.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Manual `Refresh prices` still used the old batch latest-price path after bulk-EOD support was added | Fixed; action now calls `refreshInstrumentPricesFromBulkEod` |
+| Manual price refresh needed to stay prices-only | Preserved; `skipDerivedMetrics: true` and `skipRiskMetrics: true` remain set |
+| Operator label needed to distinguish the EOD path | Updated; button now reads `1. Refresh prices (EOD)` with pending text `Refreshing EOD prices...` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `refreshInstrumentPricesAction` uses bulk-EOD service path | PASS |
+| Old batch arguments removed from the manual price action | PASS |
+| Derived/risk metric skipping preserved | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (337/337) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- After running the manual EOD price refresh in Admin, run the numbered derived-metric buttons when derived daily returns, anchors, market metrics, or risk metrics need recomputation.
+
+## 2026-06-22 SGT - Bulk EOD Daily Price Refresh QA
+
+Scope:
+- Verify the daily instrument price refresh can use FMP Ultimate bulk-EOD pricing instead of the five batch quote passes.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Daily price refresh required five scheduled passes | Fixed; migration 116 replaces the five cron entries with one `source=bulk_eod` route call |
+| Latest-price path wrote `asOfDate` as today's date rather than the real EOD date | Fixed for the bulk path; stored `priceDate` comes from the requested bulk EOD date |
+| Daily bulk refresh should not spend time scanning price history coverage | Fixed; bulk path does not call `listInstrumentPriceStats` |
+| Omitted symbols still need coverage | Preserved; a non-empty bulk response falls back to the existing latest-price path for omitted active symbols |
+| Non-trading or unavailable bulk dates should not write mismatched current prices | Guarded; empty bulk responses return no updates and do not fall back |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| FMP bulk parser uses adjusted-close precedence to match historical parsing | PASS |
+| Route default behavior unchanged when `source` is absent | PASS |
+| `source=bulk_eod` supports optional `date=YYYY-MM-DD` | PASS |
+| Bulk service stores the requested EOD date | PASS |
+| Bulk service avoids `listInstrumentPriceStats` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (337/337) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/116_bulk_eod_instrument_price_refresh_schedule.sql` manually to Supabase.
+- After deploy, spot-check several symbols where the bulk-EOD daily close and adjusted historical backfill overlap to confirm price/date continuity on live FMP data.
+
+## 2026-06-22 SGT - History Backfill Batch Size QA
+
+Scope:
+- Verify the Admin Data Sources history backfill action uses the larger post-Optimization-B batch size without changing the rest of the backfill behavior.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| `Backfill market history` still used `batchSize: 5` after price-stat aggregation moved to SQL RPC | Fixed; changed the action to `batchSize: 50` |
+| Backfill behavior needed to remain prices-only | Preserved; `skipDerivedMetrics: true` remains unchanged |
+| Runtime risk needs an operational check after deploy | Logged; check latest `backfill_market_history` `duration_ms` and lower to about 25 if it approaches ~250s+ or throttles |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `lookbackDays: 1825` unchanged | PASS |
+| `maxBatches: 1` unchanged | PASS |
+| `includeBackfill: true` unchanged | PASS |
+| `skipDerivedMetrics: true` unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (335/335) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- After deploy, run the backfill once and inspect `job_runs.duration_ms` for the latest `backfill_market_history` row.
+
+## 2026-06-22 SGT - Instrument Price Stats RPC Optimization QA
+
+Scope:
+- Verify `listInstrumentPriceStats` no longer performs a full paginated JavaScript scan over `instrument_prices`.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| `listInstrumentPriceStats` paginated `instrument_prices` in 1000-row pages and aggregated in JavaScript | Fixed; repository now calls one grouped `get_instrument_price_stats` RPC |
+| Price/derived-metric/backfill passes could spend ~150s in repeated price-stat scans | Mitigated; aggregation is pushed into Postgres using the existing instrument/date index |
+| New RPC path needed parameter and mapping coverage | Fixed; added `tests/universe-repository.test.ts` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| RPC parameter for scoped instrument IDs is passed as `p_instrument_ids` | PASS |
+| All-instrument stats call passes `p_instrument_ids: null` | PASS |
+| RPC row maps to `InstrumentPriceStats` shape | PASS |
+| Missing `instrument_prices` table guard returns `[]` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (335/335) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/115_get_instrument_price_stats_rpc.sql` to the live Supabase project before relying on the deployed repository method.
+- Direct live equivalence sampling against the previous JavaScript aggregation should be performed after the migration is applied.
+
+## 2026-06-22 SGT - Med 29 Recalibration QA (sign-off)
+
+Scope: distribution-level QA of the recalibrated recommendation engine across the full live universe (306 instruments) after the scoring programme (#2/#3/#5, period-fix, financial-sector, risk-cap, roicDurability). Review-only; no code change.
+
+Result: **PASS / signed off.** Combined with Med 26 (drift lock), the scoring programme is QA-complete.
+
+Checks and results:
+
+| Check | Result |
+|---|---|
+| No score saturation | PASS — max 77.9 stock / 67.1 ETF / 63.7 bond; p90 67.5 stock / 60.1 ETF. No pegging. |
+| Stock label spread | PASS — 27 Good / 70 Neutral / 8 Weak across 105 stocks. |
+| Component coverage | PASS — essentially complete; **ETF benchmark_relative 172/172** (EFA/EEM backfill confirmed universe-wide). Only 1 stock missing fundamental_trends (104/105, limited history, excluded from denominator). |
+| Orthogonality — Q vs CashFlow / BalanceSheet | PASS — 0.008 / −0.178. |
+| Economic spot-checks | PASS — NVDA/AAPL/MSFT/JPM Good; SPY ≈ benchmark-neutral; EEM 54.3 > VWO 50.7 (Korea/index-family effect intact); XOM recovered; COST not over-penalized; crypto appropriately low. Ordering intuitive. |
+
+Residual / watch items (monitor; do NOT re-tune — frozen-anchor discipline):
+
+| Item | Detail |
+|---|---|
+| Q↔Profitability corr = 0.409 | Marginally above the ~0.40 target (was 0.380 mid-programme; both share ROIC level vs durability). ~17% shared variance — within tolerance, but crept up. If it exceeds ~0.45 in a future run, revisit roicDurability. |
+| ETF / Bond compression | ETFs 92% Neutral (158/172), Bond ETFs 100% Neutral. Benchmark/risk components do discriminate (2 Good, 12 Weak exist) but near-constant default components damp spread. Inherent characteristic of diversified-instrument scoring, not a defect. Only a deliberate future model decision should touch ETF/bond weights. |
+| Zero Excellent (≥80) across the universe | Expected and already disclosed (composite effective ceiling ~mid-80s; Excellent reserved/uncommon). Not a defect. |
+
+## 2026-06-22 SGT - Med 26 Scoring Golden Baseline QA
+
+Scope:
+- Add deterministic golden-regression coverage for the current scoring outputs without changing scoring logic or user-facing methodology.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Future scoring changes needed a loud deterministic regression baseline | Fixed; added `tests/scoring-golden.test.ts` |
+| Golden assertions needed to avoid volatile metadata and generated text | Fixed; normalized assertions include only scores, labels, guardrails, and component keys/scores |
+| Stock scoring baseline needed to exercise the canonical phase-2 path | Fixed; stock evaluations are wrapped in `withStockPhase2Flag(true, ...)` |
+| Fundamental scoring needed fixture-level coverage for strong, weak, and financial-sector paths | Fixed; added pinned sub-score snapshots and financial-path exclusions for cash conversion / ROIC durability |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Helper anchor scores are pinned | PASS |
+| Fundamental sub-score snapshots are pinned | PASS |
+| Stock / ETF / bond / gold / crypto normalized recommendation outputs are pinned | PASS |
+| Focused `tests/scoring-golden.test.ts` run | PASS (3/3) |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (333/333) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Future intentional scoring changes should update the golden baseline with an explicit methodology and QA note.
+
+## 2026-06-21 SGT - Methodology Financial Terms Glossary QA
+
+Scope:
+- Verify the public methodology page includes the new financial terms glossary and still renders formulas correctly.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Financial-statement metrics used in formulas needed plain-English definitions | Fixed; added a Financial terms collapsible table |
+| Overview glossary needed coverage for valuation, margin, leverage, liquidity, return, issuer, beta, bond, and risk-statistic terms | Fixed; added the requested financial terms entries |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Financial terms accordion renders on `/methodology` | PASS |
+| Representative entries for margins, high yield, and covariance render | PASS |
+| Dev-server `/methodology` render still contains KaTeX markup | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Methodology Trend Decision Tree Clarification QA
+
+Scope:
+- Verify the public methodology page trend-direction wording and displayed trend-strength formula are clearer while preserving formula rendering.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Trend Direction inputs note was too high-level for users to understand the label decision tree | Fixed; note now states the deterministic label logic for each trend label |
+| Trend strength display used first-half average notation where the intended displayed comparison is latest vs earliest observation | Fixed; formula now displays `x_latest - x_first` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Public methodology page includes the explicit trend label decision tree | PASS |
+| Trend strength formula renders with `x_first` notation | PASS |
+| Dev-server `/methodology` render contains KaTeX markup after the copy update | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Methodology Presentation Clarifications QA
+
+Scope:
+- Verify the public methodology page readability updates are present and formula rendering remains intact.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Key mathematical notation needed plain-English definitions for non-technical readers | Fixed; added a Notation table under Key terms |
+| Several formula notes used unexplained symbols and abbreviations | Fixed; added variable definitions for fundamentals, trends, Insight Alignment, Diversification, and covariance |
+| Instrument component weight tables explained weights but not what each component measures | Fixed; added a "What it measures" column for each instrument type |
+| Trend classification rules needed clearer direction and strength explanation | Fixed; expanded direction input notes and added a Trend strength formula row |
+| Macro fit and Quality valuation adjustment examples could be read as exhaustive | Fixed; marked both as representative examples |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Public methodology page includes Notation definitions | PASS |
+| Instrument component tables include "What it measures" | PASS |
+| New formula notes appear for Profitability, Valuation, Balance Sheet, Cash Flow, Quality, Trend, Insight Alignment, Diversification, and covariance | PASS |
+| Dev-server `/methodology` render contains KaTeX markup after the copy updates | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Methodology KaTeX Rendering QA
+
+Scope:
+- Verify public methodology formulas render as KaTeX math instead of raw or garbled LaTeX source.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Formula props used JSX string attributes, causing `\\` to reach KaTeX literally | Fixed; `tex` props now use JSX expression strings |
+| Cases-style formulas could show raw source instead of formatted math | Fixed and spot-checked on Bond duration fit |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Weighted composite renders with KaTeX fraction markup | PASS |
+| scoreMargin renders with KaTeX clamp/fraction markup | PASS |
+| Bond duration fit renders as KaTeX cases markup | PASS |
+| Allocation formula renders through KaTeX on the dev-server methodology page | PASS |
+| Covariance formula renders with KaTeX `w^T Sigma w` markup | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Theme Fit Formula Display Correction QA
+
+Scope:
+- Verify the public methodology Theme fit formula matches engine behavior and the new "How scores work" section is reachable from the TOC.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Theme fit formula display implied separate +5 bonuses for AI / Automation, Quality, and Global Diversification | Fixed; rendered formula now uses one indicator bonus for `A or Q or G` |
+| Theme fit note did not clarify the +5 applies once | Fixed |
+| "How ETFVision scores work" section existed but was missing from the TOC | Fixed |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Page formula uses single `5 * 1(A or Q or G)` style bonus | PASS |
+| `SCORE_METHODOLOGY.md` mirrors single-bonus wording | PASS |
+| Methodology TOC includes `#how-scores-fit` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Methodology Page Comprehension and Math Rendering QA
+
+Scope:
+- Verify the public methodology page is easier to understand, renders formulas with KaTeX, and uses Portfolio Balance Review / Market Vision provenance wording without changing scoring logic.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Methodology page lacked a plain-English glossary for technical scoring terms | Fixed; added collapsible Key Terms block after Overview |
+| Users needed a clearer explanation of how instrument and portfolio scores relate | Fixed; added "How ETFVision scores work" two-report-card explanation |
+| Formula sections were dense text only | Fixed; collapsed formula sections now show plain-English context plus server-rendered KaTeX math |
+| Quality sub-score could be confused with Business Quality component | Fixed; added explicit clarification under Business Quality |
+| Page still used Gap Analysis naming | Fixed; renamed public section and TOC entry to Portfolio Balance Review |
+| Market Vision provenance and AI-assistance boundary needed clearer disclosure | Fixed; added page and score-methodology wording |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| KaTeX package installed and formula helper renders at build time | PASS |
+| Portfolio Balance Review wording present on page and score methodology doc | PASS |
+| Market Vision provenance wording present on page and score methodology doc | PASS |
+| No scoring code, weights, anchors, feature flags, access controls, or schema changed | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Benchmark Disclosure and Methodology Map Cleanup QA
+
+Scope:
+- Verify ETF Benchmark Relative methodology wording accurately describes the benchmark families and the exact ETF category/symbol map used by code.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Disclosure overgeneralized Benchmark Relative as pairing each fund to an MSCI-family benchmark | Fixed; wording now distinguishes S&P 500 for US equity ETFs from MSCI-family proxies for developed/emerging international ETFs |
+| Benchmark map omitted International Dividend and curated single-country behavior | Fixed; docs now list International Dividend, EWJ/DXJ/JPXN/EWU/EWC, MCHI/FXI/KWEB/INDA/INDY, and no component for other single-country ETFs |
+| Methodology page did not explicitly state annual basis for stock fundamentals | Fixed; fundamentals helper row now states latest annual ratios/statements are used |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Public methodology benchmark disclosure updated | PASS |
+| `SCORE_METHODOLOGY.md` benchmark disclosure updated | PASS |
+| Benchmark map matches `benchmarkKeyForEtf` documented categories/symbols | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Methodology Documentation Business Quality Cleanup QA
+
+Scope:
+- Verify methodology documentation presents Business Quality as the stock fundamentals headline, keeps Valuation separate, and does not describe the retired valuation-blended fundamentals display as live.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Public methodology page still described a six-category Fundamentals Score including Valuation | Fixed; section now presents Business Quality as the fundamentals headline and Valuation as a separate Characteristics component |
+| Score methodology still opened with six-category fundamentals weights | Fixed; Business Quality headline composite is documented with Growth/Profitability/Cash Flow/Balance Sheet/Quality weights |
+| Portfolio-context guardrails needed clearer scope | Fixed; concentration, duplicate exposure, and crypto allocation caps are marked Portfolio Review only |
+| Required limitations/disclosures were missing from the public and formula-level methodology docs | Added |
+| Recommendation Insights methodology still listed a generic Fundamentals score input | Updated to Business Quality |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Public methodology page no longer includes the old fundamentals calculation row | PASS |
+| `METHODOLOGY_LAST_UPDATED` bumped to 2026-06-21 | PASS |
+| Straggler sweep across active methodology docs for retired wording | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Fundamentals Business Quality Display QA
+
+Scope:
+- Verify Fundamentals UI surfaces display the Business Quality composite instead of the valuation-blended stored overall fundamentals score, while keeping Valuation visible separately.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Fundamentals UI showed valuation-blended `overallFundamentalScore` as `Overall` | Fixed; display now uses `scoreBusinessQuality(latestScore)` |
+| Valuation needed to remain visible as its own metric | Preserved |
+| Directory cell showed both `Overall` and standalone `Quality`, which could confuse the Quality sub-score with the Business Quality composite | Fixed; cell shows `Business Quality` and `Val` only |
+| Stored `overallFundamentalScore` should remain available for non-display paths | Preserved |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Fundamentals page coverage count uses Business Quality availability | PASS |
+| Fundamentals page first score column is `Business Quality` | PASS |
+| Instrument detail Fundamental Scores card shows `Business Quality` | PASS |
+| Instrument detail trend table `Overall` column remains unchanged | PASS |
+| Instrument directory Fundamentals cell shows `Business Quality` and `Val` | PASS |
+| No schema/model/computation changes | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None.
+
+## 2026-06-21 SGT - Backfill Timeout Fix QA
+
+Scope:
+- Verify Admin -> Data Sources `Backfill market history` no longer combines 5-year price fetch, derived/risk metric rebuilds, and benchmark refresh in one Vercel serverless invocation.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Backfill market history could time out at Vercel's 300s ceiling because it fetched 5-year prices, rebuilt derived/risk metrics, and refreshed benchmarks in one action | Fixed; backfill now fetches prices only |
+| Inline benchmark refresh remained in backfill after a dedicated benchmark button was added | Removed; benchmarks now use `Refresh benchmarks` |
+| Backfill batch size was still 8 symbols per click | Reduced to 5 symbols per click |
+| Data Sources page did not explicitly declare the Vercel function ceiling | Added `maxDuration = 300` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Backfill action uses `batchSize: 5` | PASS |
+| Backfill action uses `skipDerivedMetrics: true` | PASS |
+| Backfill action no longer calls `refreshBenchmarkData.run` | PASS |
+| Admin Data Sources page exports `maxDuration = 300` | PASS |
+| Benchmark button/action unchanged | PASS |
+| `refreshAllDataAction` unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Operationally, after history backfill is complete, run buttons 2 Daily returns through 5 Risk metrics, then Refresh benchmarks.
+
+## 2026-06-21 SGT - Admin Benchmark Refresh Control QA
+
+Scope:
+- Verify Admin -> Data Sources has a direct manual control for the existing `benchmark-refresh` job so newly seeded benchmarks can be backfilled before recommendation runs.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Operators needed a direct way to run benchmark-refresh after adding EFA/EEM benchmark seeds | Fixed; Admin -> Data Sources now includes `Refresh benchmarks` |
+| Benchmark refresh should reuse existing job logging rather than creating a new job surface | Preserved; action uses `runManual("benchmark-refresh", ...)` |
+| Full-history benchmark refresh should match cron/backfill horizon | Preserved; action uses `lookbackDays: 1825` |
+| Scheduled cron route and all-data refresh should remain unchanged | Preserved |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Server action requires admin access | PASS |
+| Server action uses job name `benchmark-refresh` | PASS |
+| Server action uses `lookbackDays: 1825` | PASS |
+| Data Sources button posts `returnTo=/admin/data-sources` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- After deploy, click Admin -> Data Sources -> Refresh benchmarks to populate EFA/EEM benchmark snapshots, then run recommendation-run.
+
+## 2026-06-21 SGT - ETF Benchmark Relative Scale Re-Anchor QA
+
+Scope:
+- Verify ETF Benchmark Relative SCALE `100` reduces saturation while preserving the external-benchmark design and neutral benchmark-parity behavior.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| SCALE `200` pegged about 18% of ETFs and pushed p90 to 100 | Fixed; SCALE `100` lowers saturation materially |
+| Scale needed an economic anchor rather than distribution fitting | Fixed; +50pp annual excess return is the full-mark anchor, +25pp scores 75, benchmark parity scores 50 |
+| Benchmark mapping and international/EM fairness must remain unchanged | Preserved |
+
+Live validation gate:
+
+| Check | SCALE 200 | SCALE 100 |
+|---|---:|---:|
+| Scored ETF-like instruments | `201` | `196` |
+| Min | `0` | `0` |
+| p10 | `7.0` | `27.8` |
+| p25 | `28.0` | `38.3` |
+| p50 | `47.9` | `48.8` |
+| p75 | `60.2` | `54.7` |
+| p90 | `100.0` | `78.9` |
+| Max | `100.0` | `100.0` |
+| Pegged at bounds | `17.9%` | `6.6%` |
+
+Benchmark 1Y returns used in the SCALE `100` validation pass:
+
+| Benchmark | 1Y Return |
+|---|---:|
+| `sp500` | `25.65%` |
+| `nasdaq100` | `40.58%` |
+| `global_equities` | `27.41%` |
+| `us_aggregate_bonds` | `0.69%` |
+| `gold` | `24.83%` |
+| `developed_ex_us` | `20.94%` |
+| `emerging_markets` | `52.80%` |
+
+International / EM checks:
+
+| Symbol | Category | Benchmark | Score |
+|---|---|---|---:|
+| VWO | `EMERGING_MARKETS` | `emerging_markets` | `25.0` |
+| EEM | `EMERGING_MARKETS` | `emerging_markets` | `50.0` |
+| INDA | `COUNTRY` | `emerging_markets` | `0.0` |
+| VEA | `DEVELOPED_MARKETS` | `developed_ex_us` | `60.5` |
+| EFA | `DEVELOPED_MARKETS` | `developed_ex_us` | `50.0` |
+| EWJ | `COUNTRY` | `developed_ex_us` | `63.2` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Parity scores 50 | PASS |
+| +25pp excess scores 75 | PASS |
+| +50pp excess scores 100 | PASS |
+| -50pp excess scores 0 | PASS |
+| Missing benchmark return remains null | PASS |
+| Benchmark mapping and EM fairness tests unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply benchmark migration and run benchmark-refresh from Admin to populate EFA/EEM benchmark snapshots.
+- Run recommendation-run from Admin after benchmark-refresh.
+- Run Med 29 recalibration QA after live recommendation scores recompute.
+
+## 2026-06-21 SGT - ETF Benchmark Relative External Benchmark QA
+
+Scope:
+- Verify ETF Benchmark Relative now measures 1Y excess return against external asset-class benchmarks.
+- Verify ETF Momentum no longer reuses trailing 1Y return.
+- Check benchmark coverage and score distribution before freezing the seeded scale.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Benchmark Relative used absolute 1Y return, so it was not actually benchmark-relative | Fixed; score now uses ETF 1Y return minus mapped benchmark 1Y return |
+| Trailing 1Y return was counted in both Momentum and Benchmark Relative | Fixed; Momentum now uses YTD and daily return only |
+| Developed ex-US and emerging-market ETFs lacked fair external benchmarks | Fixed structurally; `developed_ex_us` and `emerging_markets` benchmarks are seeded via EFA/EEM and must be backfilled by benchmark-refresh |
+| EM ETFs could otherwise be compared against SPY/global proxies | Guarded by tests; EM categories and EM country ETFs map to `emerging_markets` |
+
+Benchmark map validation:
+
+| Category / Instrument Type | Benchmark |
+|---|---|
+| US broad market, growth, value, dividend, small cap, US sector/thematic ETFs | `sp500` |
+| Global Equity | `global_equities` |
+| Developed Markets, International Dividend, developed-market country funds | `developed_ex_us` |
+| Emerging Markets and emerging-market country funds | `emerging_markets` |
+| Bond / Cash Equivalent | `us_aggregate_bonds` |
+| Commodity / Gold | `gold` |
+| Crypto ETF | `bitcoin` |
+
+Live validation gate:
+
+| Check | Result |
+|---|---|
+| Checked ETF-like instruments | `201` |
+| Score distribution min / p10 / p25 / p50 / p75 / p90 / max | `0 / 7.0 / 28.0 / 47.9 / 60.2 / 100.0 / 100.0` |
+| Pegged at bounds | `17.9%` |
+| Median near 50 target | PASS (`47.9`) |
+| p90 low-70s / not pegged target | FOLLOW-UP (`p90=100.0`, pegged `17.9%`) |
+| VWO / EEM / INDA benchmark | `emerging_markets` |
+| VEA / EFA / EWJ benchmark | `developed_ex_us` |
+| EM ETF benchmark is not SP500 | PASS |
+
+Benchmark 1Y returns used in the validation pass:
+
+| Benchmark | 1Y Return |
+|---|---:|
+| `sp500` | `24.99%` |
+| `nasdaq100` | `40.01%` |
+| `global_equities` | `26.25%` |
+| `us_aggregate_bonds` | `0.78%` |
+| `gold` | `24.75%` |
+| `bitcoin` | `-40.65%` |
+| `developed_ex_us` | `20.94%` |
+| `emerging_markets` | `52.80%` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| ETF beating benchmark scores above 50 | PASS |
+| ETF lagging benchmark scores below 50 | PASS |
+| ETF matching benchmark scores 50 | PASS |
+| Missing benchmark return excludes Benchmark Relative component | PASS |
+| EM ETF maps to EM benchmark, not SP500 | PASS |
+| ETF Momentum ignores trailing 1Y return | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (330/330) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply migration `114_add_international_benchmarks.sql`, then run benchmark-refresh from Admin to populate EFA/EEM benchmark snapshots before relying on live Benchmark Relative scores.
+- Run recommendation-run from Admin after benchmark-refresh.
+- The seeded SCALE `200` was implemented as requested, but validation showed p90 pegging above the target. Claude/product should sign off on keeping the scale or request a calibration follow-up before freezing it.
+
+## 2026-06-21 SGT - Business Quality-Aware Excessive Risk Cap QA
+
+Scope:
+- Verify the excessive instrument risk guardrail remains conservative while no longer equating high-volatility, Strong / Exceptional Business Quality stocks with Weak characteristics.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| `riskScore > 75` capped all instruments to Weak regardless of Business Quality | Fixed for Strong / Exceptional Business Quality stocks; cap is now Neutral |
+| Lower-quality high-risk instruments still need the stricter Weak cap | Preserved |
+| Non-stock instruments have no Business Quality score and should remain unchanged | Preserved; null Business Quality still caps at Weak |
+| Instruments already at Poor / Significant Concerns should not be upgraded by the cap | Preserved for internal `Reduce` and `Sell` labels |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Exceptional Business Quality + risk score above 75 caps to Neutral | PASS |
+| Strong Business Quality + risk score above 75 caps to Neutral | PASS |
+| Solid / Moderate Business Quality + risk score above 75 caps to Weak | PASS |
+| Existing `Sell` label remains `Sell` | PASS |
+| Existing `Reduce` label remains `Reduce` | PASS |
+| ETF/null Business Quality + risk score above 75 caps to Weak | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (327/327) |
+| `npm.cmd run build` | PASS |
+
+Expected live impact:
+- ASML, ANET, AMD, QCOM, and PYPL are expected to move from Weak to Neutral when the excessive-risk cap is the binding guardrail and their Business Quality is Strong or Exceptional.
+- UNH, INTC, and NKE are expected to remain Weak if their Business Quality is below Strong.
+
+Residual items:
+- Run the Admin recommendation job after deploy so stored Characteristics assessments update.
+- This is a guardrail-severity change only; no scoring math, risk formula, score weights, label bands, or advice wording changed.
+
+## 2026-06-21 SGT - ROIC Durability Consistency Signal QA
+
+Scope:
+- Verify the Fundamentals Quality `roicDurability` signal measures consistency of value-creating ROIC over time rather than average ROIC level.
+- Confirm the annual-basis Quality vs Profitability correlation returns below the `< ~0.4` orthogonality target.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Annual-basis Quality and Profitability re-coupled because both used ROIC level | Fixed; Quality now uses ROIC consistency after a cost-of-capital gate, while Profitability keeps ROIC level |
+| ROIC durability needed frozen economic anchors rather than per-refresh refitting | Fixed; at least three annual ROIC observations are required, average ROIC below 8% scores 10, otherwise ROIC coefficient of variation uses `scoreLowerBetter(0.15, 0.60)` |
+| Balance-sheet financial exclusions needed to remain in place | Preserved; balance-sheet financials still drop cash conversion and ROIC durability from the Quality denominator |
+
+Live validation:
+
+| Check | Result |
+|---|---|
+| Formulation used | Recommended WACC-gated ROIC consistency; pure-CoV fallback not needed |
+| Previous annual-basis Quality correlation vs Profitability | `0.573` |
+| New Quality correlation vs Profitability | `0.380` over 94 comparable active-stock rows |
+| New Quality correlation vs Cash Flow | `0.008` over 94 comparable active-stock rows |
+| New Quality correlation vs Balance Sheet | `-0.181` over 94 comparable active-stock rows |
+| Active stocks checked | `105` |
+| Stocks with Quality score | `105` |
+| Stocks with available ROIC durability signal | `94` |
+
+Selected stored-to-new Quality samples:
+
+| Symbol | Stored Quality | New Quality | ROIC durability score | ROIC CoV |
+|---|---:|---:|---:|---:|
+| NVDA | `68.4` | `51.8` | `33.5` | `0.524` |
+| MSFT | `98.1` | `98.1` | `100.0` | `0.070` |
+| V | `99.4` | `98.9` | `97.9` | `0.162` |
+| CVX | `70.5` | `76.3` | `54.6` | `0.406` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Steady high-ROIC fixture scores ROIC durability high | PASS |
+| Volatile ROIC fixture scores below steady high-ROIC fixture | PASS |
+| Sub-WACC ROIC fixture receives low durability score | PASS |
+| Sparse ROIC fixture drops the signal from the denominator | PASS |
+| Financial fixture drops ROIC durability | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (326/326) |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- Fundamentals Quality, Business Quality, and stock Characteristics composites can shift after recomputation. This is expected from a scoring-definition refinement and does not change labels or advice framing.
+
+Residual items:
+- After deploy, run Force refresh fundamentals and recommendation-run from Admin so live scores recompute.
+- Rerun stock calibration diagnosis after recomputation.
+
+## 2026-06-21 SGT - Annual-Basis Fundamental Scoring Inputs QA
+
+Scope:
+- Verify Fundamentals scoring uses annual-basis rows instead of latest-quarter rows for period-sensitive inputs.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Latest quarterly ratios were selected for growth, profitability, valuation, and balance-sheet inputs | Fixed; scoring now selects the latest annual ratio row |
+| Latest quarterly statements were selected for cash-flow and revenue-denominator inputs | Fixed; scoring now selects latest annual income, cash-flow, and balance-sheet statements |
+| Seasonally negative latest-quarter FCF could floor cash-flow scores despite positive annual FCF | Fixed for rows with annual FCF coverage; regression test added |
+| Quarterly valuation ratios were single-quarter distorted | Fixed by moving valuation to annual basis; stored quarterly examples were materially inflated versus annual values |
+
+Valuation-basis decision:
+- Stored quarterly valuation fields are not reliable TTM valuation inputs. Read-only examples: ASML price/sales `50.23` quarterly vs `10.83` annual; V price/sales `51.50` quarterly vs `16.57` annual; CVX price/sales `8.61` quarterly vs `1.53` annual. Valuation therefore uses the latest annual ratio row.
+
+Selected live before/after scores:
+
+| Symbol | Growth | Profitability | Cash Flow | Valuation | Overall |
+|---|---:|---:|---:|---:|---:|
+| CVX | `19.7 -> 30.2` | `19.2 -> 33.7` | `10.0 -> 66.6` | `34.4 -> 86.2` | `28.9 -> 52.9` |
+| EOG | `91.8 -> 17.9` | `64.2 -> 85.2` | `91.2 -> 64.8` | `60.8 -> 91.8` | `77.5 -> 68.8` |
+| ASML | `32.4 -> 81.5` | `69.0 -> 95.3` | `3.2 -> 92.6` | `1.3 -> 51.9` | `37.9 -> 79.3` |
+| V | `38.7 -> 57.5` | `75.5 -> 100.0` | `10.0 -> 78.2` | `5.4 -> 40.1` | `43.2 -> 69.0` |
+| JNJ | `36.8 -> 74.1` | `56.2 -> 86.6` | `10.0 -> 45.7` | `15.7 -> 74.9` | `38.0 -> 68.9` |
+| AMZN | `55.0 -> 68.1` | `44.7 -> 57.9` | `16.5 -> 31.1` | `28.6 -> 64.4` | `39.9 -> 55.9` |
+| WMT | `60.3 -> null` | `26.3 -> 35.3` | `10.0 -> null` | `26.7 -> 74.0` | `36.0 -> 47.0` |
+
+Additional notes:
+- XOM and MA already selected annual rows in the live sample, so their scores were unchanged.
+- MSFT and NVDA did not have comparable live stored rows in the read-only sample used for this check.
+- Negative latest-quarter FCF recovery cases found in the live sample: ASML cash-flow `3.2 -> 92.6`, AMZN `16.5 -> 31.1`, F `12.0 -> 42.2`.
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Annual ratio selected when newer quarterly ratio exists | PASS |
+| Annual income/cash-flow/balance-sheet statements selected when newer quarterly statements exist | PASS |
+| Seasonally negative quarterly FCF does not floor cash-flow score when annual FCF is positive | PASS |
+| Bank and insurer financial-sector exclusions preserved on annual basis | PASS |
+| Quality correlation vs Cash Flow | `0.152` over 69 comparable rows |
+| Quality correlation vs Balance Sheet | `0.036` over 85 comparable rows |
+| Quality correlation vs Profitability | `0.573` over 83 comparable rows; follow-up needed because this no longer meets `< ~0.4` after annualizing Profitability |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (325/325) |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- Business Quality, valuation, cash-flow, profitability, and overall stock fundamental scores can shift broadly after recomputation. This is expected from a correctness fix to the input period basis.
+
+Residual items:
+- After deploy, run Force refresh fundamentals and recommendation-run from Admin.
+- Rerun stock calibration diagnosis only after scores are recomputed.
+- Follow-up required: annual-basis Profitability now correlates with Quality at `0.573`; any remedy would require a separate methodology/anchor review, not this inputs-only fix.
+
+## 2026-06-21 SGT - Financial Sector Fundamentals Guard Consistency QA
+
+Scope:
+- Verify balance-sheet financials receive consistent adjusted fundamentals handling, including the new Quality sub-score, while fee-based financials retain standard industrial scoring.
+
+Live Financials industry check:
+
+| Symbol(s) | Industry | Classification Result |
+|---|---|---|
+| JPM, BAC, WFC, USB, C | Banks - Diversified | Balance-sheet financial |
+| PNC | Banks - Regional | Balance-sheet financial |
+| GS, MS, SCHW | Financial - Capital Markets | Balance-sheet financial |
+| CB | Insurance - Property & Casualty | Balance-sheet financial |
+| BRK.B | Insurance - Diversified | Balance-sheet financial |
+| V, MA, AXP, PYPL | Financial - Credit Services | Standard industrial scoring |
+| BLK | Asset Management | Standard industrial scoring |
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Insurers such as CB and BRK.B were missed by the bank/capital-markets-only detector | Fixed; insurance industries now receive the balance-sheet financial exclusions |
+| Quality scoring reintroduced cash conversion and ROIC durability for banks and other balance-sheet financials | Fixed; balance-sheet financials drop both signals from the Quality denominator |
+| Fee-based financials could be over-broadened into bank-style methodology if sector alone was used | Guarded; credit-services/payments and asset-management industries keep standard industrial scoring |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| JPM-style bank receives profitability, balance-sheet, cash-flow, and Quality exclusions | PASS |
+| CB-style insurer receives profitability, balance-sheet, cash-flow, and Quality exclusions | PASS |
+| V/MA-style credit-services financial keeps cash-flow and full Quality inputs | PASS |
+| Live Quality correlation vs Profitability | `0.361` over 81 comparable rows |
+| Live Quality correlation vs Cash Flow | `-0.002` over 72 comparable rows |
+| Live Quality correlation vs Balance Sheet | `-0.116` over 82 comparable rows |
+| Orthogonality target `< ~0.4` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (324/324) |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- Financial stock Fundamentals, Business Quality, Quality, and Characteristics composites may shift after recomputation. This is expected scoring-consistency behavior, not a label or advice-language change.
+
+Residual items:
+- After merge/deploy, run Force refresh fundamentals and the recommendation-run from Admin so stored scores reflect the corrected financial-sector guard.
+- Future methodology enhancement: add financial-specific capital adequacy, asset-quality, reserve-quality, or ROE/ROA durability inputs if provider coverage supports them.
+
+## 2026-06-20 SGT - Forced Fundamentals Refresh Rotation QA
+
+Scope:
+- Verify forced fundamentals refresh advances through the active stock universe instead of repeatedly refreshing the same first symbol-ordered batch.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Forced fundamentals refresh bypassed the freshness filter but still sliced the symbol-ordered list, causing each forced pass to process the same first batch | Fixed; due candidates are sorted by oldest `lastRefreshedAt` before applying `maxStocksPerRefresh` |
+| Stocks beyond the first forced batch could remain untouched during repeated forced runs | Fixed; refreshed symbols move to the newest cohort, allowing the next forced run to select the next-oldest stocks |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Null or missing `lastRefreshedAt` is treated as oldest | PASS |
+| First forced pass selects the oldest/null cohort under the batch cap | PASS |
+| Second forced pass selects a different next-oldest cohort after first-batch timestamps advance | PASS |
+| `maxStocksPerRefresh` cap remains unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (324/324) |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- Admin/operator behavior only. No user-facing labels, scoring, methodology, or recommendation wording changed.
+
+Residual items:
+- For ROIC repopulation after the key-metrics provider fix, run Force refresh fundamentals about 3 times for roughly 105 active stocks at cap 50, then run the ROIC coverage query and recommendation-run.
+
+## 2026-06-20 SGT - FMP Key Metrics ROIC Ingestion QA
+
+Scope:
+- Verify FMP fundamentals ingestion restores ROIC as a provider data input by joining `key-metrics` to `ratios` rows.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| FMP stable `ratios` response did not provide `returnOnInvestedCapital` / `roic`, leaving `financial_ratios.roic` null | Fixed at provider layer by fetching `key-metrics` and joining by date with a fiscal-year fallback |
+| ROIC durability in the Quality score was uniformly dropped because ROIC had no provider source | Provider data source restored; live recomputation still requires post-merge Fundamentals refresh |
+| Data-ingestion docs incorrectly implied ROIC came from the ratios endpoint | Fixed; docs now identify `key-metrics.returnOnInvestedCapital` as the ROIC source |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Ratios row without ROIC receives ROIC from matching key-metrics row | PASS |
+| Ratios-supplied ROIC still takes precedence if present | PASS |
+| Existing ROE/ROA sourcing unchanged | PASS |
+| Scoring anchors, weights, sub-score definitions, and labels unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (323/323) |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- No label or methodology wording changed. After live refresh, overall fundamentals, Profitability, Business Quality, Quality, and stock Characteristics composites may shift slightly where ROIC becomes available. This is expected data coverage restoration.
+
+Residual items:
+- After merge/deploy, run Fundamentals refresh with force and then recommendation-run from Admin.
+- After the live refresh, run a read-only Supabase coverage check for annual `financial_ratios.roic` across the active stock universe and record the populated count.
+- Re-check Quality orthogonality after refresh to confirm correlations vs Profitability / Cash Flow / Balance Sheet remain below roughly `0.4`, and confirm `roicDurability` is no longer uniformly dropped.
+
+## 2026-06-20 SGT - Orthogonal Fundamentals Quality Score QA
+
+Scope:
+- Verify the stock Fundamentals Quality sub-score measures earnings quality and consistency instead of re-averaging Profitability, Cash Flow, and Balance Sheet signals.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Previous Quality formula reused category-level signals and was highly correlated with Profitability, Cash Flow, and Balance Sheet | Fixed; Quality now uses earnings stability, cash conversion/accruals, ROIC durability, and capital discipline with frozen economic anchors |
+| Quality anchors needed to be fixed and documented rather than refit per refresh | Fixed; methodology docs and public methodology page now state the fixed-anchor formula and generalization principle |
+| Business Quality and overall stock composite impact needed explicit test coverage | Covered; tests assert directionality, pinned anchor scores, and orthogonality while leaving Business Quality weights unchanged |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Signal direction: stable margins and strong cash conversion raise Quality, volatile margins and weak conversion lower it | PASS |
+| Pinned frozen-anchor scores: STABLE 96, DISCIPLINED 82, DILUTIVE 63, VOLATILE 3 | PASS |
+| Fixture previous Quality correlations vs Profitability / Cash Flow / Balance Sheet | `1.000`, `1.000`, `0.999` |
+| Fixture new Quality correlations vs Profitability / Cash Flow / Balance Sheet | `0.142`, `0.098`, `0.127` |
+| Read-only Supabase pass: eligible stocks / comparable scored rows | `105` / `96` |
+| Read-only Supabase previous Quality correlations vs Profitability / Cash Flow / Balance Sheet | `0.855`, `0.739`, `0.504` |
+| Read-only Supabase new Quality correlations vs Profitability / Cash Flow / Balance Sheet | `0.153`, `0.327`, `-0.214` |
+| Read-only Supabase new Quality distribution | min `18.73`, p25 `58.36`, median `75.04`, p75 `92.10`, max `100.00` |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (321/321) |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- Fundamentals Quality, Business Quality, and the stock overall Characteristics composite can shift after refreshed fundamentals and recommendation scores. No user-facing labels or advice wording changed.
+
+Residual items:
+- Re-run Fundamentals refresh and recommendation-run from the Admin panel.
+- Perform Med 29 recalibration QA after refreshed scores are stored.
+- Monitor annual ROIC coverage: the live comparable sample had no available ROIC durability observations, so that signal currently drops from the Quality denominator until coverage improves.
+
+## 2026-06-20 SGT - Concentration and Diversification Scoring Separation QA
+
+Scope:
+- Verify Risk Analytics diversification no longer double-counts issuer concentration already owned by the Concentration section.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Diversification subtracted an issuer concentration penalty while Concentration also scored issuer concentration | Fixed; Diversification now measures breadth and correlation only |
+| Issuer concentration inputs could change the Risk Analytics diversification score | Fixed; regression tests assert diversification is unchanged across different issuer concentration inputs |
+| Methodology docs and public methodology page could describe the old double-counting formula | Fixed; formula text now removes `concentrationPenalty` and explains the separation |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `diversificationScore` formula is `holdingScore + assetClassScore + sectorScore + currencyScore + 30 - correlationPenalty` | PASS |
+| Issuer concentration inputs no longer change Risk Analytics diversification score | PASS |
+| Concentration Review wrapper-excluded representative score remains 90 | PASS |
+| Risk Analytics concentration diagnostics and top-holding warnings remain unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run test` | PASS (318/318) |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+
+User-facing impact:
+- Risk Analytics diversification and Portfolio Review Diversification can shift upward where issuer concentration had previously reduced diversification. Concentration section numbers remain unchanged.
+
+Residual items:
+- Re-run Risk Analytics refresh and Portfolio Review from the Admin panel so stored reports reflect the new diversification formula.
+
+## 2026-06-19 SGT - Real Estate Exposure Impact Text QA
+
+Scope:
+- Verify Real Estate / REIT candidate Exposure impact text no longer leaks the generic fallback issue-category wording.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| REIT candidate cards showed broken text such as `{symbol} appears for insufficient real estate exposure with real estate.` | Fixed; REIT candidates now show clean observational text based on real-estate look-through exposure |
+| Raw internal issue-category wording could surface in user-facing candidate explanations | Fixed for the REIT branch and covered by a fallback-leak guard test across active Portfolio Balance Review candidate explanations |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| REIT candidate `primaryReason` matches `provides exposure to real estate where real-estate look-through is 1.0%` | PASS |
+| REIT candidate `primaryReason` does not contain `appears for` | PASS |
+| REIT candidate `primaryReason` does not contain `insufficient real estate exposure` | PASS |
+| Active Portfolio Balance Review candidate explanations do not contain the fallback phrase `appears for` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run test` | PASS (318/318) |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports pick up the corrected REIT Exposure impact text.
+
+## 2026-06-19 SGT - Real Estate Portfolio Balance Finding QA
+
+Scope:
+- Verify the new Real Estate / REIT Portfolio Balance Review finding and executive-summary Balance findings capitalization.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Portfolio Balance Review had no dedicated real estate / REIT sleeve when real estate look-through exposure was lightly represented | Fixed; a low-priority "Real Estate - Lightly Represented Category" finding now appears when real estate look-through exposure is below 3.0% and eligible REIT candidates exist |
+| Mortgage, international, or global REIT variants could lead the sleeve if they had higher instrument scores | Fixed; broad US REIT representatives lead the Real Estate candidate ranking, with `REM`, `VNQI`, and `REET` ranked below |
+| Executive-summary balance-finding disclaimer needed title-case sentence capitalization | Fixed; the summary now contains "Balance findings are deterministic analytical outputs..." |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Real Estate finding fires at 1.0% look-through exposure with non-advisory rationale | PASS |
+| Real Estate finding does not fire at 4.0% look-through exposure | PASS |
+| Candidate list is flat, capped at four, and leads with `VNQ`, `SCHH`, `IYR`, `USRT` | PASS |
+| `REM`, `VNQI`, and `REET` do not lead the Real Estate candidate list | PASS |
+| Existing section score inputs remain unchanged in the Real Estate finding test context | PASS |
+| Executive summary uses capitalized "Balance findings are deterministic analytical outputs" | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (317/317) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports can include the new Real Estate finding and updated summary text.
+
+## 2026-06-19 SGT - Portfolio Review Backlog Clearance QA
+
+Scope:
+- Verify Portfolio Balance Review user-facing rename, behavior-preserving wrapper-exclusion DRY cleanup, and cosmetic/taxonomy guard coverage.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| "Gap Analysis" framing could imply a user action to close a gap | Fixed; user-facing section now reads "Portfolio Balance Review" |
+| Generic "Underweighted Category" suffix was stronger than needed for compliance-safe balance framing | Fixed; generic suffix now reads "Lightly Represented Category" |
+| Wrapper-exclusion issuer logic was duplicated across Concentration, Risk, and page display paths | Fixed; shared helper now owns wrapper exclusion, issuer exposure detection, and issuer key generation |
+| Country-count labels used ASCII comparison text and symbol cleanup stripped US share-class suffixes | Fixed; labels use `â‰¥`, foreign exchange suffixes are stripped, and `BRK.B` is preserved |
+| Curated taxonomy maps lacked a single regression guard across every approved ETF and stock symbol | Fixed; taxonomy test now covers all curated ETF categories and stock sectors |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Portfolio Balance Review and Portfolio Balance Summary strings are present | PASS |
+| `issueCategory` and internal gap identifiers remain unchanged | PASS |
+| Concentration and Risk wrapper-excluded issuer top-one/top-five outputs match on representative inputs | PASS |
+| `cleanHoldingSymbol("BRK.B")` preserves share class and `cleanHoldingSymbol("2330.TW")` strips exchange suffix | PASS |
+| Curated alpha ETF/stock symbols normalize to expected canonical sectors | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (314/314) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports reflect the renamed Portfolio Balance Review display strings.
+
+## 2026-06-19 SGT - International Gap Subsection Presentation QA
+
+Scope:
+- Verify the International Equity gap renders as Broad ex-US, Developed markets, and Emerging markets subsections with up to two candidates per group.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| International Equity previously showed a flat one-per-role list, hiding useful second representatives within each ex-US sub-role | Fixed; candidates are grouped into per-sub-role subsections with up to two representatives each |
+| Total ex-US funds could read as additive peers beside developed and emerging regional funds | Fixed; the Broad ex-US subsection includes an all-in-one note |
+| IXUS and SPDW required explicit ex-US role routing for the grouped presentation | Fixed; IXUS routes to total ex-US and SPDW routes to developed ex-US |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| International candidates group as Broad ex-US, Developed markets, Emerging markets | PASS |
+| Each International group contains no more than two candidates | PASS |
+| Broad ex-US includes VXUS and IXUS; Developed includes VEA and SPDW | PASS |
+| Global-including-US and country/dividend candidates remain excluded | PASS |
+| Defensive grouping remains unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (312/312) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports reflect the grouped International presentation.
+
+## 2026-06-19 SGT - Portfolio Review Polish Items QA
+
+Scope:
+- Verify International Equity candidate variety, materiality-aware country labels, inflation hedge acknowledgement, and display polish.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| International Equity could show near-duplicate developed or emerging funds before a missing sub-role representative | Fixed; selection returns one core total/developed/emerging representative first |
+| Country Count label looked like a distinct-country total rather than a materiality-threshold count | Fixed; labels now read `Countries >=1%` and `Look-through countries >=3%` |
+| Macro inflation finding did not acknowledge held inflation-sensitive instruments such as TIP and GLD | Fixed; the finding lists existing detected hedge symbols before providing context |
+| Gap titles mixed hyphen and em-dash separators, and overlap text could show raw exchange tickers | Fixed; titles use em dash and overlap labels prefer issuer/company names with ticker cleanup fallback |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| International candidates lead with VXUS, VEA, and one emerging-market fund rather than VEA/SCHF or EEM/IEMG pairs | PASS |
+| Defensive broad-sleeve output remains unchanged | PASS |
+| Country-count labels show materiality thresholds | PASS |
+| Inflation finding acknowledges TIP/GLD when held and keeps original wording when not held | PASS |
+| Gap titles use em dash and overlap labels prefer names | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (311/311) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports reflect the polished candidate selection and display text.
+
+## 2026-06-19 SGT - Portfolio Review Gap Trigger and Breadth Ordering QA
+
+Scope:
+- Verify crypto-ballast findings are ballast-aware, International Equity candidates use graded breadth ordering, and International Equity no longer fires from non-international concentration/diversification side effects.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Crypto / Alternative - Ballast Underweighted could appear when bond-plus-gold ballast already exceeded crypto exposure | Fixed; the finding is suppressed unless ballast is lower than crypto exposure |
+| International Equity broad-representative ordering could let hedged/subset or global-including-US funds outrank plain ex-US core funds | Fixed; core ex-US funds receive the highest representative score, variants receive a middle score, and global-including-US funds receive a lower score |
+| International Equity finding could fire from top-holding concentration or low diversification even when international exposure was not underweight | Fixed; the trigger is now based on US/international look-through underweight only |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| 22% ballast versus 6% crypto suppresses `excessive_crypto_risk` | PASS |
+| 8% crypto versus 2% ballast emits the crypto-ballast finding with the existing accurate title | PASS |
+| VXUS/VEA/VWO/IEMG lead international candidates ahead of HEFA/EMXC and IOO/VT/ACWI | PASS |
+| Concentration/diversification side effects alone do not emit International Equity | PASS |
+| Defensive broad-sleeve output remains unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (308/308) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports reflect the corrected trigger behavior and candidate ordering.
+
+## 2026-06-19 SGT - International Gap Broad ETF Ordering QA
+
+Scope:
+- Verify the Portfolio Review International Equity gap leads with broad ex-US diversified ETFs before narrower country or international-dividend funds.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| International Equity gap could show narrower funds such as DXJ, SCHY, IDV, JPXN, and EWJ before broad ex-US diversifiers | Fixed; broad representatives such as VXUS, VEA, VWO, and IEMG receive category-representative priority |
+| Display ordering could re-sort selected candidates by issue fit and quality without preserving broad representative priority | Fixed; display sorting now applies category-representative score before issue fit and recommendation score |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Broad ex-US representatives lead the international candidate list even when narrow funds have higher standalone scores | PASS |
+| Defensive broad-sleeve candidate ordering remains covered by the shared category-remedy helper | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (307/307) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports reflect the corrected International Equity candidate ordering.
+
+## 2026-06-19 SGT - Curated Instrument Taxonomy Source QA
+
+Scope:
+- Verify ETF and stock canonical taxonomy is sourced from curated alpha-universe maps and generic ETF labels no longer blanket-apply `Global Diversification`.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Non-flagship sector ETFs could normalize to `Multi-Asset / Broad Market` when provider metadata was generic | Fixed; mapped ETFs now resolve `canonical_sector` from `ALPHA_ETF_CATEGORIES` first |
+| Generic ETF labels such as `ETF`, `Sector ETF`, `Broad Market`, and `US Broad Market` could apply `Global Diversification` to US-only funds | Fixed; those blanket theme aliases were removed |
+| Provider raw sector/industry could still add misleading themes to mapped ETFs | Fixed; mapped ETFs use curated category themes instead of raw provider sector/industry for themes |
+| Portfolio Review could infer global-equity role from the `Global Diversification` theme | Fixed; global/international roles now come from symbol/geography or curated international ETF categories |
+| Existing fresh instrument rows need re-normalization after taxonomy rule changes | Fixed; metadata refresh job supports `taxonomyBackfill=true` and live backfill was run |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Sector ETF normalization covers FXU/VPU/IYH/VFH/VDE as Utilities/Healthcare/Financials/Energy rather than broad market | PASS |
+| US sector ETF normalization keeps `Global Diversification` absent for XLU/FXU-style funds | PASS |
+| Global/ex-US ETF normalization keeps `Global Diversification` for VT/VXUS-style funds | PASS |
+| Stock sector normalization uses `ALPHA_STOCK_SECTORS` when provider raw sector is incorrect | PASS |
+| Portfolio Review candidate-role regression remains green for sector ETFs and international ETFs without theme-based sector inference | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (306/306) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel so stored reports reflect the corrected instrument taxonomy.
+- Live diagnostic SQL after backfill returned zero mis-sectored mapped US sector ETFs and zero mapped US sector ETFs with `Global Diversification`.
+
+## 2026-06-19 SGT - Defensive Gap Title, Candidate Preference, and Tooltip QA
+
+Scope:
+- Verify the Portfolio Review defensive gap finding uses compliant Defensive Sectors language, broad defensive sector ETF examples, and sleeve-specific tooltip categories.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Finding title still referenced Healthcare & Defensive even though the displayed candidates span Utilities, Consumer Staples, and Healthcare | Fixed; service output and page legacy rewrite now use `Defensive Sectors â€” Underweighted Category` |
+| Narrow healthcare sub-theme ETFs such as XBI, IBB, and ARKG could appear in a defensive-sector finding | Fixed; those symbols are excluded from `insufficient_defensive_exposure` |
+| Narrow or global utilities variants such as FXU/JXI could rank ahead of broad sector sleeve examples | Fixed; broad sleeve examples such as XLU/VPU, XLP/VDC, and XLV/VHT are preferred within the per-sleeve cap |
+| Defensive tooltip category could be too generic for Utilities or Consumer Staples candidates | Fixed; tooltip category is now derived from the candidate's defensive sleeve |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Defensive candidate test confirms Utilities group selects XLU/VPU and excludes FXU/JXI | PASS |
+| Defensive candidate test confirms Healthcare group selects XLV/VHT and excludes XBI/IBB/ARKG | PASS |
+| Defensive grouping still produces only Utilities, Consumer Staples, and Healthcare groups with no Defensive Ballast group | PASS |
+| Defensive tooltip helper returns Utilities, Consumer Staples, or Healthcare from the candidate sleeve | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (303/303) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports.
+
+## 2026-06-19 SGT - Defensive Gap Equity-Sleeve Scope QA
+
+Scope:
+- Verify the Portfolio Review Healthcare & Defensive gap finding is scoped to defensive equity sector sleeves and does not duplicate treasury/cash ballast candidates from other findings.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Defensive per-sleeve grouping could create a `Defensive Ballast` subsection from short-treasury/core-bond roles | Fixed; defensive selection now filters to Utilities, Consumer Staples, and Healthcare roles only |
+| Treasury/cash ETFs could duplicate between Healthcare & Defensive and Crypto-Ballast / Fixed-Income findings | Fixed for Healthcare & Defensive; ballast remains available to the other findings |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Defensive candidate test includes BND/GOVT and confirms neither appears in the defensive finding | PASS |
+| Defensive grouping produces only Utilities, Consumer Staples, and Healthcare groups, with no `Defensive Ballast` group | PASS |
+| Crypto-Ballast regression still confirms BND appears with crypto/ballast explanation text | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (302/302) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports.
+
+## 2026-06-19 SGT - Defensive Gap Per-Sleeve Candidate Sections QA
+
+Scope:
+- Verify the Portfolio Review Healthcare & Defensive gap finding no longer allows one defensive sleeve to dominate all displayed candidates.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Defensive gap could show a flat list dominated by Utilities after Utilities became the most-underweight sleeve | Fixed; defensive selection now takes up to two candidates per sleeve |
+| Healthcare and Consumer Staples examples could be crowded out from a finding titled Healthcare & Defensive | Fixed; defensive candidates are displayed in per-sleeve subsections ordered by sleeve underweight |
+| Non-defensive findings should not inherit subsection display | Preserved; International, Crypto, and other gap findings remain flat lists |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Utilities-most-underweight scenario returns Utilities, Consumer Staples, and Healthcare groups with no more than two candidates per sleeve | PASS |
+| Display grouping helper labels Utilities, Consumer Staples, and Healthcare and preserves incoming order | PASS |
+| Existing international, crypto, concentration, macro, and fixed-income gap tests still pass | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (302/302) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports.
+
+## 2026-06-19 SGT - Portfolio Review ETF Sector Classification Fallback QA
+
+Scope:
+- Verify Portfolio Review Gap Analysis uses curated alpha ETF categories to classify dedicated US sector ETFs when canonical sector metadata is stale or generic.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| FXU-like US sector ETFs with stale `Multi-Asset / Broad Market` metadata could fall through to `global_equity` because of broad diversification themes | Fixed; curated `ALPHA_ETF_CATEGORIES` now routes mapped sector ETFs such as Utilities to sector-specific roles |
+| Defensive gap candidate explanations could incorrectly reference non-US equity for a US sector ETF | Fixed; the FXU-like regression now routes to `utilities_defensive` and uses defensive-sector context |
+| International/global ETFs with defensive themes could enter the defensive gap through fallback scoring | Fixed; international/global candidate roles are blocked from `insufficient_defensive_exposure` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| FXU-like Utilities ETF routes to `utilities_defensive`, appears in the defensive gap, and does not use non-US equity explanation text | PASS |
+| VXUS remains `international_equity`, is excluded from the defensive gap, and remains eligible for the International Equity gap | PASS |
+| Existing defensive sleeve priority, gap candidate ordering, and Portfolio Review regressions still pass | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (300/300) |
+
+Residual items:
+- Part B remains outstanding: run the separate enrichment/backfill task to correct stale ETF `canonical_sector` values in the database for other consumers.
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports.
+
+## 2026-06-19 SGT - Defensive Gap Sleeve-Aware Role Priority QA
+
+Scope:
+- Verify the Portfolio Review `insufficient_defensive_exposure` gap finding prioritizes the most-underweight defensive sector sleeve rather than using a static healthcare-first role order.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Defensive gap ordering always led with healthcare even when healthcare already had look-through exposure and utilities had none | Fixed; healthcare, utilities, and consumer staples roles are ordered by lowest sleeve weight first |
+| `SuggestionContext` only carried healthcare defensive sleeve weight | Fixed; it now also carries `utilitiesWeight` and `consumerStaplesWeight` |
+| Equal or missing defensive sleeve weights needed deterministic behavior | Preserved; tie order remains healthcare -> utilities -> consumer staples |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Healthcare 12.0%, utilities 0.0%, consumer staples 4.0% orders roles utilities -> consumer staples -> healthcare -> short treasury -> core bond | PASS |
+| Utilities-most-underweight scenario gives XLU higher `issueFitScore` than XLP and XLV | PASS |
+| Equal/absent sleeve weights preserve default healthcare -> utilities -> consumer staples order | PASS |
+| `SuggestionContext` exposes `utilitiesWeight` and `consumerStaplesWeight` from look-through sector exposures | PASS |
+| Existing international, crypto, concentration, macro, and fixed-income gap tests still pass | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (298/298) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports.
+- Visible utilities/staples candidate breadth remains limited until the separate #ETF-TAXONOMY classification/routing task lands.
+
+## 2026-06-19 SGT - Gap Analysis Defensive ETF Examples and Category-Fit Ordering QA
+
+Scope:
+- Verify Portfolio Review Gap Analysis avoids single-stock examples in the Healthcare & Defensive underweighted category and displays candidate cards by category fit.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Healthcare & Defensive gap could surface individual healthcare stocks such as ISRG, AMGN, GILD, BMY, and PFE under an underweighted-category framing | Fixed; `insufficient_defensive_exposure` now blocks stock instruments and surfaces diversified defensive/sector ETFs such as XLV, VHT, XLU, and XLP |
+| Gap candidate cards were ordered by standalone instrument quality, making narrower high-quality instruments appear ahead of broader category-fit instruments | Fixed; display order now uses `issueFitScore` first and `recommendationScore` only as tie-breaker |
+| The UI chip said `Ordered by: Instrument quality`, which could read like a ranked pick list | Fixed; chip now reads `Ordered by: Category fit` and supporting copy describes category-intrinsic ordering |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Defensive gap test with XLV/VHT/XLU/XLP and ISRG/AMGN/GILD/BMY/PFE returns only ETFs | PASS |
+| Display comparator orders higher category-fit/lower-quality candidates above lower-fit/higher-quality candidates | PASS |
+| International and crypto gap tests still emit existing candidates | PASS |
+| XLV, VHT, XLU, and XLP are present in the seeded universe and default active | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (295/295) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports and verify the live Healthcare & Defensive finding shows diversified ETF examples and category-fit display order.
+
+## 2026-06-19 SGT - Insight Alignment Score Cap and Coverage Display QA
+
+Scope:
+- Verify Portfolio Review Insight Alignment cannot show a perfect or near-perfect score while displaying a watch/attention finding, and verify recommendation coverage displays as a percentage.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Insight Alignment could display 100/100 while also showing `Some holdings need review` | Fixed; any non-info finding caps the section score at 94 |
+| The same contradiction could occur for `Insights coverage is incomplete` | Fixed; the cap keys off any non-info finding, not only weak holdings |
+| `Recommendation Coverage` displayed the raw fraction `1` | Fixed; coverage is now treated as a ratio metric and formats as `100%` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Weak-held scenario with raw score above 100 caps at 94 and keeps `Some holdings need review` | PASS |
+| Incomplete-coverage-only scenario with raw score above 94 caps at 94 and keeps `Insights coverage is incomplete` | PASS |
+| Clean full-coverage scenario can still reach 100 with no findings | PASS |
+| `coverage` key is routed through the existing percent formatter | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (293/293) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports; the live reference Insight Alignment section should move from 100 to 94 when `Some holdings need review` is present.
+
+## 2026-06-19 SGT - Wrapper-Excluded Diversification Penalty QA
+
+Scope:
+- Verify Risk Analytics diversification scoring excludes ETF/fund wrappers from issuer concentration penalty inputs and matches the Concentration Review underlying-company basis.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| The first Task 2 implementation used `buildPortfolioExposureContext(...).issuerExposures`, which can include ETF wrappers such as VOO, QQQ, VT, and BND | Fixed; diversification penalty inputs now come from a wrapper-excluded underlying-company rollup |
+| Live diversification only moved from approximately 79 to 80 because VOO around 30% still dominated the penalty | Fixed in code; after fresh Risk Analytics and Portfolio Review refreshes, the expected movement is into the high-80s when the top underlying company is around 7.9% |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Snapshot with VOO at 30% direct and NVDA at 8% underlying returns top-one issuer concentration of 8%, not 30% | PASS |
+| Direct bond ETF wrapper in the same snapshot is excluded from issuer concentration penalty inputs | PASS |
+| Direct single-stock holding remains included in the wrapper-excluded issuer rollup | PASS |
+| Diversification score with wrapper-excluded issuer concentration is materially higher than direct-concentration result | PASS |
+| Existing direct fallback, genuine issuer-concentration penalty, and direct holding-count tests still pass | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (290/290) |
+
+Residual items:
+- Re-run Risk Analytics / risk-report refresh and then Portfolio Review from the Admin panel to regenerate stored values and confirm the top-1 penalty input is the underlying company, not the ETF wrapper.
+
+## 2026-06-19 SGT - Issuer-Level Risk Diversification Concentration Penalty QA
+
+Scope:
+- Verify Risk Analytics diversification scoring uses issuer-level look-through concentration for its concentration penalty when available, while preserving direct holding-count behavior and direct concentration diagnostics.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Diversified ETF wrappers could depress the Risk Analytics / Portfolio Review diversification score because the concentration penalty used direct top-holding concentration | Fixed; the concentration penalty now uses issuer-level top-one and top-five look-through exposure when available |
+| First-run or missing-look-through cases need stable behavior | Preserved; the score falls back to direct concentration when issuer concentration is unavailable |
+| Single-product residual risk should remain visible | Preserved; `holdingScore` still uses direct meaningful holding count, and Risk page warnings/metadata still use direct concentration |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Diversified wrapper with high direct top-one but low issuer top-one scores higher when issuer concentration is supplied | PASS |
+| Null issuer concentration equals direct-concentration fallback score | PASS |
+| Genuine high issuer top-one/top-five concentration still lowers diversification score | PASS |
+| Few direct holdings still score lower than broader direct holding count with the same issuer concentration | PASS |
+| Direct concentration metadata remains direct top-one/top-five | PASS |
+| Direct top-holding warning remains present for high direct top-one concentration | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (289/289) |
+
+Residual items:
+- Re-run Risk Analytics / risk-report refresh and then Portfolio Review from the Admin panel to regenerate stored values and confirm the reference portfolio diversification score moves from approximately 79 toward the high-80s.
+
+## 2026-06-19 SGT - Portfolio Review Gap Candidate Primary Reason QA
+
+Scope:
+- Verify Portfolio Review gap-analysis candidate `primaryReason` text is issue-category-aware for crypto-ballast and concentration-risk findings.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Crypto / Alternative ballast bond and treasury candidates showed generic fixed-income text such as "provides exposure to fixed income where bond allocation is ..." | Fixed; `excessive_crypto_risk` bond, treasury, fixed-income, and credit candidates now reference ballast characteristics relative to crypto and high-volatility alternative exposure |
+| Concentration-risk diversifier candidates lacked single-name concentration or correlation context | Fixed; geographic diversifiers now reference concentrated single-name look-through exposure, and ballast candidates reference lower-correlation context |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `excessive_crypto_risk` bond candidate `primaryReason` includes ballast and crypto context | PASS |
+| `concentration_risk` bond candidate no longer uses generic fixed-income allocation text | PASS |
+| `concentration_risk` bond candidate references lower-correlation or concentration context | PASS |
+| `concentration_risk` international diversifier references concentrated single-name look-through exposure | PASS |
+| `insufficient_fixed_income` bond candidate keeps existing generic fixed-income allocation text | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (285/285) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate stored reports with the updated candidate explanation text.
+
+## 2026-06-19 SGT - Portfolio Review Concentration Coherence
+
+Scope:
+- Align Portfolio Review concentration measurement and the `concentration_risk` gap finding around issuer-level underlying-company exposure on a total-value basis.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Top-one concentration used wrapper/direct ex-cash basis while top-five used issuer look-through total basis, allowing top-one to exceed top-five | Fixed by measuring both top-one and top-five from issuer-level underlying-company exposure when look-through exists |
+| Diversified ETF wrapper such as VOO could trigger "largest holding exceeds 25%" single-name finding | Fixed; wrappers remain in `largestDirectHolding` metadata but do not trigger single-company concentration findings |
+| `concentration_risk` gap finding fired at >5%, flagging normal large-cap ETF holdings such as NVDA around 7-8% | Fixed; gap trigger now requires issuer look-through weight >10%, high priority above 15% |
+| `concentration_risk` candidates could include individual stocks to address single-name concentration | Fixed; stock instruments are excluded from `concentration_risk` issue fit and candidate roles are diversified products only |
+| Direct single-stock concentration could be missed if the issuer rollup only accepted indirect rows | Fixed; direct single-stock rows are included in issuer exposure |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| ETF wrapper at 30% with largest issuer at 7% does not emit single-company concentration finding | PASS |
+| Single issuer at 12% emits watch finding | PASS |
+| Single issuer at 22% emits attention finding | PASS |
+| Direct single-stock at 30% is included in issuer top-one and emits attention | PASS |
+| Empty issuer look-through falls back to direct concentration | PASS |
+| `concentration_risk` does not fire at 10% or below | PASS |
+| `concentration_risk` candidates exclude stocks | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+| `npm.cmd run test` | PASS (285/285) |
+
+Residual items:
+- Re-run Portfolio Review from the Admin panel to regenerate the stored reference report and confirm the expected Concentration section score movement from approximately 69 to approximately 90.
+- Owner should confirm the 10% / 20% issuer concentration thresholds and 15% high-priority gap threshold after reviewing live output.
+- Risk Analytics diversification score still uses direct-level concentration; moving that to issuer-level remains a separate Task 2 follow-on.
 
 ## 2026-06-17 SGT - Task 14: Full Pre-Commercial RLS Hardening
 
@@ -118,7 +1807,7 @@ Checks performed and results:
 | Stale `chatgpt-handover.md` reference removed from gap item | PASS |
 
 Residual items:
-- None. Cron cleanliness is based on the 2026-06-16 architecture audit (`price-refresh` confirmed absent from `cron.job`). If a live Supabase SQL console is available, re-run: `SELECT jobname, command FROM cron.job WHERE command LIKE '%price-refresh%';` — expected: only `instrument-price-refresh` rows.
+- None. Cron cleanliness is based on the 2026-06-16 architecture audit (`price-refresh` confirmed absent from `cron.job`). If a live Supabase SQL console is available, re-run: `SELECT jobname, command FROM cron.job WHERE command LIKE '%price-refresh%';` â€” expected: only `instrument-price-refresh` rows.
 
 ## 2026-06-17 SGT - Task 8: Market Vision v3 Regeneration QA
 
@@ -137,7 +1826,7 @@ Checks performed and results:
 | Duration logged: 51970ms | PASS |
 | Overall confidence: 78% | PASS |
 | All regime scorecard sections populated (Growth, Inflation, Rates, Yield curve, Liquidity, USD, Commodities, Overall) | PASS |
-| Regime transition tracker populated (prior → current comparison) | PASS |
+| Regime transition tracker populated (prior â†’ current comparison) | PASS |
 | Cross-currents section populated | PASS |
 | Evidence confidence scores populated for all sections | PASS |
 | Portfolio macro impact matrix populated | PASS |
@@ -153,8 +1842,8 @@ Key regime findings (2026-06-08 to 2026-06-14):
 - Inflation: High and sticky (High confidence).
 - Rates: Falling rate support (High confidence).
 - Yield curve: Mixed / normal with conflicting slope signals (High confidence).
-- USD: Strengthening (Medium confidence) — regime shift from prior report (Weakening → Strengthening).
-- Liquidity: Neutral (Medium confidence) — regime shift from prior report (Tightening → Neutral).
+- USD: Strengthening (Medium confidence) â€” regime shift from prior report (Weakening â†’ Strengthening).
+- Liquidity: Neutral (Medium confidence) â€” regime shift from prior report (Tightening â†’ Neutral).
 - Overall market: Mixed constructive with caution (Medium confidence).
 
 Residual items:
@@ -181,7 +1870,7 @@ Checks performed and results:
 | Portfolio Assistant drawer suppressed in alpha mode | PASS |
 | Portfolio Assistant drawer visible in full mode | PASS |
 | Signup restriction: "Early access only" message shown when `ALLOWED_SIGNUP_EMAILS` is set | PASS |
-| Logo loads in alpha mode | PASS (after middleware fix — see below) |
+| Logo loads in alpha mode | PASS (after middleware fix â€” see below) |
 | Logo loads in full mode | PASS |
 
 Issues found and resolved during QA:
@@ -195,7 +1884,7 @@ Issues found and resolved during QA:
    - Fix: added `isAssetRequest` guard in `src/middleware.ts` (skips mode check for `/_next*` and paths with file extensions); added `"/_next"` and `"/brand"` to `alphaAllowedPrefixes` in `src/config/productMode.ts`. Three commits: `9e7de98`, `bb9ea0b`, `743cf20`.
 
 3. Market Vision `ReportActions` buttons not visible in full mode (apparent).
-   - Root cause: the `ReportActions` component only shows a Publish button for draft reports and an Archive button for non-archived reports. With two published reports and no drafts, only the Archive button renders. User expected a Publish/Generate button which is correct behaviour — Publish is draft-only.
+   - Root cause: the `ReportActions` component only shows a Publish button for draft reports and an Archive button for non-archived reports. With two published reports and no drafts, only the Archive button renders. User expected a Publish/Generate button which is correct behaviour â€” Publish is draft-only.
    - No code change required.
 
 Residual manual QA:
@@ -901,6 +2590,7 @@ Post-migration QA:
 - Confirm top underlying and top indirect exposure show issuer-level names such as `Alphabet Inc`.
 - Confirm security drill-down still shows underlying securities/source ETFs such as `GOOG`, `GOOGL`, `VOO`, `QQQ`, and `VT` where present.
 - Re-run recommendation refresh only after Portfolio Review has refreshed so portfolio-fit can consume issuer-level look-through context.
+  - **Superseded 2026-06-17:** portfolio-fit is no longer called in the recommendation scoring pipeline. Recommendation runs are now portfolio-independent and can be triggered in any order relative to Portfolio Review.
 
 Residual risks:
 - Existing saved Portfolio Review reports need a refresh before issuer IDs and security breakdown appear.
@@ -2664,7 +4354,7 @@ What changed:
 - Added latest-as-of macro signal lookup to `MacroIndicatorRepository`.
 - Theme Intelligence now uses latest FRED macro theme signals available as of the weekly period end date.
 - Weekly Reconciliation now includes latest FRED macro theme signals as of period end.
-- Gold headlines such as “Gold gains...” are corrected into the Gold / Commodities bucket even when yields are mentioned.
+- Gold headlines such as â€œGold gains...â€ are corrected into the Gold / Commodities bucket even when yields are mentioned.
 
 Validation performed:
 - `npm.cmd run test` passed: 101 tests.

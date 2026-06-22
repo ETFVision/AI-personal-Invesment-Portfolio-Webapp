@@ -178,6 +178,138 @@ test("instrument price refresh maps BRK.B to the FMP provider symbol BRK-B", asy
   assert.deepEqual(riskMetricRefreshes, []);
 });
 
+test("adjusted EOD price refresh stores historical adjusted close dates and avoids price stats scan", async () => {
+  const storedRows: Array<{
+    instrumentId: string;
+    provider: string;
+    symbol: string;
+    priceDate: string;
+    closePrice: number;
+    currency: string | null;
+    rawPayload: unknown;
+  }> = [];
+  const dailyReturnRefreshes: string[][] = [];
+  const returnAnchorRefreshes: string[][] = [];
+  const marketMetricRefreshes: string[][] = [];
+  const riskMetricRefreshes: string[][] = [];
+  const requestedHistory: Array<{ symbol: string; from: string; to: string; assetClass?: string }> = [];
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const repository = {
+    async listInstruments() {
+      return [
+        instrument("VOO", { assetClass: "etf", instrumentType: "etf" }),
+        instrument("BTC", { assetClass: "crypto", instrumentType: "crypto" }),
+        instrument("BRK.B"),
+        instrument("MSFT"),
+        instrument("QQQ", { assetClass: "etf", instrumentType: "etf" })
+      ];
+    },
+    async listInstrumentPriceStats() {
+      throw new Error("adjusted EOD refresh should not scan price stats");
+    },
+    async upsertInstrumentPrices(input: typeof storedRows) {
+      storedRows.push(...input);
+    },
+    async refreshInstrumentDailyReturns(ids: string[]) {
+      dailyReturnRefreshes.push(ids);
+    },
+    async refreshInstrumentReturnAnchors(ids: string[]) {
+      returnAnchorRefreshes.push(ids);
+    },
+    async refreshInstrumentMarketMetrics(ids: string[]) {
+      marketMetricRefreshes.push(ids);
+    },
+    async refreshInstrumentRiskMetrics(ids: string[]) {
+      riskMetricRefreshes.push(ids);
+    }
+  } as unknown as UniverseRepository;
+  const provider = {
+    name: "financial_modeling_prep",
+    async getHistoricalPrices(symbol: string, from: string, to: string, context?: { assetClass?: string }) {
+      requestedHistory.push({ symbol, from, to, assetClass: context?.assetClass });
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await Promise.resolve();
+      inFlight -= 1;
+      if (symbol === "QQQ") return [];
+      return [{ symbol, price: symbol === "BTCUSD" ? 65000 : 510, currency: "USD", asOfDate: "2026-06-19", raw: { adjClose: symbol === "BTCUSD" ? 65000 : 510 } }];
+    }
+  } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const result = await service.refreshInstrumentPricesEod({ lookbackDays: 7, concurrency: 2, skipRiskMetrics: true });
+
+  assert.equal(maxInFlight, 2);
+  assert.deepEqual(
+    requestedHistory.map(({ symbol, assetClass }) => ({ symbol, assetClass })),
+    [
+      { symbol: "VOO", assetClass: "etf" },
+      { symbol: "BTCUSD", assetClass: "crypto" },
+      { symbol: "BRK-B", assetClass: "stock" },
+      { symbol: "MSFT", assetClass: "stock" },
+      { symbol: "QQQ", assetClass: "etf" }
+    ]
+  );
+  assert.deepEqual(
+    storedRows.map(({ instrumentId, symbol, priceDate, closePrice }) => ({ instrumentId, symbol, priceDate, closePrice })),
+    [
+    { instrumentId: "inst-VOO", symbol: "VOO", priceDate: "2026-06-19", closePrice: 510 },
+    { instrumentId: "inst-BTC", symbol: "BTCUSD", priceDate: "2026-06-19", closePrice: 65000 },
+    { instrumentId: "inst-BRK.B", symbol: "BRK-B", priceDate: "2026-06-19", closePrice: 510 },
+    { instrumentId: "inst-MSFT", symbol: "MSFT", priceDate: "2026-06-19", closePrice: 510 }
+    ]
+  );
+  assert.deepEqual(
+    storedRows.map(({ provider, currency }) => ({ provider, currency })),
+    [
+      { provider: "financial_modeling_prep", currency: "USD" },
+      { provider: "financial_modeling_prep", currency: "USD" },
+      { provider: "financial_modeling_prep", currency: "USD" },
+      { provider: "financial_modeling_prep", currency: "USD" }
+    ]
+  );
+  assert.deepEqual(result.requestedSymbols, ["VOO", "BTCUSD", "BRK-B", "MSFT", "QQQ"]);
+  assert.equal(result.updatedCount, 4);
+  assert.deepEqual(result.missingSymbols, ["QQQ"]);
+  assert.match(result.message, /Stored 4 adjusted EOD price rows over the trailing 7-day window/);
+  assert.deepEqual(dailyReturnRefreshes, [["inst-VOO", "inst-BTC", "inst-BRK.B", "inst-MSFT"]]);
+  assert.deepEqual(returnAnchorRefreshes, [["inst-VOO", "inst-BTC", "inst-BRK.B", "inst-MSFT"]]);
+  assert.deepEqual(marketMetricRefreshes, [["inst-VOO", "inst-BTC", "inst-BRK.B", "inst-MSFT"]]);
+  assert.deepEqual(riskMetricRefreshes, []);
+});
+
+test("adjusted EOD price refresh reports missing symbols without latest-price fallback", async () => {
+  const repository = {
+    async listInstruments() {
+      return [instrument("VOO", { assetClass: "etf", instrumentType: "etf" })];
+    },
+    async listInstrumentPriceStats() {
+      throw new Error("adjusted EOD refresh should not scan price stats");
+    },
+    async upsertInstrumentPrices() {
+      throw new Error("empty adjusted EOD response should not upsert");
+    }
+  } as unknown as UniverseRepository;
+  const provider = {
+    name: "financial_modeling_prep",
+    async getHistoricalPrices() {
+      return [];
+    },
+    async getLatestPrices() {
+      throw new Error("adjusted EOD response should not fall back to latest prices");
+    }
+  } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const result = await service.refreshInstrumentPricesEod({ lookbackDays: 7, skipDerivedMetrics: true });
+
+  assert.deepEqual(result.requestedSymbols, ["VOO"]);
+  assert.equal(result.updatedCount, 0);
+  assert.deepEqual(result.missingSymbols, ["VOO"]);
+  assert.match(result.message, /Stored 0 adjusted EOD price rows over the trailing 7-day window/);
+});
+
 test("history coverage tracks crypto against a shorter 2Y target", async () => {
   const stock = instrument("VOO", { assetClass: "etf", instrumentType: "etf", assetCategory: "EQUITY" });
   const completeCryptoEtf = instrument("IBIT", { assetClass: "etf", instrumentType: "crypto_etf", assetCategory: "CRYPTO" });
@@ -564,11 +696,11 @@ test("instrument risk refresh batches missing and stale risk metrics only", asyn
   const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
 
   const service = new InstrumentMarketService(repository, provider);
-  const result = await service.refreshInstrumentRiskMetricsInBatches({ batchSize: 2, minObservations: 30 });
+  const result = await service.refreshInstrumentRiskMetricsInBatches({ batchSize: 2, chunkSize: 2, minObservations: 30 });
 
   assert.equal(result.updatedCount, 2);
   assert.deepEqual(result.requestedSymbols, ["MISS", "STALE"]);
-  assert.deepEqual(refreshedIds, [["inst-MISS"], ["inst-STALE"]]);
+  assert.deepEqual(refreshedIds, [["inst-MISS", "inst-STALE"]]);
 });
 
 test("instrument risk refresh skips when all eligible metrics are current", async () => {
@@ -597,16 +729,20 @@ test("instrument risk refresh skips when all eligible metrics are current", asyn
   assert.equal(result.message, "All eligible instrument risk metrics are current.");
 });
 
-test("instrument risk refresh falls back to stored prices when database risk RPC times out", async () => {
+test("instrument risk refresh falls back per instrument when a chunked risk RPC times out", async () => {
   const timeoutInstrument = instrument("STIP", { assetClass: "etf", instrumentType: "etf", assetCategory: "BOND" });
+  const timeoutInstrumentTwo = instrument("VGIT", { assetClass: "etf", instrumentType: "etf", assetCategory: "BOND" });
   const refreshedIds: string[][] = [];
   const fallbackMetrics: Array<{ instrumentId: string; observationCount?: number | null }> = [];
   const repository = {
     async listInstruments() {
-      return [timeoutInstrument];
+      return [timeoutInstrument, timeoutInstrumentTwo];
     },
     async listInstrumentReturnAnchors() {
-      return [{ instrumentId: timeoutInstrument.id, asOfDate: "2026-04-01", observationCount: 80 }];
+      return [
+        { instrumentId: timeoutInstrument.id, asOfDate: "2026-04-01", observationCount: 80 },
+        { instrumentId: timeoutInstrumentTwo.id, asOfDate: "2026-04-01", observationCount: 80 }
+      ];
     },
     async listInstrumentRiskMetrics() {
       return [];
@@ -616,8 +752,8 @@ test("instrument risk refresh falls back to stored prices when database risk RPC
       throw new Error("canceling statement due to statement timeout");
     },
     async listInstrumentPrices(ids: string[]) {
-      assert.deepEqual(ids, [timeoutInstrument.id]);
-      return riskPriceRows(timeoutInstrument.id, 80);
+      assert.equal(ids.length, 1);
+      return riskPriceRows(ids[0] ?? "", 80);
     },
     async upsertInstrumentRiskMetrics(input: Array<{ instrumentId: string; observationCount?: number | null }>) {
       fallbackMetrics.push(...input);
@@ -626,13 +762,15 @@ test("instrument risk refresh falls back to stored prices when database risk RPC
   const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
 
   const service = new InstrumentMarketService(repository, provider);
-  const result = await service.refreshInstrumentRiskMetricsInBatches({ batchSize: 1, minObservations: 30 });
+  const result = await service.refreshInstrumentRiskMetricsInBatches({ batchSize: 2, chunkSize: 2, minObservations: 30 });
 
-  assert.equal(result.updatedCount, 1);
-  assert.deepEqual(result.requestedSymbols, ["STIP"]);
+  assert.equal(result.updatedCount, 2);
+  assert.deepEqual(result.requestedSymbols, ["STIP", "VGIT"]);
   assert.deepEqual(result.errors, []);
-  assert.deepEqual(refreshedIds, [[timeoutInstrument.id]]);
-  assert.equal(fallbackMetrics.length, 1);
+  assert.deepEqual(refreshedIds, [[timeoutInstrument.id, timeoutInstrumentTwo.id], [timeoutInstrument.id], [timeoutInstrumentTwo.id]]);
+  assert.equal(fallbackMetrics.length, 2);
   assert.equal(fallbackMetrics[0]?.instrumentId, timeoutInstrument.id);
   assert.equal(fallbackMetrics[0]?.observationCount, 80);
+  assert.equal(fallbackMetrics[1]?.instrumentId, timeoutInstrumentTwo.id);
+  assert.equal(fallbackMetrics[1]?.observationCount, 80);
 });

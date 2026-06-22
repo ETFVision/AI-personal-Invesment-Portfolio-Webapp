@@ -40,12 +40,23 @@ export class EtfLookthroughRefreshService {
       .filter((instrument) => !["Bonds / Fixed Income", "Commodities / Gold", "Crypto", "Cash / Money Market"].includes(instrument.canonicalSector ?? ""))
       .filter((instrument) => requestedSymbols.size === 0 || requestedSymbols.has(instrument.symbol?.toUpperCase() ?? ""));
     const staleCutoff = daysAgo(input.force ? 0 : this.options.staleAfterDays);
-    const selected = [];
+    const eligible: { instrument: (typeof instruments)[0]; latest: string | null; holdingsLatest: string | null }[] = [];
     for (const instrument of instruments) {
-      if (selected.length >= this.options.maxEtfsPerRun) break;
       const latest = await this.repository.getLatestExposureDateForEtf(instrument.id);
-      if (input.force || !latest || latest < staleCutoff) selected.push(instrument);
+      if (input.force || !latest || latest < staleCutoff) {
+        const holdingsLatest = await this.repository.getLatestHoldingsDateForEtf(instrument.id);
+        eligible.push({ instrument, latest, holdingsLatest });
+      }
     }
+    // Sort by holdings date so ETFs missing holdings are always prioritised first,
+    // allowing correct progression across multiple 50-batch passes.
+    eligible.sort((a, b) => {
+      if (!a.holdingsLatest && !b.holdingsLatest) return 0;
+      if (!a.holdingsLatest) return -1;
+      if (!b.holdingsLatest) return 1;
+      return a.holdingsLatest < b.holdingsLatest ? -1 : 1;
+    });
+    const selected = eligible.slice(0, this.options.maxEtfsPerRun).map(({ instrument }) => instrument);
 
     let etfsRefreshed = 0;
     let sectorRows = 0;

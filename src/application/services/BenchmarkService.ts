@@ -57,6 +57,26 @@ const DEFAULT_BENCHMARKS: Array<{
     metadata: { proxy: "Global equities ETF" }
   },
   {
+    benchmarkKey: "developed_ex_us",
+    name: "Developed ex-US",
+    benchmarkType: "equity",
+    symbol: "EFA",
+    currency: "USD",
+    baseValue: 100,
+    components: [],
+    metadata: { proxy: "Developed ex-US ETF" }
+  },
+  {
+    benchmarkKey: "emerging_markets",
+    name: "Emerging markets",
+    benchmarkType: "equity",
+    symbol: "EEM",
+    currency: "USD",
+    baseValue: 100,
+    components: [],
+    metadata: { proxy: "Emerging markets ETF" }
+  },
+  {
     benchmarkKey: "us_aggregate_bonds",
     name: "US aggregate bonds",
     benchmarkType: "bond",

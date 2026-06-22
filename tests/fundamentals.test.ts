@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { FundamentalScoringService } from "../src/application/services/fundamentals/FundamentalScoringService";
+import { FundamentalScoringService, fundamentalScoringInternals } from "../src/application/services/fundamentals/FundamentalScoringService";
 import { FundamentalTrendCalculationService } from "../src/application/services/fundamentals/FundamentalTrendCalculationService";
 import { FundamentalsRefreshService, fundamentalsRefreshInternals } from "../src/application/services/fundamentals/FundamentalsRefreshService";
 import type { FundamentalsProvider, FundamentalsProviderResult } from "../src/application/ports/providers/FundamentalsProvider";
@@ -246,6 +246,40 @@ test("FMP fundamentals provider maps Berkshire share-class symbol to provider fo
   assert.equal(fmpFundamentalsInternals.normalizeFmpSymbol("AAPL"), "AAPL");
 });
 
+test("FMP fundamentals normalization joins ROIC from key metrics", () => {
+  const keyMetrics = fmpFundamentalsInternals.buildKeyMetricsLookup([{
+    date: "2025-12-31",
+    fiscalYear: 2025,
+    period: "FY",
+    returnOnInvestedCapital: 0.18
+  }], "annual");
+  const ratio = fmpFundamentalsInternals.normalizeRatio("AAPL", {
+    date: "2025-12-31",
+    calendarYear: 2025,
+    period: "FY",
+    returnOnEquity: 0.3,
+    returnOnAssets: 0.2
+  }, "fmp", "annual", keyMetrics.get("2025-12-31"));
+
+  assert.equal(ratio.roic, 0.18);
+  assert.equal(ratio.roe, 0.3);
+  assert.equal(ratio.roa, 0.2);
+});
+
+test("FMP fundamentals normalization keeps ratios-supplied ROIC precedence", () => {
+  const keyMetrics = fmpFundamentalsInternals.buildKeyMetricsLookup([{
+    fiscalYear: 2025,
+    returnOnInvestedCapital: 0.18
+  }], "annual");
+  const ratio = fmpFundamentalsInternals.normalizeRatio("AAPL", {
+    calendarYear: 2025,
+    period: "FY",
+    returnOnInvestedCapital: 0.22
+  }, "fmp", "annual", keyMetrics.get("2025|annual"));
+
+  assert.equal(ratio.roic, 0.22);
+});
+
 test("fundamental scoring produces deterministic scores and confidence", () => {
   const service = new FundamentalScoringService();
   const score = service.calculateScore({
@@ -289,6 +323,86 @@ test("fundamental scoring produces deterministic scores and confidence", () => {
   assert.ok((score.overallFundamentalScore ?? 0) > 50);
   assert.ok(score.scoreConfidence > 50);
   assert.match(score.explanation, /Deterministic fundamentals score/);
+});
+
+test("fundamental scoring selects annual rows over latest quarterly rows for period-sensitive inputs", () => {
+  const service = new FundamentalScoringService();
+  const annualRatio: FinancialRatio = {
+    instrumentId: "inst-seasonal",
+    symbol: "SEAS",
+    period: "annual",
+    fiscalYear: 2025,
+    fiscalQuarter: 0,
+    reportDate: "2025-12-31",
+    peRatio: 20,
+    forwardPe: 18,
+    priceToSales: 3,
+    priceToBook: 4,
+    evToEbitda: 14,
+    evToSales: null,
+    grossMargin: 0.45,
+    operatingMargin: 0.24,
+    netMargin: 0.18,
+    roe: 0.18,
+    roic: 0.16,
+    roa: 0.10,
+    debtToEquity: 0.4,
+    netDebtToEbitda: 1.2,
+    currentRatio: 1.6,
+    quickRatio: 1.2,
+    freeCashFlowYield: 0.05,
+    revenueGrowth: 0.12,
+    epsGrowth: 0.14,
+    netIncomeGrowth: 0.13,
+    freeCashFlowGrowth: 0.11,
+    provider: "test",
+    providerMetadata: {}
+  };
+  const quarterlyRatio: FinancialRatio = {
+    ...annualRatio,
+    period: "quarterly",
+    fiscalYear: 2026,
+    fiscalQuarter: 1,
+    reportDate: "2026-03-31",
+    peRatio: 160,
+    priceToSales: 15,
+    evToEbitda: 70,
+    grossMargin: 0.05,
+    operatingMargin: -0.04,
+    netMargin: -0.08,
+    roe: -0.02,
+    roic: -0.01,
+    roa: -0.01,
+    revenueGrowth: -0.15,
+    epsGrowth: -0.2,
+    netIncomeGrowth: -0.25,
+    freeCashFlowGrowth: -0.3,
+    freeCashFlowYield: -0.01
+  };
+
+  const score = service.calculateScore({
+    instrumentId: "inst-seasonal",
+    symbol: "SEAS",
+    profile: null,
+    ratios: [quarterlyRatio, annualRatio],
+    statements: [
+      trendStatement({ symbol: "SEAS", statementType: "income_statement", period: "annual", year: 2025, revenue: 1_000, operatingIncome: 240, netIncome: 180, sharesOutstanding: 100 }),
+      trendStatement({ symbol: "SEAS", statementType: "cash_flow", period: "annual", year: 2025, operatingCashFlow: 260, freeCashFlow: 190 }),
+      trendStatement({ symbol: "SEAS", statementType: "balance_sheet", period: "annual", year: 2025, totalAssets: 1_500, cashAndEquivalents: 150, totalDebt: 300 }),
+      trendStatement({ symbol: "SEAS", statementType: "income_statement", period: "quarterly", year: 2026, quarter: 1, revenue: 200, operatingIncome: -10, netIncome: -20, sharesOutstanding: 100 }),
+      trendStatement({ symbol: "SEAS", statementType: "cash_flow", period: "quarterly", year: 2026, quarter: 1, operatingCashFlow: -30, freeCashFlow: -60 }),
+      trendStatement({ symbol: "SEAS", statementType: "balance_sheet", period: "quarterly", year: 2026, quarter: 1, totalAssets: 1_400, cashAndEquivalents: 50, totalDebt: 600 })
+    ]
+  });
+
+  assert.equal((score.inputsSnapshot.latestRatio as FinancialRatio | null)?.period, "annual");
+  assert.equal((score.inputsSnapshot.latestIncomeStatement as FinancialStatement | null)?.period, "annual");
+  assert.equal((score.inputsSnapshot.latestCashFlowStatement as FinancialStatement | null)?.period, "annual");
+  assert.equal((score.inputsSnapshot.latestBalanceSheet as FinancialStatement | null)?.period, "annual");
+  assert.ok((score.growthScore ?? 0) > 60);
+  assert.ok((score.profitabilityScore ?? 0) > 60);
+  assert.ok((score.cashFlowScore ?? 0) > 60);
+  assert.ok((score.valuationScore ?? 0) > 30);
 });
 
 test("fundamental scoring gives quality growth stocks a bounded valuation adjustment", () => {
@@ -354,6 +468,334 @@ test("fundamental scoring gives quality growth stocks a bounded valuation adjust
   assert.ok((score.valuationScore ?? 0) >= 28);
   assert.ok((score.inputsSnapshot.rawValuationScore as number) < score.valuationScore!);
   assert.ok((score.inputsSnapshot.valuationAdjustment as number) > 0);
+});
+
+function qualityInput(input: {
+  symbol: string;
+  margins: number[];
+  operatingCashFlow: number;
+  netIncome: number;
+  roic: number | number[];
+  latestShares: number;
+  previousShares: number;
+}) {
+  const years = [2021, 2022, 2023, 2024, 2025].slice(-input.margins.length);
+  const roicSeries = Array.isArray(input.roic) ? input.roic : input.margins.map(() => input.roic as number);
+  const ratios = input.margins.map((margin, index): FinancialRatio => ({
+    instrumentId: `inst-${input.symbol}`,
+    symbol: input.symbol,
+    period: "annual",
+    fiscalYear: years[index],
+    fiscalQuarter: 0,
+    reportDate: `${years[index]}-12-31`,
+    peRatio: null,
+    forwardPe: null,
+    priceToSales: null,
+    priceToBook: null,
+    evToEbitda: null,
+    evToSales: null,
+    grossMargin: null,
+    operatingMargin: margin,
+    netMargin: margin,
+    roe: null,
+    roic: roicSeries[index] ?? null,
+    roa: null,
+    debtToEquity: null,
+    netDebtToEbitda: null,
+    currentRatio: null,
+    quickRatio: null,
+    freeCashFlowYield: null,
+    revenueGrowth: null,
+    epsGrowth: null,
+    netIncomeGrowth: null,
+    freeCashFlowGrowth: null,
+    provider: "test",
+    providerMetadata: {}
+  }));
+  const statements: FinancialStatement[] = [
+    trendStatement({ symbol: input.symbol, statementType: "income_statement", period: "annual", year: 2024, revenue: 100, operatingIncome: input.margins.at(-2) ?? input.margins[0], netIncome: input.netIncome, sharesOutstanding: input.previousShares }),
+    trendStatement({ symbol: input.symbol, statementType: "income_statement", period: "annual", year: 2025, revenue: 100, operatingIncome: input.margins.at(-1) ?? input.margins[0], netIncome: input.netIncome, sharesOutstanding: input.latestShares }),
+    trendStatement({ symbol: input.symbol, statementType: "cash_flow", period: "annual", year: 2025, operatingCashFlow: input.operatingCashFlow }),
+    trendStatement({ symbol: input.symbol, statementType: "balance_sheet", period: "annual", year: 2025, totalAssets: 1_000 })
+  ];
+  return { ratios, statements };
+}
+
+function qualityScoreFor(input: Parameters<typeof qualityInput>[0], options?: { isFinancial?: boolean }) {
+  const data = qualityInput(input);
+  const income = data.statements.find((statement) => statement.statementType === "income_statement" && statement.fiscalYear === 2025) ?? null;
+  const cashFlow = data.statements.find((statement) => statement.statementType === "cash_flow") ?? null;
+  const balanceSheet = data.statements.find((statement) => statement.statementType === "balance_sheet") ?? null;
+  return fundamentalScoringInternals.calculateQualityScore({
+    ratios: data.ratios,
+    statements: data.statements,
+    income,
+    cashFlow,
+    balanceSheet,
+    isFinancial: options?.isFinancial
+  });
+}
+
+function pearson(left: number[], right: number[]) {
+  const leftMean = left.reduce((sum, value) => sum + value, 0) / left.length;
+  const rightMean = right.reduce((sum, value) => sum + value, 0) / right.length;
+  const numerator = left.reduce((sum, value, index) => sum + (value - leftMean) * (right[index] - rightMean), 0);
+  const leftDenominator = Math.sqrt(left.reduce((sum, value) => sum + (value - leftMean) ** 2, 0));
+  const rightDenominator = Math.sqrt(right.reduce((sum, value) => sum + (value - rightMean) ** 2, 0));
+  return numerator / (leftDenominator * rightDenominator);
+}
+
+test("fundamental quality score rewards stability and cash conversion with frozen anchors", () => {
+  const strong = qualityScoreFor({
+    symbol: "STABLE",
+    margins: [0.30, 0.31, 0.29, 0.30, 0.30],
+    operatingCashFlow: 110,
+    netIncome: 100,
+    roic: [0.19, 0.20, 0.20, 0.21, 0.20],
+    latestShares: 98,
+    previousShares: 100
+  });
+  const volatile = qualityScoreFor({
+    symbol: "VOLATILE",
+    margins: [0.05, 0.45, -0.02, 0.30, 0.10],
+    operatingCashFlow: 50,
+    netIncome: 100,
+    roic: 0.04,
+    latestShares: 112,
+    previousShares: 100
+  });
+  const accrualWeak = qualityScoreFor({
+    symbol: "ACCRUAL",
+    margins: [0.30, 0.31, 0.29, 0.30, 0.30],
+    operatingCashFlow: 50,
+    netIncome: 100,
+    roic: 0.12,
+    latestShares: 100,
+    previousShares: 100
+  });
+
+  assert.ok((strong.score ?? 0) > 90);
+  assert.ok((volatile.score ?? 100) < 25);
+  assert.ok((accrualWeak.score ?? 0) < (strong.score ?? 0));
+  assert.ok((strong.signals.cashConversion.score ?? 0) > (accrualWeak.signals.cashConversion.score ?? 0));
+  assert.ok((strong.signals.earningsStability.score ?? 0) > (volatile.signals.earningsStability.score ?? 0));
+});
+
+test("fundamental quality ROIC durability rewards consistency instead of raw level", () => {
+  const steady = qualityScoreFor({
+    symbol: "STEADY",
+    margins: [0.20, 0.20, 0.20, 0.20, 0.20],
+    operatingCashFlow: 100,
+    netIncome: 100,
+    roic: [0.17, 0.18, 0.18, 0.19, 0.18],
+    latestShares: 100,
+    previousShares: 100
+  });
+  const volatile = qualityScoreFor({
+    symbol: "CHOPPY",
+    margins: [0.20, 0.20, 0.20, 0.20, 0.20],
+    operatingCashFlow: 100,
+    netIncome: 100,
+    roic: [0.08, 0.24, 0.09, 0.22, 0.10],
+    latestShares: 100,
+    previousShares: 100
+  });
+  const subWacc = qualityScoreFor({
+    symbol: "LOWRETURN",
+    margins: [0.20, 0.20, 0.20, 0.20, 0.20],
+    operatingCashFlow: 100,
+    netIncome: 100,
+    roic: [0.05, 0.06, 0.07, 0.06, 0.07],
+    latestShares: 100,
+    previousShares: 100
+  });
+  const sparse = qualityScoreFor({
+    symbol: "SPARSE",
+    margins: [0.20, 0.20],
+    operatingCashFlow: 100,
+    netIncome: 100,
+    roic: [0.18, 0.19],
+    latestShares: 100,
+    previousShares: 100
+  });
+  const financial = qualityScoreFor({
+    symbol: "BANK",
+    margins: [0.20, 0.20, 0.20, 0.20, 0.20],
+    operatingCashFlow: 100,
+    netIncome: 100,
+    roic: [0.17, 0.18, 0.18, 0.19, 0.18],
+    latestShares: 100,
+    previousShares: 100
+  }, { isFinancial: true });
+
+  assert.ok((steady.signals.roicDurability.score ?? 0) > 85);
+  assert.ok((volatile.signals.roicDurability.score ?? 0) < (steady.signals.roicDurability.score ?? 0));
+  assert.equal(subWacc.signals.roicDurability.score, 10);
+  assert.equal(sparse.signals.roicDurability.score, null);
+  assert.equal(financial.signals.roicDurability.score, null);
+});
+
+test("fundamental quality score named anchors are pinned", () => {
+  const anchors = new Map([
+    ["STABLE", qualityScoreFor({ symbol: "STABLE", margins: [0.30, 0.31, 0.29, 0.30, 0.30], operatingCashFlow: 110, netIncome: 100, roic: [0.19, 0.20, 0.20, 0.21, 0.20], latestShares: 98, previousShares: 100 }).score],
+    ["DISCIPLINED", qualityScoreFor({ symbol: "DISCIPLINED", margins: [0.20, 0.20, 0.21, 0.20, 0.20], operatingCashFlow: 100, netIncome: 100, roic: [0.13, 0.14, 0.14, 0.15, 0.14], latestShares: 99, previousShares: 100 }).score],
+    ["DILUTIVE", qualityScoreFor({ symbol: "DILUTIVE", margins: [0.25, 0.25, 0.25, 0.24, 0.25], operatingCashFlow: 90, netIncome: 100, roic: [0.11, 0.12, 0.12, 0.13, 0.12], latestShares: 110, previousShares: 100 }).score],
+    ["VOLATILE", qualityScoreFor({ symbol: "VOLATILE", margins: [0.05, 0.45, -0.02, 0.30, 0.10], operatingCashFlow: 50, netIncome: 100, roic: [0.04, 0.05, 0.04, 0.06, 0.04], latestShares: 112, previousShares: 100 }).score]
+  ]);
+
+  assert.equal(Math.round(anchors.get("STABLE") ?? 0), 97);
+  assert.equal(Math.round(anchors.get("DISCIPLINED") ?? 0), 91);
+  assert.equal(Math.round(anchors.get("DILUTIVE") ?? 0), 75);
+  assert.equal(Math.round(anchors.get("VOLATILE") ?? 0), 4);
+});
+
+test("fundamental quality score is more orthogonal than the previous overlapping formula on fixture", () => {
+  const profitability = [30, 40, 50, 60, 70, 80, 90];
+  const cashFlow = [28, 42, 52, 63, 72, 83, 92];
+  const balanceSheet = [32, 44, 54, 61, 73, 82, 91];
+  const newQuality = [
+    qualityScoreFor({ symbol: "Q1", margins: [0.30, 0.31, 0.30, 0.29, 0.30], operatingCashFlow: 110, netIncome: 100, roic: 0.20, latestShares: 98, previousShares: 100 }).score ?? 0,
+    qualityScoreFor({ symbol: "Q2", margins: [0.05, 0.45, -0.02, 0.30, 0.10], operatingCashFlow: 50, netIncome: 100, roic: 0.04, latestShares: 112, previousShares: 100 }).score ?? 0,
+    qualityScoreFor({ symbol: "Q3", margins: [0.20, 0.20, 0.21, 0.20, 0.20], operatingCashFlow: 100, netIncome: 100, roic: 0.14, latestShares: 99, previousShares: 100 }).score ?? 0,
+    qualityScoreFor({ symbol: "Q4", margins: [0.25, 0.10, 0.30, 0.15, 0.22], operatingCashFlow: 75, netIncome: 100, roic: 0.09, latestShares: 105, previousShares: 100 }).score ?? 0,
+    qualityScoreFor({ symbol: "Q5", margins: [0.25, 0.25, 0.25, 0.24, 0.25], operatingCashFlow: 90, netIncome: 100, roic: 0.12, latestShares: 110, previousShares: 100 }).score ?? 0,
+    qualityScoreFor({ symbol: "Q6", margins: [0.18, 0.22, 0.19, 0.21, 0.20], operatingCashFlow: 70, netIncome: 100, roic: 0.08, latestShares: 102, previousShares: 100 }).score ?? 0,
+    qualityScoreFor({ symbol: "Q7", margins: [0.32, 0.30, 0.31, 0.29, 0.30], operatingCashFlow: 95, netIncome: 100, roic: 0.18, latestShares: 97, previousShares: 100 }).score ?? 0
+  ];
+  const previousQuality = profitability.map((profitabilityScore, index) =>
+    (profitabilityScore + cashFlow[index] + balanceSheet[index] + profitabilityScore + cashFlow[index]) / 5
+  );
+
+  assert.ok(Math.abs(pearson(previousQuality, profitability)) > 0.98);
+  assert.ok(Math.abs(pearson(previousQuality, cashFlow)) > 0.98);
+  assert.ok(Math.abs(pearson(previousQuality, balanceSheet)) > 0.98);
+  assert.ok(Math.abs(pearson(newQuality, profitability)) < 0.4);
+  assert.ok(Math.abs(pearson(newQuality, cashFlow)) < 0.4);
+  assert.ok(Math.abs(pearson(newQuality, balanceSheet)) < 0.4);
+});
+
+function companyProfile(sector: string, industry: string, symbol = "TEST"): CompanyProfile {
+  return {
+    instrumentId: `inst-${industry}`,
+    symbol,
+    companyName: "Test Company",
+    sector,
+    industry,
+    country: "US",
+    exchange: "NYSE",
+    currency: "USD",
+    marketCap: null,
+    beta: null,
+    description: null,
+    website: null,
+    ceo: null,
+    ipoDate: null,
+    employees: null,
+    lastRefreshedAt: null,
+    provider: "test",
+    providerMetadata: {}
+  };
+}
+
+test("financial sector detection matches balance-sheet financial industries only", () => {
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Banks - Diversified")), true);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Banks - Regional")), true);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Financial - Capital Markets")), true);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Insurance - Property & Casualty")), true);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Insurance - Diversified")), true);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Financial - Credit Services")), false);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "Asset Management")), false);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Technology", "Banks - Diversified")), false);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(null), false);
+  assert.equal(fundamentalScoringInternals.isFinancialSector(companyProfile("Financial Services", "")), false);
+});
+
+test("financial sector scoring excludes industrial financial metrics for banks and insurers only", () => {
+  const service = new FundamentalScoringService();
+  const ratio = (symbol: string): FinancialRatio => ({
+      instrumentId: `inst-${symbol}`,
+      symbol,
+      period: "annual",
+      fiscalYear: 2025,
+      fiscalQuarter: 0,
+      reportDate: "2025-12-31",
+      peRatio: 12,
+      forwardPe: 11,
+      priceToSales: 3,
+      priceToBook: 1.3,
+      evToEbitda: null,
+      evToSales: null,
+      grossMargin: null,
+      operatingMargin: 0.28,
+      netMargin: 0.24,
+      roe: 0.14,
+      roic: 0.12,
+      roa: 0.013,
+      debtToEquity: 10,
+      netDebtToEbitda: null,
+      currentRatio: null,
+      quickRatio: null,
+      freeCashFlowYield: null,
+      revenueGrowth: 0.08,
+      epsGrowth: 0.1,
+      netIncomeGrowth: 0.09,
+      freeCashFlowGrowth: null,
+      provider: "test",
+      providerMetadata: {}
+  });
+  const statements = (symbol: string): FinancialStatement[] => [
+    trendStatement({ symbol, statementType: "income_statement", period: "annual", year: 2024, revenue: 100, operatingIncome: 22, netIncome: 20, sharesOutstanding: 100 }),
+    trendStatement({ symbol, statementType: "income_statement", period: "annual", year: 2025, revenue: 100, operatingIncome: 24, netIncome: 21, sharesOutstanding: 99 }),
+    trendStatement({ symbol, statementType: "cash_flow", period: "annual", year: 2025, operatingCashFlow: 28, freeCashFlow: 24 }),
+    trendStatement({ symbol, statementType: "balance_sheet", period: "annual", year: 2025, totalAssets: 1_000, cashAndEquivalents: 50, totalDebt: 500 })
+  ];
+
+  const bankScore = service.calculateScore({
+    instrumentId: "inst-jpm",
+    symbol: "JPM",
+    profile: companyProfile("Financial Services", "Banks - Diversified", "JPM"),
+    ratios: [ratio("JPM")],
+    statements: statements("JPM")
+  });
+  const insurerScore = service.calculateScore({
+    instrumentId: "inst-cb",
+    symbol: "CB",
+    profile: companyProfile("Financial Services", "Insurance - Property & Casualty", "CB"),
+    ratios: [ratio("CB")],
+    statements: statements("CB")
+  });
+  const feeBasedScore = service.calculateScore({
+    instrumentId: "inst-v",
+    symbol: "V",
+    profile: companyProfile("Financial Services", "Financial - Credit Services", "V"),
+    ratios: [
+      { ...ratio("V"), fiscalYear: 2023, reportDate: "2023-12-31", roic: 0.11 },
+      { ...ratio("V"), fiscalYear: 2024, reportDate: "2024-12-31", roic: 0.12 },
+      ratio("V")
+    ],
+    statements: statements("V")
+  });
+
+  for (const score of [bankScore, insurerScore]) {
+    const qualitySignals = score.inputsSnapshot.qualitySignals as {
+      cashConversion: { score: number | null };
+      roicDurability: { score: number | null };
+    };
+    assert.equal(score.cashFlowScore, null);
+    assert.equal(qualitySignals.cashConversion.score, null);
+    assert.equal(qualitySignals.roicDurability.score, null);
+    assert.ok((score.balanceSheetScore ?? 0) > 60);
+    assert.ok((score.profitabilityScore ?? 0) > 60);
+    assert.ok((score.qualityScore ?? 0) > 0);
+  }
+
+  const feeBasedQualitySignals = feeBasedScore.inputsSnapshot.qualitySignals as {
+    cashConversion: { score: number | null };
+    roicDurability: { score: number | null };
+  };
+  assert.notEqual(feeBasedScore.cashFlowScore, null);
+  assert.notEqual(feeBasedQualitySignals.cashConversion.score, null);
+  assert.notEqual(feeBasedQualitySignals.roicDurability.score, null);
 });
 
 test("fundamentals refresh derives missing ratios from financial statements", () => {
@@ -561,6 +1003,7 @@ function trendStatement(input: {
   quarter?: number;
   revenue?: number | null;
   operatingIncome?: number | null;
+  operatingCashFlow?: number | null;
   ebitda?: number | null;
   netIncome?: number | null;
   dilutedEps?: number | null;
@@ -593,7 +1036,7 @@ function trendStatement(input: {
     shareholdersEquity: input.shareholdersEquity ?? null,
     cashAndEquivalents: input.cashAndEquivalents ?? null,
     totalDebt: input.totalDebt ?? null,
-    operatingCashFlow: null,
+    operatingCashFlow: input.operatingCashFlow ?? null,
     capitalExpenditure: null,
     freeCashFlow: input.freeCashFlow ?? null,
     sharesOutstanding: input.sharesOutstanding ?? null,
@@ -896,6 +1339,54 @@ test("fundamentals refresh excludes non-stocks and logs partial success", async 
   assert.ok(repository.trends.length > 0);
   assert.equal(repository.trendSummaries.length, 1);
   assert.equal(repository.logs[0]?.status, "partial_success");
+});
+
+test("forced fundamentals refresh rotates through oldest profile cohorts", async () => {
+  const instruments = ["AAA", "BBB", "CCC", "DDD", "EEE"].map(stock);
+  const repository = new FakeFundamentalsRepository(instruments);
+  const profileFor = (symbol: string, lastRefreshedAt: string | null): CompanyProfile => ({
+    instrumentId: `inst-${symbol}`,
+    symbol,
+    companyName: `${symbol} Inc`,
+    sector: "Technology",
+    industry: "Software",
+    country: "US",
+    exchange: "NASDAQ",
+    currency: "USD",
+    marketCap: 1000,
+    beta: 1,
+    description: null,
+    website: null,
+    ceo: null,
+    ipoDate: null,
+    employees: 100,
+    lastRefreshedAt,
+    provider: "fake",
+    providerMetadata: {}
+  });
+  repository.profiles = [
+    profileFor("AAA", null),
+    profileFor("BBB", "2026-01-01T00:00:00Z"),
+    profileFor("CCC", "2026-02-01T00:00:00Z"),
+    profileFor("DDD", "2026-03-01T00:00:00Z"),
+    profileFor("EEE", "2026-04-01T00:00:00Z")
+  ];
+  const service = new FundamentalsRefreshService(repository, new FakeFundamentalsProvider(), new FundamentalScoringService(), new FundamentalTrendCalculationService(), {
+    enabled: true,
+    maxStocksPerRefresh: 2,
+    refreshFrequencyDays: 1,
+    staleAfterDays: 30
+  });
+
+  const first = await service.refreshAll({ force: true });
+  const firstSymbols = repository.scores.map((score) => score.symbol);
+  const second = await service.refreshAll({ force: true });
+  const secondSymbols = repository.scores.slice(firstSymbols.length).map((score) => score.symbol);
+
+  assert.equal(first.stocksRequested, 2);
+  assert.equal(second.stocksRequested, 2);
+  assert.deepEqual(firstSymbols, ["AAA", "BBB"]);
+  assert.deepEqual(secondSymbols, ["CCC", "DDD"]);
 });
 
 test("fundamentals cron protection uses shared CRON_SECRET validation", () => {

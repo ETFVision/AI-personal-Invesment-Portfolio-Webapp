@@ -18,13 +18,11 @@ export class GoldRecommendationService {
 
   evaluate(input: RecommendationInput) {
     const components: ScoreComponent[] = [
-      { key: "inflation_hedge", label: "Inflation Hedge", score: scoreInflationHedge(input), weight: 0.25, reason: "Inflation backdrop supports gold hedge value" },
-      { key: "geopolitical_hedge", label: "Geopolitical Hedge", score: scoreGeopoliticalHedge(input), weight: 0.2, reason: "Risk backdrop supports hedge value" },
-      { key: "diversification", label: "Diversification", score: input.portfolioFit.score, weight: 0.2, reason: "Gold improves diversification" },
-      { key: "rates_context", label: "Rates Context", score: scoreMacroFit(input.instrument, input.macroRegime), weight: 0.1, reason: "Rates context is supportive" },
-      { key: "market_vision_alignment", label: "Market Vision Alignment", score: scoreMarketVisionAlignment(input), weight: 0.05, reason: "Market Vision supports gold hedge role" },
-      { key: "portfolio_fit", label: "Portfolio Fit", score: input.portfolioFit.score, weight: 0.1, reason: "Position size fits portfolio" },
-      { key: "momentum", label: "Momentum", score: scoreMomentum(input.marketMetric), weight: 0.1, reason: "Positive gold momentum" }
+      { key: "inflation_hedge", label: "Inflation Hedge", score: scoreInflationHedge(input), weight: 0.36, reason: "Inflation backdrop supports gold hedge value" },
+      { key: "geopolitical_hedge", label: "Geopolitical Hedge", score: scoreGeopoliticalHedge(input), weight: 0.29, reason: "Risk backdrop supports hedge value" },
+      { key: "rates_context", label: "Rates Context", score: scoreMacroFit(input.instrument, input.macroRegime), weight: 0.14, reason: "Rates context is supportive" },
+      { key: "momentum", label: "Momentum", score: scoreMomentum(input.marketMetric), weight: 0.14, reason: "Positive gold momentum" },
+      { key: "market_vision_alignment", label: "Market Vision Alignment", score: scoreMarketVisionAlignment(input), weight: 0.07, reason: "Market Vision supports gold hedge role" }
     ];
     return buildEvaluation(input, this.rules, components, {
       timeHorizon: "medium_term",

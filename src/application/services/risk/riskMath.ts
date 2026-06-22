@@ -331,14 +331,11 @@ export function diversificationScore(input: {
   sectorCount: number;
   currencyCount: number;
   averageCorrelation: number | null;
-  topHoldingConcentration: number;
-  topFiveConcentration: number;
 }) {
   const holdingScore = Math.min(input.meaningfulHoldings / 12, 1) * 20;
   const assetClassScore = Math.min(input.assetClassCount / 5, 1) * 20;
   const sectorScore = Math.min(input.sectorCount / 8, 1) * 20;
   const currencyScore = Math.min(input.currencyCount / 3, 1) * 10;
   const correlationPenalty = input.averageCorrelation == null ? 5 : Math.max(0, input.averageCorrelation) * 15;
-  const concentrationPenalty = input.topHoldingConcentration * 20 + Math.max(0, input.topFiveConcentration - 0.5) * 30;
-  return Math.round(Math.max(0, Math.min(100, holdingScore + assetClassScore + sectorScore + currencyScore + 30 - correlationPenalty - concentrationPenalty)));
+  return Math.round(Math.max(0, Math.min(100, holdingScore + assetClassScore + sectorScore + currencyScore + 30 - correlationPenalty)));
 }

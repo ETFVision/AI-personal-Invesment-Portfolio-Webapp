@@ -143,40 +143,39 @@ function log(row: any): EtfExposureRefreshLog {
 export class SupabaseEtfExposureRepository implements EtfExposureRepository {
   constructor(private readonly db: SupabaseClient = createSupabaseAdminClient()) {}
 
+  private async fetchAllExposureRows(table: string, instrumentIds?: string[]): Promise<Record<string, unknown>[]> {
+    const PAGE = 1000;
+    const all: Record<string, unknown>[] = [];
+    for (let from = 0; ; from += PAGE) {
+      let query = this.db.from(table).select("*").order("as_of_date", { ascending: false }).range(from, from + PAGE - 1);
+      if (instrumentIds?.length) query = query.in("etf_instrument_id", instrumentIds);
+      const { data, error } = await query;
+      if (error?.code === "42P01") return [];
+      if (error) throw new Error(error.message);
+      all.push(...((data ?? []) as Record<string, unknown>[]));
+      if (!data || data.length < PAGE) break;
+    }
+    return all;
+  }
+
   async listLatestSectorExposures(instrumentIds?: string[]) {
-    let query = this.db.from("etf_sector_exposures").select("*").order("as_of_date", { ascending: false }).limit(5000);
-    if (instrumentIds?.length) query = query.in("etf_instrument_id", instrumentIds);
-    const { data, error } = await query;
-    if (error?.code === "42P01") return [];
-    if (error) throw new Error(error.message);
-    return latestByInstrument((data ?? []).map(sector));
+    const rows = await this.fetchAllExposureRows("etf_sector_exposures", instrumentIds);
+    return latestByInstrument(rows.map(sector));
   }
 
   async listLatestCountryExposures(instrumentIds?: string[]) {
-    let query = this.db.from("etf_country_exposures").select("*").order("as_of_date", { ascending: false }).limit(5000);
-    if (instrumentIds?.length) query = query.in("etf_instrument_id", instrumentIds);
-    const { data, error } = await query;
-    if (error?.code === "42P01") return [];
-    if (error) throw new Error(error.message);
-    return latestByInstrument((data ?? []).map(country));
+    const rows = await this.fetchAllExposureRows("etf_country_exposures", instrumentIds);
+    return latestByInstrument(rows.map(country));
   }
 
   async listLatestTopHoldings(instrumentIds?: string[]) {
-    let query = this.db.from("etf_top_holdings").select("*").order("as_of_date", { ascending: false }).limit(5000);
-    if (instrumentIds?.length) query = query.in("etf_instrument_id", instrumentIds);
-    const { data, error } = await query;
-    if (error?.code === "42P01") return [];
-    if (error) throw new Error(error.message);
-    return latestByInstrument((data ?? []).map(holding));
+    const rows = await this.fetchAllExposureRows("etf_top_holdings", instrumentIds);
+    return latestByInstrument(rows.map(holding));
   }
 
   async listLatestThemeExposures(instrumentIds?: string[]) {
-    let query = this.db.from("etf_theme_exposures").select("*").order("as_of_date", { ascending: false }).limit(5000);
-    if (instrumentIds?.length) query = query.in("etf_instrument_id", instrumentIds);
-    const { data, error } = await query;
-    if (error?.code === "42P01") return [];
-    if (error) throw new Error(error.message);
-    return latestByInstrument((data ?? []).map(theme));
+    const rows = await this.fetchAllExposureRows("etf_theme_exposures", instrumentIds);
+    return latestByInstrument(rows.map(theme));
   }
 
   async upsertSectorExposures(input: EtfSectorExposure[]) {
@@ -309,25 +308,42 @@ export class SupabaseEtfExposureRepository implements EtfExposureRepository {
   async listIssuerLinksForSecurityIds(securityIds: string[]): Promise<SecurityIssuerLink[]> {
     const ids = Array.from(new Set(securityIds.filter(Boolean)));
     if (!ids.length) return [];
-    const { data: links, error } = await this.db
-      .from("security_issuer_links")
-      .select("security_id, issuer_id, normalized_issuer_name, share_class, link_source, confidence_score")
-      .in("security_id", ids)
-      .is("valid_to", null);
-    if (error?.code === "42P01") return [];
-    if (error) throw new Error(error.message);
 
-    const issuerIds = Array.from(new Set((links ?? []).map((row: any) => row.issuer_id).filter(Boolean)));
+    const CHUNK = 150;
+    const chunks = <T>(arr: T[]) => Array.from({ length: Math.ceil(arr.length / CHUNK) }, (_, i) => arr.slice(i * CHUNK, (i + 1) * CHUNK));
+
+    const linkResults = await Promise.all(
+      chunks(ids).map(async (chunk) => {
+        const { data, error } = await this.db
+          .from("security_issuer_links")
+          .select("security_id, issuer_id, normalized_issuer_name, share_class, link_source, confidence_score")
+          .in("security_id", chunk)
+          .is("valid_to", null);
+        if (error?.code === "42P01") return [];
+        if (error) throw new Error(error.message);
+        return data ?? [];
+      })
+    );
+    const allLinks = linkResults.flat();
+
+    const issuerIds = Array.from(new Set(allLinks.map((row: any) => row.issuer_id).filter(Boolean)));
     if (!issuerIds.length) return [];
-    const { data: issuers, error: issuerError } = await this.db
-      .from("issuers")
-      .select("id, issuer_name")
-      .in("id", issuerIds);
-    if (issuerError?.code === "42P01") return [];
-    if (issuerError) throw new Error(issuerError.message);
 
-    const issuerNameById = new Map((issuers ?? []).map((row: any) => [row.id, row.issuer_name]));
-    return (links ?? []).flatMap((row: any) => {
+    const issuerResults = await Promise.all(
+      chunks(issuerIds).map(async (chunk) => {
+        const { data, error } = await this.db
+          .from("issuers")
+          .select("id, issuer_name")
+          .in("id", chunk);
+        if (error?.code === "42P01") return [];
+        if (error) throw new Error(error.message);
+        return data ?? [];
+      })
+    );
+    const allIssuers = issuerResults.flat();
+
+    const issuerNameById = new Map(allIssuers.map((row: any) => [row.id, row.issuer_name]));
+    return allLinks.flatMap((row: any) => {
       const issuerName = issuerNameById.get(row.issuer_id);
       if (!issuerName) return [];
       return [{
@@ -342,9 +358,31 @@ export class SupabaseEtfExposureRepository implements EtfExposureRepository {
     });
   }
 
+  async clearAllExposures() {
+    const tables = ["etf_sector_exposures", "etf_country_exposures", "etf_top_holdings", "etf_theme_exposures"] as const;
+    for (const table of tables) {
+      const { error } = await this.db.from(table).delete().gte("as_of_date", "2000-01-01");
+      if (error?.code === "42P01") continue;
+      if (error) throw new Error(`Failed to clear ${table}: ${error.message}`);
+    }
+  }
+
   async getLatestExposureDateForEtf(instrumentId: string) {
     const { data, error } = await this.db
       .from("etf_sector_exposures")
+      .select("as_of_date")
+      .eq("etf_instrument_id", instrumentId)
+      .order("as_of_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error?.code === "42P01") return null;
+    if (error) throw new Error(error.message);
+    return data?.as_of_date ?? null;
+  }
+
+  async getLatestHoldingsDateForEtf(instrumentId: string) {
+    const { data, error } = await this.db
+      .from("etf_top_holdings")
       .select("as_of_date")
       .eq("etf_instrument_id", instrumentId)
       .order("as_of_date", { ascending: false })
