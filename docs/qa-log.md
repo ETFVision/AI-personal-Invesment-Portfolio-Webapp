@@ -2,6 +2,36 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-22 SGT - Instrument Price Stats RPC Optimization QA
+
+Scope:
+- Verify `listInstrumentPriceStats` no longer performs a full paginated JavaScript scan over `instrument_prices`.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| `listInstrumentPriceStats` paginated `instrument_prices` in 1000-row pages and aggregated in JavaScript | Fixed; repository now calls one grouped `get_instrument_price_stats` RPC |
+| Price/derived-metric/backfill passes could spend ~150s in repeated price-stat scans | Mitigated; aggregation is pushed into Postgres using the existing instrument/date index |
+| New RPC path needed parameter and mapping coverage | Fixed; added `tests/universe-repository.test.ts` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| RPC parameter for scoped instrument IDs is passed as `p_instrument_ids` | PASS |
+| All-instrument stats call passes `p_instrument_ids: null` | PASS |
+| RPC row maps to `InstrumentPriceStats` shape | PASS |
+| Missing `instrument_prices` table guard returns `[]` | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (335/335) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/115_get_instrument_price_stats_rpc.sql` to the live Supabase project before relying on the deployed repository method.
+- Direct live equivalence sampling against the previous JavaScript aggregation should be performed after the migration is applied.
+
 ## 2026-06-22 SGT - Med 29 Recalibration QA (sign-off)
 
 Scope: distribution-level QA of the recalibrated recommendation engine across the full live universe (306 instruments) after the scoring programme (#2/#3/#5, period-fix, financial-sector, risk-cap, roicDurability). Review-only; no code change.

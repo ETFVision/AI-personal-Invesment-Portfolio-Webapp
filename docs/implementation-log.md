@@ -1,3 +1,39 @@
+## 2026-06-22 - Instrument Price Stats RPC Optimization
+
+### Source
+Claude Code
+
+### Objective
+Replace the JavaScript-paginated `listInstrumentPriceStats` scan over `instrument_prices` with a single grouped SQL aggregation RPC.
+
+### Files Changed
+- `supabase/migrations/115_get_instrument_price_stats_rpc.sql`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `tests/universe-repository.test.ts`
+- `package.json`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `get_instrument_price_stats(p_instrument_ids uuid[] default null)` to aggregate earliest date, latest date, and observation count in Postgres.
+- Replaced the `listInstrumentPriceStats` pagination loop with one `this.db.rpc("get_instrument_price_stats", ...)` call and preserved the existing return shape.
+- Kept the missing `instrument_prices` table guard returning `[]`.
+- Added a focused repository test that verifies RPC parameters, row mapping, all-instrument `null` parameter behavior, and the missing-table guard.
+- No callers, pricing logic, derived-metric logic, scoring, labels, user-facing wording, feature flags, access controls, or methodology changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (335/335)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration `115_get_instrument_price_stats_rpc.sql` must be applied to Supabase before deployed code can use the new RPC.
+- Live sample equivalence against the previous JS aggregation requires the migration to be applied in the target DB; local unit coverage verifies the repository uses and maps the RPC correctly.
+
 ## 2026-06-22 - Med 26 Scoring Golden Baseline
 
 ### Source
