@@ -2,6 +2,40 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-22 SGT - Adjusted Historical EOD Daily Price Refresh QA
+
+Scope:
+- Verify the daily and manual EOD price refresh use adjusted-close historical prices instead of the abandoned FMP `eod-bulk` path.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| FMP `eod-bulk` was unsuitable for the daily ETFVision universe refresh | Superseded; bulk-EOD provider method and CSV helper removed |
+| Daily refresh needed true EOD dates and adjusted close values consistent with backfill | Fixed; historical-price quotes store `quote.asOfDate` and adjusted `quote.price` |
+| Daily EOD refresh should not spend time scanning full price history coverage | Fixed; the EOD path does not call `listInstrumentPriceStats` |
+| Manual Admin `Refresh prices (EOD)` button needed to use the surviving EOD path | Fixed; action now calls `refreshInstrumentPricesEod` with derived/risk metrics skipped |
+| Scheduled refresh needed to call the new source | Fixed in migration 116; cron route now uses `source=eod` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Historical price provider mocked for adjusted EOD rows | PASS |
+| Stored rows use the returned real EOD date rather than today's date | PASS |
+| Stored rows use adjusted close from the historical quote price | PASS |
+| Fetches run in bounded concurrency waves | PASS |
+| EOD path avoids `listInstrumentPriceStats` | PASS |
+| Missing symbols are reported without falling back to latest-price quotes | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (337/337) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply migration 116 manually in Supabase so the scheduled daily cron uses `source=eod`.
+- Adjusted close is retroactive. The trailing 7-day refresh self-heals recent dividends/splits, but older adjusted-history changes still require the existing full `Backfill market history` operation or a future monthly full-backfill cron.
+
 ## 2026-06-22 SGT - FMP Bulk EOD CSV Parsing QA
 
 Scope:

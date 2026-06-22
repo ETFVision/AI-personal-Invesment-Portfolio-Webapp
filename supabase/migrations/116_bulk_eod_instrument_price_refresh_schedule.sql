@@ -1,7 +1,8 @@
--- Replace the five daily latest-price passes with one FMP bulk-EOD refresh.
+-- Replace the five daily latest-price passes with one adjusted-close EOD refresh
+-- using the same historical-price-eod source as the backfill.
 --
 -- Times below are UTC. Singapore time is UTC+8.
--- Apply manually to Supabase so pg_cron uses the new bulk endpoint.
+-- Apply manually to Supabase so pg_cron uses the adjusted EOD endpoint.
 
 do $$
 declare
@@ -26,9 +27,9 @@ begin
 end;
 $$;
 
--- 5:20 AM SGT daily: one bulk-EOD price pull after the US close / EOD publish window.
+-- 5:20 AM SGT daily: one adjusted EOD price pull after the US close / EOD publish window.
 select cron.schedule(
   'app-daily-instrument-price-refresh',
   '20 21 * * *',
-  $$select public.invoke_scheduled_app_job('/api/jobs/instrument-price-refresh?source=bulk_eod&skipRiskMetrics=true&skipDerivedMetrics=true&lockTtlSeconds=300');$$
+  $$select public.invoke_scheduled_app_job('/api/jobs/instrument-price-refresh?source=eod&skipRiskMetrics=true&skipDerivedMetrics=true&lockTtlSeconds=300');$$
 );

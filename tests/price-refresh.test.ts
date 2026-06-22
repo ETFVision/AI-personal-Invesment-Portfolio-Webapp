@@ -5,7 +5,6 @@ import { InstrumentMarketService } from "../src/application/services/InstrumentM
 import type { MarketDataService } from "../src/application/services/MarketDataService";
 import type { UniverseRepository } from "../src/application/ports/repositories/UniverseRepository";
 import type { MarketDataProvider } from "../src/application/ports/providers/MarketDataProvider";
-import { parseFmpBulkEodCsv } from "../src/infrastructure/providers/marketData/fmpBulkEodCsv";
 import type { Instrument } from "../src/domain/universe/types";
 
 function testDaysBeforeIso(isoDate: string, days: number) {
@@ -23,32 +22,6 @@ function testLatestExpectedEodDate() {
   }
   return date.toISOString().slice(0, 10);
 }
-
-test("FMP bulk EOD CSV parser reads adjusted close and EOD date", () => {
-  const quotes = parseFmpBulkEodCsv(
-    "symbol,date,open,high,low,close,adjClose,volume\nVOO,2026-06-19,500,515,499,512,510,12345",
-    "2026-06-19"
-  );
-
-  assert.deepEqual(quotes, [
-    {
-      symbol: "VOO",
-      price: 510,
-      currency: null,
-      asOfDate: "2026-06-19",
-      raw: {
-        symbol: "VOO",
-        date: "2026-06-19",
-        open: "500",
-        high: "515",
-        low: "499",
-        close: "512",
-        adjclose: "510",
-        volume: "12345"
-      }
-    }
-  ]);
-});
 
 test("portfolio price refresh is driven by the master instrument price refresh", async () => {
   const calls: string[] = [];
@@ -205,7 +178,7 @@ test("instrument price refresh maps BRK.B to the FMP provider symbol BRK-B", asy
   assert.deepEqual(riskMetricRefreshes, []);
 });
 
-test("bulk EOD price refresh stores EOD date, falls back for omitted symbols, and avoids price stats scan", async () => {
+test("adjusted EOD price refresh stores historical adjusted close dates and avoids price stats scan", async () => {
   const storedRows: Array<{
     instrumentId: string;
     provider: string;
@@ -219,15 +192,21 @@ test("bulk EOD price refresh stores EOD date, falls back for omitted symbols, an
   const returnAnchorRefreshes: string[][] = [];
   const marketMetricRefreshes: string[][] = [];
   const riskMetricRefreshes: string[][] = [];
+  const requestedHistory: Array<{ symbol: string; from: string; to: string; assetClass?: string }> = [];
+  let inFlight = 0;
+  let maxInFlight = 0;
   const repository = {
     async listInstruments() {
       return [
         instrument("VOO", { assetClass: "etf", instrumentType: "etf" }),
-        instrument("BTC", { assetClass: "crypto", instrumentType: "crypto" })
+        instrument("BTC", { assetClass: "crypto", instrumentType: "crypto" }),
+        instrument("BRK.B"),
+        instrument("MSFT"),
+        instrument("QQQ", { assetClass: "etf", instrumentType: "etf" })
       ];
     },
     async listInstrumentPriceStats() {
-      throw new Error("bulk EOD refresh should not scan price stats");
+      throw new Error("adjusted EOD refresh should not scan price stats");
     },
     async upsertInstrumentPrices(input: typeof storedRows) {
       storedRows.push(...input);
@@ -245,77 +224,90 @@ test("bulk EOD price refresh stores EOD date, falls back for omitted symbols, an
       riskMetricRefreshes.push(ids);
     }
   } as unknown as UniverseRepository;
-  const requestedBulkDates: string[] = [];
-  const requestedFallbackBatches: string[][] = [];
   const provider = {
     name: "financial_modeling_prep",
-    async getBulkEodPrices(date: string) {
-      requestedBulkDates.push(date);
-      return [{ symbol: "VOO", price: 510, currency: "USD", asOfDate: date, raw: { adjClose: 510 } }];
-    },
-    async getLatestPrices(symbols: string[]) {
-      requestedFallbackBatches.push(symbols);
-      return [{ symbol: "BTCUSD", price: 65000, currency: "USD", asOfDate: "2026-06-22", raw: {} }];
+    async getHistoricalPrices(symbol: string, from: string, to: string, context?: { assetClass?: string }) {
+      requestedHistory.push({ symbol, from, to, assetClass: context?.assetClass });
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await Promise.resolve();
+      inFlight -= 1;
+      if (symbol === "QQQ") return [];
+      return [{ symbol, price: symbol === "BTCUSD" ? 65000 : 510, currency: "USD", asOfDate: "2026-06-19", raw: { adjClose: symbol === "BTCUSD" ? 65000 : 510 } }];
     }
   } as unknown as MarketDataProvider;
 
   const service = new InstrumentMarketService(repository, provider);
-  const result = await service.refreshInstrumentPricesFromBulkEod({ date: "2026-06-19", skipRiskMetrics: true });
+  const result = await service.refreshInstrumentPricesEod({ lookbackDays: 7, concurrency: 2, skipRiskMetrics: true });
 
-  assert.deepEqual(requestedBulkDates, ["2026-06-19"]);
-  assert.deepEqual(requestedFallbackBatches, [["BTCUSD"]]);
+  assert.equal(maxInFlight, 2);
+  assert.deepEqual(
+    requestedHistory.map(({ symbol, assetClass }) => ({ symbol, assetClass })),
+    [
+      { symbol: "VOO", assetClass: "etf" },
+      { symbol: "BTCUSD", assetClass: "crypto" },
+      { symbol: "BRK-B", assetClass: "stock" },
+      { symbol: "MSFT", assetClass: "stock" },
+      { symbol: "QQQ", assetClass: "etf" }
+    ]
+  );
   assert.deepEqual(
     storedRows.map(({ instrumentId, symbol, priceDate, closePrice }) => ({ instrumentId, symbol, priceDate, closePrice })),
     [
     { instrumentId: "inst-VOO", symbol: "VOO", priceDate: "2026-06-19", closePrice: 510 },
-    { instrumentId: "inst-BTC", symbol: "BTCUSD", priceDate: "2026-06-22", closePrice: 65000 }
+    { instrumentId: "inst-BTC", symbol: "BTCUSD", priceDate: "2026-06-19", closePrice: 65000 },
+    { instrumentId: "inst-BRK.B", symbol: "BRK-B", priceDate: "2026-06-19", closePrice: 510 },
+    { instrumentId: "inst-MSFT", symbol: "MSFT", priceDate: "2026-06-19", closePrice: 510 }
     ]
   );
   assert.deepEqual(
     storedRows.map(({ provider, currency }) => ({ provider, currency })),
     [
       { provider: "financial_modeling_prep", currency: "USD" },
+      { provider: "financial_modeling_prep", currency: "USD" },
+      { provider: "financial_modeling_prep", currency: "USD" },
       { provider: "financial_modeling_prep", currency: "USD" }
     ]
   );
-  assert.deepEqual(result.requestedSymbols, ["VOO", "BTCUSD"]);
-  assert.equal(result.updatedCount, 2);
-  assert.deepEqual(result.missingSymbols, []);
-  assert.deepEqual(dailyReturnRefreshes, [["inst-VOO", "inst-BTC"]]);
-  assert.deepEqual(returnAnchorRefreshes, [["inst-VOO", "inst-BTC"]]);
-  assert.deepEqual(marketMetricRefreshes, [["inst-VOO", "inst-BTC"]]);
+  assert.deepEqual(result.requestedSymbols, ["VOO", "BTCUSD", "BRK-B", "MSFT", "QQQ"]);
+  assert.equal(result.updatedCount, 4);
+  assert.deepEqual(result.missingSymbols, ["QQQ"]);
+  assert.match(result.message, /Stored 4 adjusted EOD price rows over the trailing 7-day window/);
+  assert.deepEqual(dailyReturnRefreshes, [["inst-VOO", "inst-BTC", "inst-BRK.B", "inst-MSFT"]]);
+  assert.deepEqual(returnAnchorRefreshes, [["inst-VOO", "inst-BTC", "inst-BRK.B", "inst-MSFT"]]);
+  assert.deepEqual(marketMetricRefreshes, [["inst-VOO", "inst-BTC", "inst-BRK.B", "inst-MSFT"]]);
   assert.deepEqual(riskMetricRefreshes, []);
 });
 
-test("bulk EOD price refresh does not fall back when the requested date has no bulk rows", async () => {
+test("adjusted EOD price refresh reports missing symbols without latest-price fallback", async () => {
   const repository = {
     async listInstruments() {
       return [instrument("VOO", { assetClass: "etf", instrumentType: "etf" })];
     },
     async listInstrumentPriceStats() {
-      throw new Error("bulk EOD refresh should not scan price stats");
+      throw new Error("adjusted EOD refresh should not scan price stats");
     },
     async upsertInstrumentPrices() {
-      throw new Error("empty bulk EOD response should not upsert");
+      throw new Error("empty adjusted EOD response should not upsert");
     }
   } as unknown as UniverseRepository;
   const provider = {
     name: "financial_modeling_prep",
-    async getBulkEodPrices() {
+    async getHistoricalPrices() {
       return [];
     },
     async getLatestPrices() {
-      throw new Error("empty bulk EOD response should not fall back to latest prices");
+      throw new Error("adjusted EOD response should not fall back to latest prices");
     }
   } as unknown as MarketDataProvider;
 
   const service = new InstrumentMarketService(repository, provider);
-  const result = await service.refreshInstrumentPricesFromBulkEod({ date: "2026-06-20", skipDerivedMetrics: true });
+  const result = await service.refreshInstrumentPricesEod({ lookbackDays: 7, skipDerivedMetrics: true });
 
   assert.deepEqual(result.requestedSymbols, ["VOO"]);
   assert.equal(result.updatedCount, 0);
   assert.deepEqual(result.missingSymbols, ["VOO"]);
-  assert.match(result.message, /No bulk EOD prices were returned for 2026-06-20/);
+  assert.match(result.message, /Stored 0 adjusted EOD price rows over the trailing 7-day window/);
 });
 
 test("history coverage tracks crypto against a shorter 2Y target", async () => {

@@ -1,3 +1,47 @@
+## 2026-06-22 - Adjusted Historical EOD Daily Price Refresh
+
+### Source
+Claude Code
+
+### Objective
+Replace the abandoned FMP `eod-bulk` daily price path with an adjusted-close EOD refresh that reuses the historical price endpoint used by market-history backfill.
+
+### Files Changed
+- `src/application/ports/providers/MarketDataProvider.ts`
+- `src/application/services/InstrumentMarketService.ts`
+- `src/app/api/jobs/instrument-price-refresh/route.ts`
+- `src/infrastructure/providers/marketData/FmpMarketDataProvider.ts`
+- `src/infrastructure/providers/marketData/fmpBulkEodCsv.ts` (deleted)
+- `src/server/actions/dataRefreshActions.ts`
+- `supabase/migrations/116_bulk_eod_instrument_price_refresh_schedule.sql`
+- `tests/price-refresh.test.ts`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Removed the FMP bulk-EOD provider method and deleted the CSV helper because live `eod-bulk` behavior was unsuitable for ETFVision's daily refresh path.
+- Added `refreshInstrumentPricesEod`, which fetches active instruments through bounded-concurrency historical-price calls over a trailing 7-day window by default.
+- Stored adjusted-close rows using each quote's real EOD `asOfDate` and adjusted `price`, matching the market-history backfill source.
+- Avoided `listInstrumentPriceStats` for the daily EOD path; it fetches all active instruments directly and reports symbols with no returned history as missing.
+- Updated the instrument-price route to support `source=eod` with optional `lookbackDays` and `concurrency`, while leaving the default batch path unchanged.
+- Updated the Admin `Refresh prices (EOD)` action to use the adjusted historical EOD path with derived and risk metrics skipped.
+- Updated migration 116 so the daily cron calls `source=eod` and documents adjusted close via historical-price-eod.
+- No scoring, methodology, labels, access controls, or investment-compliance wording changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (337/337)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- This supersedes the short-lived bulk-EOD implementation: live FMP `eod-bulk` was abandoned because it returned unsuitable coverage and was heavily rate-limited.
+- The trailing 7-day adjusted-close refresh self-heals recent dividend/split adjustments daily. Older adjusted-close restatements still require the existing full `Backfill market history` operation or a future monthly full-backfill cron.
+- Migration 116 still needs to be applied manually to Supabase for the scheduled daily refresh to use `source=eod`.
+
 ## 2026-06-22 - Fix FMP Bulk EOD CSV Parsing
 
 ### Source

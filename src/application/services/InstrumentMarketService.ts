@@ -618,14 +618,22 @@ export class InstrumentMarketService {
     };
   }
 
-  async refreshInstrumentPricesFromBulkEod(input?: {
-    date?: string;
+  async refreshInstrumentPricesEod(input?: {
+    lookbackDays?: number;
+    concurrency?: number;
     skipRiskMetrics?: boolean;
     skipDerivedMetrics?: boolean;
   }): Promise<RefreshInstrumentPricesResult> {
-    const priceDate = input?.date ?? latestExpectedEodDate();
+    const lookbackDays = Math.max(1, input?.lookbackDays ?? 7);
+    const concurrency = Math.max(1, input?.concurrency ?? 12);
+    const from = daysAgoIso(lookbackDays);
+    const to = todayIsoDate();
     const instruments = (await this.repository.listInstruments({ isActive: true })).filter((instrument) => instrument.isActive);
-    const providerSymbols = uniqueSymbols(instruments.map(providerSymbolForInstrument));
+    const refreshItems = instruments.map((instrument) => ({
+      instrument,
+      providerSymbol: providerSymbolForInstrument(instrument)
+    }));
+    const providerSymbols = uniqueSymbols(refreshItems.map((item) => item.providerSymbol));
 
     if (providerSymbols.length === 0) {
       return {
@@ -633,20 +641,10 @@ export class InstrumentMarketService {
         updatedCount: 0,
         missingSymbols: [],
         errors: [],
-        message: "No active instrument symbols were found for bulk EOD price refresh."
+        message: "No active instrument symbols were found for adjusted EOD price refresh."
       };
     }
 
-    const instrumentBySymbol = new Map(
-      instruments.flatMap((instrument) => {
-        const localSymbol = instrument.symbol?.toUpperCase() ?? "";
-        const providerSymbol = providerSymbolForInstrument(instrument);
-        return [
-          [localSymbol, instrument],
-          [providerSymbol, instrument]
-        ];
-      })
-    );
     const rows: Array<{
       instrumentId: string;
       provider: string;
@@ -656,45 +654,35 @@ export class InstrumentMarketService {
       currency: string | null;
       rawPayload: unknown;
     }> = [];
-    const missingSymbols = new Set<string>();
+    const missingSymbols: string[] = [];
     const errors: string[] = [];
 
-    try {
-      const bulkQuotes = await this.provider.getBulkEodPrices(priceDate);
-      if (bulkQuotes.length === 0) {
-        return {
-          requestedSymbols: providerSymbols,
-          updatedCount: 0,
-          missingSymbols: providerSymbols,
-          errors,
-          message: `No bulk EOD prices were returned for ${priceDate}. The date may be a non-trading day or unavailable from the provider.`
-        };
-      }
+    for (let index = 0; index < refreshItems.length; index += concurrency) {
+      const chunk = refreshItems.slice(index, index + concurrency);
+      const results = await Promise.all(
+        chunk.map(async ({ instrument, providerSymbol }) => {
+          try {
+            const quotes = await this.provider.getHistoricalPrices(providerSymbol, from, to, { assetClass: instrument.assetClass });
+            return { instrument, providerSymbol, quotes, error: null };
+          } catch (error) {
+            return {
+              instrument,
+              providerSymbol,
+              quotes: [],
+              error: error instanceof Error ? error.message : "Historical EOD price refresh failed."
+            };
+          }
+        })
+      );
 
-      const returnedSymbols = new Set<string>();
-      for (const quote of bulkQuotes) {
-        const quoteSymbol = quote.symbol.toUpperCase();
-        const instrument = instrumentBySymbol.get(quoteSymbol);
-        if (!instrument) continue;
-        returnedSymbols.add(providerSymbolForInstrument(instrument));
-        rows.push({
-          instrumentId: instrument.id,
-          provider: this.provider.name,
-          symbol: quoteSymbol,
-          priceDate: quote.asOfDate,
-          closePrice: quote.price,
-          currency: quote.currency ?? instrument.currency ?? "USD",
-          rawPayload: quote.raw
-        });
-      }
+      for (const { instrument, providerSymbol, quotes, error } of results) {
+        if (error) errors.push(`${providerSymbol}: ${error}`);
+        if (quotes.length === 0) {
+          missingSymbols.push(providerSymbol);
+          continue;
+        }
 
-      const omittedSymbols = providerSymbols.filter((symbol) => !returnedSymbols.has(symbol));
-      if (omittedSymbols.length > 0) {
-        const fallbackQuotes = await this.provider.getLatestPrices(omittedSymbols);
-        const fallbackReturnedSymbols = new Set(fallbackQuotes.map((quote) => quote.symbol.toUpperCase()));
-        for (const quote of fallbackQuotes) {
-          const instrument = instrumentBySymbol.get(quote.symbol.toUpperCase());
-          if (!instrument) continue;
+        for (const quote of quotes) {
           rows.push({
             instrumentId: instrument.id,
             provider: this.provider.name,
@@ -705,11 +693,7 @@ export class InstrumentMarketService {
             rawPayload: quote.raw
           });
         }
-        omittedSymbols.filter((symbol) => !fallbackReturnedSymbols.has(symbol)).forEach((symbol) => missingSymbols.add(symbol));
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Instrument bulk EOD price refresh failed.";
-      errors.push(message);
     }
 
     if (rows.length > 0) {
@@ -723,12 +707,12 @@ export class InstrumentMarketService {
     return {
       requestedSymbols: providerSymbols,
       updatedCount: rows.length,
-      missingSymbols: Array.from(missingSymbols),
+      missingSymbols,
       errors,
       message:
         errors.length === 0
-          ? `Stored ${rows.length} bulk EOD instrument price row${rows.length === 1 ? "" : "s"} for ${priceDate} across ${providerSymbols.length} active instrument${providerSymbols.length === 1 ? "" : "s"}.`
-          : `Stored ${rows.length} bulk EOD instrument price row${rows.length === 1 ? "" : "s"} for ${priceDate} with ${errors.length} issue${errors.length === 1 ? "" : "s"}.`
+          ? `Stored ${rows.length} adjusted EOD price row${rows.length === 1 ? "" : "s"} over the trailing ${lookbackDays}-day window across ${providerSymbols.length} active instrument${providerSymbols.length === 1 ? "" : "s"}.`
+          : `Stored ${rows.length} adjusted EOD price row${rows.length === 1 ? "" : "s"} over the trailing ${lookbackDays}-day window with ${errors.length} issue${errors.length === 1 ? "" : "s"}.`
     };
   }
 

@@ -11,7 +11,6 @@ export type HistoricalMarketPriceQuote = MarketPriceQuote;
 export interface MarketDataProvider {
   readonly name: string;
   getLatestPrices(symbols: string[]): Promise<MarketPriceQuote[]>;
-  getBulkEodPrices(date: string): Promise<MarketPriceQuote[]>;
   getHistoricalPrices(
     symbol: string,
     from: string,

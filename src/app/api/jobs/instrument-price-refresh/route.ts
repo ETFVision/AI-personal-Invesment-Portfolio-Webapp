@@ -12,12 +12,14 @@ export async function POST(request: NextRequest) {
   const skipDerivedMetrics = request.nextUrl.searchParams.get("skipDerivedMetrics") === "true";
   const lockTtlSeconds = Number(request.nextUrl.searchParams.get("lockTtlSeconds") ?? 8 * 60);
   const source = request.nextUrl.searchParams.get("source");
-  const date = request.nextUrl.searchParams.get("date") ?? undefined;
+  const eodLookbackDays = Number(request.nextUrl.searchParams.get("lookbackDays") ?? 7);
+  const concurrency = Number(request.nextUrl.searchParams.get("concurrency") ?? 12);
 
-  if (source === "bulk_eod") {
+  if (source === "eod") {
     return runCronJob(request, { jobName: "instrument-price-refresh", lockTtlSeconds, onSuccess: () => revalidateTag("market-data") }, () =>
-      createContainer().instrumentMarketService.refreshInstrumentPricesFromBulkEod({
-        date,
+      createContainer().instrumentMarketService.refreshInstrumentPricesEod({
+        lookbackDays: eodLookbackDays,
+        concurrency,
         skipRiskMetrics,
         skipDerivedMetrics
       })

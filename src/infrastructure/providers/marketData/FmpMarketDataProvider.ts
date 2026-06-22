@@ -1,6 +1,5 @@
 import { HistoricalMarketPriceQuote, MarketDataProvider, MarketPriceQuote } from "@/application/ports/providers/MarketDataProvider";
 import { env } from "@/infrastructure/config/env";
-import { parseFmpBulkEodCsv } from "./fmpBulkEodCsv";
 
 type FmpQuoteShort = {
   symbol?: string;
@@ -189,44 +188,6 @@ export class FmpMarketDataProvider implements MarketDataProvider {
     }
 
     return [];
-  }
-
-  async getBulkEodPrices(date: string): Promise<MarketPriceQuote[]> {
-    if (!env.FMP_API_KEY) {
-      throw new Error("FMP_API_KEY is not configured.");
-    }
-
-    const url = new URL(`${FMP_BASE_URL}/eod-bulk`);
-    url.searchParams.set("date", date);
-    url.searchParams.set("apikey", env.FMP_API_KEY);
-
-    const response = await fetchWithRetry(url);
-
-    if (response.status === 402 || response.status === 403 || response.status === 404) {
-      return [];
-    }
-
-    if (!response.ok) {
-      throw new Error(`FMP bulk EOD request for ${date} failed with status ${response.status}.`);
-    }
-
-    const body = (await response.text()).trim();
-    if (!body) return [];
-
-    if (body.startsWith("{")) {
-      let errorMessage: string | undefined;
-      try {
-        const payload = JSON.parse(body) as { "Error Message"?: string };
-        errorMessage = payload["Error Message"];
-      } catch {
-        // Fall through to CSV parsing; FMP bulk endpoints should be CSV.
-      }
-      if (errorMessage) {
-        throw new Error(errorMessage);
-      }
-    }
-
-    return parseFmpBulkEodCsv(body, date);
   }
 
   private async tryGetRealtimeQuotes(uniqueSymbols: string[], apiKey: string) {
