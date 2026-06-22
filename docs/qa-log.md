@@ -2,6 +2,35 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-22 SGT - FMP Bulk EOD CSV Parsing QA
+
+Scope:
+- Verify FMP `eod-bulk` responses are parsed as CSV and no longer fail through JSON parsing.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| `getBulkEodPrices` called `response.json()` against FMP `eod-bulk` | Fixed; provider now reads `response.text()` and parses CSV |
+| Bulk EOD calls failed with JSON parse errors | Fixed; CSV body is parsed by header names |
+| Adjusted close and true EOD date needed to be preserved | Covered; parser uses `adjClose` before `close` / `price` and uses the row date or requested date fallback |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| CSV parser handles `symbol,date,open,high,low,close,adjClose,volume` sample | PASS |
+| Parser returns adjusted close as price | PASS |
+| Parser returns the EOD row date as `asOfDate` | PASS |
+| Empty/non-data bodies still return `[]` | PASS by implementation guard |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (338/338) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- After deploy, run the Admin `Refresh prices (EOD)` button or the bulk route and confirm live FMP rows are stored with the expected EOD date.
+
 ## 2026-06-22 SGT - Admin Price Refresh Bulk EOD QA
 
 Scope:

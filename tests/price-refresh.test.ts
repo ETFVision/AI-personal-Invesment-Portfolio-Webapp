@@ -5,6 +5,7 @@ import { InstrumentMarketService } from "../src/application/services/InstrumentM
 import type { MarketDataService } from "../src/application/services/MarketDataService";
 import type { UniverseRepository } from "../src/application/ports/repositories/UniverseRepository";
 import type { MarketDataProvider } from "../src/application/ports/providers/MarketDataProvider";
+import { parseFmpBulkEodCsv } from "../src/infrastructure/providers/marketData/fmpBulkEodCsv";
 import type { Instrument } from "../src/domain/universe/types";
 
 function testDaysBeforeIso(isoDate: string, days: number) {
@@ -22,6 +23,32 @@ function testLatestExpectedEodDate() {
   }
   return date.toISOString().slice(0, 10);
 }
+
+test("FMP bulk EOD CSV parser reads adjusted close and EOD date", () => {
+  const quotes = parseFmpBulkEodCsv(
+    "symbol,date,open,high,low,close,adjClose,volume\nVOO,2026-06-19,500,515,499,512,510,12345",
+    "2026-06-19"
+  );
+
+  assert.deepEqual(quotes, [
+    {
+      symbol: "VOO",
+      price: 510,
+      currency: null,
+      asOfDate: "2026-06-19",
+      raw: {
+        symbol: "VOO",
+        date: "2026-06-19",
+        open: "500",
+        high: "515",
+        low: "499",
+        close: "512",
+        adjclose: "510",
+        volume: "12345"
+      }
+    }
+  ]);
+});
 
 test("portfolio price refresh is driven by the master instrument price refresh", async () => {
   const calls: string[] = [];

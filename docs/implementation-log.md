@@ -1,3 +1,39 @@
+## 2026-06-22 - Fix FMP Bulk EOD CSV Parsing
+
+### Source
+Claude Code
+
+### Objective
+Fix `getBulkEodPrices` so it parses FMP `eod-bulk` CSV responses instead of attempting JSON parsing.
+
+### Files Changed
+- `src/infrastructure/providers/marketData/FmpMarketDataProvider.ts`
+- `src/infrastructure/providers/marketData/fmpBulkEodCsv.ts`
+- `tests/price-refresh.test.ts`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Replaced `response.json()` parsing in `getBulkEodPrices` with `response.text()` plus header-based CSV parsing.
+- Added CSV parsing that locates `symbol`, `date`, `adjClose`, `close`, and `price` by header name, uses adjusted close first, preserves the row EOD date, and skips invalid rows.
+- Kept empty response handling as `[]` for non-trading or unavailable dates.
+- Preserved FMP JSON error-object handling when the body starts with `{`.
+- Added a focused unit test for the CSV parser using a sample `eod-bulk` row.
+- No scoring, methodology, labels, access controls, cron schedule, or user-facing compliance wording changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (338/338)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- FMP `eod-bulk` returns CSV, not JSON; the bulk-EOD price path should now avoid the `Unexpected non-whitespace character after JSON` failure.
+- The parser is header-based so it is resilient to FMP column ordering while keeping the simple comma split suitable for symbol/date/price fields.
+
 ## 2026-06-22 - Admin Price Refresh Uses Bulk EOD
 
 ### Source

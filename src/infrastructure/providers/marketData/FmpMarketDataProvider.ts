@@ -1,5 +1,6 @@
 import { HistoricalMarketPriceQuote, MarketDataProvider, MarketPriceQuote } from "@/application/ports/providers/MarketDataProvider";
 import { env } from "@/infrastructure/config/env";
+import { parseFmpBulkEodCsv } from "./fmpBulkEodCsv";
 
 type FmpQuoteShort = {
   symbol?: string;
@@ -9,15 +10,6 @@ type FmpQuoteShort = {
 type FmpEodLight = {
   symbol?: string;
   date?: string;
-  price?: number;
-  volume?: number;
-};
-
-type FmpBulkEod = {
-  symbol?: string;
-  date?: string;
-  adjClose?: number;
-  close?: number;
   price?: number;
   volume?: number;
 };
@@ -113,7 +105,7 @@ async function fetchWithRetry(url: URL) {
       const response = await fetch(url, {
         next: { revalidate: 0 },
         signal: AbortSignal.timeout(10_000)
-      });
+      } as RequestInit & { next: { revalidate: number } });
 
       if (response.status === 429 || response.status >= 500) {
         lastError = new Error(`FMP request failed with status ${response.status}.`);
@@ -218,28 +210,23 @@ export class FmpMarketDataProvider implements MarketDataProvider {
       throw new Error(`FMP bulk EOD request for ${date} failed with status ${response.status}.`);
     }
 
-    const payload = (await response.json()) as FmpBulkEod[] | { "Error Message"?: string };
-    if (!Array.isArray(payload)) {
-      throw new Error(payload["Error Message"] ?? `FMP returned an unexpected bulk EOD response for ${date}.`);
+    const body = (await response.text()).trim();
+    if (!body) return [];
+
+    if (body.startsWith("{")) {
+      let errorMessage: string | undefined;
+      try {
+        const payload = JSON.parse(body) as { "Error Message"?: string };
+        errorMessage = payload["Error Message"];
+      } catch {
+        // Fall through to CSV parsing; FMP bulk endpoints should be CSV.
+      }
+      if (errorMessage) {
+        throw new Error(errorMessage);
+      }
     }
 
-    return payload
-      .map((item) => {
-        const price =
-          typeof item.adjClose === "number"
-            ? item.adjClose
-            : typeof item.close === "number"
-              ? item.close
-              : Number(item.price ?? NaN);
-        return {
-          symbol: item.symbol?.trim().toUpperCase() ?? "",
-          price,
-          currency: null,
-          asOfDate: date,
-          raw: item
-        };
-      })
-      .filter((quote) => quote.symbol && Number.isFinite(quote.price));
+    return parseFmpBulkEodCsv(body, date);
   }
 
   private async tryGetRealtimeQuotes(uniqueSymbols: string[], apiKey: string) {
