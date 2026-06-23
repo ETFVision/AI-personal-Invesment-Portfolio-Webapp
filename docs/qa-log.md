@@ -2,6 +2,49 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-23 SGT - Weekly Fundamentals Single-Pass Schedule QA
+
+Scope:
+- Verify the weekly Supabase cron chain collapses fundamentals from three passes to one after the bounded-concurrency app-layer change.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Weekly fundamentals still had three scheduled passes after bounded concurrency made one pass sufficient | Fixed; migration 118 schedules one `app-weekly-fundamentals-refresh` |
+| One pass needed to cover the full active stock universe | Fixed; `FUNDAMENTALS_MAX_STOCKS_PER_REFRESH` default is now 150 |
+| Weekly chain previously crossed into Sunday UTC | Fixed; all weekly jobs now run Saturday UTC from `23:30` through `23:55` |
+| Vercel function ceiling should be explicit for the longer fundamentals pass | Fixed; `/api/jobs/fundamentals-refresh` exports `maxDuration = 300` |
+
+New weekly schedule:
+
+| UTC Cron | Job |
+|---:|---|
+| `30 23 * * 6` | `app-weekly-fundamentals-refresh` |
+| `35 23 * * 6` | `app-weekly-news-reconciliation` |
+| `40 23 * * 6` | `app-weekly-market-vision` |
+| `45 23 * * 6` | `app-weekly-recommendation-run` |
+| `50 23 * * 6` | `app-weekly-portfolio-review-run` |
+| `55 23 * * 6` | `app-weekly-telemetry-evaluation` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration unschedules exactly the prior 8 weekly jobs | PASS |
+| Migration reschedules the same weekly job chain minus the two dropped fundamentals passes | PASS |
+| All weekly cron expressions use Saturday UTC (`* * 6`) and no Sunday UTC (`* * 0`) entries | PASS |
+| Commands copied from migration 117 except the merged fundamentals job name | PASS |
+| Daily and monthly schedules untouched | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (338/338) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/118_collapse_weekly_fundamentals_single_pass.sql` manually to Supabase.
+- Observe the first production single-pass run duration before making any further weekly schedule changes.
+
 ## 2026-06-23 SGT - Bounded-Concurrency Fundamentals Refresh QA
 
 Scope:

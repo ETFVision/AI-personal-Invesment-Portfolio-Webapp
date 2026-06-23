@@ -53,7 +53,7 @@ const envSchema = z.object({
   NEWSDATA_MIN_SECONDS_BETWEEN_REQUESTS: z.coerce.number().int().nonnegative().default(5),
   ENABLE_AI_NEWS_CLASSIFICATION: envBoolean.default(false),
   ENABLE_WEEKLY_NEWS_RECONCILIATION: envBoolean.default(false),
-  FUNDAMENTALS_MAX_STOCKS_PER_REFRESH: z.coerce.number().int().positive().default(50),
+  FUNDAMENTALS_MAX_STOCKS_PER_REFRESH: z.coerce.number().int().positive().default(150),
   FUNDAMENTALS_FETCH_CONCURRENCY: z.coerce.number().int().positive().default(6),
   FUNDAMENTALS_REFRESH_FREQUENCY_DAYS: z.coerce.number().int().positive().default(7),
   FUNDAMENTALS_STALE_AFTER_DAYS: z.coerce.number().int().positive().default(30),

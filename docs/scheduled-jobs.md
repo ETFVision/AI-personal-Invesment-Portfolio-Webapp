@@ -62,18 +62,16 @@ The daily chain runs entirely within a single UTC day (`22:30` to `23:25`), so n
 
 ### Weekly
 
-Runs every Sunday morning (Singapore time) immediately after the Sunday daily refresh chain, using Friday-close market data that is available before the new trading week starts. The chain begins on Saturday UTC; the final two jobs intentionally roll into Sunday UTC (`* * 0`) as the 5-minute cascade crosses midnight UTC.
+Runs every Sunday morning (Singapore time) using Friday-close market data that is available before the new trading week starts. The chain runs entirely on Saturday UTC (`23:30` to `23:55`) and no longer crosses the midnight-UTC boundary. Since migration `118`, fundamentals run as one bounded-concurrency pass (`maxStocksPerRefresh=150`, `FUNDAMENTALS_FETCH_CONCURRENCY=6`) covering the full active stock universe of roughly 105 stocks.
 
 | Supabase Cron job | UTC Cron | Singapore time | Endpoint | Purpose |
 |---|---:|---:|---|---|
-| `app-weekly-fundamentals-refresh-1` | `30 23 * * 6` | 7:30 AM Sunday | `/api/jobs/fundamentals-refresh` | Refresh due fundamentals, pass 1. |
-| `app-weekly-fundamentals-refresh-2` | `35 23 * * 6` | 7:35 AM Sunday | `/api/jobs/fundamentals-refresh` | Refresh due fundamentals, pass 2. |
-| `app-weekly-fundamentals-refresh-3` | `40 23 * * 6` | 7:40 AM Sunday | `/api/jobs/fundamentals-refresh` | Refresh due fundamentals, pass 3. |
-| `app-weekly-news-reconciliation` | `45 23 * * 6` | 7:45 AM Sunday | `/api/jobs/weekly-news-reconciliation` | Build weekly asset and theme news summaries. |
-| `app-weekly-market-vision` | `50 23 * * 6` | 7:50 AM Sunday | `/api/jobs/weekly-market-vision` | Generate the weekly CIO-style Market Vision draft and capture Market Vision telemetry snapshots. |
-| `app-weekly-recommendation-run` | `55 23 * * 6` | 7:55 AM Sunday | `/api/jobs/recommendation-run` | Refresh recommendation outputs and capture recommendation telemetry snapshots. |
-| `app-weekly-portfolio-review-run` | `0 0 * * 0` | 8:00 AM Sunday | `/api/jobs/portfolio-review-run` | Refresh Portfolio Review and capture Portfolio Review telemetry snapshots. |
-| `app-weekly-telemetry-evaluation` | `5 0 * * 0` | 8:05 AM Sunday | `/api/jobs/telemetry-evaluation` | Check whether any 1m, 3m, 6m or 12m telemetry horizons have matured and evaluate only those ready observations. |
+| `app-weekly-fundamentals-refresh` | `30 23 * * 6` | 7:30 AM Sunday | `/api/jobs/fundamentals-refresh` | Refresh due fundamentals in one bounded-concurrency pass. |
+| `app-weekly-news-reconciliation` | `35 23 * * 6` | 7:35 AM Sunday | `/api/jobs/weekly-news-reconciliation` | Build weekly asset and theme news summaries. |
+| `app-weekly-market-vision` | `40 23 * * 6` | 7:40 AM Sunday | `/api/jobs/weekly-market-vision` | Generate the weekly CIO-style Market Vision draft and capture Market Vision telemetry snapshots. |
+| `app-weekly-recommendation-run` | `45 23 * * 6` | 7:45 AM Sunday | `/api/jobs/recommendation-run` | Refresh recommendation outputs and capture recommendation telemetry snapshots. |
+| `app-weekly-portfolio-review-run` | `50 23 * * 6` | 7:50 AM Sunday | `/api/jobs/portfolio-review-run` | Refresh Portfolio Review and capture Portfolio Review telemetry snapshots. |
+| `app-weekly-telemetry-evaluation` | `55 23 * * 6` | 7:55 AM Sunday | `/api/jobs/telemetry-evaluation` | Check whether any 1m, 3m, 6m or 12m telemetry horizons have matured and evaluate only those ready observations. |
 
 Telemetry evaluation is scheduled weekly, but the evaluation horizons are not weekly. The job checks all stored snapshots and evaluates only observations whose configured 1m, 3m, 6m or 12m maturity date has arrived.
 
@@ -96,7 +94,7 @@ Benchmarks and fundamentals are no longer monthly. Recent benchmark data is refr
 
 ## Fundamentals Refresh Window
 
-The regular fundamentals refresh refetches overlapping recent statement windows:
+The regular fundamentals refresh runs once per week with `maxStocksPerRefresh=150` and `FUNDAMENTALS_FETCH_CONCURRENCY=6`, so one concurrent pass covers the full active stock universe of roughly 105 stocks. It refetches overlapping recent statement windows:
 
 - 5 annual periods
 - 12 quarterly periods
