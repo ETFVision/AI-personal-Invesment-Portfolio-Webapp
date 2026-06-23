@@ -59,7 +59,7 @@ Return anchors depend on `instrument_daily_returns`. Since migration `101`, `ref
 
 ## Weekly Schedule Summary
 
-Weekly runs Sunday morning Singapore time and stays within Saturday UTC (`23:30` to `23:55`). Since migration `118`, fundamentals run as one bounded-concurrency pass (`maxStocksPerRefresh=150`, `FUNDAMENTALS_FETCH_CONCURRENCY=6`) covering the full active stock universe of roughly 105 stocks:
+Weekly runs Sunday morning Singapore time and stays within Saturday UTC (`23:30` to `23:55`). Since migration `118`, fundamentals run as one bounded-concurrency pass (`FUNDAMENTALS_FETCH_CONCURRENCY=6`); since migration `123` `maxStocksPerRefresh` auto-sizes to the full active stock universe (roughly 159 stocks after the 2026-06-23 expansion):
 
 1. Fundamentals refresh.
 2. Weekly news reconciliation.
@@ -70,7 +70,7 @@ Weekly runs Sunday morning Singapore time and stays within Saturday UTC (`23:30`
 
 ## Monthly Schedule Summary
 
-Monthly runs on the first day of the month. Since migration `120`, ETF look-through runs as one bounded-concurrency pass (`maxEtfsPerRun=250`, `ETF_LOOKTHROUGH_FETCH_CONCURRENCY=6`) covering the roughly 169 eligible ETF universe:
+Monthly runs on the first day of the month. Since migration `120` ETF look-through runs as one bounded-concurrency pass (`ETF_LOOKTHROUGH_FETCH_CONCURRENCY=6`); since migration `123` `maxEtfsPerRun` auto-sizes to the eligible-ETF count (roughly 194 eligible equity ETFs after the 2026-06-23 expansion):
 
 1. ETF look-through refresh.
 2. Universe validation.
