@@ -11,6 +11,10 @@ import type { EtfExposureRepository, InsertEtfExposureRefreshLogInput, SecurityI
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+function isMissingExposureTableOrFunction(error: { code?: string; message?: string } | null) {
+  return error?.code === "42P01" || error?.code === "42883";
+}
+
 function json(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -365,6 +369,29 @@ export class SupabaseEtfExposureRepository implements EtfExposureRepository {
       if (error?.code === "42P01") continue;
       if (error) throw new Error(`Failed to clear ${table}: ${error.message}`);
     }
+  }
+
+  async getLatestEtfExposureDates(instrumentIds: string[]) {
+    const { data, error } = await this.db.rpc("get_latest_etf_exposure_dates", {
+      p_instrument_ids: instrumentIds.length ? instrumentIds : null
+    });
+    if (isMissingExposureTableOrFunction(error)) return new Map<string, { latestExposureDate: string | null; latestHoldingsDate: string | null }>();
+    if (error) throw new Error(error.message);
+
+    const rows = (data ?? []) as Array<{
+      etf_instrument_id: string | null;
+      latest_exposure_date: string | null;
+      latest_holdings_date: string | null;
+    }>;
+    const output = new Map<string, { latestExposureDate: string | null; latestHoldingsDate: string | null }>();
+    for (const row of rows) {
+      if (!row.etf_instrument_id) continue;
+      output.set(row.etf_instrument_id, {
+        latestExposureDate: row.latest_exposure_date ?? null,
+        latestHoldingsDate: row.latest_holdings_date ?? null
+      });
+    }
+    return output;
   }
 
   async getLatestExposureDateForEtf(instrumentId: string) {

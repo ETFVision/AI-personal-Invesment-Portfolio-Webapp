@@ -1,3 +1,48 @@
+## 2026-06-23 - Optimize ETF Look-Through Refresh
+
+### Source
+Claude Code
+
+### Objective
+Speed up ETF look-through refresh by replacing per-ETF eligibility date queries with one set-based RPC and processing selected ETFs in bounded-concurrency waves with parallelized per-ETF upserts.
+
+### Files Changed
+- `supabase/migrations/119_get_latest_etf_exposure_dates_rpc.sql`
+- `src/application/ports/repositories/EtfExposureRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabaseEtfExposureRepository.ts`
+- `src/application/services/etfLookthrough/EtfLookthroughRefreshService.ts`
+- `src/infrastructure/config/env.ts`
+- `src/server/container.ts`
+- `tests/etf-lookthrough-refresh.test.ts`
+- `package.json`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added migration 119 with `get_latest_etf_exposure_dates(p_instrument_ids uuid[])`, returning latest sector exposure and top-holdings dates per ETF through one grouped SQL query.
+- Repeated the existing `etf_sector_exposures` and `etf_top_holdings` `(etf_instrument_id, as_of_date desc)` indexes with `create index if not exists`.
+- Added `getLatestEtfExposureDates` to the ETF exposure repository port and Supabase implementation, with missing-table/missing-function fallback to an empty map.
+- Replaced the refresh service's per-ETF eligibility date loop with one set-based repository call while preserving the same stale/force eligibility rule and holdings-first prioritization.
+- Replaced the selected-ETF sequential refresh loop with bounded-concurrency waves using `fetchConcurrency`.
+- Parallelized independent per-ETF upserts for sector, country, top holdings, and theme exposures.
+- Added `ETF_LOOKTHROUGH_FETCH_CONCURRENCY`, defaulting to 6, and threaded it through the server container.
+- Added a regression test proving one set-based eligibility call, no per-ETF date lookups, bounded provider concurrency, correctly summed totals, and isolated `partial_success` behavior for one failing ETF.
+- Cron pass count and `maxEtfsPerRun` were intentionally unchanged.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (339/339)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 119 must be applied manually to Supabase.
+- This is an app-layer performance optimization plus one supporting RPC; no methodology, labels, compliance wording, access controls, cron schedule, pass count, or `maxEtfsPerRun` changed.
+- The five monthly ETF look-through cron passes remain in place; collapsing them is a separate measured follow-up after production timing is observed.
+
 ## 2026-06-23 - Collapse Weekly Fundamentals To Single Pass
 
 ### Source

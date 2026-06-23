@@ -2,6 +2,40 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-23 SGT - ETF Look-Through Refresh Optimization QA
+
+Scope:
+- Verify ETF look-through refresh removes the per-ETF eligibility query loop and processes selected ETFs in bounded-concurrency waves.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| ETF eligibility checked sector and holdings dates with per-ETF queries | Fixed; refresh uses one `getLatestEtfExposureDates` set-based repository call |
+| Selected ETFs refreshed sequentially | Fixed; selected ETFs run in bounded waves using `ETF_LOOKTHROUGH_FETCH_CONCURRENCY` |
+| Per-ETF exposure upserts were sequential | Fixed; sector, country, top holdings, and theme upserts run in one `Promise.all` wave |
+| Shared counters could be unsafe under concurrency | Fixed; each ETF task returns deltas that are folded after each wave |
+| One provider failure should not fail the whole refresh | Preserved; one failing ETF is isolated and logged with `partial_success` when others complete |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration 119 defines `get_latest_etf_exposure_dates` and required indexes | PASS |
+| Missing-table / missing-function RPC fallback preserves all-eligible behavior | PASS |
+| Set-based eligibility called once; per-ETF date lookups not called | PASS |
+| Bounded provider concurrency with `fetchConcurrency=2` | PASS |
+| Successful ETF totals summed correctly with one failing ETF isolated | PASS |
+| Cron pass count and `maxEtfsPerRun` unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (339/339) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/119_get_latest_etf_exposure_dates_rpc.sql` manually to Supabase.
+- Keep the existing five monthly ETF look-through passes until production timing supports a measured collapse.
+
 ## 2026-06-23 SGT - Weekly Fundamentals Single-Pass Schedule QA
 
 Scope:
