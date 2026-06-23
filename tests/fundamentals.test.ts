@@ -1450,6 +1450,23 @@ test("forced fundamentals refresh rotates through oldest profile cohorts", async
   assert.deepEqual(secondSymbols, ["CCC", "DDD"]);
 });
 
+test("fundamentals refresh auto-sizes one pass to the full eligible stock count", async () => {
+  const repository = new FakeFundamentalsRepository(["AAA", "BBB", "CCC", "DDD", "EEE"].map(stock));
+  const service = new FundamentalsRefreshService(repository, new FakeFundamentalsProvider(), new FundamentalScoringService(), new FundamentalTrendCalculationService(), {
+    enabled: true,
+    maxStocksPerRefresh: 2,
+    autoSizeMaxStocksPerRefresh: true,
+    fetchConcurrency: 3,
+    refreshFrequencyDays: 1,
+    staleAfterDays: 30
+  });
+
+  const result = await service.refreshAll({ force: true });
+
+  assert.equal(result.stocksRequested, 5);
+  assert.deepEqual(repository.scores.map((score) => score.symbol), ["AAA", "BBB", "CCC", "DDD", "EEE"]);
+});
+
 test("fundamentals cron protection uses shared CRON_SECRET validation", () => {
   assert.equal(isCronSecretValid("expected", "expected"), true);
   assert.equal(isCronSecretValid("expected", "bad"), false);

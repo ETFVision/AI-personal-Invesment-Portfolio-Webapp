@@ -164,7 +164,10 @@ export class RecommendationService {
   }
 
   private async selectInstruments(symbol?: string) {
-    const instruments = await this.universeRepository.listInstruments({ isActive: true, limit: this.options.maxInstrumentsPerRun ?? 500 });
+    const instruments = await this.universeRepository.listInstruments({
+      isActive: true,
+      ...(this.options.maxInstrumentsPerRun ? { limit: this.options.maxInstrumentsPerRun } : {})
+    });
     const supported = instruments.filter((instrument) => this.isSupported(instrument));
     if (!symbol) return supported;
     return supported.filter((instrument) => instrument.symbol?.toUpperCase() === symbol.toUpperCase());

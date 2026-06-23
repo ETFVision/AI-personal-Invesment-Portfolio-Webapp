@@ -2,13 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { TaxonomyService } from "../src/application/services/taxonomy/TaxonomyService";
 import { buildPortfolioExposureContext } from "../src/application/services/portfolio/PortfolioExposureContextService";
+import { benchmarkKeyForEtf } from "../src/application/services/recommendations/EtfRecommendationService";
 import {
   ALPHA_ETF_CATEGORIES,
   ALPHA_ETF_SYMBOLS,
   ALPHA_STOCK_SECTORS,
   ALPHA_STOCK_SYMBOLS,
   alphaEtfCategoryForSymbol,
-  alphaStockSectorForSymbol
+  alphaStockSectorForSymbol,
+  assetCategoryForEtfCategory
 } from "../src/domain/universe/alphaUniverse";
 import type { Instrument } from "../src/domain/universe/types";
 
@@ -38,13 +40,22 @@ const expectedEtfCategorySectors: Record<keyof typeof ALPHA_ETF_CATEGORIES, stri
   GROWTH: "Multi-Asset / Broad Market",
   VALUE: "Multi-Asset / Broad Market",
   SMALL_CAP: "Multi-Asset / Broad Market",
+  FACTOR_INVESTING: "Multi-Asset / Broad Market",
+  OPTION_INCOME: "Multi-Asset / Broad Market",
+  MID_CAP: "Multi-Asset / Broad Market",
+  ESG_SOCIALLY_RESPONSIBLE: "Multi-Asset / Broad Market",
+  MULTI_ASSET_BALANCED: "Multi-Asset / Broad Market",
   BOND: "Bonds / Fixed Income",
   CASH_EQUIVALENT: "Cash / Money Market",
+  PREFERRED_STOCK: "Bonds / Fixed Income",
+  MUNICIPAL_BOND: "Bonds / Fixed Income",
+  EMERGING_MARKET_BOND: "Bonds / Fixed Income",
   COMMODITY: "Commodities / Gold",
   GOLD_PRECIOUS_METALS: "Commodities / Gold",
   CRYPTO_ETF: "Crypto",
   INTERNATIONAL_DIVIDEND: "Multi-Asset / Broad Market",
   COUNTRY: "Multi-Asset / Broad Market",
+  AEROSPACE_DEFENSE: "Industrials",
   INFRASTRUCTURE: "Industrials",
   CLEAN_ENERGY: "Energy"
 };
@@ -208,10 +219,10 @@ test("stock sector source of truth overrides incorrect provider sectors", () => 
 });
 
 test("alpha universe contains the approved ETF and stock source-of-truth counts", () => {
-  assert.equal(ALPHA_ETF_SYMBOLS.length, 201);
-  assert.equal(new Set(ALPHA_ETF_SYMBOLS).size, 201);
-  assert.equal(ALPHA_STOCK_SYMBOLS.length, 105);
-  assert.equal(new Set(ALPHA_STOCK_SYMBOLS).size, 105);
+  assert.equal(ALPHA_ETF_SYMBOLS.length, 232);
+  assert.equal(new Set(ALPHA_ETF_SYMBOLS).size, 232);
+  assert.equal(ALPHA_STOCK_SYMBOLS.length, 159);
+  assert.equal(new Set(ALPHA_STOCK_SYMBOLS).size, 159);
 
   const etfCategoryCounts = Object.fromEntries(Object.entries(ALPHA_ETF_CATEGORIES).map(([category, symbols]) => [category, symbols.length]));
   assert.equal(etfCategoryCounts.US_BROAD_MARKET, 10);
@@ -219,6 +230,16 @@ test("alpha universe contains the approved ETF and stock source-of-truth counts"
   assert.equal(etfCategoryCounts.CASH_EQUIVALENT, 5);
   assert.equal(etfCategoryCounts.CRYPTO_ETF, 5);
   assert.equal(etfCategoryCounts.DIVIDEND, 11);
+  assert.equal(etfCategoryCounts.FACTOR_INVESTING, 6);
+  assert.equal(etfCategoryCounts.OPTION_INCOME, 3);
+  assert.equal(etfCategoryCounts.MID_CAP, 3);
+  assert.equal(etfCategoryCounts.ESG_SOCIALLY_RESPONSIBLE, 4);
+  assert.equal(etfCategoryCounts.MULTI_ASSET_BALANCED, 3);
+  assert.equal(etfCategoryCounts.PREFERRED_STOCK, 2);
+  assert.equal(etfCategoryCounts.MUNICIPAL_BOND, 2);
+  assert.equal(etfCategoryCounts.EMERGING_MARKET_BOND, 2);
+  assert.equal(etfCategoryCounts.COUNTRY, 14);
+  assert.equal(etfCategoryCounts.AEROSPACE_DEFENSE, 2);
   assert.equal(etfCategoryCounts.INFRASTRUCTURE, 4);
   assert.equal(etfCategoryCounts.CLEAN_ENERGY, 3);
   for (const removedSymbol of ["IWDA", "VWRA", "VGK", "URTH", "VEU", "THNQ", "TAN", "RHS", "RGI", "RYH", "RYT", "RYF", "SLY", "EWCO", "IRBO"]) {
@@ -227,9 +248,13 @@ test("alpha universe contains the approved ETF and stock source-of-truth counts"
 
   const stockSectorCounts = Object.fromEntries(Object.entries(ALPHA_STOCK_SECTORS).map(([sector, symbols]) => [sector, symbols.length]));
   assert.equal(stockSectorCounts.Technology, 23);
-  assert.equal(stockSectorCounts.Financials, 16);
-  assert.equal(stockSectorCounts.Industrials, 11);
-  assert.equal(stockSectorCounts.Utilities, 1);
+  assert.equal(stockSectorCounts.Financials, 26);
+  assert.equal(stockSectorCounts.Industrials, 20);
+  assert.equal(stockSectorCounts.Utilities, 8);
+  assert.equal(stockSectorCounts["Real Estate"], 9);
+  assert.equal(stockSectorCounts["Consumer Staples"], 13);
+  assert.equal(stockSectorCounts.Energy, 12);
+  assert.equal(stockSectorCounts.Materials, 9);
 });
 
 test("ETF product category is separate from portfolio sector taxonomy", () => {
@@ -237,6 +262,10 @@ test("ETF product category is separate from portfolio sector taxonomy", () => {
   assert.equal(alphaEtfCategoryForSymbol("VIG"), "DIVIDEND");
   assert.equal(alphaEtfCategoryForSymbol("SHV"), "CASH_EQUIVALENT");
   assert.equal(alphaEtfCategoryForSymbol("IBIT"), "CRYPTO_ETF");
+  assert.equal(alphaEtfCategoryForSymbol("MTUM"), "FACTOR_INVESTING");
+  assert.equal(alphaEtfCategoryForSymbol("PFF"), "PREFERRED_STOCK");
+  assert.equal(alphaEtfCategoryForSymbol("MUB"), "MUNICIPAL_BOND");
+  assert.equal(alphaEtfCategoryForSymbol("MDY"), "MID_CAP");
 
   const result = taxonomy.normalize({
     symbol: "VOO",
@@ -252,13 +281,43 @@ test("ETF product category is separate from portfolio sector taxonomy", () => {
   assert.equal(result.canonicalThemes.includes("Global Diversification"), false);
 });
 
+test("new ETF categories resolve canonical sector, asset category, and benchmark", () => {
+  const expectations = [
+    ["FACTOR_INVESTING", "MTUM", "Multi-Asset / Broad Market", "EQUITY", "sp500"],
+    ["OPTION_INCOME", "JEPI", "Multi-Asset / Broad Market", "EQUITY", "sp500"],
+    ["MID_CAP", "MDY", "Multi-Asset / Broad Market", "EQUITY", "sp500"],
+    ["ESG_SOCIALLY_RESPONSIBLE", "ESGU", "Multi-Asset / Broad Market", "EQUITY", "sp500"],
+    ["MULTI_ASSET_BALANCED", "AOR", "Multi-Asset / Broad Market", "MULTI_ASSET", "global_equities"],
+    ["PREFERRED_STOCK", "PFF", "Bonds / Fixed Income", "BOND", "us_aggregate_bonds"],
+    ["MUNICIPAL_BOND", "MUB", "Bonds / Fixed Income", "BOND", "us_aggregate_bonds"],
+    ["EMERGING_MARKET_BOND", "EMB", "Bonds / Fixed Income", "BOND", "us_aggregate_bonds"],
+    ["AEROSPACE_DEFENSE", "ITA", "Industrials", "EQUITY", "sp500"]
+  ] as const;
+
+  for (const [category, symbol, expectedSector, expectedAssetCategory, expectedBenchmark] of expectations) {
+    assert.equal(alphaEtfCategoryForSymbol(symbol), category);
+    assert.equal(assetCategoryForEtfCategory(category), expectedAssetCategory);
+    const instrument = minimalInstrument(symbol, { etfCategory: category } as Partial<Instrument>);
+    assert.equal(taxonomy.normalizeInstrument(instrument).canonicalSector, expectedSector);
+    assert.equal(benchmarkKeyForEtf(instrument), expectedBenchmark);
+  }
+});
+
 test("stock sector taxonomy maps approved alpha stocks by symbol", () => {
   assert.equal(alphaStockSectorForSymbol("MSFT"), "Technology");
   assert.equal(alphaStockSectorForSymbol("TSM"), "Technology");
   assert.equal(alphaStockSectorForSymbol("JPM"), "Financials");
   assert.equal(alphaStockSectorForSymbol("PYPL"), "Financials");
+  assert.equal(alphaStockSectorForSymbol("SPGI"), "Financials");
   assert.equal(alphaStockSectorForSymbol("BA"), "Industrials");
+  assert.equal(alphaStockSectorForSymbol("GD"), "Industrials");
+  assert.equal(alphaStockSectorForSymbol("EQIX"), "Real Estate");
+  assert.equal(alphaStockSectorForSymbol("RACE"), "Consumer Discretionary");
   assert.equal(alphaStockSectorForSymbol("NEE"), "Utilities");
+  assert.equal(alphaStockSectorForSymbol("DUK"), "Utilities");
+  assert.equal(alphaStockSectorForSymbol("MDLZ"), "Consumer Staples");
+  assert.equal(alphaStockSectorForSymbol("MPC"), "Energy");
+  assert.equal(alphaStockSectorForSymbol("FCX"), "Materials");
 });
 
 test("curated alpha universe maps normalizeInstrument to expected canonical sectors", () => {

@@ -24,13 +24,22 @@ export type EtfCategory =
   | "GROWTH"
   | "VALUE"
   | "SMALL_CAP"
+  | "FACTOR_INVESTING"
+  | "OPTION_INCOME"
+  | "MID_CAP"
+  | "ESG_SOCIALLY_RESPONSIBLE"
+  | "MULTI_ASSET_BALANCED"
   | "BOND"
   | "CASH_EQUIVALENT"
+  | "PREFERRED_STOCK"
+  | "MUNICIPAL_BOND"
+  | "EMERGING_MARKET_BOND"
   | "COMMODITY"
   | "GOLD_PRECIOUS_METALS"
   | "CRYPTO_ETF"
   | "INTERNATIONAL_DIVIDEND"
   | "COUNTRY"
+  | "AEROSPACE_DEFENSE"
   | "INFRASTRUCTURE"
   | "CLEAN_ENERGY";
 
@@ -58,13 +67,22 @@ export const ETF_CATEGORY_LABELS: Record<EtfCategory, string> = {
   GROWTH: "Growth",
   VALUE: "Value",
   SMALL_CAP: "Small cap",
+  FACTOR_INVESTING: "Factor investing",
+  OPTION_INCOME: "Option income",
+  MID_CAP: "Mid cap",
+  ESG_SOCIALLY_RESPONSIBLE: "ESG / socially responsible",
+  MULTI_ASSET_BALANCED: "Multi-asset / balanced",
   BOND: "Bond",
   CASH_EQUIVALENT: "Cash equivalent",
+  PREFERRED_STOCK: "Preferred stock",
+  MUNICIPAL_BOND: "Municipal bond",
+  EMERGING_MARKET_BOND: "Emerging-market bond",
   COMMODITY: "Commodity",
   GOLD_PRECIOUS_METALS: "Gold / precious metals",
   CRYPTO_ETF: "Crypto ETF",
   INTERNATIONAL_DIVIDEND: "International dividend",
   COUNTRY: "Country",
+  AEROSPACE_DEFENSE: "Aerospace & defense",
   INFRASTRUCTURE: "Infrastructure",
   CLEAN_ENERGY: "Clean energy"
 };
@@ -104,13 +122,22 @@ export const ALPHA_ETF_CATEGORIES: Record<EtfCategory, string[]> = {
   GROWTH: ["VUG", "SCHG", "IWF", "RPG", "MGK"],
   VALUE: ["VTV", "IWD", "SCHV", "RPV", "VLUE"],
   SMALL_CAP: ["IWM", "VB", "SCHA", "IJR", "VTWO", "SPSM", "AVUV"],
+  FACTOR_INVESTING: ["QUAL", "SPHQ", "JQUA", "MTUM", "USMV", "SPLV"],
+  OPTION_INCOME: ["JEPI", "JEPQ", "SPYI"],
+  MID_CAP: ["MDY", "IJH", "VO"],
+  ESG_SOCIALLY_RESPONSIBLE: ["ESGU", "ESGD", "ESGE", "SUSA"],
+  MULTI_ASSET_BALANCED: ["AOR", "AOM", "AOA"],
   BOND: ["AGG", "BND", "BNDW", "BNDX", "TLT", "SHY", "IEI", "IEF", "VGIT", "GOVT", "TIP", "STIP", "LQD", "VCIT", "HYG", "JNK"],
   CASH_EQUIVALENT: ["BIL", "SGOV", "SHV", "GBIL", "CLIP"],
+  PREFERRED_STOCK: ["PFF", "PGX"],
+  MUNICIPAL_BOND: ["MUB", "VTEB"],
+  EMERGING_MARKET_BOND: ["EMB", "VWOB"],
   COMMODITY: ["DBC", "PDBC", "COMT"],
   GOLD_PRECIOUS_METALS: ["GLD", "IAU", "SGOL"],
   CRYPTO_ETF: ["IBIT", "FBTC", "ETHA", "FETH", "BSOL"],
   INTERNATIONAL_DIVIDEND: ["IDV", "DWX", "VYMI", "SCHY", "IGRO"],
-  COUNTRY: ["EWJ", "DXJ", "JPXN", "MCHI", "FXI", "KWEB", "INDA", "INDY", "EWU", "EWC"],
+  COUNTRY: ["EWJ", "DXJ", "JPXN", "MCHI", "FXI", "KWEB", "INDA", "INDY", "EWU", "EWC", "EWG", "EWZ", "EWY", "EWT"],
+  AEROSPACE_DEFENSE: ["ITA", "PPA"],
   INFRASTRUCTURE: ["PAVE", "IFRA", "IGF", "GRID"],
   CLEAN_ENERGY: ["ICLN", "QCLN", "PBW"]
 };
@@ -118,20 +145,24 @@ export const ALPHA_ETF_CATEGORIES: Record<EtfCategory, string[]> = {
 export const ALPHA_STOCK_SECTORS: Record<string, string[]> = {
   Technology: ["AAPL", "MSFT", "NVDA", "AVGO", "ORCL", "CRM", "ADBE", "CSCO", "AMD", "INTC", "QCOM", "TXN", "NOW", "PLTR", "IBM", "MU", "PANW", "CRWD", "SNOW", "SHOP", "ANET", "ASML", "TSM"],
   "Communication Services": ["GOOGL", "META", "NFLX", "DIS", "TMUS", "VZ", "CMCSA", "CHTR", "SPOT"],
-  "Consumer Discretionary": ["AMZN", "TSLA", "HD", "MCD", "NKE", "BKNG", "LOW", "SBUX", "TJX", "MAR", "RCL", "GM", "F", "EBAY"],
-  Financials: ["JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "BLK", "SCHW", "USB", "C", "PNC", "CB", "BRK.B", "PYPL"],
+  "Consumer Discretionary": ["AMZN", "TSLA", "HD", "MCD", "NKE", "BKNG", "LOW", "SBUX", "TJX", "MAR", "RCL", "GM", "F", "EBAY", "RACE", "LVMUY"],
+  Financials: ["JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "BLK", "SCHW", "USB", "C", "PNC", "CB", "BRK.B", "PYPL", "PGR", "AJG", "MRSH", "ICE", "CME", "NDAQ", "SPGI", "MCO", "MSCI", "FDS"],
   Healthcare: ["LLY", "JNJ", "ABBV", "MRK", "UNH", "PFE", "ABT", "TMO", "DHR", "AMGN", "GILD", "BMY", "ISRG", "SYK"],
-  Industrials: ["CAT", "HON", "RTX", "UNP", "UPS", "GE", "DE", "LMT", "NOC", "ETN", "BA"],
-  Energy: ["XOM", "CVX", "COP", "SLB", "EOG"],
-  "Consumer Staples": ["PG", "KO", "PEP", "COST", "WMT"],
-  "Real Estate": ["PLD", "O", "AMT"],
-  Utilities: ["NEE"],
-  Materials: ["LIN", "APD", "ECL", "SHW"]
+  Industrials: ["CAT", "HON", "RTX", "UNP", "UPS", "GE", "DE", "LMT", "NOC", "ETN", "BA", "WM", "RSG", "FDX", "CSX", "NSC", "MMM", "EMR", "ITW", "GD"],
+  Energy: ["XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX", "VLO", "KMI", "WMB", "OKE", "OXY"],
+  "Consumer Staples": ["PG", "KO", "PEP", "COST", "WMT", "MO", "PM", "MDLZ", "CL", "KMB", "GIS", "MNST", "KDP"],
+  "Real Estate": ["PLD", "O", "AMT", "EQIX", "DLR", "CCI", "PSA", "WELL", "SPG"],
+  Utilities: ["NEE", "DUK", "SO", "D", "AEP", "EXC", "SRE", "XEL"],
+  Materials: ["LIN", "APD", "ECL", "SHW", "FCX", "NEM", "NUE", "DOW", "CTVA"]
 };
 
 const ETF_ASSET_CATEGORY: Partial<Record<EtfCategory, AssetCategory>> = {
   BOND: "BOND",
   CASH_EQUIVALENT: "BOND",
+  MULTI_ASSET_BALANCED: "MULTI_ASSET",
+  PREFERRED_STOCK: "BOND",
+  MUNICIPAL_BOND: "BOND",
+  EMERGING_MARKET_BOND: "BOND",
   COMMODITY: "COMMODITY",
   GOLD_PRECIOUS_METALS: "COMMODITY",
   CRYPTO_ETF: "CRYPTO",

@@ -43,7 +43,7 @@ export class NewsIngestionService {
     let instrumentsRequested = 0;
 
     try {
-      const instruments = await this.universeRepository.listInstruments({ isActive: true, limit: 500 });
+      const instruments = await this.universeRepository.listInstruments({ isActive: true });
       const newsTracked = instruments.filter((instrument) => instrument.symbol && instrument.assetClass !== "other");
       instrumentsRequested = newsTracked.length;
       const symbols = newsTracked.map((instrument) => instrument.symbol as string);

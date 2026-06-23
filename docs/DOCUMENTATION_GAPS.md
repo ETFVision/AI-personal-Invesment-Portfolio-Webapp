@@ -12,8 +12,8 @@ An independent deep architecture audit with live read-only database verification
 |---|---|---|---|
 | High | 10 | 8 | 2 |
 | Medium | 41 | 26 | 15 |
-| Low | 13 | 13 | 0 |
-| **Total** | **64** | **47** | **17** |
+| Low | 13 | 12 | 1 |
+| **Total** | **64** | **46** | **18** |
 
 **Open blockers — before public alpha:**
 
@@ -113,7 +113,7 @@ unless prefixed otherwise.
 40. Render-timing baseline table (Low 2) **[review]**
 41. Job schedule drift check vs live `cron.job` (Low 3) **[review]**
 42. Old docs cleanup / archive pass (Low 4) **[doc]** — needs user approval
-43. Future ETF universe additions — mid-cap (MDY/IJH/VO), factor, option-income, ESG, balanced (Low 5) **[build]**
+43. Future ETF universe additions — mid-cap (MDY/IJH/VO), factor, option-income, ESG, balanced (Low 5) **[completed 2026-06-23]**
 44. Executive-summary count pluralization ("1 watch area") — cosmetic carry-along (Portfolio Review WIP) **[build]**
 
 ### Cross-cutting — UI/UX improvement track (ongoing)
@@ -439,6 +439,11 @@ in their phases. Capture each batch as its own implementation-log entry.
    - Do not delete until the user approves an archive/cleanup pass.
 
 5. Future ETF universe additions
+   - **Closed 2026-06-23:** Universe/classification expansion implemented in `alphaUniverse.ts` and `TaxonomyService`.
+   - Added 31 ETFs across nine new ETF categories plus four country ETFs, bringing curated ETF coverage to 232 symbols.
+   - Added 54 stocks across existing sectors, bringing curated stock coverage to 159 symbols.
+   - Raised `FUNDAMENTALS_MAX_STOCKS_PER_REFRESH` default from 150 to 200 so one weekly fundamentals pass still covers the expanded stock universe.
+   - Tests now pin category counts, sample new ETF symbol mapping, canonical-sector mapping, asset-category mapping, and ETF benchmark routing for the new categories.
    - Nine candidate ETFs confirmed with FMP profile metadata, EOD prices, and historical price data.
    - Factor Investing: `QUAL`, `SPHQ`, `JQUA`, `MTUM`, `USMV`, `SPLV`.
    - Option Income: `JEPI`, `JEPQ`, `SPYI`.
@@ -456,6 +461,48 @@ in their phases. Capture each batch as its own implementation-log entry.
    - **Priority 3 — Multi-asset / balanced ETFs** (`MULTI_ASSET_BALANCED`): AOR, AOM, AOA. Some investors use a single balanced ETF as their entire holding. Lower priority since the platform is better suited to multi-holding portfolios. FMP coverage TBD.
 
    Source: instrument comprehensiveness review — `docs/INSTRUMENT_TAXONOMY_AUDIT.md`.
+
+   **Future stock universe additions (proposed 2026-06-23):** companion to the ETF additions above — 17 individual stocks identified to broaden sector/industry coverage. Each needs a `canonical_sector` entry in `ALPHA_STOCK_SECTORS`, Security Master setup (see gap #41 — new instruments are not auto-set-up), and the same post-seed refresh runbook (Seed Universe → metadata → market history backfill → ETF look-through → daily returns → anchors → market metrics → risk metrics → summary QA). FMP coverage TBD per symbol. Note: adding these grows the active stock universe from ~105 to ~122, still within one fundamentals pass (`maxStocksPerRefresh=150`); adding the completion-candidate stocks below as well pushes it to ~159, which exceeds the 150 cap and would require raising `FUNDAMENTALS_MAX_STOCKS_PER_REFRESH` to keep it a single pass.
+
+   - Insurance: `PGR` (Progressive Corporation), `AJG` (Arthur J. Gallagher & Co.), `MRSH` (Marsh & McLennan Companies).
+   - Exchanges & Market Infrastructure: `ICE` (Intercontinental Exchange), `CME` (CME Group), `NDAQ` (Nasdaq Inc.).
+   - Financial Data & Analytics: `SPGI` (S&P Global), `MCO` (Moody's Corporation), `MSCI` (MSCI Inc.), `FDS` (FactSet Research Systems).
+   - Environmental Services: `WM` (Waste Management), `RSG` (Republic Services).
+   - Data Center / Digital Infrastructure REITs: `EQIX` (Equinix), `DLR` (Digital Realty Trust).
+   - Logistics: `FDX` (FedEx Corporation).
+   - Optional Luxury: `RACE` (Ferrari N.V.), `LVMUY` (LVMH Moët Hennessy Louis Vuitton SE — ADR).
+
+   Source: user-proposed sector-coverage expansion, 2026-06-23.
+
+   **Coverage-completion candidates (Claude review, 2026-06-23):** with the confirmed ETFs + 18 stocks above seeded, the ETF universe is near-complete but a few asset classes remain absent, and several stock sectors stay too thin to represent fairly in sector/look-through analytics. These are *coverage candidates for analytics completeness* (so portfolio sector/factor exposure is not skewed by missing names), not buy/sell suggestions. FMP coverage TBD per symbol; each stock also needs `ALPHA_STOCK_SECTORS` + Security Master setup (gap #41), each ETF a category entry in `alphaUniverse.ts`.
+
+   ETF asset-class gaps still open after the planned additions:
+   - Preferred stock: `PFF`, `PGX`.
+   - Municipal bonds (tax-exempt fixed income): `MUB`, `VTEB`.
+   - Emerging-market bonds: `EMB`, `VWOB`.
+   - Aerospace & defense (thematic; minor — defense single-stocks already present): `ITA`, `PPA`.
+   - Single-country depth (majors present; common omissions): `EWG` (Germany), `EWZ` (Brazil), `EWY` (South Korea), `EWT` (Taiwan).
+
+   Stock sector-depth gaps (deepen under-represented sectors; counts are post-additions):
+   - **Utilities** (currently 1 name, NEE — most skewed): `DUK`, `SO`, `D`, `AEP`, `EXC`, `SRE`, `XEL`.
+   - **Consumer Staples** (5): `MO`, `PM`, `MDLZ`, `CL`, `KMB`, `GIS`, `MNST`, `KDP`.
+   - **Energy** (5; no refiners/midstream): `MPC`, `PSX`, `VLO`, `KMI`, `WMB`, `OKE`, `OXY`.
+   - **Materials** (4; no mining/gold/steel): `FCX`, `NEM`, `NUE`, `DOW`, `CTVA`.
+   - **Industrials** (rails / multi-industry gaps): `CSX`, `NSC`, `MMM`, `EMR`, `ITW`, `GD`.
+   - **Real Estate** (broaden REIT subtypes): `CCI` (towers), `PSA` (storage), `WELL` (healthcare), `SPG` (retail).
+
+   Assessment: the planned additions close the major structural gaps (mid-cap, factor, financial-services breadth) and bring the universe to roughly ~85% completeness; the items above are what remain to reach full sector/asset-class balance, prioritised by Utilities → Staples/Energy/Materials → preferred/muni/EM-bond ETFs.
+
+   **Seed-time look-through notes (Claude review, 2026-06-23):** the ETF look-through job skips ETFs whose `canonicalSector` is Bonds/Fixed Income, Commodities/Gold, Crypto, or Cash/Money Market — so of the 31 new ETFs, **25 get exposure look-through and 6 do not** (the bond-like `PFF`, `PGX`, `MUB`, `VTEB`, `EMB`, `VWOB`). Two eligible groups will produce imperfect exposure data; spot-check them after the ETF look-through refresh:
+   - **Multi-Asset / Balanced (`AOR`, `AOM`, `AOA`)** — funds-of-funds whose FMP holdings are *other ETFs* (AGG, IEFA, …), not companies; sector/country exposure is partial and ~40–60% is bonds that won't decompose into company holdings. Least meaningful look-through of the set.
+   - **Option Income (`JEPI`, `JEPQ`, `SPYI`)** — hold equities plus an options/ELN overlay; FMP captures the equity sleeve but not the option positions, so exposure understates the derivative component.
+   - If either group's exposure data is too thin to be useful, treat them like the existing FMP-sector-gap ETFs (the `IYW`/`VCR`/`JXI`/`VOX`/`PXE` seeded single-sector fallback pattern, gap #25).
+
+   **Ticker-change handling note (2026-06-23):** when a universe instrument changes ticker, first update the existing row in SQL with `update instruments set symbol = '<new>', provider_symbol = '<new>' where symbol = '<old>';` so the `instrument_id` is preserved. Then deactivate any old-symbol `is_internal_only` Security Master stub, delete that inactive stub's identifiers, and re-run `sync_etf_holding_security_ids()` so ETF holdings that still list the old ticker map to the renamed security. Then re-fetch prices: delete and backfill if the new ticker carries full history, or gap-fill if the provider only carries post-change data. Finally update `alphaUniverse.ts`. Do not re-run Seed Universe before renaming the row, because seeding would insert a duplicate row under the new ticker and orphan the old one.
+
+   **FMP coverage VERIFIED 2026-06-23 (live, all 31 new ETFs):** every symbol returned FMP profile metadata, recent adjusted EOD history (latest price date `2026-06-22` for all), and holdings. One exception: **`SPLV` returns 0 rows from `etf/sector-weightings`** (it did return country + holdings). `SPLV` is a multi-sector low-volatility S&P 500 fund, so the single-sector seeded fallback (`seededEtfSectorFallback.ts`) does NOT fit it — adding a single-sector seed would misrepresent it. Look-through maps FMP sector rows directly (no holdings-derived sector path), so `SPLV`'s sector-exposure card will be **empty**. Non-blocking: its holdings + country fetched, and holdings still feed company-overlap / issuer rollup via Security Master. Decision: accept the empty sector card, or add an approximate weighted multi-sector seed for `SPLV` (the fallback type supports `SeedSector[]`) — leaning accept, since a curated weight is approximate and drifts on rebalance.
+
+   **Financial-sector scoring note (Claude review, 2026-06-23):** `isFinancialSector()` (FundamentalScoringService) gates on the FMP profile `sector` containing "financial" AND `industry` containing one of bank / capital markets / broker / broker-dealer / insurance / thrifts / mortgage finance. Of the 10 new Financials-sleeve stocks: `PGR` (P&C insurer) correctly uses the financial path; `AJG`/`MRSH` (insurance brokers) are caught by `insurance` but behave like fee-based services firms; `ICE`/`CME`/`NDAQ`/`SPGI`/`MCO`/`MSCI`/`FDS` (data/exchange businesses with real margins + FCF) should land on the **standard** path under FMP's usual "Financial Data & Stock Exchanges" industry label — but if FMP tags any of them "Capital Markets" they flip to the financial path and get mis-scored (FCF/margins nulled). Post-seed: verify each of these 7 names' stored FMP `sector`/`industry` and `isFinancial` outcome; if mis-gated, refine `isFinancialSector` to exclude "Financial Data & Stock Exchanges" (separate scoring change with methodology-doc update).
 
 6. Branch and deployment governance formal policy
    - Runtime `PRODUCT_MODE=alpha|full` reduces alpha branch drift risk, and the development → main → alpha merge workflow is in practice.

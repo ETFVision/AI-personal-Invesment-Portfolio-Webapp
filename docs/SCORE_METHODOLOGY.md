@@ -847,14 +847,15 @@ ETF benchmark map:
 
 | ETF category | Benchmark |
 |---|---|
-| US broad market, Growth, Value, Dividend, Small Cap, US sector/thematic categories | `sp500` |
+| US broad market, Growth, Value, Dividend, Small Cap, Factor Investing, Option Income, Mid Cap, ESG / Socially Responsible, Aerospace & Defense, and US sector/thematic categories | `sp500` |
 | Global Equity | `global_equities` |
+| Multi-Asset / Balanced | `global_equities` |
 | Developed Markets and International Dividend | `developed_ex_us` |
 | Emerging Markets | `emerging_markets` |
-| Curated developed single-country ETFs: EWJ, DXJ, JPXN, EWU, EWC | `developed_ex_us` |
-| Curated emerging single-country ETFs: MCHI, FXI, KWEB, INDA, INDY | `emerging_markets` |
+| Curated developed single-country ETFs: EWJ, DXJ, JPXN, EWU, EWC, EWG | `developed_ex_us` |
+| Curated emerging single-country ETFs: MCHI, FXI, KWEB, INDA, INDY, EWZ, EWY, EWT | `emerging_markets` |
 | Other single-country ETFs | No Benchmark Relative component |
-| Bond, Cash Equivalent | `us_aggregate_bonds` |
+| Bond, Cash Equivalent, Preferred Stock, Municipal Bond, Emerging-Market Bond | `us_aggregate_bonds` |
 | Commodity, Gold / Precious Metals | `gold` |
 | Crypto ETF | `bitcoin` |
 
