@@ -3,6 +3,8 @@ import { revalidateTag } from "next/cache";
 import { createContainer } from "@/server/container";
 import { runCronJob } from "@/server/jobs/runCronJob";
 
+export const maxDuration = 300;
+
 export async function POST(request: NextRequest) {
   const symbols = request.nextUrl.searchParams.get("symbols")?.split(",").map((symbol) => symbol.trim()).filter(Boolean);
   const force = request.nextUrl.searchParams.get("force") === "true";

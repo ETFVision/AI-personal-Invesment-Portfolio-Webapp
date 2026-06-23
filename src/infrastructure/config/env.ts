@@ -60,8 +60,9 @@ const envSchema = z.object({
   ENABLE_FUNDAMENTALS_REFRESH: envBoolean.default(true),
   ENABLE_ETF_LOOKTHROUGH_REFRESH: envBoolean.default(true),
   ETF_LOOKTHROUGH_REFRESH_FREQUENCY_DAYS: z.coerce.number().int().positive().default(30),
-  ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN: z.coerce.number().int().positive().default(50),
-  ETF_LOOKTHROUGH_STALE_AFTER_DAYS: z.coerce.number().int().positive().default(45)
+  ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN: z.coerce.number().int().positive().default(250),
+  ETF_LOOKTHROUGH_STALE_AFTER_DAYS: z.coerce.number().int().positive().default(45),
+  ETF_LOOKTHROUGH_FETCH_CONCURRENCY: z.coerce.number().int().positive().default(6)
 });
 
 export const env = envSchema.parse({
@@ -120,5 +121,6 @@ export const env = envSchema.parse({
   ENABLE_ETF_LOOKTHROUGH_REFRESH: process.env.ENABLE_ETF_LOOKTHROUGH_REFRESH,
   ETF_LOOKTHROUGH_REFRESH_FREQUENCY_DAYS: process.env.ETF_LOOKTHROUGH_REFRESH_FREQUENCY_DAYS,
   ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN: process.env.ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN,
-  ETF_LOOKTHROUGH_STALE_AFTER_DAYS: process.env.ETF_LOOKTHROUGH_STALE_AFTER_DAYS
+  ETF_LOOKTHROUGH_STALE_AFTER_DAYS: process.env.ETF_LOOKTHROUGH_STALE_AFTER_DAYS,
+  ETF_LOOKTHROUGH_FETCH_CONCURRENCY: process.env.ETF_LOOKTHROUGH_FETCH_CONCURRENCY
 });

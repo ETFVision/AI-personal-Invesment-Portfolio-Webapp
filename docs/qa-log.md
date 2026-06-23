@@ -2,6 +2,79 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-23 SGT - Monthly ETF Look-Through Single-Pass Schedule QA
+
+Scope:
+- Verify the monthly Supabase cron chain collapses ETF look-through from five passes to one after the set-based eligibility and bounded-concurrency app-layer changes.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Monthly ETF look-through still had five scheduled passes after one pass became sufficient | Fixed; migration 120 schedules one `app-monthly-etf-lookthrough-refresh` |
+| One pass needed to cover the full eligible ETF universe | Fixed; `ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN` default is now 250 |
+| Vercel function ceiling should be explicit for the longer ETF look-through pass | Fixed; `/api/jobs/etf-lookthrough-refresh` exports `maxDuration = 300` |
+| Monthly chain could be shorter after pass collapse | Fixed; monthly chain now runs at `23:30` and `23:35` UTC on the 1st |
+
+New monthly schedule:
+
+| UTC Cron | Job |
+|---:|---|
+| `30 23 1 * *` | `app-monthly-etf-lookthrough-refresh` |
+| `35 23 1 * *` | `app-monthly-universe-validation` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration unschedules exactly the prior 6 monthly jobs | PASS |
+| Migration reschedules the same monthly chain minus the four dropped ETF look-through passes | PASS |
+| Both monthly cron expressions use the 1st-of-month schedule (`1 * *`) | PASS |
+| Commands copied from migration 117 except the merged ETF look-through job name | PASS |
+| Daily and weekly schedules untouched | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (339/339) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/120_collapse_monthly_etf_lookthrough_single_pass.sql` manually to Supabase.
+- Observe the first production single-pass ETF look-through run duration before making further schedule changes.
+
+## 2026-06-23 SGT - ETF Look-Through Refresh Optimization QA
+
+Scope:
+- Verify ETF look-through refresh removes the per-ETF eligibility query loop and processes selected ETFs in bounded-concurrency waves.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| ETF eligibility checked sector and holdings dates with per-ETF queries | Fixed; refresh uses one `getLatestEtfExposureDates` set-based repository call |
+| Selected ETFs refreshed sequentially | Fixed; selected ETFs run in bounded waves using `ETF_LOOKTHROUGH_FETCH_CONCURRENCY` |
+| Per-ETF exposure upserts were sequential | Fixed; sector, country, top holdings, and theme upserts run in one `Promise.all` wave |
+| Shared counters could be unsafe under concurrency | Fixed; each ETF task returns deltas that are folded after each wave |
+| One provider failure should not fail the whole refresh | Preserved; one failing ETF is isolated and logged with `partial_success` when others complete |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration 119 defines `get_latest_etf_exposure_dates` and required indexes | PASS |
+| Missing-table / missing-function RPC fallback preserves all-eligible behavior | PASS |
+| Set-based eligibility called once; per-ETF date lookups not called | PASS |
+| Bounded provider concurrency with `fetchConcurrency=2` | PASS |
+| Successful ETF totals summed correctly with one failing ETF isolated | PASS |
+| Cron pass count and `maxEtfsPerRun` unchanged | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (339/339) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/119_get_latest_etf_exposure_dates_rpc.sql` manually to Supabase.
+- Keep the existing five monthly ETF look-through passes until production timing supports a measured collapse.
+
 ## 2026-06-23 SGT - Weekly Fundamentals Single-Pass Schedule QA
 
 Scope:

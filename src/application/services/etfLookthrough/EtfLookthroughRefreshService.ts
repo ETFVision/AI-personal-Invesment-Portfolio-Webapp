@@ -1,5 +1,6 @@
 import type { EtfExposureRepository } from "@/application/ports/repositories/EtfExposureRepository";
 import type { UniverseRepository } from "@/application/ports/repositories/UniverseRepository";
+import type { Instrument } from "@/domain/universe/types";
 import { EtfExposureProviderService } from "./EtfExposureProviderService";
 import { EtfLookthroughService } from "./EtfLookthroughService";
 
@@ -8,6 +9,7 @@ export type EtfLookthroughRefreshOptions = {
   refreshFrequencyDays: number;
   maxEtfsPerRun: number;
   staleAfterDays: number;
+  fetchConcurrency: number;
 };
 
 function today() {
@@ -40,11 +42,13 @@ export class EtfLookthroughRefreshService {
       .filter((instrument) => !["Bonds / Fixed Income", "Commodities / Gold", "Crypto", "Cash / Money Market"].includes(instrument.canonicalSector ?? ""))
       .filter((instrument) => requestedSymbols.size === 0 || requestedSymbols.has(instrument.symbol?.toUpperCase() ?? ""));
     const staleCutoff = daysAgo(input.force ? 0 : this.options.staleAfterDays);
+    const latestDates = await this.repository.getLatestEtfExposureDates(instruments.map((instrument) => instrument.id));
     const eligible: { instrument: (typeof instruments)[0]; latest: string | null; holdingsLatest: string | null }[] = [];
     for (const instrument of instruments) {
-      const latest = await this.repository.getLatestExposureDateForEtf(instrument.id);
+      const dates = latestDates.get(instrument.id);
+      const latest = dates?.latestExposureDate ?? null;
       if (input.force || !latest || latest < staleCutoff) {
-        const holdingsLatest = await this.repository.getLatestHoldingsDateForEtf(instrument.id);
+        const holdingsLatest = dates?.latestHoldingsDate ?? null;
         eligible.push({ instrument, latest, holdingsLatest });
       }
     }
@@ -63,21 +67,16 @@ export class EtfLookthroughRefreshService {
     let countryRows = 0;
     let topHoldingRows = 0;
     const errors: string[] = [];
+    const concurrency = Math.max(1, this.options.fetchConcurrency);
 
-    for (const instrument of selected) {
-      try {
-        const snapshot = await this.providerService.getEtfExposure(instrument.symbol ?? "");
-        const normalized = this.lookthroughService.fromProviderSnapshot(instrument, snapshot, this.providerService.providerName);
-        await this.repository.upsertSectorExposures(normalized.sectorExposures);
-        await this.repository.upsertCountryExposures(normalized.countryExposures);
-        await this.repository.upsertTopHoldings(normalized.topHoldings);
-        await this.repository.upsertThemeExposures(normalized.themeExposures);
-        etfsRefreshed += 1;
-        sectorRows += normalized.sectorExposures.length;
-        countryRows += normalized.countryExposures.length;
-        topHoldingRows += normalized.topHoldings.length;
-      } catch (error) {
-        errors.push(`${instrument.symbol}: ${error instanceof Error ? error.message : "ETF look-through refresh failed."}`);
+    for (let index = 0; index < selected.length; index += concurrency) {
+      const results = await Promise.all(selected.slice(index, index + concurrency).map((instrument) => this.refreshEtf(instrument)));
+      for (const result of results) {
+        etfsRefreshed += result.etfsRefreshed;
+        sectorRows += result.sectorRows;
+        countryRows += result.countryRows;
+        topHoldingRows += result.topHoldingRows;
+        if (result.error) errors.push(result.error);
       }
     }
 
@@ -96,5 +95,33 @@ export class EtfLookthroughRefreshService {
       metadata: { asOfDate: today(), requestedSymbols: Array.from(requestedSymbols), staleCutoff }
     });
     return { status, etfsRequested: selected.length, etfsRefreshed, sectorRows, countryRows, topHoldingRows, message: errors.join(" | ") || null };
+  }
+
+  private async refreshEtf(instrument: Instrument): Promise<{ etfsRefreshed: 0 | 1; sectorRows: number; countryRows: number; topHoldingRows: number; error: string | null }> {
+    try {
+      const snapshot = await this.providerService.getEtfExposure(instrument.symbol ?? "");
+      const normalized = this.lookthroughService.fromProviderSnapshot(instrument, snapshot, this.providerService.providerName);
+      await Promise.all([
+        this.repository.upsertSectorExposures(normalized.sectorExposures),
+        this.repository.upsertCountryExposures(normalized.countryExposures),
+        this.repository.upsertTopHoldings(normalized.topHoldings),
+        this.repository.upsertThemeExposures(normalized.themeExposures)
+      ]);
+      return {
+        etfsRefreshed: 1,
+        sectorRows: normalized.sectorExposures.length,
+        countryRows: normalized.countryExposures.length,
+        topHoldingRows: normalized.topHoldings.length,
+        error: null
+      };
+    } catch (error) {
+      return {
+        etfsRefreshed: 0,
+        sectorRows: 0,
+        countryRows: 0,
+        topHoldingRows: 0,
+        error: `${instrument.symbol}: ${error instanceof Error ? error.message : "ETF look-through refresh failed."}`
+      };
+    }
   }
 }

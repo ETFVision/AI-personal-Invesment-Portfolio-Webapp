@@ -77,18 +77,14 @@ Telemetry evaluation is scheduled weekly, but the evaluation horizons are not we
 
 ### Monthly
 
-Runs on the first day of each month in UTC, which is also the first day of the month in US Eastern time (the jobs fire at `23:30`–`23:55` UTC on the 1st = 19:30–19:55 EDT / 18:30–18:55 EST on the 1st). Because `23:xx` UTC plus 8 hours crosses midnight, these surface on the morning of the **2nd** in Singapore time. The whole block fits before midnight UTC, so no monthly job crosses into the next UTC day.
+Runs on the first day of each month in UTC, which is also the first day of the month in US Eastern time (the jobs fire at `23:30`-`23:35` UTC on the 1st = 19:30-19:35 EDT / 18:30-18:35 EST on the 1st). Because `23:xx` UTC plus 8 hours crosses midnight, these surface on the morning of the **2nd** in Singapore time. The whole block fits before midnight UTC, so no monthly job crosses into the next UTC day. Since migration `120`, ETF look-through runs as one bounded-concurrency pass (`maxEtfsPerRun=250`, `ETF_LOOKTHROUGH_FETCH_CONCURRENCY=6`) covering the full eligible ETF universe of roughly 169 ETFs.
 
 | Supabase Cron job | UTC Cron | Singapore time | Endpoint | Purpose |
 |---|---:|---:|---|---|
-| `app-monthly-etf-lookthrough-refresh-1` | `30 23 1 * *` | 7:30 AM 2nd (Sing.) | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data, pass 1. |
-| `app-monthly-etf-lookthrough-refresh-2` | `35 23 1 * *` | 7:35 AM 2nd (Sing.) | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data, pass 2. |
-| `app-monthly-etf-lookthrough-refresh-3` | `40 23 1 * *` | 7:40 AM 2nd (Sing.) | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data, pass 3. |
-| `app-monthly-etf-lookthrough-refresh-4` | `45 23 1 * *` | 7:45 AM 2nd (Sing.) | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data, pass 4. |
-| `app-monthly-etf-lookthrough-refresh-5` | `50 23 1 * *` | 7:50 AM 2nd (Sing.) | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data, pass 5. |
-| `app-monthly-universe-validation` | `55 23 1 * *` | 7:55 AM 2nd (Sing.) | `/api/jobs/universe-validation` | Revalidate universe metadata and data availability. |
+| `app-monthly-etf-lookthrough-refresh` | `30 23 1 * *` | 7:30 AM 2nd (Sing.) | `/api/jobs/etf-lookthrough-refresh` | Refresh ETF sector, country and top-holding exposure data in one bounded-concurrency pass. |
+| `app-monthly-universe-validation` | `35 23 1 * *` | 7:35 AM 2nd (Sing.) | `/api/jobs/universe-validation` | Revalidate universe metadata and data availability. |
 
-The weekly chain (`* * 6`) and the monthly chain (`1 * *`) share the same `23:30`–`23:55` UTC window and therefore overlap only when the 1st of the month falls on a Saturday UTC (roughly once a quarter). They touch different tables and `job_locks` serialize same-named runs, so the overlap is harmless.
+The weekly chain (`* * 6`) and the monthly chain (`1 * *`) overlap only when the 1st of the month falls on a Saturday UTC (roughly once a quarter). The monthly chain now uses only the `23:30`-`23:35` UTC slots, touches different tables from the weekly chain, and `job_locks` serialize same-named runs, so the overlap is harmless.
 
 Benchmarks and fundamentals are no longer monthly. Recent benchmark data is refreshed daily, fundamentals are refreshed weekly, and long benchmark history is handled by the manual market-history backfill.
 
