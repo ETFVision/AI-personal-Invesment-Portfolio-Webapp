@@ -457,6 +457,37 @@ in their phases. Capture each batch as its own implementation-log entry.
 
    Source: instrument comprehensiveness review — `docs/INSTRUMENT_TAXONOMY_AUDIT.md`.
 
+   **Future stock universe additions (proposed 2026-06-23):** companion to the ETF additions above — 17 individual stocks identified to broaden sector/industry coverage. Each needs a `canonical_sector` entry in `ALPHA_STOCK_SECTORS`, Security Master setup (see gap #41 — new instruments are not auto-set-up), and the same post-seed refresh runbook (Seed Universe → metadata → market history backfill → ETF look-through → daily returns → anchors → market metrics → risk metrics → summary QA). FMP coverage TBD per symbol. Note: adding these grows the active stock universe from ~105 to ~122, still within one fundamentals pass (`maxStocksPerRefresh=150`); adding the completion-candidate stocks below as well pushes it to ~159, which exceeds the 150 cap and would require raising `FUNDAMENTALS_MAX_STOCKS_PER_REFRESH` to keep it a single pass.
+
+   - Insurance: `PGR` (Progressive Corporation), `AJG` (Arthur J. Gallagher & Co.), `MMC` (Marsh & McLennan Companies).
+   - Exchanges & Market Infrastructure: `ICE` (Intercontinental Exchange), `CME` (CME Group), `NDAQ` (Nasdaq Inc.).
+   - Financial Data & Analytics: `SPGI` (S&P Global), `MCO` (Moody's Corporation), `MSCI` (MSCI Inc.), `FDS` (FactSet Research Systems).
+   - Environmental Services: `WM` (Waste Management), `RSG` (Republic Services).
+   - Data Center / Digital Infrastructure REITs: `EQIX` (Equinix), `DLR` (Digital Realty Trust).
+   - Logistics: `FDX` (FedEx Corporation).
+   - Optional Luxury: `RACE` (Ferrari N.V.), `LVMUY` (LVMH Moët Hennessy Louis Vuitton SE — ADR).
+
+   Source: user-proposed sector-coverage expansion, 2026-06-23.
+
+   **Coverage-completion candidates (Claude review, 2026-06-23):** with the confirmed ETFs + 18 stocks above seeded, the ETF universe is near-complete but a few asset classes remain absent, and several stock sectors stay too thin to represent fairly in sector/look-through analytics. These are *coverage candidates for analytics completeness* (so portfolio sector/factor exposure is not skewed by missing names), not buy/sell suggestions. FMP coverage TBD per symbol; each stock also needs `ALPHA_STOCK_SECTORS` + Security Master setup (gap #41), each ETF a category entry in `alphaUniverse.ts`.
+
+   ETF asset-class gaps still open after the planned additions:
+   - Preferred stock: `PFF`, `PGX`.
+   - Municipal bonds (tax-exempt fixed income): `MUB`, `VTEB`.
+   - Emerging-market bonds: `EMB`, `VWOB`.
+   - Aerospace & defense (thematic; minor — defense single-stocks already present): `ITA`, `PPA`.
+   - Single-country depth (majors present; common omissions): `EWG` (Germany), `EWZ` (Brazil), `EWY` (South Korea), `EWT` (Taiwan).
+
+   Stock sector-depth gaps (deepen under-represented sectors; counts are post-additions):
+   - **Utilities** (currently 1 name, NEE — most skewed): `DUK`, `SO`, `D`, `AEP`, `EXC`, `SRE`, `XEL`.
+   - **Consumer Staples** (5): `MO`, `PM`, `MDLZ`, `CL`, `KMB`, `GIS`, `MNST`, `KDP`.
+   - **Energy** (5; no refiners/midstream): `MPC`, `PSX`, `VLO`, `KMI`, `WMB`, `OKE`, `OXY`.
+   - **Materials** (4; no mining/gold/steel): `FCX`, `NEM`, `NUE`, `DOW`, `CTVA`.
+   - **Industrials** (rails / multi-industry gaps): `CSX`, `NSC`, `MMM`, `EMR`, `ITW`, `GD`.
+   - **Real Estate** (broaden REIT subtypes): `CCI` (towers), `PSA` (storage), `WELL` (healthcare), `SPG` (retail).
+
+   Assessment: the planned additions close the major structural gaps (mid-cap, factor, financial-services breadth) and bring the universe to roughly ~85% completeness; the items above are what remain to reach full sector/asset-class balance, prioritised by Utilities → Staples/Energy/Materials → preferred/muni/EM-bond ETFs.
+
 6. Branch and deployment governance formal policy
    - Runtime `PRODUCT_MODE=alpha|full` reduces alpha branch drift risk, and the development → main → alpha merge workflow is in practice.
    - Remaining: formal written policy documenting merge direction, Vercel deployment targets per branch, environment variable governance, and rollback process.
