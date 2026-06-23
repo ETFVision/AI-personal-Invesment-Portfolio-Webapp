@@ -146,7 +146,7 @@ export const ALPHA_STOCK_SECTORS: Record<string, string[]> = {
   Technology: ["AAPL", "MSFT", "NVDA", "AVGO", "ORCL", "CRM", "ADBE", "CSCO", "AMD", "INTC", "QCOM", "TXN", "NOW", "PLTR", "IBM", "MU", "PANW", "CRWD", "SNOW", "SHOP", "ANET", "ASML", "TSM"],
   "Communication Services": ["GOOGL", "META", "NFLX", "DIS", "TMUS", "VZ", "CMCSA", "CHTR", "SPOT"],
   "Consumer Discretionary": ["AMZN", "TSLA", "HD", "MCD", "NKE", "BKNG", "LOW", "SBUX", "TJX", "MAR", "RCL", "GM", "F", "EBAY", "RACE", "LVMUY"],
-  Financials: ["JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "BLK", "SCHW", "USB", "C", "PNC", "CB", "BRK.B", "PYPL", "PGR", "AJG", "MMC", "ICE", "CME", "NDAQ", "SPGI", "MCO", "MSCI", "FDS"],
+  Financials: ["JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "BLK", "SCHW", "USB", "C", "PNC", "CB", "BRK.B", "PYPL", "PGR", "AJG", "MRSH", "ICE", "CME", "NDAQ", "SPGI", "MCO", "MSCI", "FDS"],
   Healthcare: ["LLY", "JNJ", "ABBV", "MRK", "UNH", "PFE", "ABT", "TMO", "DHR", "AMGN", "GILD", "BMY", "ISRG", "SYK"],
   Industrials: ["CAT", "HON", "RTX", "UNP", "UPS", "GE", "DE", "LMT", "NOC", "ETN", "BA", "WM", "RSG", "FDX", "CSX", "NSC", "MMM", "EMR", "ITW", "GD"],
   Energy: ["XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX", "VLO", "KMI", "WMB", "OKE", "OXY"],

@@ -2,6 +2,33 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-23 SGT - Marsh McLennan Ticker Change QA
+
+Scope:
+- Verify the curated universe and supporting universe documentation use `MRSH` instead of the old `MMC` ticker.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Marsh McLennan ticker changed from `MMC` to `MRSH` | Fixed in `ALPHA_STOCK_SECTORS` Financials |
+| Hardcoded old ticker references could reintroduce the old symbol | Searched source, docs, tests, and migrations; related documentation references now use `MRSH` |
+| Ticker-change operational process was undocumented | Added a universe-section note: rename the existing `instruments` row before seeding, then refresh prices and update `alphaUniverse.ts` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Hardcoded ticker search across `src`, `docs`, `tests`, and `supabase` | PASS; runtime/source references now use `MRSH`; remaining `MMC` mentions are this change-log context only |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- In production, update the existing `instruments` row from `MMC` to `MRSH` before running Seed Universe, preserving the existing `instrument_id`.
+- Re-fetch/gap-fill prices for the new ticker after the live row is renamed.
+
 ## 2026-06-23 SGT - Universe Seed And Metadata Refresh Throughput QA
 
 Scope:

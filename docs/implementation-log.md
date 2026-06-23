@@ -1,3 +1,35 @@
+## 2026-06-23 - Marsh McLennan Ticker Change To MRSH
+
+### Source
+Claude Code
+
+### Objective
+Update the active universe source definition and related universe documentation for Marsh McLennan's ticker change from `MMC` to `MRSH`.
+
+### Files Changed
+- `src/domain/universe/alphaUniverse.ts`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Replaced `MMC` with `MRSH` in the `ALPHA_STOCK_SECTORS` Financials stock list.
+- Searched source, docs, tests, and migrations for hardcoded `MMC` references and updated the related documentation references.
+- Added a ticker-change handling note documenting the operational sequence: rename the existing `instruments` row first to preserve `instrument_id`, refresh price history, then update `alphaUniverse.ts`.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Universe/classification only; no scoring formula, methodology, label, access-control, or compliance wording changes.
+- Operational follow-up: update the live `instruments` row from `MMC` to `MRSH` before running Seed Universe to avoid duplicate rows.
+
 ## 2026-06-23 - Universe Seed And Metadata Refresh Throughput Fixes
 
 ### Source
