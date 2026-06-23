@@ -2,6 +2,37 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-23 SGT - Bounded-Concurrency Fundamentals Refresh QA
+
+Scope:
+- Verify weekly fundamentals refresh processes due stocks in bounded-concurrency waves and preserves existing scoring/trend behavior.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Fundamentals refresh processed due stocks sequentially | Fixed; due stocks now run in bounded waves using `fetchConcurrency` |
+| Independent repository upserts inside each stock were sequential | Fixed; profile/statements/ratios and score/trends/summary writes now run in two independent `Promise.all` waves |
+| Shared counters could not be safely mutated inside concurrent tasks | Fixed; each stock returns deltas that are folded after each wave |
+| One provider failure should not fail the whole wave | Preserved; failed symbols are isolated and the result remains `partial_success` when other stocks complete |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Bounded stock-level concurrency with `fetchConcurrency=2` | PASS |
+| All due stocks attempted and successful-stock totals summed correctly | PASS |
+| One throwing symbol isolated in `failedSymbols` | PASS |
+| `partial_success` status/log behavior preserved | PASS |
+| `FUNDAMENTALS_FETCH_CONCURRENCY` defaulted and wired through container | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (338/338) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Weekly fundamentals cron/pass count is unchanged; collapse the three passes only after measuring production runtime with the bounded-concurrency refresh.
+
 ## 2026-06-22 SGT - Re-Cascaded Refresh Schedule QA
 
 Scope:

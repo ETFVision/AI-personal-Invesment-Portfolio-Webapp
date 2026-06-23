@@ -1,3 +1,43 @@
+## 2026-06-23 - Bounded-Concurrency Fundamentals Refresh
+
+### Source
+Claude Code
+
+### Objective
+Speed up the weekly fundamentals refresh by processing due stocks in bounded-concurrency waves and parallelizing independent repository upserts inside each stock task.
+
+### Files Changed
+- `src/application/services/fundamentals/FundamentalsRefreshService.ts`
+- `src/infrastructure/config/env.ts`
+- `src/server/container.ts`
+- `tests/fundamentals.test.ts`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Extracted the per-stock refresh body into a result-returning helper so each stock reports deltas instead of mutating shared counters.
+- Processed the already sorted/sliced `due` list in bounded waves using `fetchConcurrency`, preserving selection order and `maxStocksPerRefresh`.
+- Added `FUNDAMENTALS_FETCH_CONCURRENCY`, defaulting to 6, and threaded it through the server container.
+- Parallelized the independent first write wave: profile, financial statements, and financial ratios.
+- Kept score and trend calculations unchanged and in memory after the first write wave.
+- Parallelized the second write wave: score, trends, and trend summary.
+- Preserved failure isolation so one throwing symbol is captured in `failedSymbols` without failing the wave.
+- Added a regression test proving bounded stock-level concurrency, correctly summed totals, and `partial_success` behavior for one failed symbol.
+- No scoring, trend math, methodology, labels, access controls, SQL, or user-facing compliance wording changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (338/338)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Default `FUNDAMENTALS_FETCH_CONCURRENCY=6` means roughly 12 concurrent FMP fundamentals requests because each stock fetches annual and quarterly data in parallel.
+- Cron/pass count was intentionally unchanged; collapsing weekly passes remains a measured follow-up.
+
 ## 2026-06-22 - Re-Cascade Refresh Schedule With Single Risk Pass
 
 ### Source
