@@ -2,6 +2,36 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-23 SGT - Internal ETF Holding Security Stub Backfill QA
+
+Scope:
+- Verify a manual migration can incrementally create internal-only Security Master stubs for ETF top-holding symbols that remain outside the selectable universe after migration 127.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Newly added ETFs can hold non-universe companies that do not yet have active `securities_master` rows | Fixed; migration 128 inserts internal-only stubs for distinct ETF holding symbols with no active security |
+| Newly seeded universe stocks should resolve to real securities rather than duplicate stubs | Preserved; migration 128 assumes migration 127 has run and skips any symbol already present as an active security |
+| ETF top holdings need to be re-mapped after stub creation | Fixed; migration 128 runs `sync_etf_holding_security_ids()` |
+| New stubs need issuer links for issuer-level analysis | Fixed; migration 128 runs `sync_security_issuer_links()` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration 128 inserts only missing active canonical symbols | PASS |
+| Migration 128 inserts `SYMBOL` identifiers for new stubs with conflict protection | PASS |
+| Migration 128 calls ETF holding and issuer sync functions | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (347/347) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/128_internal_etf_holding_securities.sql` manually to Supabase after migration 127.
+- After applying, verify non-universe ETF holding symbols have internal-only securities and ETF top holdings have updated `holding_security_id` mappings.
+
 ## 2026-06-23 SGT - Security Master Incremental Setup QA
 
 Scope:

@@ -1,3 +1,34 @@
+## 2026-06-23 - Internal ETF Holding Security Stub Backfill
+
+### Source
+Claude Code
+
+### Objective
+Add an idempotent manual migration to create internal-only Security Master stubs for ETF top-holding symbols that are not active selectable or stub securities after migration 127.
+
+### Files Changed
+- `supabase/migrations/128_internal_etf_holding_securities.sql`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added migration 128 to scan distinct `etf_top_holdings` symbols and insert `is_internal_only=true` `securities_master` stubs only when no active security already exists for the canonical symbol.
+- Reused the migration 095 stub shape: `STOCK` / `EQUITY`, non-user-selectable, `source_priority` of `["etf_top_holdings", "etfvision"]`, identifier quality 60, and a matching `SYMBOL` security identifier sourced from `etf_top_holdings`.
+- Re-ran `sync_etf_holding_security_ids()` and `sync_security_issuer_links()` so newly created stubs and migration 127's real securities are reflected in ETF holding mappings and issuer links.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (347/347)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 128 must be applied manually to Supabase after migration 127.
+- This is a SQL migration/documentation-only change; no app code, scoring methodology, labels, compliance wording, feature flags, or access controls changed.
+
 ## 2026-06-23 - Security Master Incremental Setup
 
 ### Source
