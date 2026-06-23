@@ -233,8 +233,7 @@ export async function refreshInstrumentDailyReturnsAction(formData?: FormData) {
 
   const job = await container.jobRunService.runManual("instrument-daily-returns-refresh", async () => {
     const result = await container.instrumentMarketService.refreshInstrumentDailyReturnsInBatches({
-      batchSize: 25,
-      maxBatches: 14
+      batchSize: 25
     });
     refreshMessage = result.message;
     errors.push(...result.errors);
@@ -268,8 +267,7 @@ export async function refreshInstrumentReturnAnchorsAction(formData?: FormData) 
 
   const job = await container.jobRunService.runManual("instrument-return-anchors-refresh", async () => {
     const result = await container.instrumentMarketService.refreshInstrumentReturnAnchorsInBatches({
-      batchSize: 25,
-      maxBatches: 14
+      batchSize: 25
     });
     refreshMessage = result.message;
     errors.push(...result.errors);
@@ -303,8 +301,7 @@ export async function refreshInstrumentMarketMetricsAction(formData?: FormData) 
 
   const job = await container.jobRunService.runManual("instrument-market-metrics-refresh", async () => {
     const result = await container.instrumentMarketService.refreshInstrumentMarketMetricsInBatches({
-      batchSize: 25,
-      maxBatches: 14
+      batchSize: 25
     });
     refreshMessage = result.message;
     errors.push(...result.errors);
@@ -343,7 +340,6 @@ export async function refreshInstrumentRiskMetricsAction(formData?: FormData) {
 
   const job = await container.jobRunService.runManual("refresh_instrument_risk_metrics", async () => {
     const result = await container.instrumentMarketService.refreshInstrumentRiskMetricsInBatches({
-      batchSize: 200,
       minObservations: 30
     });
     refreshMessage = result.message;

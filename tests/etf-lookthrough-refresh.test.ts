@@ -155,7 +155,8 @@ test("ETF look-through refresh uses set-based eligibility and bounded-concurrenc
     {
       enabled: true,
       refreshFrequencyDays: 30,
-      maxEtfsPerRun: 10,
+      maxEtfsPerRun: 2,
+      autoSizeMaxEtfsPerRun: true,
       staleAfterDays: 45,
       fetchConcurrency: 2
     }

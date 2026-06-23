@@ -718,7 +718,8 @@ export class InstrumentMarketService {
 
   async refreshInstrumentMarketMetricsInBatches(input?: { batchSize?: number; maxBatches?: number }): Promise<RefreshInstrumentPricesResult> {
     const batchSize = Math.max(1, input?.batchSize ?? 25);
-    const maxBatches = Math.max(1, input?.maxBatches ?? 3);
+    const activeCount = input?.maxBatches == null ? (await this.repository.listInstruments({ isActive: true })).length : null;
+    const maxBatches = Math.max(1, input?.maxBatches ?? Math.ceil((activeCount ?? batchSize) / batchSize));
     let refreshed = 0;
 
     for (let index = 0; index < maxBatches; index += 1) {
@@ -740,10 +741,10 @@ export class InstrumentMarketService {
     };
   }
 
-  async refreshInstrumentDailyReturnsInBatches(input?: { batchSize?: number; maxBatches?: number }): Promise<RefreshInstrumentPricesResult> {
+  async refreshInstrumentDailyReturnsInBatches(input?: { batchSize?: number; maxBatches?: number; incrementalDays?: number | null }): Promise<RefreshInstrumentPricesResult> {
     const batchSize = Math.max(1, input?.batchSize ?? 25);
-    const maxBatches = Math.max(1, input?.maxBatches ?? 3);
     const instruments = await this.repository.listInstruments({ isActive: true });
+    const maxBatches = Math.max(1, input?.maxBatches ?? Math.ceil(instruments.length / batchSize));
     const selected = instruments.slice(0, batchSize * maxBatches);
     const instrumentIds = selected.map((instrument) => instrument.id);
     const rpcChunkSize = Math.min(batchSize, 25);
@@ -759,7 +760,7 @@ export class InstrumentMarketService {
     }
 
     for (let index = 0; index < instrumentIds.length; index += rpcChunkSize) {
-      await this.repository.refreshInstrumentDailyReturns(instrumentIds.slice(index, index + rpcChunkSize));
+      await this.repository.refreshInstrumentDailyReturns(instrumentIds.slice(index, index + rpcChunkSize), input?.incrementalDays ?? null);
     }
 
     return {
@@ -773,8 +774,8 @@ export class InstrumentMarketService {
 
   async refreshInstrumentReturnAnchorsInBatches(input?: { batchSize?: number; maxBatches?: number }): Promise<RefreshInstrumentPricesResult> {
     const batchSize = Math.max(1, input?.batchSize ?? 25);
-    const maxBatches = Math.max(1, input?.maxBatches ?? 3);
     const instruments = await this.repository.listInstruments({ isActive: true });
+    const maxBatches = Math.max(1, input?.maxBatches ?? Math.ceil(instruments.length / batchSize));
     const selected = instruments.slice(0, batchSize * maxBatches);
     const instrumentIds = selected.map((instrument) => instrument.id);
     const rpcChunkSize = Math.min(batchSize, 25);
@@ -872,10 +873,10 @@ export class InstrumentMarketService {
     chunkSize?: number;
     minObservations?: number;
   }): Promise<RefreshInstrumentRiskMetricsResult> {
-    const batchSize = Math.max(1, input?.batchSize ?? 10);
     const chunkSize = Math.max(1, input?.chunkSize ?? 25);
     const minObservations = Math.max(1, input?.minObservations ?? 30);
     const instruments = await this.repository.listInstruments({ isActive: true });
+    const batchSize = Math.max(1, input?.batchSize ?? instruments.length);
     const instrumentIds = instruments.map((instrument) => instrument.id);
     const [anchors, riskMetrics] = await Promise.all([
       this.repository.listInstrumentReturnAnchors(instrumentIds),

@@ -665,6 +665,51 @@ test("history backfill tolerates one-day historical EOD lag and fills the batch 
   assert.deepEqual(requested, emptySymbols);
 });
 
+test("derived metric refreshes auto-size to all active instruments when maxBatches is omitted", async () => {
+  const instruments = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF", "GGG"].map((symbol) => instrument(symbol));
+  const dailyReturnCalls: Array<{ ids: string[]; incrementalDays: number | null | undefined }> = [];
+  const returnAnchorCalls: string[][] = [];
+  const marketMetricCalls: string[][] = [];
+  const refreshedMarketIds = new Set<string>();
+  const repository = {
+    async listInstruments() {
+      return instruments;
+    },
+    async refreshInstrumentDailyReturns(ids: string[], incrementalDays?: number | null) {
+      dailyReturnCalls.push({ ids, incrementalDays });
+    },
+    async refreshInstrumentReturnAnchors(ids: string[]) {
+      returnAnchorCalls.push(ids);
+    },
+    async listInstrumentReturnAnchors() {
+      return instruments.map((item) => ({ instrumentId: item.id, asOfDate: "2026-06-20", observationCount: 500 }));
+    },
+    async listInstrumentMarketMetrics() {
+      return Array.from(refreshedMarketIds).map((instrumentId) => ({ instrumentId, latestPriceDate: "2026-06-20" }));
+    },
+    async refreshInstrumentMarketMetricsOnly(ids: string[]) {
+      marketMetricCalls.push(ids);
+      for (const id of ids) refreshedMarketIds.add(id);
+    }
+  } as unknown as UniverseRepository;
+  const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
+  const service = new InstrumentMarketService(repository, provider);
+
+  await service.refreshInstrumentDailyReturnsInBatches({ batchSize: 3 });
+  await service.refreshInstrumentDailyReturnsInBatches({ batchSize: 3, maxBatches: 1, incrementalDays: 30 });
+  await service.refreshInstrumentReturnAnchorsInBatches({ batchSize: 3 });
+  await service.refreshInstrumentMarketMetricsInBatches({ batchSize: 3 });
+
+  assert.deepEqual(
+    dailyReturnCalls.slice(0, 3).map((call) => call.ids),
+    [["inst-AAA", "inst-BBB", "inst-CCC"], ["inst-DDD", "inst-EEE", "inst-FFF"], ["inst-GGG"]]
+  );
+  assert.deepEqual(dailyReturnCalls.slice(0, 3).map((call) => call.incrementalDays), [null, null, null]);
+  assert.deepEqual(dailyReturnCalls[3], { ids: ["inst-AAA", "inst-BBB", "inst-CCC"], incrementalDays: 30 });
+  assert.deepEqual(returnAnchorCalls, [["inst-AAA", "inst-BBB", "inst-CCC"], ["inst-DDD", "inst-EEE", "inst-FFF"], ["inst-GGG"]]);
+  assert.deepEqual(marketMetricCalls, [["inst-AAA", "inst-BBB", "inst-CCC"], ["inst-DDD", "inst-EEE", "inst-FFF"], ["inst-GGG"]]);
+});
+
 test("instrument risk refresh batches missing and stale risk metrics only", async () => {
   const refreshedIds: string[][] = [];
   const fresh = instrument("FRESH");
@@ -701,6 +746,32 @@ test("instrument risk refresh batches missing and stale risk metrics only", asyn
   assert.equal(result.updatedCount, 2);
   assert.deepEqual(result.requestedSymbols, ["MISS", "STALE"]);
   assert.deepEqual(refreshedIds, [["inst-MISS", "inst-STALE"]]);
+});
+
+test("instrument risk refresh covers all stale instruments when batchSize is omitted", async () => {
+  const staleInstruments = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF", "GGG", "HHH", "III", "JJJ", "KKK", "LLL"].map((symbol) => instrument(symbol));
+  const refreshedIds: string[][] = [];
+  const repository = {
+    async listInstruments() {
+      return staleInstruments;
+    },
+    async listInstrumentReturnAnchors() {
+      return staleInstruments.map((item) => ({ instrumentId: item.id, asOfDate: "2026-01-01", observationCount: 500 }));
+    },
+    async listInstrumentRiskMetrics() {
+      return [];
+    },
+    async refreshInstrumentRiskMetricsOnly(ids: string[]) {
+      refreshedIds.push(ids);
+    }
+  } as unknown as UniverseRepository;
+  const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
+  const service = new InstrumentMarketService(repository, provider);
+
+  const result = await service.refreshInstrumentRiskMetricsInBatches({ chunkSize: 5, minObservations: 30 });
+
+  assert.equal(result.updatedCount, staleInstruments.length);
+  assert.deepEqual(refreshedIds.map((ids) => ids.length), [5, 5, 2]);
 });
 
 test("instrument risk refresh skips when all eligible metrics are current", async () => {

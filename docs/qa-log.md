@@ -2,6 +2,39 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-23 SGT - Full-Universe Refresh Auto-Sizing QA
+
+Scope:
+- Verify instrument-count-bound refresh jobs and admin actions no longer silently under-cover the expanded 391-instrument universe, and verify the daily-returns cron path can use an incremental window.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Derived metric batch defaults used fixed pass counts that could miss instruments as the universe grows | Fixed; omitted `maxBatches` now derives from active instrument count |
+| Risk metrics defaulted to a fixed batch size when no cap was supplied | Fixed; omitted `batchSize` defaults to the active instrument count |
+| Daily returns cron recomputed the full universe every day | Fixed; migration 123 schedules daily returns with `incrementalDays=30` while full/admin paths pass null |
+| Fundamentals and ETF look-through production services could under-cover if eligible sets outgrew their env defaults | Fixed; container-created services auto-size to eligible stock/ETF counts |
+| Recommendation, news ingestion, and Portfolio Review context loading used fixed `limit: 500` active-instrument reads | Fixed; active instrument reads now fetch the full active universe |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Daily returns full path passes `incremental_days = null`; incremental path passes finite days | PASS |
+| Derived metric service tests cover all active instruments when caps are omitted | PASS |
+| Fundamentals one-pass auto-sizing covers all eligible stocks | PASS |
+| ETF look-through auto-sizing covers all eligible ETFs when enabled in the container | PASS |
+| Migration 123 keeps derived cron time slots and only changes cap/incremental query parameters | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (346/346) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/123_full_universe_coverage.sql` manually to Supabase.
+- After deployment, confirm the first derived cron chain covers the active universe and that daily returns runtime improves with the 30-day incremental window.
+
 ## 2026-06-23 SGT - Marsh McLennan Ticker Change QA
 
 Scope:

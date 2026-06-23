@@ -231,6 +231,7 @@ export function createContainer() {
       enabled: env.ENABLE_ETF_LOOKTHROUGH_REFRESH,
       refreshFrequencyDays: env.ETF_LOOKTHROUGH_REFRESH_FREQUENCY_DAYS,
       maxEtfsPerRun: env.ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN,
+      autoSizeMaxEtfsPerRun: true,
       staleAfterDays: env.ETF_LOOKTHROUGH_STALE_AFTER_DAYS,
       fetchConcurrency: env.ETF_LOOKTHROUGH_FETCH_CONCURRENCY
     }
@@ -245,6 +246,7 @@ export function createContainer() {
     {
       enabled: env.ENABLE_FUNDAMENTALS_REFRESH,
       maxStocksPerRefresh: env.FUNDAMENTALS_MAX_STOCKS_PER_REFRESH,
+      autoSizeMaxStocksPerRefresh: true,
       fetchConcurrency: env.FUNDAMENTALS_FETCH_CONCURRENCY,
       refreshFrequencyDays: env.FUNDAMENTALS_REFRESH_FREQUENCY_DAYS,
       staleAfterDays: env.FUNDAMENTALS_STALE_AFTER_DAYS

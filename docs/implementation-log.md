@@ -1,3 +1,55 @@
+## 2026-06-23 - Full-Universe Refresh Auto-Sizing And Incremental Daily Returns
+
+### Source
+Claude Code
+
+### Objective
+Auto-size instrument-count-bound refresh jobs and admin buttons to the full active universe, and make the daily-returns cron incremental for runtime.
+
+### Files Changed
+- `src/application/ports/repositories/UniverseRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `src/application/services/InstrumentMarketService.ts`
+- `src/application/services/fundamentals/FundamentalsRefreshService.ts`
+- `src/application/services/etfLookthrough/EtfLookthroughRefreshService.ts`
+- `src/application/services/recommendations/RecommendationService.ts`
+- `src/application/services/news/NewsIngestionService.ts`
+- `src/application/services/portfolioReview/PortfolioReviewService.ts`
+- `src/server/container.ts`
+- `src/server/actions/dataRefreshActions.ts`
+- `src/app/api/jobs/instrument-daily-returns-refresh/route.ts`
+- `src/app/api/jobs/instrument-return-anchors-refresh/route.ts`
+- `src/app/api/jobs/instrument-market-metrics-refresh/route.ts`
+- `src/app/api/jobs/instrument-risk-refresh/route.ts`
+- `supabase/migrations/123_full_universe_coverage.sql`
+- `tests/price-refresh.test.ts`
+- `tests/fundamentals.test.ts`
+- `tests/etf-lookthrough-refresh.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Auto-sized daily returns, return anchors, market metrics, and risk metrics when callers omit explicit caps, so refreshes cover the full active universe as it grows.
+- Added `incrementalDays` plumbing for daily returns and updated the Supabase repository RPC call to pass `incremental_days` as null for full recomputes or a finite window for cron.
+- Added migration 123 to replace `refresh_instrument_daily_returns` with an optional `incremental_days` argument and reschedule derived metric crons without fixed pass caps; only daily returns passes `incrementalDays=30`.
+- Made production fundamentals and ETF look-through services auto-size from the eligible stock/ETF sets while preserving deliberately capped service instances for tests.
+- Removed fixed active-universe limits from recommendation selection, daily news symbol selection, and Portfolio Review context loading.
+- Updated admin derived-metric actions so daily returns/anchors/market metrics omit `maxBatches`, risk omits `batchSize`, and the daily-returns button remains a full recompute.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (346/346)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 123 must be applied manually to Supabase.
+- Verification in migration 123: derived cron commands keep the 35/40/45/50 22 UTC slots; daily returns drops `maxBatches` and adds `incrementalDays=30`; anchors and market metrics drop `maxBatches`; risk drops fixed `batchSize=350`; full/admin daily-return paths pass null.
+- No scoring methodology, labels, compliance wording, feature flags, or access controls changed.
+
 ## 2026-06-23 - Marsh McLennan Ticker Change To MRSH
 
 ### Source

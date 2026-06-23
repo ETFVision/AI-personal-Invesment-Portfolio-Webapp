@@ -537,9 +537,10 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     return (data ?? []).map(mapInstrumentMarketMetric);
   }
 
-  async refreshInstrumentDailyReturns(instrumentIds?: string[]) {
+  async refreshInstrumentDailyReturns(instrumentIds?: string[], incrementalDays?: number | null) {
     const { error } = await this.db.rpc("refresh_instrument_daily_returns", {
-      target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
+      target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null,
+      incremental_days: incrementalDays ?? null
     });
     if (isMissingMetricsSupport(error)) return;
     if (error) throw new Error(error.message);
