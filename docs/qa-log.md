@@ -2,6 +2,37 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-23 SGT - Security Master Incremental Setup QA
+
+Scope:
+- Verify a manual migration can incrementally create and link Security Master rows for newly seeded active instruments without app-code changes.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Newly seeded instruments can remain with `security_id = null` after the original Security Master setup has already run | Fixed; migration 127 inserts and links missing active instruments idempotently |
+| Freshly inserted securities must be visible before instruments are linked | Fixed; insert and update/link run as separate statements |
+| Newly linked instruments need Security Master identifiers for downstream matching | Fixed; migration inserts symbol, exchange symbol, provider symbol, ISIN, and CUSIP identifiers with conflict protection |
+| ETF holding mappings and issuer links need to pick up the new securities | Fixed; migration runs `sync_security_issuer_links()` and `sync_etf_holding_security_ids()` |
+| Internal-only ETF holding stubs can collide with newly linked selectable stocks | Fixed; migration deactivates internal-only duplicates for newly linked stock symbols and logs the affected symbols via `raise notice` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration 127 uses separate insert and link statements | PASS |
+| Migration 127 calls the existing issuer and ETF holding sync functions | PASS |
+| Migration 127 includes the GAP #40 internal-only duplicate guard | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (347/347) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/127_security_master_incremental_setup.sql` manually to Supabase after seeding the expanded universe.
+- After applying, verify the 54 new stocks and new ETFs have non-null `security_id` values and check migration notices for any deactivated internal-only duplicate symbols.
+
 ## 2026-06-23 SGT - Adaptive Daily Returns Rebuild QA
 
 Scope:

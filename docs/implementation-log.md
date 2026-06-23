@@ -1,3 +1,36 @@
+## 2026-06-23 - Security Master Incremental Setup
+
+### Source
+Claude Code
+
+### Objective
+Add an idempotent manual migration to set up Security Master rows and links for newly seeded active instruments with null `security_id`.
+
+### Files Changed
+- `supabase/migrations/127_security_master_incremental_setup.sql`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added migration 127 to insert missing selectable `securities_master` rows for active instruments whose `security_id` is null, reusing migration 091's identifier extraction, security-type mapping, and duplicate guard logic.
+- Linked instruments to securities in a separate statement so freshly inserted securities are visible to the matcher.
+- Inserted `SYMBOL`, `EXCHANGE_SYMBOL`, `PROVIDER_SYMBOL`, `ISIN`, and `CUSIP` identifiers for newly linked instruments with `on conflict do nothing`.
+- Ran `sync_security_issuer_links()` and `sync_etf_holding_security_ids()` after linking.
+- Added a GAP #40 guard that deactivates active `is_internal_only` duplicate securities for newly linked stock symbols, raises a notice listing affected symbols, and re-runs ETF holding security sync.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (347/347)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 127 must be applied manually to Supabase after the expanded universe is seeded.
+- This is a SQL migration/documentation-only change; no app code, scoring methodology, labels, compliance wording, feature flags, or access controls changed.
+
 ## 2026-06-23 - Adaptive Daily Returns Rebuild
 
 ### Source
