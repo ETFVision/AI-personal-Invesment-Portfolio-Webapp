@@ -3,6 +3,8 @@ import { revalidateTag } from "next/cache";
 import { createContainer } from "@/server/container";
 import { runCronJob } from "@/server/jobs/runCronJob";
 
+export const maxDuration = 300;
+
 export async function POST(request: NextRequest) {
   const batchSize = Number(request.nextUrl.searchParams.get("batchSize") ?? 25);
   const maxBatchesParam = request.nextUrl.searchParams.get("maxBatches");
