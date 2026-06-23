@@ -244,6 +244,7 @@ export function createContainer() {
     {
       enabled: env.ENABLE_FUNDAMENTALS_REFRESH,
       maxStocksPerRefresh: env.FUNDAMENTALS_MAX_STOCKS_PER_REFRESH,
+      fetchConcurrency: env.FUNDAMENTALS_FETCH_CONCURRENCY,
       refreshFrequencyDays: env.FUNDAMENTALS_REFRESH_FREQUENCY_DAYS,
       staleAfterDays: env.FUNDAMENTALS_STALE_AFTER_DAYS
     }
