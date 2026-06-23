@@ -30,25 +30,25 @@ Example: VOO can be categorized as `US_BROAD_MARKET` as an ETF product, but its 
 
 ## Current Universe Target
 
-The most recent taxonomy work targets:
+The most recent taxonomy work targets (after the 2026-06-23 universe expansion, +31 ETFs / +54 stocks):
 
-- 201 ETFs.
-- 105 stocks.
+- 232 ETF-style products.
+- 159 stocks.
 - Raw crypto references remain inactive for now.
 
 Documentation note: verify live production counts using Supabase because inactive/deprecated instruments can remain in the table for history, while active universe counts are what product pages should show.
 
-Latest live Supabase verification on 2026-06-12:
+Latest live Supabase verification on 2026-06-23 (post-expansion):
 
-- 324 total instrument rows.
-- 306 active instruments.
-- 18 inactive instruments.
-- 201 active ETF-style products: 196 `etf` plus 5 `crypto_etf`.
-- 105 active stocks.
+- 391 active instruments.
+- 232 active ETF-style products: 202 `etf` + 27 `bond_etf` + 3 `gold_etf` (by `asset_class`).
+- 159 active stocks.
 - 0 active duplicate symbols.
 - 0 active ETFs missing `etf_category`.
 - 0 active stocks missing `canonical_sector`.
 - 0 active instruments missing `asset_category`.
+
+Prior verification on 2026-06-12 (pre-expansion): 306 active = 201 ETF-style (196 `etf` + 5 `crypto_etf`) + 105 stocks.
 
 ## Instrument Coverage Layers
 

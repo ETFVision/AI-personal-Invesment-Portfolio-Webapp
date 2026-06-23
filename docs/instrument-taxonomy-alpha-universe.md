@@ -27,7 +27,7 @@ As of 2026-06-19, `canonical_sector` and `canonical_themes` are derived **author
 - **Themes are independent of sector.** They come from curated per-category theme sets and seeded tags — never blanket-applied and never derived mechanically from the sector. `Global Diversification` is applied **only** to genuinely global/ex-US categories (`GLOBAL_EQUITY`, `DEVELOPED_MARKETS`, `EMERGING_MARKETS`, `COUNTRY`, `INTERNATIONAL_DIVIDEND`), not to US sector or US broad-market ETFs.
 - **Sector is never inferred from a theme.** Classification consumers (e.g. Portfolio Review `candidateRole`) use sector + asset class + the curated category, not theme tags.
 - **Backfill:** existing rows are re-normalized via the CRON-protected, override-respecting, idempotent taxonomy backfill at `/api/jobs/instrument-metadata-refresh?taxonomyBackfill=true` (`MetadataRefreshService.backfillCanonicalTaxonomy`). It skips `taxonomy_is_manual_override` rows. Because the derivation lives in shared `TaxonomyService`, scheduled metadata refreshes stay correct going forward.
-- **Coverage caveat:** the curated maps cover the approved alpha universe (201 ETFs, 105 stocks). Any instrument outside those lists still falls back to provider sector and should be spot-checked.
+- **Coverage caveat:** the curated maps cover the approved alpha universe (232 ETF-style products, 159 stocks after the 2026-06-23 expansion). Any instrument outside those lists still falls back to provider sector and should be spot-checked.
 
 See `docs/DATA_INGESTION_AND_PROVIDERS.md` and `docs/PORTFOLIO_REVIEW_METHODOLOGY.md` for consumer-side detail.
 

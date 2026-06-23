@@ -338,7 +338,7 @@ in their phases. Capture each batch as its own implementation-log entry.
    - **Closed 2026-06-17:** Portfolio Review page lineage, gap-analysis dependencies, and refresh dependencies documented in `docs/PAGE_DATA_MAP.md`.
 
 24. Data provider full-universe coverage matrix
-    - FMP coverage has been tested ad hoc for active instruments. A formal matrix covering all 306 active instruments across each data type (prices, fundamentals, ETF holdings, metadata) has not been produced.
+    - FMP coverage has been tested ad hoc for active instruments. A formal matrix covering all 391 active instruments (post-2026-06-23 expansion) across each data type (prices, fundamentals, ETF holdings, metadata) has not been produced.
     - Remaining: produce a coverage matrix classifying each instrument as `SUPPORTED`, `PARTIAL_SUPPORT`, `UNSUPPORTED`, or `UNKNOWN` per data type. Identify instruments requiring fallback data or development-only demotion.
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 2.
 
@@ -612,7 +612,7 @@ The Gap Analysis section in Portfolio Review currently uses a sector/ticker-leve
 
 Step 1: Run `POST /api/jobs/etf-lookthrough-refresh?force=true` from Admin > Jobs.
 - This bypasses the stale cutoff and re-fetches top 100 holdings per ETF.
-- Since migration 120, one bounded-concurrency pass covers up to maxEtfsPerRun ETFs (default 250), enough for the full eligible ETF universe (~169) in a single run. Check job log topHoldingRows / etfsRefreshed to confirm completion (a second pass is only needed if etfsRefreshed is still non-zero).
+- Since migration 120 one bounded-concurrency pass covers up to maxEtfsPerRun ETFs (default 250), and since migration 123 maxEtfsPerRun auto-sizes to the eligible-ETF count — enough for the full eligible equity ETF universe (~194 after the 2026-06-23 expansion) in a single run. Check job log topHoldingRows / etfsRefreshed to confirm completion (a second pass is only needed if etfsRefreshed is still non-zero).
 
 Step 2: Run `POST /api/jobs/portfolio-review-run` from Admin > Jobs.
 - This regenerates the stored portfolio review report using real company overlap data.

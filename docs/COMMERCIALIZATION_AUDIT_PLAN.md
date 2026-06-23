@@ -68,7 +68,8 @@ Current status: completed.
 
 Notes:
 - Current source-of-truth universe lives in `src/domain/universe/alphaUniverse.ts`.
-- Live Supabase verification on 2026-06-12 confirmed 306 active instruments: 201 ETF-style products and 105 stocks.
+- **2026-06-23 universe expansion:** active universe grew to **391** (232 ETF-style products + 159 stocks; +31 ETFs / +54 stocks). Dated QA snapshots elsewhere in this plan (306/169/240 etc.) are the pre-expansion record; current counts in `docs/INSTRUMENT_TAXONOMY_AND_COVERAGE.md`.
+- Live Supabase verification on 2026-06-12 confirmed 306 active instruments: 201 ETF-style products and 105 stocks (pre-expansion).
 - Raw crypto references are inactive; crypto ETF proxies remain active ETF-style products.
 - No active duplicate symbols, missing active ETF categories, missing active stock canonical sectors, or missing active asset categories were found.
 - A future ETF universe completion item has been logged for Factor Investing and Option Income ETFs.
