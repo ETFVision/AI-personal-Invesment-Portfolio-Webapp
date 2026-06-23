@@ -62,7 +62,7 @@ The daily chain runs entirely within a single UTC day (`22:30` to `23:25`), so n
 
 ### Weekly
 
-Runs every Sunday morning (Singapore time) using Friday-close market data that is available before the new trading week starts. The chain runs entirely on Saturday UTC (`23:30` to `23:55`) and no longer crosses the midnight-UTC boundary. Since migration `118`, fundamentals run as one bounded-concurrency pass (`maxStocksPerRefresh=150`, `FUNDAMENTALS_FETCH_CONCURRENCY=6`) covering the full active stock universe of roughly 105 stocks.
+Runs every Sunday morning (Singapore time) using Friday-close market data that is available before the new trading week starts. The chain runs entirely on Saturday UTC (`23:30` to `23:55`) and no longer crosses the midnight-UTC boundary. Since migration `118` fundamentals run as one bounded-concurrency pass (`FUNDAMENTALS_FETCH_CONCURRENCY=6`); since migration `123` `maxStocksPerRefresh` auto-sizes to the full active stock universe (roughly 159 stocks after the 2026-06-23 expansion).
 
 | Supabase Cron job | UTC Cron | Singapore time | Endpoint | Purpose |
 |---|---:|---:|---|---|
@@ -90,7 +90,7 @@ Benchmarks and fundamentals are no longer monthly. Recent benchmark data is refr
 
 ## Fundamentals Refresh Window
 
-The regular fundamentals refresh runs once per week with `maxStocksPerRefresh=150` and `FUNDAMENTALS_FETCH_CONCURRENCY=6`, so one concurrent pass covers the full active stock universe of roughly 105 stocks. It refetches overlapping recent statement windows:
+The regular fundamentals refresh runs once per week with `FUNDAMENTALS_FETCH_CONCURRENCY=6` and (since migration `123`) `maxStocksPerRefresh` auto-sized to the active stock count, so one concurrent pass covers the full active stock universe of roughly 159 stocks (after the 2026-06-23 expansion). It refetches overlapping recent statement windows:
 
 - 5 annual periods
 - 12 quarterly periods
