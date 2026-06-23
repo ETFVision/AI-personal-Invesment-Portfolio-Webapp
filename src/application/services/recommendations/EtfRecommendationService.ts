@@ -27,12 +27,17 @@ const SP500_ETF_CATEGORIES = new Set<EtfCategory>([
   "GROWTH",
   "VALUE",
   "SMALL_CAP",
+  "FACTOR_INVESTING",
+  "OPTION_INCOME",
+  "MID_CAP",
+  "ESG_SOCIALLY_RESPONSIBLE",
   "INFRASTRUCTURE",
+  "AEROSPACE_DEFENSE",
   "CLEAN_ENERGY"
 ]);
 
-const DEVELOPED_COUNTRY_ETFS = new Set(["EWJ", "DXJ", "JPXN", "EWU", "EWC"]);
-const EMERGING_COUNTRY_ETFS = new Set(["MCHI", "FXI", "KWEB", "INDA", "INDY"]);
+const DEVELOPED_COUNTRY_ETFS = new Set(["EWJ", "DXJ", "JPXN", "EWU", "EWC", "EWG"]);
+const EMERGING_COUNTRY_ETFS = new Set(["MCHI", "FXI", "KWEB", "INDA", "INDY", "EWZ", "EWY", "EWT"]);
 
 function clamp(value: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, value));
@@ -55,7 +60,14 @@ export function benchmarkKeyForEtf(instrument: Instrument): string | null {
     if (EMERGING_COUNTRY_ETFS.has(symbol)) return "emerging_markets";
     return null;
   }
-  if (category === "BOND" || category === "CASH_EQUIVALENT") return "us_aggregate_bonds";
+  if (category === "MULTI_ASSET_BALANCED") return "global_equities";
+  if (
+    category === "BOND" ||
+    category === "CASH_EQUIVALENT" ||
+    category === "PREFERRED_STOCK" ||
+    category === "MUNICIPAL_BOND" ||
+    category === "EMERGING_MARKET_BOND"
+  ) return "us_aggregate_bonds";
   if (category === "GOLD_PRECIOUS_METALS" || category === "COMMODITY") return "gold";
   if (category === "CRYPTO_ETF") return "bitcoin";
   return null;

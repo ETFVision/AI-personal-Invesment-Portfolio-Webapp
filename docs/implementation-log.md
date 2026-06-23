@@ -1,3 +1,345 @@
+## 2026-06-23 - Security Master Mapping Cleanup
+
+### Source
+Claude Code
+
+### Objective
+Lock in the Security Master ambiguous-mapping cleanup so inactive stubs and dot/dash class-share variants cannot re-enter ETF holding candidate mappings as the universe grows.
+
+### Files Changed
+- `supabase/migrations/129_security_master_mapping_cleanup.sql`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added migration 129 to delete `security_identifiers` rows whose `security_id` points to inactive `securities_master` rows.
+- Recreated `sync_etf_holding_security_ids()` from migration 094 with active-security joins added to the `security_identifiers` and `security_aliases` candidate sources for both ETF top holdings and portfolio look-through holdings.
+- Added dot/dash class-share cleanup that deactivates internal-only stubs when an active real security exists for the same normalized symbol, then deletes the deactivated stubs' identifiers.
+- Re-runs ETF holding security sync and issuer-link sync after cleanup.
+- Updated the ticker-change handling note to include deactivating old-symbol internal stubs and re-running ETF holding mapping sync.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (347/347)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 129 must be applied manually to Supabase after migration 128.
+- This is a SQL migration/documentation-only change; no app code, scoring methodology, labels, compliance wording, feature flags, or access controls changed.
+
+## 2026-06-23 - Internal ETF Holding Security Stub Backfill
+
+### Source
+Claude Code
+
+### Objective
+Add an idempotent manual migration to create internal-only Security Master stubs for ETF top-holding symbols that are not active selectable or stub securities after migration 127.
+
+### Files Changed
+- `supabase/migrations/128_internal_etf_holding_securities.sql`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added migration 128 to scan distinct `etf_top_holdings` symbols and insert `is_internal_only=true` `securities_master` stubs only when no active security already exists for the canonical symbol.
+- Reused the migration 095 stub shape: `STOCK` / `EQUITY`, non-user-selectable, `source_priority` of `["etf_top_holdings", "etfvision"]`, identifier quality 60, and a matching `SYMBOL` security identifier sourced from `etf_top_holdings`.
+- Re-ran `sync_etf_holding_security_ids()` and `sync_security_issuer_links()` so newly created stubs and migration 127's real securities are reflected in ETF holding mappings and issuer links.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (347/347)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 128 must be applied manually to Supabase after migration 127.
+- This is a SQL migration/documentation-only change; no app code, scoring methodology, labels, compliance wording, feature flags, or access controls changed.
+
+## 2026-06-23 - Security Master Incremental Setup
+
+### Source
+Claude Code
+
+### Objective
+Add an idempotent manual migration to set up Security Master rows and links for newly seeded active instruments with null `security_id`.
+
+### Files Changed
+- `supabase/migrations/127_security_master_incremental_setup.sql`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added migration 127 to insert missing selectable `securities_master` rows for active instruments whose `security_id` is null, reusing migration 091's identifier extraction, security-type mapping, and duplicate guard logic.
+- Linked instruments to securities in a separate statement so freshly inserted securities are visible to the matcher.
+- Inserted `SYMBOL`, `EXCHANGE_SYMBOL`, `PROVIDER_SYMBOL`, `ISIN`, and `CUSIP` identifiers for newly linked instruments with `on conflict do nothing`.
+- Ran `sync_security_issuer_links()` and `sync_etf_holding_security_ids()` after linking.
+- Added a GAP #40 guard that deactivates active `is_internal_only` duplicate securities for newly linked stock symbols, raises a notice listing affected symbols, and re-runs ETF holding security sync.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (347/347)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 127 must be applied manually to Supabase after the expanded universe is seeded.
+- This is a SQL migration/documentation-only change; no app code, scoring methodology, labels, compliance wording, feature flags, or access controls changed.
+
+## 2026-06-23 - Adaptive Daily Returns Rebuild
+
+### Source
+Claude Code
+
+### Objective
+Upgrade daily-return refresh from a simple fixed incremental flag to a per-instrument adaptive rebuild so complete instruments use a recent window while incomplete instruments rebuild from price-history start.
+
+### Files Changed
+- `src/application/ports/repositories/UniverseRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `src/application/services/InstrumentMarketService.ts`
+- `src/app/api/jobs/instrument-daily-returns-refresh/route.ts`
+- `supabase/migrations/124_adaptive_daily_returns.sql`
+- `tests/price-refresh.test.ts`
+- `tests/universe-repository.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Replaced the app-layer `incrementalDays` daily-return option with adaptive `recentWindowDays` plus rare `forceFull` support.
+- Updated the Supabase repository RPC call to pass `p_recent_window_days` and `p_force_full`.
+- Kept the daily-return route backward-compatible with migration 123 cron URLs by mapping old `incrementalDays` query input to `recentWindowDays`.
+- Added migration 124 to create the adaptive `refresh_instrument_daily_returns` RPC: instruments with missing/short return history rebuild from `1900-01-01`; complete instruments upsert only the recent window; `p_force_full=true` forces a full rebuild.
+- Rescheduled only the daily-return cron to use `recentWindowDays=30`.
+- Added tests covering adaptive RPC arguments and the service defaults/force-full path.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (347/347)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 124 must be applied manually to Supabase and assumes migration 123 is already applied.
+- The risk RPC's existing one-argument internal daily-return call remains compatible with the adaptive function; incomplete instruments still full-rebuild, while complete instruments refresh the recent window needed after daily EOD updates.
+- No scoring methodology, labels, compliance wording, feature flags, or access controls changed.
+
+## 2026-06-23 - Full-Universe Refresh Auto-Sizing And Incremental Daily Returns
+
+### Source
+Claude Code
+
+### Objective
+Auto-size instrument-count-bound refresh jobs and admin buttons to the full active universe, and make the daily-returns cron incremental for runtime.
+
+### Files Changed
+- `src/application/ports/repositories/UniverseRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `src/application/services/InstrumentMarketService.ts`
+- `src/application/services/fundamentals/FundamentalsRefreshService.ts`
+- `src/application/services/etfLookthrough/EtfLookthroughRefreshService.ts`
+- `src/application/services/recommendations/RecommendationService.ts`
+- `src/application/services/news/NewsIngestionService.ts`
+- `src/application/services/portfolioReview/PortfolioReviewService.ts`
+- `src/server/container.ts`
+- `src/server/actions/dataRefreshActions.ts`
+- `src/app/api/jobs/instrument-daily-returns-refresh/route.ts`
+- `src/app/api/jobs/instrument-return-anchors-refresh/route.ts`
+- `src/app/api/jobs/instrument-market-metrics-refresh/route.ts`
+- `src/app/api/jobs/instrument-risk-refresh/route.ts`
+- `supabase/migrations/123_full_universe_coverage.sql`
+- `tests/price-refresh.test.ts`
+- `tests/fundamentals.test.ts`
+- `tests/etf-lookthrough-refresh.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Auto-sized daily returns, return anchors, market metrics, and risk metrics when callers omit explicit caps, so refreshes cover the full active universe as it grows.
+- Added `incrementalDays` plumbing for daily returns and updated the Supabase repository RPC call to pass `incremental_days` as null for full recomputes or a finite window for cron.
+- Added migration 123 to replace `refresh_instrument_daily_returns` with an optional `incremental_days` argument and reschedule derived metric crons without fixed pass caps; only daily returns passes `incrementalDays=30`.
+- Made production fundamentals and ETF look-through services auto-size from the eligible stock/ETF sets while preserving deliberately capped service instances for tests.
+- Removed fixed active-universe limits from recommendation selection, daily news symbol selection, and Portfolio Review context loading.
+- Updated admin derived-metric actions so daily returns/anchors/market metrics omit `maxBatches`, risk omits `batchSize`, and the daily-returns button remains a full recompute.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (346/346)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 123 must be applied manually to Supabase.
+- Verification in migration 123: derived cron commands keep the 35/40/45/50 22 UTC slots; daily returns drops `maxBatches` and adds `incrementalDays=30`; anchors and market metrics drop `maxBatches`; risk drops fixed `batchSize=350`; full/admin daily-return paths pass null.
+- No scoring methodology, labels, compliance wording, feature flags, or access controls changed.
+
+## 2026-06-23 - Marsh McLennan Ticker Change To MRSH
+
+### Source
+Claude Code
+
+### Objective
+Update the active universe source definition and related universe documentation for Marsh McLennan's ticker change from `MMC` to `MRSH`.
+
+### Files Changed
+- `src/domain/universe/alphaUniverse.ts`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Replaced `MMC` with `MRSH` in the `ALPHA_STOCK_SECTORS` Financials stock list.
+- Searched source, docs, tests, and migrations for hardcoded `MMC` references and updated the related documentation references.
+- Added a ticker-change handling note documenting the operational sequence: rename the existing `instruments` row first to preserve `instrument_id`, refresh price history, then update `alphaUniverse.ts`.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Universe/classification only; no scoring formula, methodology, label, access-control, or compliance wording changes.
+- Operational follow-up: update the live `instruments` row from `MMC` to `MRSH` before running Seed Universe to avoid duplicate rows.
+
+## 2026-06-23 - Universe Seed And Metadata Refresh Throughput Fixes
+
+### Source
+Claude Code
+
+### Objective
+Unblock seeding and metadata coverage for the expanded 391-instrument universe by batching tag writes, speeding metadata refresh writes/syncs, and removing fixed metadata batch caps.
+
+### Files Changed
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `src/application/services/MetadataRefreshService.ts`
+- `src/server/actions/dataRefreshActions.ts`
+- `src/app/api/jobs/instrument-metadata-refresh/route.ts`
+- `supabase/migrations/121_metadata_refresh_full_universe_coverage.sql`
+- `tests/universe-repository.test.ts`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Reworked `updateInstrumentTags` from per-instrument update/delete/insert calls to one batched `instrument_tags` delete plus chunked flattened tag inserts, while leaving `instruments.benchmark_tags` and `instruments.thematic_tags` to the existing seed `upsertInstruments` path.
+- Confirmed `UniverseManagementService.ensureSeededUniverse` already passes both `benchmarkTags` and `thematicTags` into `upsertInstruments`.
+- Batched `updateInstrumentMetadata` current-row reads and metadata/taxonomy writes so metadata refresh no longer performs per-symbol select/update/taxonomy round trips.
+- Changed metadata batch refresh to suppress per-batch Security Master syncs and sync identifiers once after the batch loop.
+- Auto-sized metadata batch count from the active instrument count when `maxBatches` is omitted, while excluding symbols already attempted in the same full refresh so missing identifiers cannot starve later instruments.
+- Updated admin and cron metadata refresh entry points to omit fixed `maxBatches` caps and keep `batchSize=25`.
+- Added migration 121 to reschedule `app-daily-instrument-metadata-refresh` without a `maxBatches` query parameter.
+- Verified `FMP_METADATA_CONCURRENCY` is already set to 8 in `FmpAssetMetadataProvider`.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (343/343)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 121 must be applied manually to Supabase.
+- Verification: the metadata cron command now omits `maxBatches`; admin metadata refresh also omits `maxBatches`; tag writes are batched and skip malformed UUID-shaped IDs; Security Master sync runs once after multi-batch metadata refresh.
+- No scoring methodology, labels, compliance wording, feature flags, or access controls changed.
+
+## 2026-06-23 - ETF Benchmark Map Documentation Sync
+
+### Source
+Claude Code
+
+### Objective
+Sync ETF benchmark methodology documentation with the expanded universe and curate the new single-country ETFs for Benchmark Relative routing without changing scoring formulas.
+
+### Files Changed
+- `src/application/services/recommendations/EtfRecommendationService.ts`
+- `src/app/methodology/page.tsx`
+- `src/app/methodology/constants.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `tests/recommendations.test.ts`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `EWG` to the curated developed single-country ETF benchmark set, routing it to `developed_ex_us`.
+- Added `EWZ`, `EWY`, and `EWT` to the curated emerging single-country ETF benchmark set, routing them to `emerging_markets`.
+- Updated the methodology page and `SCORE_METHODOLOGY.md` ETF benchmark map for the new factor/style, option-income, mid-cap, ESG, aerospace/defense, multi-asset, preferred, municipal, and emerging-market bond categories.
+- Bumped `METHODOLOGY_LAST_UPDATED` to 2026-06-23.
+- Added regression assertions for the new country ETF benchmark mappings.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- No scoring formula, weight, label, access-control, or methodology math changed; this only curates benchmark routing for the newly added country ETFs and updates explanatory docs.
+
+## 2026-06-23 - Universe Expansion For ETF And Stock Coverage
+
+### Source
+Claude Code
+
+### Objective
+Expand the ETFVision curated universe by 31 ETFs and 54 stocks, exposing the additions in both alpha and full mode without changing scoring formulas.
+
+### Files Changed
+- `src/domain/universe/alphaUniverse.ts`
+- `src/application/services/taxonomy/TaxonomyService.ts`
+- `src/application/services/recommendations/EtfRecommendationService.ts`
+- `src/infrastructure/config/env.ts`
+- `tests/taxonomy.test.ts`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added nine ETF categories: Factor Investing, Option Income, Mid Cap, ESG / Socially Responsible, Multi-Asset / Balanced, Preferred Stock, Municipal Bond, Emerging-Market Bond, and Aerospace & Defense.
+- Added 31 ETF symbols across the new categories plus country ETF additions, bringing curated ETF coverage to 232 symbols.
+- Added 54 stock symbols across existing sectors, bringing curated stock coverage to 159 symbols.
+- Added ETF asset-category overrides for multi-asset balanced, preferred stock, municipal bond, and emerging-market bond categories.
+- Extended taxonomy canonical-sector mapping for every new ETF category and added conservative category themes where obvious.
+- Extended ETF benchmark routing for the new categories so benchmark-relative scoring can resolve an existing benchmark key without changing the scoring formula.
+- Raised `FUNDAMENTALS_MAX_STOCKS_PER_REFRESH` default from 150 to 200 so the enlarged stock universe remains covered by one weekly fundamentals pass.
+- Closed `docs/DOCUMENTATION_GAPS.md` Low 5 as implemented.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Universe/classification only; no scoring formulas, labels, access controls, or methodology weights changed.
+- Post-deploy operations should run Seed Universe, metadata refresh, market-history backfill / EOD refresh as needed, ETF look-through refresh, derived metrics, fundamentals refresh, and recommendation/report refresh so the new instruments are fully populated.
+
 ## 2026-06-23 - Collapse Monthly ETF Look-Through To Single Pass
 
 ### Source

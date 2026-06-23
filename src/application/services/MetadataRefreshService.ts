@@ -102,10 +102,19 @@ export class MetadataRefreshService {
     private readonly provider: AssetMetadataProvider
   ) {}
 
-  async refreshUniverseMetadata(input: { requestedByUserId?: string | null; limit?: number; forceIdentifierRefresh?: boolean } = {}): Promise<RefreshUniverseMetadataResult> {
+  async refreshUniverseMetadata(input: {
+    requestedByUserId?: string | null;
+    limit?: number;
+    forceIdentifierRefresh?: boolean;
+    syncSecurityMaster?: boolean;
+    excludeSymbols?: Iterable<string>;
+  } = {}): Promise<RefreshUniverseMetadataResult> {
     try {
       const instruments = await this.repository.listInstruments({ isActive: true });
       const metadataCutoff = daysAgoIso(30);
+      const excludedSymbols = new Set(
+        Array.from(input.excludeSymbols ?? []).map((symbol) => providerSymbolForMetadata(symbol))
+      );
       const symbols = uniqueSymbols(
         instruments
           .filter((instrument) => needsMetadataRefresh(instrument.metadataLastRefreshedAt, metadataCutoff) || needsIdentifierRefresh(instrument, metadataCutoff, input.forceIdentifierRefresh))
@@ -117,6 +126,7 @@ export class MetadataRefreshService {
           })
           .filter((instrument) => instrument.symbol)
           .map((instrument) => providerSymbolForMetadata(instrument.symbol))
+          .filter((symbol) => !excludedSymbols.has(symbol))
       ).slice(0, input.limit ?? MAX_SYMBOLS_PER_REFRESH);
 
       if (symbols.length === 0) {
@@ -175,7 +185,9 @@ export class MetadataRefreshService {
           };
         })
       );
-      await this.repository.syncSecurityMasterIdentifiersFromInstruments();
+      if (input.syncSecurityMaster ?? true) {
+        await this.repository.syncSecurityMasterIdentifiersFromInstruments();
+      }
 
       await this.repository.insertMetadataRefreshLog({
         refreshScope: "instrument_universe",
@@ -309,7 +321,8 @@ export class MetadataRefreshService {
     forceIdentifierRefresh?: boolean;
   } = {}): Promise<RefreshUniverseMetadataResult> {
     const batchSize = Math.max(1, input.batchSize ?? 24);
-    const maxBatches = Math.max(1, input.maxBatches ?? 4);
+    const activeCount = input.maxBatches == null ? (await this.repository.listInstruments({ isActive: true })).length : null;
+    const maxBatches = Math.max(1, input.maxBatches ?? Math.ceil((activeCount ?? batchSize) / batchSize));
     const requestedSymbols = new Set<string>();
     const missingSymbols = new Set<string>();
     const errors: string[] = [];
@@ -319,7 +332,9 @@ export class MetadataRefreshService {
       const result = await this.refreshUniverseMetadata({
         requestedByUserId: input.requestedByUserId,
         limit: batchSize,
-        forceIdentifierRefresh: input.forceIdentifierRefresh
+        forceIdentifierRefresh: input.forceIdentifierRefresh,
+        syncSecurityMaster: false,
+        excludeSymbols: requestedSymbols
       });
 
       result.requestedSymbols.forEach((symbol) => requestedSymbols.add(symbol));

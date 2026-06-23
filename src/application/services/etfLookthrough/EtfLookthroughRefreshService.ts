@@ -8,6 +8,7 @@ export type EtfLookthroughRefreshOptions = {
   enabled: boolean;
   refreshFrequencyDays: number;
   maxEtfsPerRun: number;
+  autoSizeMaxEtfsPerRun?: boolean;
   staleAfterDays: number;
   fetchConcurrency: number;
 };
@@ -37,7 +38,7 @@ export class EtfLookthroughRefreshService {
       return { status: "failed" as const, etfsRequested: 0, etfsRefreshed: 0, sectorRows: 0, countryRows: 0, topHoldingRows: 0, message: "ETF look-through refresh is disabled." };
     }
     const requestedSymbols = new Set((input.symbols ?? []).map((symbol) => symbol.toUpperCase()));
-    const instruments = (await this.universeRepository.listInstruments({ isActive: true, limit: 1000 }))
+    const instruments = (await this.universeRepository.listInstruments({ isActive: true }))
       .filter((instrument) => instrument.assetClass === "etf" && instrument.symbol)
       .filter((instrument) => !["Bonds / Fixed Income", "Commodities / Gold", "Crypto", "Cash / Money Market"].includes(instrument.canonicalSector ?? ""))
       .filter((instrument) => requestedSymbols.size === 0 || requestedSymbols.has(instrument.symbol?.toUpperCase() ?? ""));
@@ -60,7 +61,8 @@ export class EtfLookthroughRefreshService {
       if (!b.holdingsLatest) return 1;
       return a.holdingsLatest < b.holdingsLatest ? -1 : 1;
     });
-    const selected = eligible.slice(0, this.options.maxEtfsPerRun).map(({ instrument }) => instrument);
+    const maxEtfsForRun = this.options.autoSizeMaxEtfsPerRun ? eligible.length : this.options.maxEtfsPerRun;
+    const selected = eligible.slice(0, maxEtfsForRun).map(({ instrument }) => instrument);
 
     let etfsRefreshed = 0;
     let sectorRows = 0;

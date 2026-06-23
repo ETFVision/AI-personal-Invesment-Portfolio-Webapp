@@ -213,7 +213,7 @@ export class PortfolioReviewService {
       this.riskAnalyticsDataService.buildReport(portfolioId, dashboard),
       this.bondService.getPortfolioBondAnalytics(dashboard),
       this.recommendationRepository.listLatestRecommendations(500),
-      this.universeRepository.listInstruments({ isActive: true, limit: 500 }),
+      this.universeRepository.listInstruments({ isActive: true }),
       this.marketVisionRepository.getLatestPublishedReport(),
       this.macroIndicatorRepository.getLatestRegimeSnapshot()
     ]);

@@ -3,8 +3,11 @@ import { revalidateTag } from "next/cache";
 import { createContainer } from "@/server/container";
 import { runCronJob } from "@/server/jobs/runCronJob";
 
+export const maxDuration = 300;
+
 export async function POST(request: NextRequest) {
-  const batchSize = Number(request.nextUrl.searchParams.get("batchSize") ?? 10);
+  const batchSizeParam = request.nextUrl.searchParams.get("batchSize");
+  const batchSize = batchSizeParam == null ? undefined : Number(batchSizeParam);
   const minObservations = Number(request.nextUrl.searchParams.get("minObservations") ?? 30);
 
   return runCronJob(request, { jobName: "refresh_instrument_risk_metrics", lockTtlSeconds: 12 * 60, onSuccess: () => revalidateTag("market-data") }, async () => {
@@ -20,7 +23,7 @@ export async function POST(request: NextRequest) {
       errors: result.errors,
       metadata: {
         ...result,
-        batchSize,
+        batchSize: batchSize ?? null,
         minObservations
       }
     };

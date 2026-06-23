@@ -204,6 +204,7 @@ export class FundamentalsRefreshService {
     private readonly config: {
       enabled: boolean;
       maxStocksPerRefresh: number;
+      autoSizeMaxStocksPerRefresh?: boolean;
       fetchConcurrency: number;
       refreshFrequencyDays: number;
       staleAfterDays: number;
@@ -242,7 +243,8 @@ export class FundamentalsRefreshService {
       return result;
     }
 
-    const eligible = await this.repository.listEligibleStockInstruments(this.config.maxStocksPerRefresh * 3);
+    const eligibleLimit = this.config.autoSizeMaxStocksPerRefresh ? 5000 : this.config.maxStocksPerRefresh * 3;
+    const eligible = await this.repository.listEligibleStockInstruments(eligibleLimit);
     const filtered = options.symbol
       ? eligible.filter((instrument) => instrument.symbol?.toUpperCase() === options.symbol?.toUpperCase())
       : eligible;
@@ -255,6 +257,7 @@ export class FundamentalsRefreshService {
     const profileByInstrument = new Map(profiles.map((profile) => [profile.instrumentId, profile]));
     const scoreByInstrument = new Map(scores.map((score) => [score.instrumentId, score]));
     const trendByInstrument = new Map(trends.map((trend) => [trend.instrumentId, trend]));
+    const maxStocksForRun = this.config.autoSizeMaxStocksPerRefresh ? filtered.length : this.config.maxStocksPerRefresh;
     const due = filtered
       .filter((instrument) => {
         if (options.force) return true;
@@ -263,7 +266,7 @@ export class FundamentalsRefreshService {
         return !existing || !hasCompleteDerivedCoverage || daysBetween(existing.lastRefreshedAt ?? null) >= this.config.refreshFrequencyDays;
       })
       .sort((left, right) => oldestFundamentalsProfileFirst(left, right, profileByInstrument))
-      .slice(0, this.config.maxStocksPerRefresh);
+      .slice(0, maxStocksForRun);
 
     let profilesUpdated = 0;
     let statementsUpdated = 0;

@@ -301,12 +301,21 @@ function uuidOrUndefined(value: string | null | undefined) {
   return trimmed ? trimmed : undefined;
 }
 
+function validUuidOrUndefined(value: string | null | undefined) {
+  const normalized = uuidOrUndefined(value);
+  if (!normalized) return undefined;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalized)
+    ? normalized
+    : undefined;
+}
+
 function uuidOrNull(value: string | null | undefined) {
   return uuidOrUndefined(value) ?? null;
 }
 
 const SUPABASE_PAGE_SIZE = 1000;
 const INSTRUMENT_PRICE_UPSERT_BATCH_SIZE = 500;
+const UNIVERSE_MUTATION_BATCH_SIZE = 500;
 const DIRECTORY_INSTRUMENT_COLUMNS = [
   "id",
   "symbol",
@@ -528,9 +537,11 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     return (data ?? []).map(mapInstrumentMarketMetric);
   }
 
-  async refreshInstrumentDailyReturns(instrumentIds?: string[]) {
+  async refreshInstrumentDailyReturns(instrumentIds?: string[], recentWindowDays?: number | null, forceFull?: boolean) {
     const { error } = await this.db.rpc("refresh_instrument_daily_returns", {
-      target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
+      target_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null,
+      p_recent_window_days: recentWindowDays ?? 30,
+      p_force_full: Boolean(forceFull)
     });
     if (isMissingMetricsSupport(error)) return;
     if (error) throw new Error(error.message);
@@ -716,55 +727,69 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     isManualOverride?: boolean;
     reviewStatus?: string;
   }>) {
-    for (const item of input) {
-      const { error: updateError } = await this.db
-        .from("instruments")
-        .update({
+    const validRows = input.flatMap((item) => {
+      const instrumentId = uuidOrUndefined(item.instrumentId);
+      return instrumentId ? [{ ...item, instrumentId }] : [];
+    });
+    if (validRows.length === 0) return;
+
+    for (const batch of chunkArray(validRows, UNIVERSE_MUTATION_BATCH_SIZE)) {
+      const { error: updateError } = await this.db.from("instruments").upsert(
+        batch.map((item) => ({
+          id: item.instrumentId,
           canonical_sector: item.canonicalSector,
           canonical_themes: item.canonicalThemes,
           taxonomy_is_manual_override: item.isManualOverride ?? false,
           taxonomy_review_status: item.reviewStatus ?? "mapped"
-        })
-        .eq("id", item.instrumentId);
+        })),
+        { onConflict: "id" }
+      );
       if (isMissingUniverseTable(updateError)) return;
       if (updateError) throw new Error(updateError.message);
+    }
 
-      const { error: sectorError } = await this.db.from("instrument_sector_mappings").upsert(
-        {
-          instrument_id: uuidOrUndefined(item.instrumentId),
-          source_provider: item.sourceProvider,
-          raw_value: item.rawSector,
-          canonical_value: item.canonicalSector,
-          confidence: item.confidence ?? 1,
-          is_manual_override: item.isManualOverride ?? false
-        },
-        { onConflict: "instrument_id,source_provider" }
-      );
+    const sectorRows = validRows.map((item) => ({
+      instrument_id: item.instrumentId,
+      source_provider: item.sourceProvider,
+      raw_value: item.rawSector,
+      canonical_value: item.canonicalSector,
+      confidence: item.confidence ?? 1,
+      is_manual_override: item.isManualOverride ?? false
+    }));
+    for (const batch of chunkArray(sectorRows, UNIVERSE_MUTATION_BATCH_SIZE)) {
+      const { error: sectorError } = await this.db.from("instrument_sector_mappings").upsert(batch, { onConflict: "instrument_id,source_provider" });
       if (isMissingUniverseTable(sectorError)) return;
       if (sectorError) throw new Error(sectorError.message);
+    }
 
-      const { error: deleteError } = await this.db
-        .from("instrument_theme_mappings")
-        .delete()
-        .eq("instrument_id", item.instrumentId)
-        .eq("source_provider", item.sourceProvider);
-      if (isMissingUniverseTable(deleteError)) return;
-      if (deleteError) throw new Error(deleteError.message);
-
-      if (item.canonicalThemes.length > 0) {
-        const { error: themeError } = await this.db.from("instrument_theme_mappings").insert(
-          item.canonicalThemes.map((theme) => ({
-            instrument_id: uuidOrUndefined(item.instrumentId),
-            source_provider: item.sourceProvider,
-            raw_value: item.rawIndustry ?? item.rawSector,
-            canonical_value: theme,
-            confidence: item.confidence ?? 1,
-            is_manual_override: item.isManualOverride ?? false
-          }))
-        );
-        if (isMissingUniverseTable(themeError)) return;
-        if (themeError) throw new Error(themeError.message);
+    const rowsByProvider = new Map<string, string[]>();
+    for (const item of validRows) {
+      const ids = rowsByProvider.get(item.sourceProvider) ?? [];
+      ids.push(item.instrumentId);
+      rowsByProvider.set(item.sourceProvider, ids);
+    }
+    for (const [sourceProvider, instrumentIds] of rowsByProvider) {
+      for (const idBatch of chunkArray(Array.from(new Set(instrumentIds)), UNIVERSE_MUTATION_BATCH_SIZE)) {
+        const { error: deleteError } = await this.db.from("instrument_theme_mappings").delete().in("instrument_id", idBatch).eq("source_provider", sourceProvider);
+        if (isMissingUniverseTable(deleteError)) return;
+        if (deleteError) throw new Error(deleteError.message);
       }
+    }
+
+    const themeRows = validRows.flatMap((item) =>
+      item.canonicalThemes.map((theme) => ({
+        instrument_id: item.instrumentId,
+        source_provider: item.sourceProvider,
+        raw_value: item.rawIndustry ?? item.rawSector,
+        canonical_value: theme,
+        confidence: item.confidence ?? 1,
+        is_manual_override: item.isManualOverride ?? false
+      }))
+    );
+    for (const batch of chunkArray(themeRows, UNIVERSE_MUTATION_BATCH_SIZE)) {
+      const { error: themeError } = await this.db.from("instrument_theme_mappings").insert(batch);
+      if (isMissingUniverseTable(themeError)) return;
+      if (themeError) throw new Error(themeError.message);
     }
   }
 
@@ -775,28 +800,28 @@ export class SupabaseUniverseRepository implements UniverseRepository {
   }
 
   async updateInstrumentTags(input: Array<{ instrumentId: string; benchmarkTags: string[]; thematicTags: string[] }>) {
-    for (const item of input.filter((row) => Boolean(uuidOrUndefined(row.instrumentId)))) {
-      const { error } = await this.db
-        .from("instruments")
-        .update({ benchmark_tags: item.benchmarkTags, thematic_tags: item.thematicTags })
-        .eq("id", uuidOrUndefined(item.instrumentId));
-      if (isMissingUniverseTable(error)) return;
-      if (error) throw new Error(error.message);
+    const validRows = input.flatMap((item) => {
+      const instrumentId = validUuidOrUndefined(item.instrumentId);
+      return instrumentId ? [{ ...item, instrumentId }] : [];
+    });
+    if (validRows.length === 0) return;
 
-      const tagRows = [
-        ...item.benchmarkTags.map((tag) => ({ instrument_id: uuidOrUndefined(item.instrumentId), tag, tag_type: "benchmark", source: "human", is_active: true })),
-        ...item.thematicTags.map((tag) => ({ instrument_id: uuidOrUndefined(item.instrumentId), tag, tag_type: "thematic", source: "human", is_active: true }))
-      ];
-
-      const { error: deleteError } = await this.db.from("instrument_tags").delete().eq("instrument_id", uuidOrUndefined(item.instrumentId));
+    const validIds = validRows.map((item) => item.instrumentId);
+    for (const idBatch of chunkArray(validIds, UNIVERSE_MUTATION_BATCH_SIZE)) {
+      const { error: deleteError } = await this.db.from("instrument_tags").delete().in("instrument_id", idBatch);
       if (isMissingUniverseTable(deleteError)) return;
       if (deleteError) throw new Error(deleteError.message);
+    }
 
-      if (tagRows.length > 0) {
-        const { error: insertError } = await this.db.from("instrument_tags").insert(tagRows);
-        if (isMissingUniverseTable(insertError)) return;
-        if (insertError) throw new Error(insertError.message);
-      }
+    const tagRows = validRows.flatMap((item) => [
+      ...item.benchmarkTags.map((tag) => ({ instrument_id: item.instrumentId, tag, tag_type: "benchmark", source: "human", is_active: true })),
+      ...item.thematicTags.map((tag) => ({ instrument_id: item.instrumentId, tag, tag_type: "thematic", source: "human", is_active: true }))
+    ]);
+
+    for (const tagBatch of chunkArray(tagRows, UNIVERSE_MUTATION_BATCH_SIZE)) {
+      const { error: insertError } = await this.db.from("instrument_tags").insert(tagBatch);
+      if (isMissingUniverseTable(insertError)) return;
+      if (insertError) throw new Error(insertError.message);
     }
   }
 
@@ -821,15 +846,20 @@ export class SupabaseUniverseRepository implements UniverseRepository {
       unmappedRawValues?: string[];
     }>
   ) {
-    for (const item of input) {
-      const { data: current, error: currentError } = await this.db
-        .from("instruments")
-        .select("id,provider_metadata,taxonomy_is_manual_override,canonical_sector,canonical_themes")
-        .eq("symbol", item.symbol)
-        .maybeSingle();
-      if (isMissingUniverseTable(currentError)) return;
-      if (currentError) throw new Error(currentError.message);
+    if (input.length === 0) return;
+    const symbols = Array.from(new Set(input.map((item) => item.symbol).filter(Boolean)));
+    const { data: currentRows, error: currentError } = await this.db.from("instruments").select("*").in("symbol", symbols);
+    if (isMissingUniverseTable(currentError)) return;
+    if (currentError) throw new Error(currentError.message);
 
+    const currentBySymbol = new Map((currentRows ?? []).map((row: any) => [String(row.symbol ?? "").toUpperCase(), row]));
+    const metadataRows: any[] = [];
+    const taxonomyRows: Parameters<UniverseRepository["upsertInstrumentTaxonomy"]>[0] = [];
+    const refreshedAt = new Date().toISOString();
+
+    for (const item of input) {
+      const current = currentBySymbol.get(item.symbol.toUpperCase());
+      if (!current) continue;
       const providerMetadata = {
         ...(current?.provider_metadata ?? {}),
         [item.provider]: item.rawPayload
@@ -838,48 +868,51 @@ export class SupabaseUniverseRepository implements UniverseRepository {
       const canonicalSector = hasManualTaxonomy ? current?.canonical_sector : item.canonicalSector;
       const canonicalThemes = hasManualTaxonomy ? toStringArray(current?.canonical_themes) : item.canonicalThemes;
 
-      const { error } = await this.db
-        .from("instruments")
-        .update({
-          name: item.name ?? undefined,
-          exchange: item.exchange ?? undefined,
-          currency: item.currency ?? undefined,
-          geography: item.region ?? item.country ?? undefined,
-          sector: item.sector ?? undefined,
-          industry: item.industry ?? undefined,
-          canonical_sector: canonicalSector ?? undefined,
-          canonical_themes: canonicalThemes ?? undefined,
-          isin: item.isin ?? undefined,
-          cusip: item.cusip ?? undefined,
-          figi: item.figi ?? undefined,
-          provider_symbol: item.providerSymbol ?? item.symbol,
-          identifier_quality_score: item.figi ? 98 : item.isin ? 95 : item.cusip ? 90 : undefined,
-          identifier_last_refreshed_at: new Date().toISOString(),
-          coverage_status: item.isin || item.cusip || item.figi ? "mapped" : undefined,
-          taxonomy_review_status: hasManualTaxonomy ? "mapped" : item.unmappedRawValues && item.unmappedRawValues.length > 0 ? "needs_review" : "mapped",
-          provider_primary: item.provider,
-          provider_metadata: providerMetadata,
-          metadata_last_refreshed_at: new Date().toISOString()
-        })
-        .eq("symbol", item.symbol);
+      metadataRows.push(omitUndefined({
+        ...current,
+        name: item.name ?? undefined,
+        exchange: item.exchange ?? undefined,
+        currency: item.currency ?? undefined,
+        geography: item.region ?? item.country ?? undefined,
+        sector: item.sector ?? undefined,
+        industry: item.industry ?? undefined,
+        canonical_sector: canonicalSector ?? undefined,
+        canonical_themes: canonicalThemes ?? undefined,
+        isin: item.isin ?? undefined,
+        cusip: item.cusip ?? undefined,
+        figi: item.figi ?? undefined,
+        provider_symbol: item.providerSymbol ?? item.symbol,
+        identifier_quality_score: item.figi ? 98 : item.isin ? 95 : item.cusip ? 90 : undefined,
+        identifier_last_refreshed_at: refreshedAt,
+        coverage_status: item.isin || item.cusip || item.figi ? "mapped" : undefined,
+        taxonomy_review_status: hasManualTaxonomy ? "mapped" : item.unmappedRawValues && item.unmappedRawValues.length > 0 ? "needs_review" : "mapped",
+        provider_primary: item.provider,
+        provider_metadata: providerMetadata,
+        metadata_last_refreshed_at: refreshedAt
+      }));
+      if (current?.id && canonicalSector && canonicalThemes) {
+        taxonomyRows.push({
+          instrumentId: current.id,
+          rawSector: item.sector,
+          rawIndustry: item.industry,
+          canonicalSector,
+          canonicalThemes,
+          sourceProvider: item.provider,
+          confidence: item.unmappedRawValues && item.unmappedRawValues.length > 0 ? 0.75 : 1,
+          isManualOverride: hasManualTaxonomy,
+          reviewStatus: hasManualTaxonomy ? "mapped" : item.unmappedRawValues && item.unmappedRawValues.length > 0 ? "needs_review" : "mapped"
+        });
+      }
+    }
+
+    for (const batch of chunkArray(metadataRows, UNIVERSE_MUTATION_BATCH_SIZE)) {
+      const { error } = await this.db.from("instruments").upsert(batch, { onConflict: "symbol" });
       if (isMissingUniverseTable(error)) return;
       if (error) throw new Error(error.message);
+    }
 
-      if (current?.id && canonicalSector && canonicalThemes) {
-        await this.upsertInstrumentTaxonomy([
-          {
-            instrumentId: current.id,
-            rawSector: item.sector,
-            rawIndustry: item.industry,
-            canonicalSector,
-            canonicalThemes,
-            sourceProvider: item.provider,
-            confidence: item.unmappedRawValues && item.unmappedRawValues.length > 0 ? 0.75 : 1,
-            isManualOverride: hasManualTaxonomy,
-            reviewStatus: hasManualTaxonomy ? "mapped" : item.unmappedRawValues && item.unmappedRawValues.length > 0 ? "needs_review" : "mapped"
-          }
-        ]);
-      }
+    if (taxonomyRows.length > 0) {
+      await this.upsertInstrumentTaxonomy(taxonomyRows);
     }
   }
 
