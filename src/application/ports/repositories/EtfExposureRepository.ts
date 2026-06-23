@@ -10,6 +10,11 @@ import type {
 
 export type InsertEtfExposureRefreshLogInput = Omit<EtfExposureRefreshLog, "id" | "createdAt">;
 
+export type LatestEtfExposureDates = {
+  latestExposureDate: string | null;
+  latestHoldingsDate: string | null;
+};
+
 export type SecurityIssuerLink = {
   securityId: string;
   issuerId: string;
@@ -34,6 +39,7 @@ export interface EtfExposureRepository {
   listPortfolioLookthroughExposures(portfolioId: string, asOfDate?: string): Promise<PortfolioLookthroughExposure[]>;
   listPortfolioLookthroughHoldings(portfolioId: string, asOfDate?: string): Promise<PortfolioLookthroughHolding[]>;
   listIssuerLinksForSecurityIds(securityIds: string[]): Promise<SecurityIssuerLink[]>;
+  getLatestEtfExposureDates(instrumentIds: string[]): Promise<Map<string, LatestEtfExposureDates>>;
   getLatestExposureDateForEtf(instrumentId: string): Promise<string | null>;
   getLatestHoldingsDateForEtf(instrumentId: string): Promise<string | null>;
   clearAllExposures(): Promise<void>;

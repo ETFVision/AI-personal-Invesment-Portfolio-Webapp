@@ -189,7 +189,7 @@ This document maps ETFVision product routes to their route files, direct server 
 - `app-daily-instrument-price-refresh` -> `/api/jobs/instrument-price-refresh?source=eod` -> daily single end-of-day pass.
 - `app-daily-instrument-market-metrics-refresh` -> `/api/jobs/instrument-market-metrics-refresh` -> daily.
 - `app-daily-instrument-risk-refresh` -> `/api/jobs/instrument-risk-refresh` -> daily single full-universe pass.
-- `app-weekly-fundamentals-refresh-1..3` -> `/api/jobs/fundamentals-refresh` -> weekly.
+- `app-weekly-fundamentals-refresh` -> `/api/jobs/fundamentals-refresh` -> weekly single bounded-concurrency pass.
 - `app-monthly-universe-validation` -> `/api/jobs/universe-validation` -> monthly.
 
 **Cache / summary table:**
@@ -425,7 +425,7 @@ This document maps ETFVision product routes to their route files, direct server 
 - `company_profiles`, `financial_statements`, `financial_ratios`, `fundamental_scores`, `fundamental_trends`, `fundamental_trend_summaries` - underlying fundamentals tables.
 
 **Refresh job dependency:**
-- `app-weekly-fundamentals-refresh-1..3` -> `/api/jobs/fundamentals-refresh` -> weekly batched passes.
+- `app-weekly-fundamentals-refresh` -> `/api/jobs/fundamentals-refresh` -> weekly single bounded-concurrency pass.
 
 **Cache / summary table:**
 - `fundamentals_overview_metrics`
@@ -625,7 +625,7 @@ This document maps ETFVision product routes to their route files, direct server 
 
 **Refresh job dependency:**
 - `app-weekly-portfolio-review-run` -> `/api/jobs/portfolio-review-run` -> weekly.
-- `app-monthly-etf-lookthrough-refresh-1..5` -> `/api/jobs/etf-lookthrough-refresh` -> monthly batched passes.
+- `app-monthly-etf-lookthrough-refresh` -> `/api/jobs/etf-lookthrough-refresh` -> monthly single bounded-concurrency pass.
 - Manual run through `runPortfolioReviewAction`.
 
 **Cache / summary table:**

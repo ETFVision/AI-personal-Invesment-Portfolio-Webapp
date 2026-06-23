@@ -231,7 +231,8 @@ export function createContainer() {
       enabled: env.ENABLE_ETF_LOOKTHROUGH_REFRESH,
       refreshFrequencyDays: env.ETF_LOOKTHROUGH_REFRESH_FREQUENCY_DAYS,
       maxEtfsPerRun: env.ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN,
-      staleAfterDays: env.ETF_LOOKTHROUGH_STALE_AFTER_DAYS
+      staleAfterDays: env.ETF_LOOKTHROUGH_STALE_AFTER_DAYS,
+      fetchConcurrency: env.ETF_LOOKTHROUGH_FETCH_CONCURRENCY
     }
   );
   const fundamentalScoringService = new FundamentalScoringService();
