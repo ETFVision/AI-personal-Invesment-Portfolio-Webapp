@@ -70,9 +70,9 @@ Weekly runs Sunday morning Singapore time and stays within Saturday UTC (`23:30`
 
 ## Monthly Schedule Summary
 
-Monthly runs first day:
+Monthly runs on the first day of the month. Since migration `120`, ETF look-through runs as one bounded-concurrency pass (`maxEtfsPerRun=250`, `ETF_LOOKTHROUGH_FETCH_CONCURRENCY=6`) covering the roughly 169 eligible ETF universe:
 
-1. ETF look-through passes.
+1. ETF look-through refresh.
 2. Universe validation.
 
 ## Operational QA Checks

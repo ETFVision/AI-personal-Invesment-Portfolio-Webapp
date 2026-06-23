@@ -2,6 +2,45 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-23 SGT - Monthly ETF Look-Through Single-Pass Schedule QA
+
+Scope:
+- Verify the monthly Supabase cron chain collapses ETF look-through from five passes to one after the set-based eligibility and bounded-concurrency app-layer changes.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Monthly ETF look-through still had five scheduled passes after one pass became sufficient | Fixed; migration 120 schedules one `app-monthly-etf-lookthrough-refresh` |
+| One pass needed to cover the full eligible ETF universe | Fixed; `ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN` default is now 250 |
+| Vercel function ceiling should be explicit for the longer ETF look-through pass | Fixed; `/api/jobs/etf-lookthrough-refresh` exports `maxDuration = 300` |
+| Monthly chain could be shorter after pass collapse | Fixed; monthly chain now runs at `23:30` and `23:35` UTC on the 1st |
+
+New monthly schedule:
+
+| UTC Cron | Job |
+|---:|---|
+| `30 23 1 * *` | `app-monthly-etf-lookthrough-refresh` |
+| `35 23 1 * *` | `app-monthly-universe-validation` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration unschedules exactly the prior 6 monthly jobs | PASS |
+| Migration reschedules the same monthly chain minus the four dropped ETF look-through passes | PASS |
+| Both monthly cron expressions use the 1st-of-month schedule (`1 * *`) | PASS |
+| Commands copied from migration 117 except the merged ETF look-through job name | PASS |
+| Daily and weekly schedules untouched | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (339/339) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/120_collapse_monthly_etf_lookthrough_single_pass.sql` manually to Supabase.
+- Observe the first production single-pass ETF look-through run duration before making further schedule changes.
+
 ## 2026-06-23 SGT - ETF Look-Through Refresh Optimization QA
 
 Scope:

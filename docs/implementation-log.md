@@ -1,3 +1,47 @@
+## 2026-06-23 - Collapse Monthly ETF Look-Through To Single Pass
+
+### Source
+Claude Code
+
+### Objective
+Collapse the monthly ETF look-through refresh from five Supabase cron passes to one now that set-based eligibility and bounded-concurrency refresh can cover the full eligible ETF universe in one run.
+
+### Files Changed
+- `src/infrastructure/config/env.ts`
+- `src/app/api/jobs/etf-lookthrough-refresh/route.ts`
+- `supabase/migrations/120_collapse_monthly_etf_lookthrough_single_pass.sql`
+- `docs/scheduled-jobs.md`
+- `docs/JOBS_AND_OPERATIONS.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Raised the default `ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN` from 50 to 250 so one pass covers the roughly 169 eligible ETF universe.
+- Added `maxDuration = 300` to `/api/jobs/etf-lookthrough-refresh` to make the Vercel function ceiling explicit for the longer single pass.
+- Added migration 120 to unschedule the five old monthly ETF look-through passes and universe validation, then recreate one `app-monthly-etf-lookthrough-refresh` job followed by `app-monthly-universe-validation`.
+- Kept monthly commands copied from migration 117 verbatim except the intentional merged ETF look-through job name.
+- Updated scheduled-jobs and operations docs to show the monthly `23:30`-`23:35` UTC chain on the 1st.
+
+### New Monthly Schedule
+| UTC Cron | Job |
+|---:|---|
+| `30 23 1 * *` | `app-monthly-etf-lookthrough-refresh` |
+| `35 23 1 * *` | `app-monthly-universe-validation` |
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (339/339)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 120 must be applied manually to Supabase.
+- Verification: the unschedule list covers exactly the previous 6 monthly jobs; the reschedule list covers the same monthly chain minus the four dropped ETF look-through passes; both monthly cron expressions use `1 * *`; no endpoint or command changed except the merged ETF look-through job name.
+- Daily and weekly schedules were not changed.
+
 ## 2026-06-23 - Optimize ETF Look-Through Refresh
 
 ### Source

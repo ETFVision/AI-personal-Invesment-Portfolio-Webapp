@@ -60,7 +60,7 @@ const envSchema = z.object({
   ENABLE_FUNDAMENTALS_REFRESH: envBoolean.default(true),
   ENABLE_ETF_LOOKTHROUGH_REFRESH: envBoolean.default(true),
   ETF_LOOKTHROUGH_REFRESH_FREQUENCY_DAYS: z.coerce.number().int().positive().default(30),
-  ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN: z.coerce.number().int().positive().default(50),
+  ETF_LOOKTHROUGH_MAX_ETFS_PER_RUN: z.coerce.number().int().positive().default(250),
   ETF_LOOKTHROUGH_STALE_AFTER_DAYS: z.coerce.number().int().positive().default(45),
   ETF_LOOKTHROUGH_FETCH_CONCURRENCY: z.coerce.number().int().positive().default(6)
 });
