@@ -226,6 +226,33 @@ class FakeFundamentalsProvider implements FundamentalsProvider {
   }
 }
 
+class ConcurrentFakeFundamentalsProvider extends FakeFundamentalsProvider {
+  private readonly activeCallsBySymbol = new Map<string, number>();
+  readonly activeSymbols = new Set<string>();
+  maxActiveSymbols = 0;
+
+  override async getFundamentals(symbol: string, _options?: { period?: "annual" | "quarterly"; limit?: number }): Promise<FundamentalsProviderResult> {
+    const activeCalls = this.activeCallsBySymbol.get(symbol) ?? 0;
+    this.activeCallsBySymbol.set(symbol, activeCalls + 1);
+    if (activeCalls === 0) {
+      this.activeSymbols.add(symbol);
+      this.maxActiveSymbols = Math.max(this.maxActiveSymbols, this.activeSymbols.size);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    try {
+      return await super.getFundamentals(symbol);
+    } finally {
+      const remainingCalls = (this.activeCallsBySymbol.get(symbol) ?? 1) - 1;
+      if (remainingCalls <= 0) {
+        this.activeCallsBySymbol.delete(symbol);
+        this.activeSymbols.delete(symbol);
+      } else {
+        this.activeCallsBySymbol.set(symbol, remainingCalls);
+      }
+    }
+  }
+}
+
 test("FMP fundamentals normalization preserves nulls and raw provider data", () => {
   const profile = fmpFundamentalsInternals.normalizeProfile("AAPL", {
     symbol: "AAPL",
@@ -1325,6 +1352,7 @@ test("fundamentals refresh excludes non-stocks and logs partial success", async 
   const service = new FundamentalsRefreshService(repository, provider, new FundamentalScoringService(), new FundamentalTrendCalculationService(), {
     enabled: true,
     maxStocksPerRefresh: 10,
+    fetchConcurrency: 6,
     refreshFrequencyDays: 1,
     staleAfterDays: 30
   });
@@ -1339,6 +1367,38 @@ test("fundamentals refresh excludes non-stocks and logs partial success", async 
   assert.ok(repository.trends.length > 0);
   assert.equal(repository.trendSummaries.length, 1);
   assert.equal(repository.logs[0]?.status, "partial_success");
+});
+
+test("fundamentals refresh processes due stocks in bounded-concurrency waves", async () => {
+  const repository = new FakeFundamentalsRepository(["AAA", "BBB", "CCC", "DDD", "EEE"].map(stock));
+  const provider = new ConcurrentFakeFundamentalsProvider();
+  provider.failed.add("CCC");
+  const service = new FundamentalsRefreshService(repository, provider, new FundamentalScoringService(), new FundamentalTrendCalculationService(), {
+    enabled: true,
+    maxStocksPerRefresh: 10,
+    fetchConcurrency: 2,
+    refreshFrequencyDays: 1,
+    staleAfterDays: 30
+  });
+
+  const result = await service.refreshAll({ force: true });
+
+  assert.equal(result.status, "partial_success");
+  assert.equal(result.stocksRequested, 5);
+  assert.equal(result.profilesUpdated, 4);
+  assert.equal(result.statementsUpdated, repository.statements.length);
+  assert.equal(result.ratiosUpdated, repository.ratios.length);
+  assert.equal(result.scoresUpdated, 4);
+  assert.equal(result.trendsUpdated, repository.trends.length);
+  assert.deepEqual(result.failedSymbols, ["CCC"]);
+  assert.equal(provider.maxActiveSymbols <= 2, true);
+  assert.equal(repository.logs[0]?.status, "partial_success");
+  assert.equal(repository.logs[0]?.profilesUpdated, 4);
+  assert.equal(repository.logs[0]?.statementsUpdated, repository.statements.length);
+  assert.equal(repository.logs[0]?.ratiosUpdated, repository.ratios.length);
+  assert.equal(repository.logs[0]?.scoresUpdated, 4);
+  assert.deepEqual(repository.logs[0]?.failedSymbols, ["CCC"]);
+  assert.equal(repository.logs[0]?.metadata && "trendsUpdated" in repository.logs[0].metadata, true);
 });
 
 test("forced fundamentals refresh rotates through oldest profile cohorts", async () => {
@@ -1374,6 +1434,7 @@ test("forced fundamentals refresh rotates through oldest profile cohorts", async
   const service = new FundamentalsRefreshService(repository, new FakeFundamentalsProvider(), new FundamentalScoringService(), new FundamentalTrendCalculationService(), {
     enabled: true,
     maxStocksPerRefresh: 2,
+    fetchConcurrency: 6,
     refreshFrequencyDays: 1,
     staleAfterDays: 30
   });

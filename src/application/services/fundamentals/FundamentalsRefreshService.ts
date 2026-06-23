@@ -3,6 +3,7 @@ import type { FundamentalsRepository } from "@/application/ports/repositories/Fu
 import { FundamentalScoringService } from "@/application/services/fundamentals/FundamentalScoringService";
 import { FundamentalTrendCalculationService } from "@/application/services/fundamentals/FundamentalTrendCalculationService";
 import type { CompanyProfile, FinancialRatio, FinancialStatement } from "@/domain/fundamentals/types";
+import type { Instrument } from "@/domain/universe/types";
 
 const ANNUAL_FUNDAMENTALS_PERIOD_LIMIT = 5;
 const QUARTERLY_FUNDAMENTALS_PERIOD_LIMIT = 12;
@@ -203,6 +204,7 @@ export class FundamentalsRefreshService {
     private readonly config: {
       enabled: boolean;
       maxStocksPerRefresh: number;
+      fetchConcurrency: number;
       refreshFrequencyDays: number;
       staleAfterDays: number;
     }
@@ -269,82 +271,17 @@ export class FundamentalsRefreshService {
     let scoresUpdated = 0;
     let trendsUpdated = 0;
     const failedSymbols: string[] = [];
+    const concurrency = Math.max(1, this.config.fetchConcurrency);
 
-    for (const instrument of due) {
-      const symbol = instrument.symbol?.toUpperCase();
-      if (!symbol) continue;
-      try {
-        const [annualResult, quarterlyResult] = await Promise.all([
-          this.provider.getFundamentals(symbol, { period: "annual", limit: ANNUAL_FUNDAMENTALS_PERIOD_LIMIT }),
-          this.provider.getFundamentals(symbol, { period: "quarterly", limit: QUARTERLY_FUNDAMENTALS_PERIOD_LIMIT })
-        ]);
-        const providerProfile = annualResult.profile ?? quarterlyResult.profile;
-        const profile: CompanyProfile | null = providerProfile
-          ? { ...providerProfile, instrumentId: instrument.id }
-          : null;
-        const annualStatements: FinancialStatement[] = annualResult.statements.map((statement) => ({
-          ...statement,
-          instrumentId: instrument.id
-        }));
-        const quarterlyStatements: FinancialStatement[] = quarterlyResult.statements.map((statement) => ({
-          ...statement,
-          instrumentId: instrument.id
-        }));
-        const annualProviderRatios: FinancialRatio[] = annualResult.ratios.map((ratio) => ({
-          ...ratio,
-          instrumentId: instrument.id
-        }));
-        const quarterlyProviderRatios: FinancialRatio[] = quarterlyResult.ratios.map((ratio) => ({
-          ...ratio,
-          instrumentId: instrument.id
-        }));
-        const annualRatios = deriveMissingRatios({
-          instrumentId: instrument.id,
-          symbol,
-          profile,
-          statements: annualStatements,
-          ratios: annualProviderRatios
-        });
-        const quarterlyRatios = deriveMissingRatios({
-          instrumentId: instrument.id,
-          symbol,
-          profile,
-          statements: quarterlyStatements,
-          ratios: quarterlyProviderRatios
-        });
-        const statements = [...annualStatements, ...quarterlyStatements];
-        const ratios = [...annualRatios, ...quarterlyRatios];
-
-        if (profile) {
-          await this.repository.upsertCompanyProfiles([profile]);
-          profilesUpdated += 1;
-        }
-        await this.repository.upsertFinancialStatements(statements);
-        await this.repository.upsertFinancialRatios(ratios);
-        statementsUpdated += statements.length;
-        ratiosUpdated += ratios.length;
-
-        const score = this.scoringService.calculateScore({
-          instrumentId: instrument.id,
-          symbol,
-          profile,
-          ratios,
-          statements
-        });
-        await this.repository.upsertFundamentalScores([score]);
-        scoresUpdated += score.overallFundamentalScore == null ? 0 : 1;
-        const trendResult = this.trendCalculationService.calculate({
-          instrumentId: instrument.id,
-          symbol,
-          ratios,
-          statements,
-          scores: [score]
-        });
-        await this.repository.upsertFundamentalTrends(trendResult.trends);
-        await this.repository.upsertFundamentalTrendSummaries([trendResult.summary]);
-        trendsUpdated += trendResult.trends.length;
-      } catch {
-        failedSymbols.push(symbol);
+    for (let index = 0; index < due.length; index += concurrency) {
+      const results = await Promise.all(due.slice(index, index + concurrency).map((instrument) => this.refreshInstrument(instrument)));
+      for (const result of results) {
+        profilesUpdated += result.profilesUpdated;
+        statementsUpdated += result.statementsUpdated;
+        ratiosUpdated += result.ratiosUpdated;
+        scoresUpdated += result.scoresUpdated;
+        trendsUpdated += result.trendsUpdated;
+        if (result.failedSymbol) failedSymbols.push(result.failedSymbol);
       }
     }
 
@@ -388,6 +325,102 @@ export class FundamentalsRefreshService {
       trendsUpdated,
       failedSymbols
     };
+  }
+
+  private async refreshInstrument(instrument: Instrument) {
+    const emptyResult = {
+      profilesUpdated: 0,
+      statementsUpdated: 0,
+      ratiosUpdated: 0,
+      scoresUpdated: 0,
+      trendsUpdated: 0,
+      failedSymbol: null as string | null
+    };
+    const symbol = instrument.symbol?.toUpperCase();
+    if (!symbol) return emptyResult;
+    try {
+      const [annualResult, quarterlyResult] = await Promise.all([
+        this.provider.getFundamentals(symbol, { period: "annual", limit: ANNUAL_FUNDAMENTALS_PERIOD_LIMIT }),
+        this.provider.getFundamentals(symbol, { period: "quarterly", limit: QUARTERLY_FUNDAMENTALS_PERIOD_LIMIT })
+      ]);
+      const providerProfile = annualResult.profile ?? quarterlyResult.profile;
+      const profile: CompanyProfile | null = providerProfile
+        ? { ...providerProfile, instrumentId: instrument.id }
+        : null;
+      const annualStatements: FinancialStatement[] = annualResult.statements.map((statement) => ({
+        ...statement,
+        instrumentId: instrument.id
+      }));
+      const quarterlyStatements: FinancialStatement[] = quarterlyResult.statements.map((statement) => ({
+        ...statement,
+        instrumentId: instrument.id
+      }));
+      const annualProviderRatios: FinancialRatio[] = annualResult.ratios.map((ratio) => ({
+        ...ratio,
+        instrumentId: instrument.id
+      }));
+      const quarterlyProviderRatios: FinancialRatio[] = quarterlyResult.ratios.map((ratio) => ({
+        ...ratio,
+        instrumentId: instrument.id
+      }));
+      const annualRatios = deriveMissingRatios({
+        instrumentId: instrument.id,
+        symbol,
+        profile,
+        statements: annualStatements,
+        ratios: annualProviderRatios
+      });
+      const quarterlyRatios = deriveMissingRatios({
+        instrumentId: instrument.id,
+        symbol,
+        profile,
+        statements: quarterlyStatements,
+        ratios: quarterlyProviderRatios
+      });
+      const statements = [...annualStatements, ...quarterlyStatements];
+      const ratios = [...annualRatios, ...quarterlyRatios];
+
+      await Promise.all([
+        profile ? this.repository.upsertCompanyProfiles([profile]) : Promise.resolve(),
+        this.repository.upsertFinancialStatements(statements),
+        this.repository.upsertFinancialRatios(ratios)
+      ]);
+
+      const score = this.scoringService.calculateScore({
+        instrumentId: instrument.id,
+        symbol,
+        profile,
+        ratios,
+        statements
+      });
+      const trendResult = this.trendCalculationService.calculate({
+        instrumentId: instrument.id,
+        symbol,
+        ratios,
+        statements,
+        scores: [score]
+      });
+
+      await Promise.all([
+        this.repository.upsertFundamentalScores([score]),
+        this.repository.upsertFundamentalTrends(trendResult.trends),
+        this.repository.upsertFundamentalTrendSummaries([trendResult.summary])
+      ]);
+
+      return {
+        profilesUpdated: profile ? 1 : 0,
+        statementsUpdated: statements.length,
+        ratiosUpdated: ratios.length,
+        scoresUpdated: score.overallFundamentalScore == null ? 0 : 1,
+        trendsUpdated: trendResult.trends.length,
+        failedSymbol: null
+      };
+    } catch {
+      return {
+        ...emptyResult,
+        failedSymbol: symbol
+      };
+    }
   }
 }
 

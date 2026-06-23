@@ -1,6 +1,6 @@
 # Jobs and Operations
 
-Last updated: 2026-06-13 14:58:29 +08:00
+Last updated: 2026-06-23
 
 ## Scheduler
 
@@ -59,9 +59,9 @@ Return anchors depend on `instrument_daily_returns`. Since migration `101`, `ref
 
 ## Weekly Schedule Summary
 
-Weekly runs Sunday morning after daily refresh:
+Weekly runs Sunday morning Singapore time and stays within Saturday UTC (`23:30` to `23:55`). Since migration `118`, fundamentals run as one bounded-concurrency pass (`maxStocksPerRefresh=150`, `FUNDAMENTALS_FETCH_CONCURRENCY=6`) covering the full active stock universe of roughly 105 stocks:
 
-1. Fundamentals passes.
+1. Fundamentals refresh.
 2. Weekly news reconciliation.
 3. Market Vision.
 4. Recommendations.
