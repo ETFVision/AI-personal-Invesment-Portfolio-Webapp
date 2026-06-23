@@ -667,7 +667,7 @@ test("history backfill tolerates one-day historical EOD lag and fills the batch 
 
 test("derived metric refreshes auto-size to all active instruments when maxBatches is omitted", async () => {
   const instruments = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF", "GGG"].map((symbol) => instrument(symbol));
-  const dailyReturnCalls: Array<{ ids: string[]; incrementalDays: number | null | undefined }> = [];
+  const dailyReturnCalls: Array<{ ids: string[]; recentWindowDays: number | null | undefined; forceFull: boolean | undefined }> = [];
   const returnAnchorCalls: string[][] = [];
   const marketMetricCalls: string[][] = [];
   const refreshedMarketIds = new Set<string>();
@@ -675,8 +675,8 @@ test("derived metric refreshes auto-size to all active instruments when maxBatch
     async listInstruments() {
       return instruments;
     },
-    async refreshInstrumentDailyReturns(ids: string[], incrementalDays?: number | null) {
-      dailyReturnCalls.push({ ids, incrementalDays });
+    async refreshInstrumentDailyReturns(ids: string[], recentWindowDays?: number | null, forceFull?: boolean) {
+      dailyReturnCalls.push({ ids, recentWindowDays, forceFull });
     },
     async refreshInstrumentReturnAnchors(ids: string[]) {
       returnAnchorCalls.push(ids);
@@ -696,7 +696,7 @@ test("derived metric refreshes auto-size to all active instruments when maxBatch
   const service = new InstrumentMarketService(repository, provider);
 
   await service.refreshInstrumentDailyReturnsInBatches({ batchSize: 3 });
-  await service.refreshInstrumentDailyReturnsInBatches({ batchSize: 3, maxBatches: 1, incrementalDays: 30 });
+  await service.refreshInstrumentDailyReturnsInBatches({ batchSize: 3, maxBatches: 1, recentWindowDays: 45, forceFull: true });
   await service.refreshInstrumentReturnAnchorsInBatches({ batchSize: 3 });
   await service.refreshInstrumentMarketMetricsInBatches({ batchSize: 3 });
 
@@ -704,8 +704,9 @@ test("derived metric refreshes auto-size to all active instruments when maxBatch
     dailyReturnCalls.slice(0, 3).map((call) => call.ids),
     [["inst-AAA", "inst-BBB", "inst-CCC"], ["inst-DDD", "inst-EEE", "inst-FFF"], ["inst-GGG"]]
   );
-  assert.deepEqual(dailyReturnCalls.slice(0, 3).map((call) => call.incrementalDays), [null, null, null]);
-  assert.deepEqual(dailyReturnCalls[3], { ids: ["inst-AAA", "inst-BBB", "inst-CCC"], incrementalDays: 30 });
+  assert.deepEqual(dailyReturnCalls.slice(0, 3).map((call) => call.recentWindowDays), [30, 30, 30]);
+  assert.deepEqual(dailyReturnCalls.slice(0, 3).map((call) => call.forceFull), [false, false, false]);
+  assert.deepEqual(dailyReturnCalls[3], { ids: ["inst-AAA", "inst-BBB", "inst-CCC"], recentWindowDays: 45, forceFull: true });
   assert.deepEqual(returnAnchorCalls, [["inst-AAA", "inst-BBB", "inst-CCC"], ["inst-DDD", "inst-EEE", "inst-FFF"], ["inst-GGG"]]);
   assert.deepEqual(marketMetricCalls, [["inst-AAA", "inst-BBB", "inst-CCC"], ["inst-DDD", "inst-EEE", "inst-FFF"], ["inst-GGG"]]);
 });

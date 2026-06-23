@@ -93,6 +93,42 @@ test("listInstrumentPriceStats passes null for all-instrument RPC scans and pres
   assert.deepEqual(stats, []);
 });
 
+test("refreshInstrumentDailyReturns passes adaptive recent-window and force-full flags", async () => {
+  ensureSupabaseEnv();
+  const { SupabaseUniverseRepository } = await import("../src/infrastructure/repositories/supabase/SupabaseUniverseRepository.js");
+  const calls: Array<{ name: string; params: unknown }> = [];
+  const db = {
+    async rpc(name: string, params: unknown) {
+      calls.push({ name, params });
+      return { error: null };
+    }
+  };
+
+  const repository = new SupabaseUniverseRepository(db as never);
+
+  await repository.refreshInstrumentDailyReturns(["11111111-1111-1111-1111-111111111111"], 45, true);
+  await repository.refreshInstrumentDailyReturns();
+
+  assert.deepEqual(calls, [
+    {
+      name: "refresh_instrument_daily_returns",
+      params: {
+        target_instrument_ids: ["11111111-1111-1111-1111-111111111111"],
+        p_recent_window_days: 45,
+        p_force_full: true
+      }
+    },
+    {
+      name: "refresh_instrument_daily_returns",
+      params: {
+        target_instrument_ids: null,
+        p_recent_window_days: 30,
+        p_force_full: false
+      }
+    }
+  ]);
+});
+
 test("updateInstrumentTags uses batched delete and insert operations", async () => {
   ensureSupabaseEnv();
   const { SupabaseUniverseRepository } = await import("../src/infrastructure/repositories/supabase/SupabaseUniverseRepository.js");

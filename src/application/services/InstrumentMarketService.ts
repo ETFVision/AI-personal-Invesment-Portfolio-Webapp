@@ -741,8 +741,9 @@ export class InstrumentMarketService {
     };
   }
 
-  async refreshInstrumentDailyReturnsInBatches(input?: { batchSize?: number; maxBatches?: number; incrementalDays?: number | null }): Promise<RefreshInstrumentPricesResult> {
+  async refreshInstrumentDailyReturnsInBatches(input?: { batchSize?: number; maxBatches?: number; recentWindowDays?: number | null; forceFull?: boolean }): Promise<RefreshInstrumentPricesResult> {
     const batchSize = Math.max(1, input?.batchSize ?? 25);
+    const recentWindowDays = Math.max(1, input?.recentWindowDays ?? 30);
     const instruments = await this.repository.listInstruments({ isActive: true });
     const maxBatches = Math.max(1, input?.maxBatches ?? Math.ceil(instruments.length / batchSize));
     const selected = instruments.slice(0, batchSize * maxBatches);
@@ -760,7 +761,7 @@ export class InstrumentMarketService {
     }
 
     for (let index = 0; index < instrumentIds.length; index += rpcChunkSize) {
-      await this.repository.refreshInstrumentDailyReturns(instrumentIds.slice(index, index + rpcChunkSize), input?.incrementalDays ?? null);
+      await this.repository.refreshInstrumentDailyReturns(instrumentIds.slice(index, index + rpcChunkSize), recentWindowDays, Boolean(input?.forceFull));
     }
 
     return {

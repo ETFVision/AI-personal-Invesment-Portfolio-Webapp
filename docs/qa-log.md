@@ -2,6 +2,37 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-23 SGT - Adaptive Daily Returns Rebuild QA
+
+Scope:
+- Verify daily-return refresh uses per-instrument adaptive rebuild semantics and keeps manual/admin refresh fast without losing full-history repair for new or incomplete instruments.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Migration 123's simple incremental window made cron fast but left the admin full path expensive | Fixed; both cron and admin paths now call the adaptive recent-window default |
+| New instruments need full daily-return history after price backfill | Fixed in migration 124; instruments without daily returns rebuild from the beginning of price history |
+| Existing incomplete daily-return history should be repaired automatically | Fixed in migration 124; returns starting more than 7 days after first price trigger full rebuild |
+| Rare full rebuilds still need an explicit escape hatch | Fixed; app layer exposes `forceFull` and repository passes `p_force_full` |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Repository passes `p_recent_window_days` and `p_force_full` to the RPC | PASS |
+| Service default daily-return refresh uses recent window 30 and `forceFull=false` | PASS |
+| Explicit force-full service call passes `forceFull=true` | PASS |
+| Migration 124 encodes missing-history, short-history, recent-window, and force-full cutoff rules | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (347/347) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/124_adaptive_daily_returns.sql` manually to Supabase after migration 123.
+- After deployment, run Refresh daily returns and verify new instruments receive full daily-return history while complete instruments update quickly.
+
 ## 2026-06-23 SGT - Full-Universe Refresh Auto-Sizing QA
 
 Scope:

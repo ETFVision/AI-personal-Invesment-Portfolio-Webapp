@@ -1,3 +1,44 @@
+## 2026-06-23 - Adaptive Daily Returns Rebuild
+
+### Source
+Claude Code
+
+### Objective
+Upgrade daily-return refresh from a simple fixed incremental flag to a per-instrument adaptive rebuild so complete instruments use a recent window while incomplete instruments rebuild from price-history start.
+
+### Files Changed
+- `src/application/ports/repositories/UniverseRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `src/application/services/InstrumentMarketService.ts`
+- `src/app/api/jobs/instrument-daily-returns-refresh/route.ts`
+- `supabase/migrations/124_adaptive_daily_returns.sql`
+- `tests/price-refresh.test.ts`
+- `tests/universe-repository.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Replaced the app-layer `incrementalDays` daily-return option with adaptive `recentWindowDays` plus rare `forceFull` support.
+- Updated the Supabase repository RPC call to pass `p_recent_window_days` and `p_force_full`.
+- Kept the daily-return route backward-compatible with migration 123 cron URLs by mapping old `incrementalDays` query input to `recentWindowDays`.
+- Added migration 124 to create the adaptive `refresh_instrument_daily_returns` RPC: instruments with missing/short return history rebuild from `1900-01-01`; complete instruments upsert only the recent window; `p_force_full=true` forces a full rebuild.
+- Rescheduled only the daily-return cron to use `recentWindowDays=30`.
+- Added tests covering adaptive RPC arguments and the service defaults/force-full path.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (347/347)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 124 must be applied manually to Supabase and assumes migration 123 is already applied.
+- The risk RPC's existing one-argument internal daily-return call remains compatible with the adaptive function; incomplete instruments still full-rebuild, while complete instruments refresh the recent window needed after daily EOD updates.
+- No scoring methodology, labels, compliance wording, feature flags, or access controls changed.
+
 ## 2026-06-23 - Full-Universe Refresh Auto-Sizing And Incremental Daily Returns
 
 ### Source
