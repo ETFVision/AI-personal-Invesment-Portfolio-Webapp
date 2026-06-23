@@ -565,8 +565,7 @@ The Gap Analysis section in Portfolio Review currently uses a sector/ticker-leve
 
 Step 1: Run `POST /api/jobs/etf-lookthrough-refresh?force=true` from Admin > Jobs.
 - This bypasses the stale cutoff and re-fetches top 100 holdings per ETF.
-- Each pass covers up to maxEtfsPerRun ETFs. Check job log topHoldingRows to monitor progress.
-- Repeat until etfsRefreshed = 0 (all ETFs are now fresh). Expect 3–5 passes for the full 201-ETF universe.
+- Since migration 120, one bounded-concurrency pass covers up to maxEtfsPerRun ETFs (default 250), enough for the full eligible ETF universe (~169) in a single run. Check job log topHoldingRows / etfsRefreshed to confirm completion (a second pass is only needed if etfsRefreshed is still non-zero).
 
 Step 2: Run `POST /api/jobs/portfolio-review-run` from Admin > Jobs.
 - This regenerates the stored portfolio review report using real company overlap data.
