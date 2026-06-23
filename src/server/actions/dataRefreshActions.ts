@@ -56,8 +56,7 @@ export async function refreshAllDataAction(formData?: FormData) {
     const appUser = await container.portfolioService.ensureApplicationUser(authUser);
     const universeMetadata = await container.metadataRefreshService.refreshUniverseMetadataInBatches({
       requestedByUserId: appUser.id,
-      batchSize: 24,
-      maxBatches: 4
+      batchSize: 25
     });
     appendMessage(messages, "Universe metadata", universeMetadata.message);
     errors.push(...universeMetadata.errors);
@@ -385,7 +384,6 @@ export async function refreshInstrumentMetadataAction(formData?: FormData) {
     const result = await container.metadataRefreshService.refreshUniverseMetadataInBatches({
       requestedByUserId: appUser.id,
       batchSize: 25,
-      maxBatches: 14,
       forceIdentifierRefresh: true
     });
     refreshMessage = result.message;

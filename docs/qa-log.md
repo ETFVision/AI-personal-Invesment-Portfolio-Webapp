@@ -2,6 +2,41 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-23 SGT - Universe Seed And Metadata Refresh Throughput QA
+
+Scope:
+- Verify seed-time tag writes, metadata refresh writes, Security Master sync behavior, and metadata coverage caps are suitable for the expanded 391-instrument universe.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Seed Universe tag synchronization used per-instrument update/delete/insert calls | Fixed; `instrument_tags` is now deleted and inserted in batched set-based operations |
+| Removing the per-row tag column update required seed upsert coverage | Verified; `ensureSeededUniverse` passes both `benchmarkTags` and `thematicTags` into `upsertInstruments` |
+| Metadata refresh synced Security Master identifiers once per batch | Fixed; batch mode suppresses per-batch sync and performs one sync after all batches when updates occurred |
+| Metadata refresh used fixed `maxBatches` caps that no longer covered the expanded universe | Fixed; omitted `maxBatches` now auto-sizes from active instrument count, and admin/cron paths omit the cap |
+| Symbols with still-missing identifiers could be selected again inside the same full run | Fixed; multi-batch metadata refresh excludes symbols already attempted in the current run |
+| Metadata repository writes used per-symbol select/update/taxonomy round trips | Fixed; current rows are fetched in one `.in("symbol", ...)` call and metadata/taxonomy writes are batched |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `updateInstrumentTags` uses batched delete and insert operations | PASS |
+| `updateInstrumentMetadata` batches current-row fetch, instrument upsert, and taxonomy writes | PASS |
+| Metadata batch refresh auto-covers all active instruments with no explicit `maxBatches` | PASS |
+| Metadata batch refresh syncs Security Master once after the batch loop | PASS |
+| Migration 121 removes the `maxBatches` cap from the daily metadata cron command | PASS |
+| `FMP_METADATA_CONCURRENCY` verified at 8 | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (343/343) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/121_metadata_refresh_full_universe_coverage.sql` manually to Supabase.
+- After deployment, run Seed Universe and Refresh instrument metadata, then confirm the daily metadata job covers the full active universe without a fixed pass cap.
+
 ## 2026-06-23 SGT - ETF Benchmark Map Documentation Sync QA
 
 Scope:

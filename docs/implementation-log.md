@@ -1,3 +1,45 @@
+## 2026-06-23 - Universe Seed And Metadata Refresh Throughput Fixes
+
+### Source
+Claude Code
+
+### Objective
+Unblock seeding and metadata coverage for the expanded 391-instrument universe by batching tag writes, speeding metadata refresh writes/syncs, and removing fixed metadata batch caps.
+
+### Files Changed
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `src/application/services/MetadataRefreshService.ts`
+- `src/server/actions/dataRefreshActions.ts`
+- `src/app/api/jobs/instrument-metadata-refresh/route.ts`
+- `supabase/migrations/121_metadata_refresh_full_universe_coverage.sql`
+- `tests/universe-repository.test.ts`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Reworked `updateInstrumentTags` from per-instrument update/delete/insert calls to one batched `instrument_tags` delete plus chunked flattened tag inserts, while leaving `instruments.benchmark_tags` and `instruments.thematic_tags` to the existing seed `upsertInstruments` path.
+- Confirmed `UniverseManagementService.ensureSeededUniverse` already passes both `benchmarkTags` and `thematicTags` into `upsertInstruments`.
+- Batched `updateInstrumentMetadata` current-row reads and metadata/taxonomy writes so metadata refresh no longer performs per-symbol select/update/taxonomy round trips.
+- Changed metadata batch refresh to suppress per-batch Security Master syncs and sync identifiers once after the batch loop.
+- Auto-sized metadata batch count from the active instrument count when `maxBatches` is omitted, while excluding symbols already attempted in the same full refresh so missing identifiers cannot starve later instruments.
+- Updated admin and cron metadata refresh entry points to omit fixed `maxBatches` caps and keep `batchSize=25`.
+- Added migration 121 to reschedule `app-daily-instrument-metadata-refresh` without a `maxBatches` query parameter.
+- Verified `FMP_METADATA_CONCURRENCY` is already set to 8 in `FmpAssetMetadataProvider`.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (343/343)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 121 must be applied manually to Supabase.
+- Verification: the metadata cron command now omits `maxBatches`; admin metadata refresh also omits `maxBatches`; tag writes are batched and skip malformed UUID-shaped IDs; Security Master sync runs once after multi-batch metadata refresh.
+- No scoring methodology, labels, compliance wording, feature flags, or access controls changed.
+
 ## 2026-06-23 - ETF Benchmark Map Documentation Sync
 
 ### Source
