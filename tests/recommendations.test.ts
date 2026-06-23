@@ -651,8 +651,12 @@ test("ETF benchmark relative scores excess return against mapped external benchm
 test("ETF benchmark map uses emerging markets benchmark for EM ETFs", () => {
   assert.equal(benchmarkKeyForEtf(instrument({ symbol: "EEM", assetClass: "etf", instrumentType: "etf", etfCategory: "EMERGING_MARKETS" })), "emerging_markets");
   assert.equal(benchmarkKeyForEtf(instrument({ symbol: "INDA", assetClass: "etf", instrumentType: "etf", etfCategory: "COUNTRY" })), "emerging_markets");
+  assert.equal(benchmarkKeyForEtf(instrument({ symbol: "EWZ", assetClass: "etf", instrumentType: "etf", etfCategory: "COUNTRY" })), "emerging_markets");
+  assert.equal(benchmarkKeyForEtf(instrument({ symbol: "EWY", assetClass: "etf", instrumentType: "etf", etfCategory: "COUNTRY" })), "emerging_markets");
+  assert.equal(benchmarkKeyForEtf(instrument({ symbol: "EWT", assetClass: "etf", instrumentType: "etf", etfCategory: "COUNTRY" })), "emerging_markets");
   assert.equal(benchmarkKeyForEtf(instrument({ symbol: "EFA", assetClass: "etf", instrumentType: "etf", etfCategory: "DEVELOPED_MARKETS" })), "developed_ex_us");
   assert.equal(benchmarkKeyForEtf(instrument({ symbol: "EWJ", assetClass: "etf", instrumentType: "etf", etfCategory: "COUNTRY" })), "developed_ex_us");
+  assert.equal(benchmarkKeyForEtf(instrument({ symbol: "EWG", assetClass: "etf", instrumentType: "etf", etfCategory: "COUNTRY" })), "developed_ex_us");
   assert.notEqual(benchmarkKeyForEtf(instrument({ symbol: "EEM", assetClass: "etf", instrumentType: "etf", etfCategory: "EMERGING_MARKETS" })), "sp500");
 });
 

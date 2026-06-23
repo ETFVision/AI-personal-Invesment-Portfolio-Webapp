@@ -2,6 +2,65 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-23 SGT - ETF Benchmark Map Documentation Sync QA
+
+Scope:
+- Verify the expanded ETF universe benchmark-map documentation and curated single-country ETF benchmark routing stay aligned.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| New country ETFs needed explicit Benchmark Relative routing | Fixed; `EWG` maps to `developed_ex_us`, and `EWZ`/`EWY`/`EWT` map to `emerging_markets` |
+| Public methodology page did not yet describe the new ETF category benchmark routes | Fixed; ETF benchmark-relative note now covers factor/style, option-income, mid-cap, ESG, aerospace/defense, multi-asset, preferred, municipal, and emerging-market bond categories |
+| `SCORE_METHODOLOGY.md` ETF benchmark map did not yet include the new categories and country ETFs | Fixed; benchmark table now mirrors the expanded routing |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| New country ETF benchmark routing regression assertions | PASS |
+| `METHODOLOGY_LAST_UPDATED` bumped to 2026-06-23 | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- None. No scoring formula, weights, labels, or access controls changed.
+
+## 2026-06-23 SGT - Universe Expansion Coverage QA
+
+Scope:
+- Verify the curated alpha/full universe expansion adds the requested ETF and stock symbols without changing scoring formulas or access controls.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| DOCUMENTATION_GAPS Low 5 tracked future ETF universe additions and sector-depth additions | Fixed; 31 ETFs and 54 stocks were added to the curated universe |
+| New ETF product categories needed exhaustive classification coverage | Fixed; all nine new ETF categories have labels, canonical sectors, and tests |
+| Expanded stock universe would exceed the previous one-pass fundamentals cap | Fixed; `FUNDAMENTALS_MAX_STOCKS_PER_REFRESH` default is now 200 |
+| New ETF categories needed asset-category and benchmark routing checks | Fixed; tests cover sample new category symbols, asset category, canonical sector, and benchmark key |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Curated ETF symbol count is 232 with no duplicates | PASS |
+| Curated stock symbol count is 159 with no duplicates | PASS |
+| Sample new ETF category mappings (`MTUM`, `PFF`, `MUB`, `MDY`) | PASS |
+| New ETF category canonical-sector and asset-category mappings | PASS |
+| New ETF category benchmark routing resolves existing benchmark keys | PASS |
+| DOCUMENTATION_GAPS Low 5 marked closed | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- After deployment, run the universe seed and downstream refresh sequence so the added instruments receive metadata, prices, ETF look-through where applicable, fundamentals where applicable, derived metrics, and recommendation/report outputs.
+
 ## 2026-06-23 SGT - Monthly ETF Look-Through Single-Pass Schedule QA
 
 Scope:

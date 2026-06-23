@@ -12,8 +12,8 @@ An independent deep architecture audit with live read-only database verification
 |---|---|---|---|
 | High | 10 | 8 | 2 |
 | Medium | 41 | 26 | 15 |
-| Low | 13 | 13 | 0 |
-| **Total** | **64** | **47** | **17** |
+| Low | 13 | 12 | 1 |
+| **Total** | **64** | **46** | **18** |
 
 **Open blockers — before public alpha:**
 
@@ -113,7 +113,7 @@ unless prefixed otherwise.
 40. Render-timing baseline table (Low 2) **[review]**
 41. Job schedule drift check vs live `cron.job` (Low 3) **[review]**
 42. Old docs cleanup / archive pass (Low 4) **[doc]** — needs user approval
-43. Future ETF universe additions — mid-cap (MDY/IJH/VO), factor, option-income, ESG, balanced (Low 5) **[build]**
+43. Future ETF universe additions — mid-cap (MDY/IJH/VO), factor, option-income, ESG, balanced (Low 5) **[completed 2026-06-23]**
 44. Executive-summary count pluralization ("1 watch area") — cosmetic carry-along (Portfolio Review WIP) **[build]**
 
 ### Cross-cutting — UI/UX improvement track (ongoing)
@@ -439,6 +439,11 @@ in their phases. Capture each batch as its own implementation-log entry.
    - Do not delete until the user approves an archive/cleanup pass.
 
 5. Future ETF universe additions
+   - **Closed 2026-06-23:** Universe/classification expansion implemented in `alphaUniverse.ts` and `TaxonomyService`.
+   - Added 31 ETFs across nine new ETF categories plus four country ETFs, bringing curated ETF coverage to 232 symbols.
+   - Added 54 stocks across existing sectors, bringing curated stock coverage to 159 symbols.
+   - Raised `FUNDAMENTALS_MAX_STOCKS_PER_REFRESH` default from 150 to 200 so one weekly fundamentals pass still covers the expanded stock universe.
+   - Tests now pin category counts, sample new ETF symbol mapping, canonical-sector mapping, asset-category mapping, and ETF benchmark routing for the new categories.
    - Nine candidate ETFs confirmed with FMP profile metadata, EOD prices, and historical price data.
    - Factor Investing: `QUAL`, `SPHQ`, `JQUA`, `MTUM`, `USMV`, `SPLV`.
    - Option Income: `JEPI`, `JEPQ`, `SPYI`.
@@ -487,6 +492,15 @@ in their phases. Capture each batch as its own implementation-log entry.
    - **Real Estate** (broaden REIT subtypes): `CCI` (towers), `PSA` (storage), `WELL` (healthcare), `SPG` (retail).
 
    Assessment: the planned additions close the major structural gaps (mid-cap, factor, financial-services breadth) and bring the universe to roughly ~85% completeness; the items above are what remain to reach full sector/asset-class balance, prioritised by Utilities → Staples/Energy/Materials → preferred/muni/EM-bond ETFs.
+
+   **Seed-time look-through notes (Claude review, 2026-06-23):** the ETF look-through job skips ETFs whose `canonicalSector` is Bonds/Fixed Income, Commodities/Gold, Crypto, or Cash/Money Market — so of the 31 new ETFs, **25 get exposure look-through and 6 do not** (the bond-like `PFF`, `PGX`, `MUB`, `VTEB`, `EMB`, `VWOB`). Two eligible groups will produce imperfect exposure data; spot-check them after the ETF look-through refresh:
+   - **Multi-Asset / Balanced (`AOR`, `AOM`, `AOA`)** — funds-of-funds whose FMP holdings are *other ETFs* (AGG, IEFA, …), not companies; sector/country exposure is partial and ~40–60% is bonds that won't decompose into company holdings. Least meaningful look-through of the set.
+   - **Option Income (`JEPI`, `JEPQ`, `SPYI`)** — hold equities plus an options/ELN overlay; FMP captures the equity sleeve but not the option positions, so exposure understates the derivative component.
+   - If either group's exposure data is too thin to be useful, treat them like the existing FMP-sector-gap ETFs (the `IYW`/`VCR`/`JXI`/`VOX`/`PXE` seeded single-sector fallback pattern, gap #25).
+
+   **FMP coverage VERIFIED 2026-06-23 (live, all 31 new ETFs):** every symbol returned FMP profile metadata, recent adjusted EOD history (latest price date `2026-06-22` for all), and holdings. One exception: **`SPLV` returns 0 rows from `etf/sector-weightings`** (it did return country + holdings). `SPLV` is a multi-sector low-volatility S&P 500 fund, so the single-sector seeded fallback (`seededEtfSectorFallback.ts`) does NOT fit it — adding a single-sector seed would misrepresent it. Look-through maps FMP sector rows directly (no holdings-derived sector path), so `SPLV`'s sector-exposure card will be **empty**. Non-blocking: its holdings + country fetched, and holdings still feed company-overlap / issuer rollup via Security Master. Decision: accept the empty sector card, or add an approximate weighted multi-sector seed for `SPLV` (the fallback type supports `SeedSector[]`) — leaning accept, since a curated weight is approximate and drifts on rebalance.
+
+   **Financial-sector scoring note (Claude review, 2026-06-23):** `isFinancialSector()` (FundamentalScoringService) gates on the FMP profile `sector` containing "financial" AND `industry` containing one of bank / capital markets / broker / broker-dealer / insurance / thrifts / mortgage finance. Of the 10 new Financials-sleeve stocks: `PGR` (P&C insurer) correctly uses the financial path; `AJG`/`MMC` (insurance brokers) are caught by `insurance` but behave like fee-based services firms; `ICE`/`CME`/`NDAQ`/`SPGI`/`MCO`/`MSCI`/`FDS` (data/exchange businesses with real margins + FCF) should land on the **standard** path under FMP's usual "Financial Data & Stock Exchanges" industry label — but if FMP tags any of them "Capital Markets" they flip to the financial path and get mis-scored (FCF/margins nulled). Post-seed: verify each of these 7 names' stored FMP `sector`/`industry` and `isFinancial` outcome; if mis-gated, refine `isFinancialSector` to exclude "Financial Data & Stock Exchanges" (separate scoring change with methodology-doc update).
 
 6. Branch and deployment governance formal policy
    - Runtime `PRODUCT_MODE=alpha|full` reduces alpha branch drift risk, and the development → main → alpha merge workflow is in practice.

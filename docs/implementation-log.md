@@ -1,3 +1,80 @@
+## 2026-06-23 - ETF Benchmark Map Documentation Sync
+
+### Source
+Claude Code
+
+### Objective
+Sync ETF benchmark methodology documentation with the expanded universe and curate the new single-country ETFs for Benchmark Relative routing without changing scoring formulas.
+
+### Files Changed
+- `src/application/services/recommendations/EtfRecommendationService.ts`
+- `src/app/methodology/page.tsx`
+- `src/app/methodology/constants.ts`
+- `docs/SCORE_METHODOLOGY.md`
+- `tests/recommendations.test.ts`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `EWG` to the curated developed single-country ETF benchmark set, routing it to `developed_ex_us`.
+- Added `EWZ`, `EWY`, and `EWT` to the curated emerging single-country ETF benchmark set, routing them to `emerging_markets`.
+- Updated the methodology page and `SCORE_METHODOLOGY.md` ETF benchmark map for the new factor/style, option-income, mid-cap, ESG, aerospace/defense, multi-asset, preferred, municipal, and emerging-market bond categories.
+- Bumped `METHODOLOGY_LAST_UPDATED` to 2026-06-23.
+- Added regression assertions for the new country ETF benchmark mappings.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- No scoring formula, weight, label, access-control, or methodology math changed; this only curates benchmark routing for the newly added country ETFs and updates explanatory docs.
+
+## 2026-06-23 - Universe Expansion For ETF And Stock Coverage
+
+### Source
+Claude Code
+
+### Objective
+Expand the ETFVision curated universe by 31 ETFs and 54 stocks, exposing the additions in both alpha and full mode without changing scoring formulas.
+
+### Files Changed
+- `src/domain/universe/alphaUniverse.ts`
+- `src/application/services/taxonomy/TaxonomyService.ts`
+- `src/application/services/recommendations/EtfRecommendationService.ts`
+- `src/infrastructure/config/env.ts`
+- `tests/taxonomy.test.ts`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/qa-log.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added nine ETF categories: Factor Investing, Option Income, Mid Cap, ESG / Socially Responsible, Multi-Asset / Balanced, Preferred Stock, Municipal Bond, Emerging-Market Bond, and Aerospace & Defense.
+- Added 31 ETF symbols across the new categories plus country ETF additions, bringing curated ETF coverage to 232 symbols.
+- Added 54 stock symbols across existing sectors, bringing curated stock coverage to 159 symbols.
+- Added ETF asset-category overrides for multi-asset balanced, preferred stock, municipal bond, and emerging-market bond categories.
+- Extended taxonomy canonical-sector mapping for every new ETF category and added conservative category themes where obvious.
+- Extended ETF benchmark routing for the new categories so benchmark-relative scoring can resolve an existing benchmark key without changing the scoring formula.
+- Raised `FUNDAMENTALS_MAX_STOCKS_PER_REFRESH` default from 150 to 200 so the enlarged stock universe remains covered by one weekly fundamentals pass.
+- Closed `docs/DOCUMENTATION_GAPS.md` Low 5 as implemented.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Universe/classification only; no scoring formulas, labels, access controls, or methodology weights changed.
+- Post-deploy operations should run Seed Universe, metadata refresh, market-history backfill / EOD refresh as needed, ETF look-through refresh, derived metrics, fundamentals refresh, and recommendation/report refresh so the new instruments are fully populated.
+
 ## 2026-06-23 - Collapse Monthly ETF Look-Through To Single Pass
 
 ### Source
