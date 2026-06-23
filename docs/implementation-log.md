@@ -1,3 +1,37 @@
+## 2026-06-23 - Security Master Mapping Cleanup
+
+### Source
+Claude Code
+
+### Objective
+Lock in the Security Master ambiguous-mapping cleanup so inactive stubs and dot/dash class-share variants cannot re-enter ETF holding candidate mappings as the universe grows.
+
+### Files Changed
+- `supabase/migrations/129_security_master_mapping_cleanup.sql`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added migration 129 to delete `security_identifiers` rows whose `security_id` points to inactive `securities_master` rows.
+- Recreated `sync_etf_holding_security_ids()` from migration 094 with active-security joins added to the `security_identifiers` and `security_aliases` candidate sources for both ETF top holdings and portfolio look-through holdings.
+- Added dot/dash class-share cleanup that deactivates internal-only stubs when an active real security exists for the same normalized symbol, then deletes the deactivated stubs' identifiers.
+- Re-runs ETF holding security sync and issuer-link sync after cleanup.
+- Updated the ticker-change handling note to include deactivating old-symbol internal stubs and re-running ETF holding mapping sync.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (347/347)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 129 must be applied manually to Supabase after migration 128.
+- This is a SQL migration/documentation-only change; no app code, scoring methodology, labels, compliance wording, feature flags, or access controls changed.
+
 ## 2026-06-23 - Internal ETF Holding Security Stub Backfill
 
 ### Source

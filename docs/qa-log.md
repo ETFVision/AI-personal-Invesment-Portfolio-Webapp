@@ -2,6 +2,37 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-23 SGT - Security Master Mapping Cleanup QA
+
+Scope:
+- Verify a manual migration hardens ETF holding Security Master mapping against inactive stubs and dot/dash class-share duplicates.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Identifiers attached to inactive stub securities can remain mapping candidates | Fixed; migration 129 deletes identifiers whose security points to an inactive `securities_master` row |
+| `sync_etf_holding_security_ids()` could reach inactive securities through identifier or alias candidate sources | Fixed; migration 129 adds active-security joins to both sources in both holding candidate blocks |
+| Dot/dash class-share stubs such as `BRK-B` can duplicate active real securities such as `BRK.B` | Fixed; migration 129 deactivates internal-only stubs matching active real securities after dot/dash normalization |
+| Ticker-change runbook omitted old-symbol internal stub cleanup | Fixed; `DOCUMENTATION_GAPS.md` now instructs deactivating the old-symbol stub, deleting inactive identifiers, and re-running ETF holding sync |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration 129 removes identifiers for inactive securities before and after stub deactivation | PASS |
+| Mapping function hardens identifier and alias candidate sources for ETF top holdings | PASS |
+| Mapping function hardens identifier and alias candidate sources for portfolio look-through holdings | PASS |
+| Dot/dash duplicate cleanup only deactivates internal-only stubs with an active real counterpart | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (347/347) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/129_security_master_mapping_cleanup.sql` manually to Supabase after migration 128.
+- After applying, re-check ambiguous ETF holding mappings and verify inactive-stub identifiers are absent.
+
 ## 2026-06-23 SGT - Internal ETF Holding Security Stub Backfill QA
 
 Scope:
