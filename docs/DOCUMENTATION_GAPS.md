@@ -513,6 +513,14 @@ in their phases. Capture each batch as its own implementation-log entry.
 
    Source: user-proposed coverage batch, 2026-06-23 (for 2026-06-24 implementation). Category/subcategory taxonomy provided: Alternatives→Managed Futures; Dividend→Quality Dividend / Quality Dividend Growth; International Equity→Developed/Global ex-US Small Cap; Factor→Global Low Volatility.
 
+   **PLANNED FEATURE — 20-year history + long-horizon display metrics (user-requested 2026-06-23):** extend stored price history from 5yr → **20yr** (up to 20yr where FMP has it), and add **10/15/20-year** total return, annualized volatility, and drawdown (current + max) as **DISPLAY-ONLY** metrics alongside the existing 1Y/3Y/5Y. Display-only ⇒ **no scoring/methodology change** (no anchor refit, no frozen-constant impact; risk_score still uses the existing 1Y/full-history inputs). Phases:
+   1. **Price window:** `lookbackDays 1825→7300` (backfill action + benchmark backfill); metric-computation `lookbackYears→20`. One-time 20yr backfill (~2M rows; vacuum-between-presses; adaptive daily-returns auto-rebuilds deep history).
+   2. **Returns 10/15/20Y:** add `return_10y/15y/20y` columns to `instrument_market_metrics`; extend the in-service baseline/completeBy computation (`InstrumentMarketService` ~1029-1117, copy the 3Y/5Y pattern).
+   3. **Vol + drawdown 10/15/20Y:** extend the period-drawdowns RPC `period_definitions` union (`+10y/15y/20y`) + `current_drawdown_/max_drawdown_*` columns (migration 075 pattern); add `volatility_10y/15y/20y` columns + windowed `stddev×√252`. Risk score unchanged.
+   4. **UI:** surface the new return/vol/drawdown columns on instrument detail / universe / risk / performance (null = insufficient history, same as 3Y/5Y today).
+   5. **Docs:** descriptive note in `CALCULATION_METHODOLOGY.md` + methodology page that the display windows exist (NOT a scoring-math change).
+   Caveats: ~4× price + daily-returns data; long-horizon vol/drawdown scans are the heaviest new compute (covered by maxDuration/auto-sizing/autovacuum); "20yr" = up to 20yr available so expect large null coverage on long horizons for recent instruments.
+
 6. Branch and deployment governance formal policy
    - Runtime `PRODUCT_MODE=alpha|full` reduces alpha branch drift risk, and the development → main → alpha merge workflow is in practice.
    - Remaining: formal written policy documenting merge direction, Vercel deployment targets per branch, environment variable governance, and rollback process.
