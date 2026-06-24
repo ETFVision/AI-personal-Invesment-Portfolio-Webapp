@@ -127,7 +127,7 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
   const job = await container.jobRunService.runManual("backfill_market_history", async () => {
     const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
       lookbackDays: 7300,
-      batchSize: 50,
+      batchSize: 25,
       maxBatches: 1,
       includeBackfill: true,
       forceDeepBackfill: true,
