@@ -89,6 +89,9 @@ export type InstrumentMarketMetric = {
   oneYearReturn: number | null;
   threeYearReturn: number | null;
   fiveYearReturn: number | null;
+  tenYearReturn: number | null;
+  fifteenYearReturn: number | null;
+  twentyYearReturn: number | null;
   fiftyTwoWeekLow: number | null;
   fiftyTwoWeekHigh: number | null;
   observationCount: number;
@@ -143,6 +146,9 @@ export type InstrumentMarketView = {
   oneYearReturn: number | null;
   threeYearReturn: number | null;
   fiveYearReturn: number | null;
+  tenYearReturn: number | null;
+  fifteenYearReturn: number | null;
+  twentyYearReturn: number | null;
   fiftyTwoWeekLow: number | null;
   fiftyTwoWeekHigh: number | null;
   liquidity: string;

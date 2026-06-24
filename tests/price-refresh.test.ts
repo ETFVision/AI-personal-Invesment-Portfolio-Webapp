@@ -23,6 +23,13 @@ function testLatestExpectedEodDate() {
   return date.toISOString().slice(0, 10);
 }
 
+function testYearsAgoIso(years: number, offsetDays = 0) {
+  const date = new Date();
+  date.setUTCFullYear(date.getUTCFullYear() - years);
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+
 test("portfolio price refresh is driven by the master instrument price refresh", async () => {
   const calls: string[] = [];
   const instrumentMarketService = {
@@ -126,6 +133,70 @@ function riskPriceRows(instrumentId: string, count = 80) {
     };
   });
 }
+
+function priceRow(instrumentId: string, priceDate: string, closePrice: number) {
+  return {
+    id: `${instrumentId}-${priceDate}`,
+    instrumentId,
+    provider: "test",
+    symbol: instrumentId.replace("inst-", ""),
+    priceDate,
+    closePrice,
+    currency: "USD",
+    rawPayload: {}
+  };
+}
+
+test("instrument market views compute 10Y 15Y and 20Y returns when history is sufficient", async () => {
+  const subject = instrument("VOO");
+  const prices = [
+    priceRow(subject.id, testYearsAgoIso(20, 1), 50),
+    priceRow(subject.id, testYearsAgoIso(15, 1), 80),
+    priceRow(subject.id, testYearsAgoIso(10, 1), 100),
+    priceRow(subject.id, testYearsAgoIso(5, 1), 125),
+    priceRow(subject.id, testYearsAgoIso(3, 1), 150),
+    priceRow(subject.id, testYearsAgoIso(1, 1), 180),
+    priceRow(subject.id, new Date().toISOString().slice(0, 10), 200)
+  ];
+  const repository = {
+    async listInstrumentMarketMetrics() {
+      return [];
+    },
+    async listInstrumentPrices() {
+      return prices;
+    }
+  } as unknown as UniverseRepository;
+  const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
+
+  const [view] = await new InstrumentMarketService(repository, provider).buildInstrumentMarketViews([subject]);
+
+  assert.equal(view.tenYearReturn, 1);
+  assert.equal(view.fifteenYearReturn, 1.5);
+  assert.equal(view.twentyYearReturn, 3);
+});
+
+test("instrument market views null long-horizon returns when price history is insufficient", async () => {
+  const subject = instrument("NEW");
+  const prices = [
+    priceRow(subject.id, testYearsAgoIso(10, 20), 100),
+    priceRow(subject.id, new Date().toISOString().slice(0, 10), 200)
+  ];
+  const repository = {
+    async listInstrumentMarketMetrics() {
+      return [];
+    },
+    async listInstrumentPrices() {
+      return prices;
+    }
+  } as unknown as UniverseRepository;
+  const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
+
+  const [view] = await new InstrumentMarketService(repository, provider).buildInstrumentMarketViews([subject]);
+
+  assert.equal(view.tenYearReturn, null);
+  assert.equal(view.fifteenYearReturn, null);
+  assert.equal(view.twentyYearReturn, null);
+});
 
 test("instrument price refresh maps BRK.B to the FMP provider symbol BRK-B", async () => {
   const requestedBatches: string[][] = [];

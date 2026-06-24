@@ -294,6 +294,14 @@ function pickBaseline(series: InstrumentPrice[], cutoffDate: string) {
   return eligible.length > 0 ? eligible[0] : null;
 }
 
+function longHorizonReturn(series: InstrumentPrice[], latestPrice: number | null, years: number) {
+  const completeBy = daysAfterIso(yearsAgoIso(years), 10);
+  const earliestDate = series[0]?.priceDate ?? null;
+  if (!earliestDate || earliestDate > completeBy) return null;
+  const baseline = pickBaseline(series, yearsAgoIso(years));
+  return safeReturn(latestPrice, baseline?.closePrice ?? null);
+}
+
 function estimateClicks(count: number, batchSize: number) {
   return Math.ceil(Math.max(0, count) / Math.max(1, batchSize));
 }
@@ -1008,7 +1016,7 @@ export class InstrumentMarketService {
   private async buildInstrumentMarketViewsFromPrices(instruments: Instrument[], options?: { lookbackYears?: number }): Promise<InstrumentMarketView[]> {
     if (instruments.length === 0) return [];
 
-    const lookbackYears = Math.max(1, options?.lookbackYears ?? 5);
+    const lookbackYears = Math.max(1, options?.lookbackYears ?? 20);
     const priceRows = await this.repository.listInstrumentPrices(instruments.map((instrument) => instrument.id), yearsAgoIso(lookbackYears));
     const priceByInstrument = new Map<string, InstrumentPrice[]>();
     for (const row of priceRows) {
@@ -1043,6 +1051,9 @@ export class InstrumentMarketService {
         oneYearReturn: safeReturn(latestPrice, oneYearBaseline?.closePrice ?? null),
         threeYearReturn: safeReturn(latestPrice, threeYearBaseline?.closePrice ?? null),
         fiveYearReturn: safeReturn(latestPrice, fiveYearBaseline?.closePrice ?? null),
+        tenYearReturn: longHorizonReturn(series, latestPrice, 10),
+        fifteenYearReturn: longHorizonReturn(series, latestPrice, 15),
+        twentyYearReturn: longHorizonReturn(series, latestPrice, 20),
         fiftyTwoWeekLow,
         fiftyTwoWeekHigh,
         liquidity: liquidityLabel(instrument),
@@ -1068,6 +1079,9 @@ export class InstrumentMarketService {
       oneYearReturn: metric.oneYearReturn,
       threeYearReturn: metric.threeYearReturn,
       fiveYearReturn: metric.fiveYearReturn,
+      tenYearReturn: metric.tenYearReturn,
+      fifteenYearReturn: metric.fifteenYearReturn,
+      twentyYearReturn: metric.twentyYearReturn,
       fiftyTwoWeekLow: metric.fiftyTwoWeekLow,
       fiftyTwoWeekHigh: metric.fiftyTwoWeekHigh,
       liquidity: liquidityLabel(instrument),
@@ -1092,6 +1106,9 @@ export class InstrumentMarketService {
       oneYearReturn: null,
       threeYearReturn: null,
       fiveYearReturn: null,
+      tenYearReturn: null,
+      fifteenYearReturn: null,
+      twentyYearReturn: null,
       fiftyTwoWeekLow: null,
       fiftyTwoWeekHigh: null,
       liquidity: liquidityLabel(instrument),

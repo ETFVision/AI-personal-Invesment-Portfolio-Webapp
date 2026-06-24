@@ -2,6 +2,39 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-24 SGT - Long-Horizon Display Returns QA
+
+Scope:
+- Verify 20-year market-history storage and display-only 10Y/15Y/20Y instrument return data plumbing.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Market-history and benchmark backfill windows were still limited to 5 years | Fixed; admin history and benchmark refresh calls now request 7,300 days |
+| Instrument market metrics only exposed 1Y/3Y/5Y returns | Fixed; migration 130 adds nullable 10Y/15Y/20Y fields and refresh logic |
+| Long-horizon return values should not appear when an instrument lacks enough history | Fixed; TypeScript fallback and SQL refresh gate long returns on sufficient history |
+| Long-horizon return plumbing must remain display-only | Preserved; no scoring, guardrail, risk-score, methodology math, or recommendation path was changed |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration 130 adds nullable `return_10y`, `return_15y`, and `return_20y` columns | PASS |
+| Market-metrics refresh RPC populates long-horizon returns without changing existing 1Y/3Y/5Y behavior | PASS |
+| App domain and Supabase mapping expose the new nullable return fields | PASS |
+| Fallback market views compute 10Y/15Y/20Y returns with sufficient history | PASS |
+| Fallback market views return null for 10Y/15Y/20Y returns with insufficient history | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (349/349) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/130_market_metrics_long_horizon_returns.sql` manually to Supabase.
+- Run the 20-year market-history backfill and benchmark refresh after the migration so persisted long-horizon fields can populate.
+- UI wiring for displaying the new metrics remains a later phase.
+
 ## 2026-06-23 SGT - Security Master Mapping Cleanup QA
 
 Scope:

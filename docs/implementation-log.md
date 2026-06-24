@@ -1,3 +1,44 @@
+## 2026-06-24 - Long-Horizon Display Returns
+
+### Source
+Claude Code
+
+### Objective
+Extend stored price and benchmark history from 5 years to 20 years, and expose 10-year, 15-year, and 20-year total return metrics as display-only instrument market data.
+
+### Files Changed
+- `src/server/actions/dataRefreshActions.ts`
+- `src/application/services/InstrumentMarketService.ts`
+- `src/domain/universe/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `supabase/migrations/130_market_metrics_long_horizon_returns.sql`
+- `tests/price-refresh.test.ts`
+- `tests/recommendations.test.ts`
+- `tests/scoring-golden.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Increased market-history and benchmark refresh lookbacks from 1,825 days to 7,300 days.
+- Added nullable display-only `return_10y`, `return_15y`, and `return_20y` columns through migration 130 and updated the market-metrics refresh RPC to populate them.
+- Extended the instrument market metric/view domain types and Supabase row mapping so the long-horizon returns flow through the app data model.
+- Updated fallback market-view construction to load 20 years by default and calculate long-horizon returns only when sufficient history is present.
+- Added tests for sufficient and insufficient 10Y/15Y/20Y history coverage.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (349/349)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 130 must be applied manually to Supabase before persisted `instrument_market_metrics` rows can store the new fields.
+- The new return fields are display-only data plumbing. They do not feed scoring, guardrails, risk metrics, methodology math, or recommendation logic.
+- UI presentation and any descriptive calculation-methodology note can follow in the later UI phase.
+
 ## 2026-06-23 - Security Master Mapping Cleanup
 
 ### Source
