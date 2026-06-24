@@ -1,3 +1,46 @@
+## 2026-06-24 - Long-Horizon Risk Display Windows
+
+### Source
+Claude Code
+
+### Objective
+Add display-only 10Y, 15Y, and 20Y volatility and max-drawdown fields to instrument risk metrics without changing any risk score, bucket, confidence, scoring, guardrail, or recommendation logic.
+
+### Files Changed
+- `src/application/services/InstrumentRiskService.ts`
+- `src/components/instruments/instrument-cards.tsx`
+- `src/domain/universe/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `supabase/migrations/133_long_horizon_risk_windows.sql`
+- `tests/instrument-ia.test.ts`
+- `tests/recommendations.test.ts`
+- `tests/scoring-golden.test.ts`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added migration 133 with nullable `instrument_risk_metrics` columns for 10Y/15Y/20Y volatility and max drawdown.
+- Recreated both risk metric refresh functions and both period drawdown refresh functions so the new windows populate when sufficient history exists.
+- Gated 10Y/15Y windows with 30-day tolerance and 20Y windows with 120-day tolerance, matching the provider 5,000-bar/deepest-available history note from migration 132.
+- Surfaced the new long-horizon risk fields on the instrument detail risk card as neutral display-only diagnostics, using `Insufficient history` when null.
+- Extended TypeScript fallback risk calculations and tests while preserving the existing risk-score formula and buckets.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run test -- instrument-ia.test.js` - PASS (352/352; command currently runs the full configured suite plus the extra argument)
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 133 must be applied manually to Supabase; it repopulates all risk metrics and period drawdowns at the end.
+- The new 10Y/15Y/20Y volatility and drawdown fields are display-only. They do not feed `risk_score`, `risk_bucket`, `volatility_bucket`, `confidence_score`, scoring, guardrails, or recommendation logic.
+- 20Y long-horizon risk windows use the same 120-day completeness tolerance as the migration-132 return-window fix because FMP historical EOD is capped near 5,000 bars.
+
 ## 2026-06-24 - Forced Deep Price Backfill Marker
 
 ### Source

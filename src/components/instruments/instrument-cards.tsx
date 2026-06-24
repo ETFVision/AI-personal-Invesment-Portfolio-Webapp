@@ -82,6 +82,10 @@ function riskPercent(value: number | null | undefined) {
   return value == null ? "-" : formatPercent(value);
 }
 
+function longWindowRiskPercent(value: number | null | undefined) {
+  return value == null ? "Insufficient history" : formatPercent(value);
+}
+
 function scoreValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value)}/100` : "-";
 }
@@ -161,11 +165,17 @@ export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMe
         <SummaryMetric label="30D volatility" value={riskPercent(riskMetric.volatility30d)} />
         <SummaryMetric label="90D volatility" value={riskPercent(riskMetric.volatility90d)} />
         <SummaryMetric label="1Y volatility" value={riskPercent(riskMetric.volatility1y)} />
+        <SummaryMetric label="10Y volatility" value={longWindowRiskPercent(riskMetric.volatility10y)} />
+        <SummaryMetric label="15Y volatility" value={longWindowRiskPercent(riskMetric.volatility15y)} />
+        <SummaryMetric label="20Y volatility" value={longWindowRiskPercent(riskMetric.volatility20y)} />
         <SummaryMetric label="Downside volatility" value={riskPercent(riskMetric.downsideVolatility)} />
         <SummaryMetric label="Current DD (1Y)" value={riskPercent(riskMetric.currentDrawdown1y)} />
         <SummaryMetric label="Max DD (1Y)" value={riskPercent(riskMetric.maxDrawdown1y)} />
         <SummaryMetric label="Max DD (3Y)" value={riskPercent(riskMetric.maxDrawdown3y)} />
         <SummaryMetric label="Max DD (5Y)" value={riskPercent(riskMetric.maxDrawdown5y)} />
+        <SummaryMetric label="Max DD (10Y)" value={longWindowRiskPercent(riskMetric.maxDrawdown10y)} />
+        <SummaryMetric label="Max DD (15Y)" value={longWindowRiskPercent(riskMetric.maxDrawdown15y)} />
+        <SummaryMetric label="Max DD (20Y)" value={longWindowRiskPercent(riskMetric.maxDrawdown20y)} />
         <SummaryMetric label="Current DD (history)" value={riskPercent(riskMetric.currentDrawdown)} />
         <SummaryMetric label="Max DD (history)" value={riskPercent(riskMetric.maxDrawdown)} />
         <SummaryMetric label="History DD duration" value={`${riskMetric.drawdownDurationDays ?? 0}d`} />

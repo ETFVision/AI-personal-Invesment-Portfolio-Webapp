@@ -107,6 +107,9 @@ export type InstrumentRiskMetric = {
   volatility30d: number | null;
   volatility90d: number | null;
   volatility1y: number | null;
+  volatility10y: number | null;
+  volatility15y: number | null;
+  volatility20y: number | null;
   volatilityTrend: "rising" | "stable" | "falling" | "insufficient_data";
   downsideVolatility: number | null;
   currentDrawdown1y: number | null;
@@ -115,6 +118,9 @@ export type InstrumentRiskMetric = {
   maxDrawdown3y: number | null;
   currentDrawdown5y: number | null;
   maxDrawdown5y: number | null;
+  maxDrawdown10y: number | null;
+  maxDrawdown15y: number | null;
+  maxDrawdown20y: number | null;
   currentDrawdown: number | null;
   maxDrawdown: number | null;
   drawdownDurationDays: number | null;

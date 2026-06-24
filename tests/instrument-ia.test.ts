@@ -86,6 +86,40 @@ function priceSeries(values: number[]): InstrumentPrice[] {
   });
 }
 
+function datedPriceSeries(days: number): InstrumentPrice[] {
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date("2006-01-01T00:00:00.000Z");
+    date.setUTCDate(date.getUTCDate() + index);
+    const closePrice = 100 + index * 0.02 + Math.sin(index / 15) * 5;
+    return {
+      id: `long-price-${index}`,
+      instrumentId: "instrument-id",
+      provider: "test",
+      symbol: "TEST",
+      priceDate: date.toISOString().slice(0, 10),
+      closePrice,
+      currency: "USD",
+      rawPayload: {}
+    };
+  });
+}
+
+function expectedRiskScore(input: {
+  volatility1y: number;
+  maxDrawdown: number;
+  downsideVolatility: number | null;
+  negativeReturnFrequency: number | null;
+}) {
+  const bounded = (value: number) => Math.max(0, Math.min(100, value));
+  const volScore = bounded((input.volatility1y / 0.6) * 100);
+  const drawdownScore = bounded((Math.abs(input.maxDrawdown) / 0.5) * 100);
+  const downsideScore = input.downsideVolatility == null
+    ? volScore
+    : bounded((input.downsideVolatility / 0.45) * 100);
+  const frequencyScore = input.negativeReturnFrequency == null ? 50 : bounded(input.negativeReturnFrequency * 100);
+  return volScore * 0.35 + drawdownScore * 0.35 + downsideScore * 0.2 + frequencyScore * 0.1;
+}
+
 test("instrument risk service calculates volatility and drawdown without return metrics", () => {
   const service = new InstrumentRiskService({} as UniverseRepository);
   const values = Array.from({ length: 90 }, (_, index) => 100 + index * 0.4 + Math.sin(index / 2) * 4);
@@ -117,6 +151,36 @@ test("instrument risk service requires enough history before fixed-period drawdo
   assert.equal(metric.maxDrawdown3y, null);
   assert.equal(metric.currentDrawdown5y, null);
   assert.equal(metric.maxDrawdown5y, null);
+  assert.equal(metric.volatility10y, null);
+  assert.equal(metric.volatility15y, null);
+  assert.equal(metric.volatility20y, null);
+  assert.equal(metric.maxDrawdown10y, null);
+  assert.equal(metric.maxDrawdown15y, null);
+  assert.equal(metric.maxDrawdown20y, null);
+});
+
+test("instrument risk service calculates display-only long-horizon risk windows", () => {
+  const service = new InstrumentRiskService({} as UniverseRepository);
+  const metric = service.calculate(instrument({ id: "instrument-id", symbol: "TEST" }), datedPriceSeries(7300));
+
+  assert.ok(metric.volatility10y !== null && metric.volatility10y > 0);
+  assert.ok(metric.volatility15y !== null && metric.volatility15y > 0);
+  assert.ok(metric.volatility20y !== null && metric.volatility20y > 0);
+  assert.ok(metric.maxDrawdown10y !== null && metric.maxDrawdown10y < 0);
+  assert.ok(metric.maxDrawdown15y !== null && metric.maxDrawdown15y < 0);
+  assert.ok(metric.maxDrawdown20y !== null && metric.maxDrawdown20y < 0);
+  assert.ok(metric.volatility1y !== null);
+  assert.ok(metric.maxDrawdown !== null);
+  assert.ok(metric.riskScore !== null);
+  assert.equal(
+    Math.abs(metric.riskScore - expectedRiskScore({
+      volatility1y: metric.volatility1y,
+      maxDrawdown: metric.maxDrawdown,
+      downsideVolatility: metric.downsideVolatility,
+      negativeReturnFrequency: metric.negativeReturnFrequency
+    })) < 1e-10,
+    true
+  );
 });
 
 test("instrument risk service marks sparse history as low confidence", () => {

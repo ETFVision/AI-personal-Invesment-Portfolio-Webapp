@@ -117,6 +117,20 @@ function periodDrawdownMetrics(series: InstrumentPrice[], days: number, toleranc
   };
 }
 
+function periodReturnValues(returns: Array<{ date: string; value: number }>, days: number, toleranceDays: number) {
+  const latestDate = returns.at(-1)?.date ?? null;
+  if (!latestDate) return [];
+  const latestTime = new Date(`${latestDate}T00:00:00.000Z`).getTime();
+  const earliestTime = new Date(`${returns[0]?.date}T00:00:00.000Z`).getTime();
+  if (!Number.isFinite(earliestTime) || latestTime - earliestTime < (days - toleranceDays) * 86_400_000) {
+    return [];
+  }
+  return returns.filter((item) => {
+    const itemTime = new Date(`${item.date}T00:00:00.000Z`).getTime();
+    return Number.isFinite(itemTime) && latestTime - itemTime <= days * 86_400_000;
+  }).map((item) => item.value);
+}
+
 function worstWeeklyReturn(series: InstrumentPrice[]) {
   if (series.length < 6) return null;
   let worst: number | null = null;
@@ -174,11 +188,17 @@ export class InstrumentRiskService {
     const vol30 = annualizedVolatility(windowValues(returns, 30), 10);
     const vol90 = annualizedVolatility(windowValues(returns, 90), 30);
     const vol1y = annualizedVolatility(windowValues(returns, 252), 60);
+    const vol10y = annualizedVolatility(periodReturnValues(returns, 365 * 10, 30));
+    const vol15y = annualizedVolatility(periodReturnValues(returns, 365 * 15, 30));
+    const vol20y = annualizedVolatility(periodReturnValues(returns, 365 * 20, 120));
     const downVol = downsideVolatility(windowValues(returns, 252), 10);
     const drawdown = drawdownMetrics(series);
     const drawdown1y = periodDrawdownMetrics(series, 365, 14);
     const drawdown3y = periodDrawdownMetrics(series, 365 * 3, 30);
     const drawdown5y = periodDrawdownMetrics(series, 365 * 5, 30);
+    const drawdown10y = periodDrawdownMetrics(series, 365 * 10, 30);
+    const drawdown15y = periodDrawdownMetrics(series, 365 * 15, 30);
+    const drawdown20y = periodDrawdownMetrics(series, 365 * 20, 120);
     const negativeFrequency = values.length === 0 ? null : values.filter((value) => value < 0).length / values.length;
     const worstDaily = values.length === 0 ? null : Math.min(...values);
     const worstWeekly = worstWeeklyReturn(series);
@@ -196,6 +216,9 @@ export class InstrumentRiskService {
       volatility30d: vol30,
       volatility90d: vol90,
       volatility1y: vol1y,
+      volatility10y: vol10y,
+      volatility15y: vol15y,
+      volatility20y: vol20y,
       volatilityTrend: volatilityTrend(vol30, vol90),
       downsideVolatility: downVol,
       currentDrawdown1y: drawdown1y.currentDrawdown,
@@ -204,6 +227,9 @@ export class InstrumentRiskService {
       maxDrawdown3y: drawdown3y.maxDrawdown,
       currentDrawdown5y: drawdown5y.currentDrawdown,
       maxDrawdown5y: drawdown5y.maxDrawdown,
+      maxDrawdown10y: drawdown10y.maxDrawdown,
+      maxDrawdown15y: drawdown15y.maxDrawdown,
+      maxDrawdown20y: drawdown20y.maxDrawdown,
       currentDrawdown: drawdown.currentDrawdown,
       maxDrawdown: drawdown.maxDrawdown,
       drawdownDurationDays: drawdown.drawdownDurationDays,

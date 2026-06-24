@@ -54,15 +54,18 @@ Stored in `instrument_risk_metrics`.
 Risk metrics are based on precomputed daily returns and include:
 
 - 30D/90D/1Y annualized volatility using `stddev_samp(daily_return) * sqrt(252)`.
+- Display-only 10Y/15Y/20Y annualized volatility using the same return-scale formula when sufficient history exists.
 - Downside volatility.
 - Current drawdown.
-- Max drawdown.
+- Max drawdown over the available history and over fixed 1Y/3Y/5Y/10Y/15Y/20Y windows.
 - Drawdown duration.
 - Drawdown bucket.
 - Negative return frequency.
 - Worst daily return.
 - Worst weekly return.
 - Risk bucket and risk score.
+
+The 10Y/15Y/20Y volatility and max-drawdown windows are display-only diagnostics. They do not feed `risk_score`, `risk_bucket`, `volatility_bucket`, confidence, recommendation scoring, guardrails, or label logic. Completeness gates mirror the shorter-window pattern: 10Y and 15Y require history within 30 days of the window start; 20Y allows 120 days because the FMP historical EOD feed is capped near 5,000 bars. As a result, 20Y long-horizon metrics reflect the deepest available history, roughly 19.85 years when the provider cap binds, and are labelled 20Y for presentation consistency.
 
 Important QA rule: daily returns must be decimal returns, not percentage values. A value like `70,857.73%` volatility indicates a return-scale issue and should trigger data QA.
 

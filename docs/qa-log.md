@@ -2,6 +2,39 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-24 SGT - Long-Horizon Risk Display Windows QA
+
+Scope:
+- Verify display-only 10Y/15Y/20Y volatility and max-drawdown fields can populate without changing instrument risk scoring or recommendation behavior.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Instrument risk metrics only exposed 1Y/3Y/5Y drawdown windows and short volatility windows | Fixed; migration 133 adds nullable 10Y/15Y/20Y volatility and max-drawdown fields |
+| Long-horizon risk windows should stay display-only | Preserved; risk score, risk bucket, volatility bucket, confidence score, scoring, guardrails, and recommendations are unchanged |
+| 20Y windows can be null universe-wide if the provider's 5,000-bar cap is treated as exact 20-year coverage | Fixed; migration 133 uses the migration-132 120-day tolerance and docs now state that 20Y reflects deepest-available history when the provider cap binds |
+| UI needs a neutral null state for instruments without enough long history | Fixed; the instrument detail risk card shows `Insufficient history` for null long-window values |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration 133 adds nullable long-horizon risk columns | PASS |
+| Both risk metric refresh functions populate gated 10Y/15Y/20Y volatility fields | PASS |
+| Both period drawdown refresh functions populate gated 10Y/15Y/20Y max-drawdown fields | PASS |
+| Fallback risk calculation returns long-window values for deep history and nulls for young history | PASS |
+| Fallback risk score equals the pre-existing formula and ignores the new long-window fields | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run test -- instrument-ia.test.js` | PASS (352/352; command currently runs the full configured suite plus the extra argument) |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/133_long_horizon_risk_windows.sql` manually to Supabase. The migration includes full repopulation calls for risk metrics and period drawdowns.
+- Confirm one sample instrument after manual migration application by comparing its `risk_score` and `risk_bucket` before/after; expected result is identical score/bucket with only display fields added.
+
 ## 2026-06-24 SGT - Forced Deep Price Backfill Marker QA
 
 Scope:
