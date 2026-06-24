@@ -1,3 +1,29 @@
+## 2026-06-24 - Deep History Maintenance Docs
+
+### Source
+Claude Code
+
+### Objective
+Document quarterly manual deep-history maintenance for retroactive adjusted-close changes and the post-backfill derived-metric recompute sequence.
+
+### Files Changed
+- `docs/JOBS_AND_OPERATIONS.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added a Deep History Maintenance section explaining that adjusted close is retroactive, the daily cron only appends the latest bar, and the deep market-history backfill was unscheduled in migration 062.
+- Documented the quarterly manual deep backfill plus forced recompute sequence for daily returns, return anchors, market metrics, risk metrics, and period drawdowns.
+- Added an operations note to monitor daily risk-cron runtime after migration 133 because the new long-horizon display windows increase refresh workload.
+
+### Tests Run
+- Not run; documentation-only change.
+
+### Result
+Completed.
+
+### Notes for Claude
+- No application code, SQL, scoring, labels, feature flags, or access-control behavior changed.
+
 ## 2026-06-24 - Long-Horizon Risk Display Windows
 
 ### Source

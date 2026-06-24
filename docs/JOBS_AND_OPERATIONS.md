@@ -75,6 +75,22 @@ Monthly runs on the first day of the month. Since migration `120` ETF look-throu
 1. ETF look-through refresh.
 2. Universe validation.
 
+## Deep History Maintenance
+
+Adjusted close is retroactive: dividends, splits, and provider adjustments can rescale historical prices after the original daily bar was stored. The daily price cron appends the latest adjusted EOD bar, but it does not rebuild the full historical price series. The deep market-history backfill was unscheduled in migration `062`, so long-horizon adjusted history needs a planned manual maintenance cycle.
+
+Run a quarterly manual deep market-history backfill, then force-recompute the derived layers that depend on price history:
+
+```sql
+select refresh_instrument_daily_returns(null, p_force_full => true);
+select refresh_instrument_return_anchors(null);
+select refresh_instrument_market_metrics_only(null);
+select refresh_instrument_risk_metrics_only(null);
+select refresh_instrument_risk_period_drawdowns_only(null);
+```
+
+After migration `133`, monitor the daily risk-cron runtime. The added 10Y/15Y/20Y display-only volatility and drawdown windows increase the risk refresh workload, and runtime should stay comfortably inside the job's lock and serverless limits.
+
 ## Operational QA Checks
 
 Check these before relying on weekly outputs:
