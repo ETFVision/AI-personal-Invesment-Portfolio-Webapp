@@ -54,6 +54,7 @@ export type Instrument = {
   liquidityRole: string | null;
   cryptoClassification: string | null;
   metadataLastRefreshedAt: string | null;
+  priceHistoryBackfilledThrough?: string | null;
   identifierLastRefreshedAt?: string | null;
   isin?: string | null;
   cusip?: string | null;

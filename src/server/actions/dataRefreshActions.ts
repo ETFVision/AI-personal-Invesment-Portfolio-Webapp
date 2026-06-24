@@ -130,6 +130,7 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
       batchSize: 50,
       maxBatches: 1,
       includeBackfill: true,
+      forceDeepBackfill: true,
       skipDerivedMetrics: true
     });
 

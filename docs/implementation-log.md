@@ -1,3 +1,45 @@
+## 2026-06-24 - Forced Deep Price Backfill Marker
+
+### Source
+Claude Code
+
+### Objective
+Enable the 20-year market-history backfill to fetch fresh-but-shallow instruments by depth, while marking attempted deep backfills so FMP-limited instruments converge instead of re-fetching forever.
+
+### Files Changed
+- `src/server/actions/dataRefreshActions.ts`
+- `src/application/services/InstrumentMarketService.ts`
+- `src/application/ports/repositories/UniverseRepository.ts`
+- `src/domain/universe/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `supabase/migrations/131_instrument_price_history_backfill_marker.sql`
+- `tests/price-refresh.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added migration 131 with nullable `instruments.price_history_backfilled_through` to record the deepest raw price-history target attempted.
+- Threaded `forceDeepBackfill` from the admin history-backfill action through the price refresh service.
+- Added depth-based force selection that can fetch instruments whose latest price is current but earliest stored price is later than the 20-year target.
+- Preserved the existing non-force `needsHistoryBackfill` freshness behavior unchanged.
+- Updated the repository port, Supabase mapping, and repository implementation so force-deep runs mark attempted depth after provider fetches, including empty provider responses.
+- Added tests proving force-deep selection, marker convergence, and unchanged non-force behavior.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run test -- price-refresh.test.js` - PASS (351/351; command currently runs the full configured suite plus the extra argument)
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (351/351)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 131 must be applied manually to Supabase before the marker can persist.
+- The planned Phase-3 risk migration number is now 132.
+- This is a data-refresh selection/convergence fix only; no scoring, methodology, label, compliance, feature-flag, or access-control behavior changed.
+
 ## 2026-06-24 - Long-Horizon Display Returns
 
 ### Source

@@ -85,6 +85,7 @@ function mapInstrument(row: any): Instrument {
     liquidityRole: row.liquidity_role,
     cryptoClassification: row.crypto_classification,
     metadataLastRefreshedAt: row.metadata_last_refreshed_at,
+    priceHistoryBackfilledThrough: row.price_history_backfilled_through ?? null,
     identifierLastRefreshedAt: row.identifier_last_refreshed_at ?? null,
     isin: row.isin ?? null,
     cusip: row.cusip ?? null,
@@ -522,6 +523,22 @@ export class SupabaseUniverseRepository implements UniverseRepository {
           raw_payload: item.rawPayload
         })),
         { onConflict: "instrument_id,provider,price_date" }
+      );
+      if (isMissingUniverseTable(error)) return;
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async updateInstrumentPriceHistoryBackfilledThrough(input: Array<{ instrumentId: string; backfilledThrough: string }>) {
+    if (input.length === 0) return;
+
+    for (const batch of chunkArray(input, INSTRUMENT_PRICE_UPSERT_BATCH_SIZE)) {
+      const { error } = await this.db.from("instruments").upsert(
+        batch.map((item) => ({
+          id: uuidOrUndefined(item.instrumentId),
+          price_history_backfilled_through: item.backfilledThrough
+        })),
+        { onConflict: "id" }
       );
       if (isMissingUniverseTable(error)) return;
       if (error) throw new Error(error.message);

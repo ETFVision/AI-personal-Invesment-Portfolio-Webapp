@@ -665,6 +665,85 @@ test("history backfill selects stale end dates for recent catch-up", async () =>
   assert.equal(requested[0]?.from, "2025-07-03");
 });
 
+test("force deep history backfill selects fresh shallow history once and records attempted depth", async () => {
+  const targetStartDate = testDaysBeforeIso(new Date().toISOString().slice(0, 10), 7300);
+  let subject = instrument("VOO", { assetClass: "etf", instrumentType: "etf" });
+  const requested: Array<{ symbol: string; from: string }> = [];
+  const markerUpdates: Array<{ instrumentId: string; backfilledThrough: string }> = [];
+  const repository = {
+    async listInstruments() {
+      return [subject];
+    },
+    async listInstrumentPriceStats() {
+      return [{ instrumentId: subject.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2999-01-01", observationCount: 1200 }];
+    },
+    async upsertInstrumentPrices() {},
+    async updateInstrumentPriceHistoryBackfilledThrough(input: Array<{ instrumentId: string; backfilledThrough: string }>) {
+      markerUpdates.push(...input);
+      subject = { ...subject, priceHistoryBackfilledThrough: input[0]?.backfilledThrough ?? null };
+    }
+  } as unknown as UniverseRepository;
+  const provider = {
+    name: "financial_modeling_prep",
+    async getHistoricalPrices(symbol: string, from: string) {
+      requested.push({ symbol, from });
+      return [{ symbol, price: 110, currency: "USD", asOfDate: "2026-01-01", raw: {} }];
+    }
+  } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const first = await service.refreshInstrumentPrices({
+    lookbackDays: 7300,
+    maxSymbols: 10,
+    includeBackfill: true,
+    forceDeepBackfill: true,
+    skipDerivedMetrics: true
+  });
+  const second = await service.refreshInstrumentPrices({
+    lookbackDays: 7300,
+    maxSymbols: 10,
+    includeBackfill: true,
+    forceDeepBackfill: true,
+    skipDerivedMetrics: true
+  });
+
+  assert.deepEqual(first.requestedSymbols, ["VOO"]);
+  assert.deepEqual(requested, [{ symbol: "VOO", from: targetStartDate }]);
+  assert.deepEqual(markerUpdates, [{ instrumentId: subject.id, backfilledThrough: targetStartDate }]);
+  assert.deepEqual(second.requestedSymbols, []);
+});
+
+test("non-force backfill still skips fresh histories even when depth is shallow", async () => {
+  const subject = instrument("VOO", { assetClass: "etf", instrumentType: "etf" });
+  const repository = {
+    async listInstruments() {
+      return [subject];
+    },
+    async listInstrumentPriceStats() {
+      return [{ instrumentId: subject.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2999-01-01", observationCount: 1200 }];
+    },
+    async updateInstrumentPriceHistoryBackfilledThrough() {
+      throw new Error("non-force backfill should not update the deep-backfill marker");
+    }
+  } as unknown as UniverseRepository;
+  const provider = {
+    name: "financial_modeling_prep",
+    async getHistoricalPrices() {
+      throw new Error("fresh shallow history should not be fetched without forceDeepBackfill");
+    }
+  } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const result = await service.refreshInstrumentPrices({
+    lookbackDays: 7300,
+    maxSymbols: 10,
+    includeBackfill: true,
+    skipDerivedMetrics: true
+  });
+
+  assert.deepEqual(result.requestedSymbols, []);
+});
+
 test("history backfill skips current shorter-lived instruments with available history", async () => {
   const newerEtf = instrument("CLIP", { assetClass: "etf", instrumentType: "etf" });
   const empty = instrument("SYK");

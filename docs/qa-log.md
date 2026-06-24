@@ -2,6 +2,38 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-24 SGT - Forced Deep Price Backfill Marker QA
+
+Scope:
+- Verify the 20-year raw price-history backfill can select fresh-but-shallow instruments and then converge with a per-instrument attempted-depth marker.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| `needsHistoryBackfill` skipped instruments with current latest prices even when their stored history was shallower than the 20-year target | Fixed; admin history backfill now passes `forceDeepBackfill` and uses depth-based selection |
+| FMP-limited instruments could otherwise re-qualify forever during deep backfill attempts | Fixed; force-deep runs mark `price_history_backfilled_through` after provider fetch attempts |
+| Normal non-force history backfill behavior should remain unchanged | Preserved; the existing freshness-based `needsHistoryBackfill` path is used when `forceDeepBackfill` is false |
+| Deep-backfill migration numbering affects the planned Phase-3 risk migration | Noted; migration 131 is used here, so the planned Phase-3 risk migration shifts to 132 |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration 131 adds nullable `instruments.price_history_backfilled_through` | PASS |
+| Force-deep backfill selects a fresh instrument with shallow earliest history | PASS |
+| Force-deep backfill records attempted depth and skips the same instrument on the next pass | PASS |
+| Non-force backfill skips the same fresh shallow instrument, matching prior behavior | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run test -- price-refresh.test.js` | PASS (351/351; command currently runs the full configured suite plus the extra argument) |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (351/351) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/131_instrument_price_history_backfill_marker.sql` manually to Supabase before using the forced deep-backfill marker in production.
+- After migration 131 is applied, use the existing Backfill market history button in batches of 50; the 391-instrument universe should take roughly 8 clicks, with FMP-limited instruments attempted once for the configured depth.
+
 ## 2026-06-24 SGT - Long-Horizon Display Returns QA
 
 Scope:

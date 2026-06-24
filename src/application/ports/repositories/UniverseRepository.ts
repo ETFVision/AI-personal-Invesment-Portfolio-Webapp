@@ -105,6 +105,7 @@ export interface UniverseRepository {
     unmappedRawValues?: string[];
   }>): Promise<void>;
   syncSecurityMasterIdentifiersFromInstruments(): Promise<void>;
+  updateInstrumentPriceHistoryBackfilledThrough(input: Array<{ instrumentId: string; backfilledThrough: string }>): Promise<void>;
   listCanonicalSectors(): Promise<CanonicalTaxonomyItem[]>;
   listCanonicalThemes(): Promise<CanonicalTaxonomyItem[]>;
   listProviderTaxonomyMappings(): Promise<ProviderTaxonomyMapping[]>;
