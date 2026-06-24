@@ -532,14 +532,13 @@ export class SupabaseUniverseRepository implements UniverseRepository {
   async updateInstrumentPriceHistoryBackfilledThrough(input: Array<{ instrumentId: string; backfilledThrough: string }>) {
     if (input.length === 0) return;
 
-    for (const batch of chunkArray(input, INSTRUMENT_PRICE_UPSERT_BATCH_SIZE)) {
-      const { error } = await this.db.from("instruments").upsert(
-        batch.map((item) => ({
-          id: uuidOrUndefined(item.instrumentId),
-          price_history_backfilled_through: item.backfilledThrough
-        })),
-        { onConflict: "id" }
-      );
+    for (const item of input) {
+      const id = uuidOrUndefined(item.instrumentId);
+      if (!id) continue;
+      const { error } = await this.db
+        .from("instruments")
+        .update({ price_history_backfilled_through: item.backfilledThrough })
+        .eq("id", id);
       if (isMissingUniverseTable(error)) return;
       if (error) throw new Error(error.message);
     }
