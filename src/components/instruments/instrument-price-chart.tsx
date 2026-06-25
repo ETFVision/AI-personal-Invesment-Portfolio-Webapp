@@ -24,6 +24,14 @@ type ChartPoint = PriceSeriesPoint & {
   y: number;
 };
 
+type ChartGeometry = {
+  points: ChartPoint[];
+  linePath: string;
+  areaPath: string;
+  min: number;
+  max: number;
+};
+
 function formatDate(value: string) {
   const date = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return value;
@@ -43,6 +51,11 @@ function formatTickDate(value: string, span: number) {
 
 function money(value: number) {
   return `$${Math.round(value).toLocaleString("en-US")}`;
+}
+
+function axisMoney(value: number) {
+  if (Math.abs(value) >= 1000) return `$${Math.round(value).toLocaleString("en-US")}`;
+  return `$${value.toFixed(value >= 100 ? 0 : 2)}`;
 }
 
 function pct(value: number) {
@@ -72,7 +85,7 @@ function getTicks(series: PriceSeriesPoint[]) {
   return ticks;
 }
 
-function chartGeometry(series: PriceSeriesPoint[]) {
+function chartGeometry(series: PriceSeriesPoint[]): ChartGeometry {
   const closes = series.map((point) => point.close);
   const minClose = Math.min(...closes);
   const maxClose = Math.max(...closes);
@@ -95,10 +108,36 @@ function chartGeometry(series: PriceSeriesPoint[]) {
   const baseline = HEIGHT - PADDING_Y;
   const areaPath = first && last ? `${linePath} L ${last.x.toFixed(2)} ${baseline} L ${first.x.toFixed(2)} ${baseline} Z` : "";
 
-  return { points, linePath, areaPath };
+  return { points, linePath, areaPath, min, max };
 }
 
-export function InstrumentPriceChart({ series }: { series: PriceSeriesPoint[] }) {
+function yForValue(value: number, min: number, max: number) {
+  return PADDING_Y + ((max - value) / Math.max(1, max - min)) * (HEIGHT - PADDING_Y * 2);
+}
+
+function referenceLine(value: number | null | undefined, label: string, geometry: ChartGeometry) {
+  if (value == null || !Number.isFinite(value) || value < geometry.min || value > geometry.max) return null;
+  const y = yForValue(value, geometry.min, geometry.max);
+  return { label, value, y, topPct: (y / HEIGHT) * 100 };
+}
+
+function axisLabels(geometry: ChartGeometry) {
+  return [0.25, 0.5, 0.75].map((line) => {
+    const y = PADDING_Y + (HEIGHT - PADDING_Y * 2) * line;
+    const value = geometry.max - ((y - PADDING_Y) / (HEIGHT - PADDING_Y * 2)) * (geometry.max - geometry.min);
+    return { y, topPct: (y / HEIGHT) * 100, value };
+  });
+}
+
+export function InstrumentPriceChart({
+  series,
+  fiftyTwoWeekLow,
+  fiftyTwoWeekHigh
+}: {
+  series: PriceSeriesPoint[];
+  fiftyTwoWeekLow: number | null;
+  fiftyTwoWeekHigh: number | null;
+}) {
   const [periodKey, setPeriodKey] = useState<(typeof PERIODS)[number]["key"]>("1Y");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const selectedPeriod = PERIODS.find((period) => period.key === periodKey) ?? PERIODS[3];
@@ -128,6 +167,11 @@ export function InstrumentPriceChart({ series }: { series: PriceSeriesPoint[] })
   const direction = positive ? "\u25B2" : "\u25BC";
   const geometry = chartGeometry(periodSeries);
   const ticks = getTicks(periodSeries);
+  const references = [
+    referenceLine(fiftyTwoWeekHigh, "52W High", geometry),
+    referenceLine(fiftyTwoWeekLow, "52W Low", geometry)
+  ].filter((item): item is NonNullable<typeof item> => item != null);
+  const yAxisLabels = axisLabels(geometry);
   const hoverPoint = hoverIndex == null ? null : geometry.points[hoverIndex] ?? null;
   const hoverMetrics = hoverIndex == null ? null : changeMetrics(periodSeries.slice(0, hoverIndex + 1));
   const gradientId = `instrument-price-gradient-${periodKey}`;
@@ -164,7 +208,7 @@ export function InstrumentPriceChart({ series }: { series: PriceSeriesPoint[] })
               }}
               className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 period.key === periodKey
-                  ? "border-teal-600 bg-teal-600 text-white"
+                  ? "border-primary bg-primary/10 text-primary"
                   : "border-border bg-background text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -175,6 +219,26 @@ export function InstrumentPriceChart({ series }: { series: PriceSeriesPoint[] })
       </CardHeader>
       <CardContent>
         <div className="relative" onMouseMove={handleMouseMove} onMouseLeave={() => setHoverIndex(null)}>
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16">
+            {yAxisLabels.map((label) => (
+              <span
+                key={label.topPct}
+                className="absolute right-0 -translate-y-1/2 rounded bg-background/80 px-1 text-right text-[11px] tabular-nums text-muted-foreground"
+                style={{ top: `${label.topPct}%` }}
+              >
+                {axisMoney(label.value)}
+              </span>
+            ))}
+            {references.map((line) => (
+              <span
+                key={line.label}
+                className="absolute right-0 -translate-y-1/2 rounded border bg-background/90 px-1 text-[11px] tabular-nums text-muted-foreground shadow-sm"
+                style={{ top: `${line.topPct}%` }}
+              >
+                {line.label} {axisMoney(line.value)}
+              </span>
+            ))}
+          </div>
           <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="h-44 w-full overflow-visible" role="img" aria-label={`${selectedPeriod.label} adjusted close price chart`}>
             <defs>
               <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
@@ -192,6 +256,20 @@ export function InstrumentPriceChart({ series }: { series: PriceSeriesPoint[] })
                 stroke="currentColor"
                 strokeOpacity="0.12"
                 strokeWidth="1"
+              />
+            ))}
+            {references.map((line) => (
+              <line
+                key={line.label}
+                x1={PADDING_X}
+                x2={WIDTH - PADDING_X}
+                y1={line.y}
+                y2={line.y}
+                stroke="currentColor"
+                strokeOpacity="0.3"
+                strokeDasharray="5 5"
+                strokeWidth="1"
+                vectorEffect="non-scaling-stroke"
               />
             ))}
             <path d={geometry.areaPath} fill={`url(#${gradientId})`} />

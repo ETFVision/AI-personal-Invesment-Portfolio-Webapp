@@ -6,61 +6,56 @@ import type { InstrumentRecommendation, RecommendationHistoryItem } from "@/doma
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MiniRangeBar } from "@/components/ui/charts";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
-import { DataFreshnessBadge, InstrumentTypeBadge, ThemeBadgeList } from "./instrument-badges";
+import { ThemeBadgeList } from "./instrument-badges";
 import { assessmentClassName, assessmentLabel, assessmentTone, businessQualityLabel } from "@/application/services/recommendations/recommendationPresentation";
 
-export function InstrumentHeader({
-  instrument,
-  typeLabel,
-  marketView
+export function InstrumentSummaryCard({
+  marketView,
+  riskMetric,
+  recommendation
 }: {
-  instrument: Instrument;
-  typeLabel: string;
   marketView: InstrumentMarketView;
+  riskMetric: InstrumentRiskMetric | null;
+  recommendation: InstrumentRecommendation | null;
 }) {
-  return (
-    <div className="relative overflow-hidden rounded-lg border bg-card p-5 shadow-sm sm:flex sm:items-start sm:justify-between sm:gap-5">
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-700 via-cyan-500 to-muted" />
-      <div>
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <InstrumentTypeBadge label={typeLabel} />
-          <DataFreshnessBadge label={marketView.freshnessLabel} tone={marketView.freshnessTone} />
-          <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{instrument.isActive ? "Active" : "Inactive"}</span>
-        </div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">Instrument detail</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{instrument.symbol ?? "-"} - {instrument.name}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {instrument.exchange ?? "No exchange"} - {instrument.currency ?? "No currency"} - {instrument.geography ?? "No geography"}
-        </p>
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:mt-0 sm:min-w-80">
-        <SummaryMetric label="Latest" value={marketView.latestPrice == null ? "-" : formatCurrencyWithCode(marketView.latestPrice, instrument.currency ?? "USD")} />
-        <SummaryMetric label="Daily" value={marketView.dailyReturn == null ? "-" : formatPercent(marketView.dailyReturn)} />
-      </div>
-    </div>
-  );
-}
-
-export function InstrumentSummaryCard({ marketView }: { marketView: InstrumentMarketView }) {
   const currency = marketView.instrument.currency ?? "USD";
+  const canonicalSector = marketView.instrument.canonicalSector ?? marketView.instrument.sector ?? "-";
+  const volatility = riskMetric?.volatility1y == null ? (marketView.instrument.volatilityBucket ?? "-") : formatPercent(riskMetric.volatility1y);
+  const recommendationTone = recommendation ? assessmentTone(recommendation.recommendationLabel) : "neutral";
+  const latestPriceLabel = marketView.latestPrice == null ? "-" : formatCurrencyWithCode(marketView.latestPrice, currency);
+  const rangePosition = marketView.latestPrice == null || marketView.fiftyTwoWeekLow == null || marketView.fiftyTwoWeekHigh == null || marketView.fiftyTwoWeekHigh <= marketView.fiftyTwoWeekLow
+    ? null
+    : Math.min(100, Math.max(0, ((marketView.latestPrice - marketView.fiftyTwoWeekLow) / (marketView.fiftyTwoWeekHigh - marketView.fiftyTwoWeekLow)) * 100));
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Overview</CardTitle>
-        <CardDescription>Canonical instrument metadata and latest market context.</CardDescription>
+      <CardHeader className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle>Overview</CardTitle>
+            <CardDescription>Asset context, derived returns, and stored market quality signals.</CardDescription>
+          </div>
+          <a href="#characteristics-breakdown" className="rounded-lg border bg-background px-3 py-2 text-right shadow-sm transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Characteristics</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">{recommendation?.overallScore == null ? "-" : `${Math.round(recommendation.overallScore)}/100`}</p>
+            {recommendation ? <ToneChip label={assessmentLabel(recommendation.recommendationLabel)} tone={recommendationTone} /> : null}
+          </a>
+        </div>
       </CardHeader>
-      <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <SummaryMetric label="Asset class" value={marketView.instrument.assetClass.replaceAll("_", " ")} />
-        <SummaryMetric label="Sector" value={marketView.instrument.canonicalSector ?? marketView.instrument.sector ?? "-"} />
+        <SummaryMetric label="Sector" value={canonicalSector} />
         <SummaryMetric label="Risk category" value={marketView.instrument.riskCategory ?? "-"} />
-        <SummaryMetric label="Volatility" value={marketView.instrument.volatilityBucket ?? "-"} />
+        <SummaryMetric label="Volatility" value={volatility} />
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <SummaryMetric label="YTD return" value={marketView.ytdReturn == null ? "-" : formatPercent(marketView.ytdReturn)} />
         <SummaryMetric label="1Y return" value={marketView.oneYearReturn == null ? "-" : formatPercent(marketView.oneYearReturn)} />
-        <SummaryMetric label="52W low" value={marketView.fiftyTwoWeekLow == null ? "-" : formatCurrencyWithCode(marketView.fiftyTwoWeekLow, currency)} />
-        <SummaryMetric label="52W high" value={marketView.fiftyTwoWeekHigh == null ? "-" : formatCurrencyWithCode(marketView.fiftyTwoWeekHigh, currency)} />
-        <div className="rounded-lg border bg-background p-3 shadow-sm sm:col-span-2 lg:col-span-4">
+        <SummaryMetric label="5Y return" value={marketView.fiveYearReturn == null ? "-" : formatPercent(marketView.fiveYearReturn)} />
+        </div>
+        <div className="rounded-lg border bg-background p-3 shadow-sm">
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">52W position</p>
-          <div className="mt-3">
+          <div className="mt-3 space-y-2">
             <MiniRangeBar
               current={marketView.latestPrice}
               low={marketView.fiftyTwoWeekLow}
@@ -68,6 +63,14 @@ export function InstrumentSummaryCard({ marketView }: { marketView: InstrumentMa
               lowLabel={marketView.fiftyTwoWeekLow == null ? "-" : formatCurrencyWithCode(marketView.fiftyTwoWeekLow, currency)}
               highLabel={marketView.fiftyTwoWeekHigh == null ? "-" : formatCurrencyWithCode(marketView.fiftyTwoWeekHigh, currency)}
             />
+            <div className="relative h-4 min-w-40">
+              <span
+                className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-[0.68rem] font-medium text-muted-foreground"
+                style={{ left: `${rangePosition ?? 50}%` }}
+              >
+                Current {latestPriceLabel}
+              </span>
+            </div>
           </div>
         </div>
       </CardContent>
@@ -217,16 +220,6 @@ function marketPercent(value: number | null | undefined) {
   return value == null ? "Insufficient history" : formatPercent(value);
 }
 
-function compactPercent(value: number | null | undefined) {
-  return value == null ? "-" : formatPercent(value);
-}
-
-function rangeValue(marketView: InstrumentMarketView) {
-  const currency = marketView.instrument.currency ?? "USD";
-  if (marketView.fiftyTwoWeekLow == null || marketView.fiftyTwoWeekHigh == null) return "-";
-  return `${formatCurrencyWithCode(marketView.fiftyTwoWeekLow, currency)} - ${formatCurrencyWithCode(marketView.fiftyTwoWeekHigh, currency)}`;
-}
-
 function LongHorizonBlock({ marketView, riskMetric }: { marketView: InstrumentMarketView; riskMetric: InstrumentRiskMetric | null }) {
   const rows = [
     {
@@ -247,7 +240,7 @@ function LongHorizonBlock({ marketView, riskMetric }: { marketView: InstrumentMa
     <Card>
       <CardHeader>
         <CardTitle>Long-horizon - display only</CardTitle>
-        <CardDescription>These diagnostics are shown for context and do not feed scoring or guardrails.</CardDescription>
+        <CardDescription>Display-only context; not used in scoring or guardrails.</CardDescription>
       </CardHeader>
       <CardContent className="overflow-x-auto">
         <table className="min-w-full text-left text-sm">
@@ -290,7 +283,7 @@ function CharacteristicsBreakdown({ recommendation }: { recommendation: Instrume
   const finalTone = assessmentTone(recommendation.recommendationLabel);
 
   return (
-    <Card>
+    <Card id="characteristics-breakdown" className="scroll-mt-32">
       <CardHeader className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -307,20 +300,22 @@ function CharacteristicsBreakdown({ recommendation }: { recommendation: Instrume
           components.map((component) => {
             const score = typeof component.score === "number" && Number.isFinite(component.score) ? Math.round(component.score) : null;
             const quality = componentQualityLabel(component);
+            const scoreTone = score == null ? "neutral" : score >= 70 ? "positive" : score >= 50 ? "warning" : "danger";
+            const barClass = score == null ? "bg-muted-foreground/40" : score >= 70 ? "bg-emerald-600" : score >= 50 ? "bg-amber-500" : "bg-red-600";
             return (
               <div key={component.key || component.label} className="rounded-lg border bg-background p-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="font-medium">{component.label}</p>
+                    <p className="font-medium">{score != null && score < 40 ? <span className="mr-1 text-amber-600" aria-label="Low component score">{"\u26a0"}</span> : null}{component.label}</p>
                     <p className="text-xs text-muted-foreground">Weight {typeof component.weight === "number" ? formatPercent(component.weight) : "-"}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {quality ? <ToneChip label={quality.label} tone={quality.tone} /> : null}
-                    <ToneChip label={score == null ? "-" : `${score}/100`} tone={score == null ? "neutral" : score >= 70 ? "positive" : score >= 45 ? "info" : "warning"} />
+                    <ToneChip label={score == null ? "-" : `${score}/100`} tone={scoreTone} />
                   </div>
                 </div>
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-teal-600" style={{ width: `${Math.max(0, Math.min(100, score ?? 0))}%` }} />
+                  <div className={`h-full rounded-full ${barClass}`} style={{ width: `${Math.max(0, Math.min(100, score ?? 0))}%` }} />
                 </div>
               </div>
             );
@@ -332,16 +327,12 @@ function CharacteristicsBreakdown({ recommendation }: { recommendation: Instrume
 }
 
 export function InstrumentOverviewPanel({
-  instrument,
-  typeLabel,
   marketView,
   riskMetric,
   recommendation,
   priceChart,
   scoreTrend
 }: {
-  instrument: Instrument;
-  typeLabel: string;
   marketView: InstrumentMarketView;
   riskMetric: InstrumentRiskMetric | null;
   recommendation: InstrumentRecommendation | null;
@@ -354,20 +345,7 @@ export function InstrumentOverviewPanel({
         {/* instrument-price-chart-slot */}
         {priceChart}
       </div>
-      <InstrumentHeader instrument={instrument} typeLabel={typeLabel} marketView={marketView} />
-      <InstrumentSummaryCard marketView={marketView} />
-      <Card>
-        <CardHeader>
-          <CardTitle>Key returns</CardTitle>
-          <CardDescription>Stored derived market metrics for quick orientation.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <SummaryMetric label="YTD" value={compactPercent(marketView.ytdReturn)} />
-          <SummaryMetric label="1Y" value={compactPercent(marketView.oneYearReturn)} />
-          <SummaryMetric label="5Y" value={compactPercent(marketView.fiveYearReturn)} />
-          <SummaryMetric label="52W range" value={rangeValue(marketView)} />
-        </CardContent>
-      </Card>
+      <InstrumentSummaryCard marketView={marketView} riskMetric={riskMetric} recommendation={recommendation} />
       <LongHorizonBlock marketView={marketView} riskMetric={riskMetric} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         {scoreTrend}

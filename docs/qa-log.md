@@ -6554,3 +6554,28 @@ Expected behavior:
 - Multi-point history shows a neutral SVG sparkline, markers, previous-run delta, and factual hover tooltip with run date and score.
 - The series is currently short, roughly a few insight runs, and fills in as future recommendation runs accumulate.
 - This is display-only and does not feed scoring, guardrails, recommendation labels, methodology, or data-pipeline logic.
+
+---
+
+## 2026-06-25 - Instrument Detail UI Polish QA
+
+Scope:
+- Added a sticky instrument identity header above the tab nav.
+- Refined the Overview panel layout, moving identity out of the panel and grouping asset context, returns, 52-week position, long-horizon diagnostics, score trend, and Characteristics breakdown.
+- Added price chart 52-week high/low reference lines, HTML y-axis price labels, and primary-token active period buttons.
+- Updated score trend to a fixed 0-100 y-domain with y-axis labels and explicit previous-run summary.
+- Added score-level colors and low-score warning indicators to Characteristics breakdown rows.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck for a stock, ETF, and bond ETF remains pending in an authenticated session. Local unauthenticated instrument detail requests redirect to `/login`.
+
+Expected behavior:
+- Sticky identity header stays visible below the dashboard top nav while switching and scrolling tabs.
+- Overview avoids duplicate identity content and presents stats in compact responsive grids.
+- Price chart overlays do not alter the y-domain; 52-week reference lines only render when the reference price falls inside the selected period domain.
+- Score trend remains display-only and neutral, with a fixed 0-100 scale.
+- Characteristics component colors and warning icons are visual diagnostics only and do not affect scoring.

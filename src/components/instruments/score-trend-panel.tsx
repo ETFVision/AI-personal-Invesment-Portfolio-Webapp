@@ -46,8 +46,19 @@ function deltaText(history: RecommendationScoreHistoryPoint[]) {
   const previous = scored.at(-2)?.overallScore;
   if (latest == null || previous == null) return "Trend builds over successive runs";
   const delta = Math.round(latest) - Math.round(previous);
-  if (delta === 0) return "no change";
-  return `${delta > 0 ? "\u25B2" : "\u25BC"} ${Math.abs(delta)} vs previous run`;
+  if (delta === 0) return "Score unchanged from previous run";
+  return `${delta > 0 ? "+" : "-"}${Math.abs(delta)} from previous run`;
+}
+
+function footerSummary(history: RecommendationScoreHistoryPoint[]) {
+  const scored = history.filter((point) => point.overallScore != null);
+  const latest = scored.at(-1)?.overallScore;
+  const previous = scored.at(-2)?.overallScore;
+  if (latest == null || previous == null) return "Latest: - | Previous: - | \u0394 -";
+  const latestRounded = Math.round(latest);
+  const previousRounded = Math.round(previous);
+  const delta = latestRounded - previousRounded;
+  return `Latest: ${latestRounded} | Previous: ${previousRounded} | \u0394 ${delta >= 0 ? "+" : ""}${delta} from previous run`;
 }
 
 function chartGeometry(history: RecommendationScoreHistoryPoint[]) {
@@ -55,19 +66,12 @@ function chartGeometry(history: RecommendationScoreHistoryPoint[]) {
     .filter((point): point is RecommendationScoreHistoryPoint & { overallScore: number } => point.overallScore != null && Number.isFinite(point.overallScore))
     .map((point) => ({ ...point, score: Math.round(point.overallScore) }));
   if (scored.length === 0) return { points: [], linePath: "" };
-  const values = scored.map((point) => point.score);
-  const minScore = Math.min(...values);
-  const maxScore = Math.max(...values);
-  const rawRange = maxScore - minScore;
-  const padding = rawRange === 0 ? 5 : Math.max(3, rawRange * 0.18);
-  const min = Math.max(0, minScore - padding);
-  const max = Math.min(100, maxScore + padding);
   const plotWidth = WIDTH - PADDING_X * 2;
   const plotHeight = HEIGHT - PADDING_Y * 2;
   const points: ChartPoint[] = scored.map((point, index) => ({
     ...point,
     x: PADDING_X + (index / Math.max(1, scored.length - 1)) * plotWidth,
-    y: PADDING_Y + ((max - point.score) / Math.max(1, max - min)) * plotHeight
+    y: PADDING_Y + ((100 - point.score) / 100) * plotHeight
   }));
   const linePath = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
   return { points, linePath };
@@ -126,8 +130,19 @@ export function ScoreTrendPanel({ history }: { history: RecommendationScoreHisto
           </div>
         ) : (
           <div className="relative" onMouseMove={handleMouseMove} onMouseLeave={() => setHoverIndex(null)}>
+            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10">
+              {[100, 75, 50, 25, 0].map((value) => (
+                <span
+                  key={value}
+                  className="absolute left-0 -translate-y-1/2 rounded bg-background/80 px-1 text-[11px] tabular-nums text-muted-foreground"
+                  style={{ top: `${(PADDING_Y / HEIGHT) * 100 + ((100 - value) / 100) * (((HEIGHT - PADDING_Y * 2) / HEIGHT) * 100)}%` }}
+                >
+                  {value}
+                </span>
+              ))}
+            </div>
             <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="h-32 w-full overflow-visible" role="img" aria-label="Characteristics score trend sparkline">
-              {[0.33, 0.66].map((line) => (
+              {[0, 0.25, 0.5, 0.75, 1].map((line) => (
                 <line
                   key={line}
                   x1={PADDING_X}
@@ -161,8 +176,11 @@ export function ScoreTrendPanel({ history }: { history: RecommendationScoreHisto
             ) : null}
           </div>
         )}
+        <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground">
+          {footerSummary(history)}
+        </div>
         <p className="text-xs text-muted-foreground">
-          Updated each insight run · since {formatDate(history[0].runDate)}
+          Updated each insight run {"\u00b7"} since {formatDate(history[0].runDate)}
         </p>
       </CardContent>
     </Card>

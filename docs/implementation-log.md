@@ -4317,3 +4317,40 @@ Completed.
 - The new getter test verifies the one-row-per-run-date dedupe behavior and ascending return order.
 - The score-history series is currently expected to be short, roughly a few insight runs, and will fill in as future recommendation runs accumulate.
 - Browser recheck in an authenticated session is still pending; unauthenticated local checks redirect instrument detail pages to `/login`.
+
+## 2026-06-25 - Instrument Detail UI Polish
+
+### Source
+Claude Code
+
+### Objective
+Improve the instrument detail page UI/UX with a sticky identity header, refined Overview metrics, chart reference overlays, and clearer Characteristics visuals.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-cards.tsx`
+- `src/components/instruments/instrument-price-chart.tsx`
+- `src/components/instruments/score-trend-panel.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added a sticky page-level identity header above the tab nav with back link, ticker/name, type/freshness/active badges, latest price, daily change, and 1Y return.
+- Removed duplicate instrument identity content from the Overview body and reorganized Overview into asset context, key returns, 52-week position, long-horizon diagnostics, score trend, and Characteristics breakdown.
+- Added display-only 52-week high/low reference lines and HTML y-axis price labels to the price chart, with active period buttons using the primary-token filled style.
+- Updated the score-trend panel to use a fixed 0-100 y-domain, HTML y-axis labels, explicit previous-run delta wording, and a footer summary row.
+- Colored Characteristics component progress bars by score level and added a low-score warning icon for components below 40.
+- Kept the work UI-only and display-only; no scoring, methodology, recommendation, guardrail, access-control, or data-pipeline logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Browser recheck for stock, ETF, and bond ETF pages is still pending in an authenticated session; local unauthenticated instrument detail checks redirect to `/login`.
+- Sticky header uses `top-16`; verify against the deployed dashboard shell top-nav height during authenticated browser QA.

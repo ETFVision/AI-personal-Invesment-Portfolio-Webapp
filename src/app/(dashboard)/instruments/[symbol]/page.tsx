@@ -16,6 +16,7 @@ import {
 } from "@/components/instruments/instrument-cards";
 import { InstrumentPriceChart } from "@/components/instruments/instrument-price-chart";
 import { ScoreTrendPanel } from "@/components/instruments/score-trend-panel";
+import { DataFreshnessBadge, InstrumentTypeBadge } from "@/components/instruments/instrument-badges";
 import { instrumentTypeLabel, resolveInstrumentType, type CanonicalInstrumentType } from "@/application/services/instruments/InstrumentTypeResolver";
 import { scoreBusinessQuality } from "@/application/services/recommendations/recommendationScoring";
 import type { FundamentalsDetail } from "@/domain/fundamentals/types";
@@ -38,6 +39,12 @@ function ratio(value: number | null | undefined) {
 
 function percent(value: number | null | undefined) {
   return value == null ? "-" : formatPercent(value);
+}
+
+function dailyChangeAmount(latestPrice: number | null | undefined, dailyReturn: number | null | undefined) {
+  if (latestPrice == null || dailyReturn == null || !Number.isFinite(latestPrice) || !Number.isFinite(dailyReturn)) return null;
+  const prior = latestPrice / (1 + dailyReturn);
+  return latestPrice - prior;
 }
 
 function trendLabel(value: string | null | undefined) {
@@ -277,12 +284,22 @@ function InstrumentPriceChartFallback() {
   );
 }
 
-async function AsyncInstrumentPriceChart({ instrumentId, fromYears }: { instrumentId: string; fromYears: number }) {
+async function AsyncInstrumentPriceChart({
+  instrumentId,
+  fromYears,
+  fiftyTwoWeekLow,
+  fiftyTwoWeekHigh
+}: {
+  instrumentId: string;
+  fromYears: number;
+  fiftyTwoWeekLow: number | null;
+  fiftyTwoWeekHigh: number | null;
+}) {
   const container = createContainer();
   const series = await measureRenderStep(`instrument-detail:${instrumentId}:price-series`, () =>
     container.universeRepository.getInstrumentPriceSeries(instrumentId, { fromYears })
   );
-  return <InstrumentPriceChart series={series} />;
+  return <InstrumentPriceChart series={series} fiftyTwoWeekLow={fiftyTwoWeekLow} fiftyTwoWeekHigh={fiftyTwoWeekHigh} />;
 }
 
 function ScoreTrendPanelFallback() {
@@ -354,7 +371,7 @@ function tabsForType(
   scoreTrend: ReactNode
 ) {
   const common = {
-    overview: <InstrumentOverviewPanel instrument={instrument} typeLabel={typeLabel} marketView={marketView} riskMetric={riskMetric} recommendation={recommendation} priceChart={priceChart} scoreTrend={scoreTrend} />,
+    overview: <InstrumentOverviewPanel marketView={marketView} riskMetric={riskMetric} recommendation={recommendation} priceChart={priceChart} scoreTrend={scoreTrend} />,
     news: <NewsSummaryCard />,
     themes: <ThemesPanel instrument={instrument} />,
     risk: <RiskSummaryCard instrument={instrument} riskMetric={riskMetric} />,
@@ -433,6 +450,58 @@ function tabsForType(
   ];
 }
 
+function StickyInstrumentIdentity({
+  instrument,
+  typeLabel,
+  marketView
+}: {
+  instrument: Instrument;
+  typeLabel: string;
+  marketView: InstrumentMarketView;
+}) {
+  const currency = instrument.currency ?? "USD";
+  const changeAmount = dailyChangeAmount(marketView.latestPrice, marketView.dailyReturn);
+  const dailyIsPositive = (marketView.dailyReturn ?? 0) >= 0;
+  const dailyClass = dailyIsPositive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400";
+
+  return (
+    <div className="sticky top-16 z-30 rounded-lg border bg-card/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/85">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <Link href="/instruments/universe" className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline">
+            Back to universe
+          </Link>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{instrument.symbol ?? "-"}</h1>
+            <p className="min-w-0 text-sm text-muted-foreground">{instrument.name}</p>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <InstrumentTypeBadge label={typeLabel} />
+            <DataFreshnessBadge label={marketView.freshnessLabel} tone={marketView.freshnessTone} />
+            <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">{instrument.isActive ? "Active" : "Inactive"}</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:min-w-[28rem]">
+          <div className="rounded-lg border bg-background p-3">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Current price</p>
+            <p className="mt-1 text-base font-semibold text-foreground">{marketView.latestPrice == null ? "-" : formatCurrencyWithCode(marketView.latestPrice, currency)}</p>
+          </div>
+          <div className="rounded-lg border bg-background p-3">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Daily change</p>
+            <p className={`mt-1 text-sm font-semibold ${dailyClass}`}>
+              {marketView.dailyReturn == null ? "-" : `${dailyIsPositive ? "+" : ""}${changeAmount == null ? "" : formatCurrencyWithCode(changeAmount, currency)} (${formatPercent(marketView.dailyReturn)})`}
+            </p>
+          </div>
+          <div className="rounded-lg border bg-background p-3">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">1Y return</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">{percent(marketView.oneYearReturn)}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default async function InstrumentDetailPage({ params }: InstrumentDetailPageProps) {
   const { symbol } = await params;
   const decodedSymbol = decodeURIComponent(symbol).trim().toUpperCase();
@@ -458,7 +527,12 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
   const marketView = marketViews[0];
   const priceChart = (
     <Suspense fallback={<InstrumentPriceChartFallback />}>
-      <AsyncInstrumentPriceChart instrumentId={instrument.id} fromYears={20} />
+      <AsyncInstrumentPriceChart
+        instrumentId={instrument.id}
+        fromYears={20}
+        fiftyTwoWeekLow={marketView.fiftyTwoWeekLow}
+        fiftyTwoWeekHigh={marketView.fiftyTwoWeekHigh}
+      />
     </Suspense>
   );
   const scoreTrend = (
@@ -475,6 +549,7 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
         <span>/</span>
         <span>{decodedSymbol}</span>
       </div>
+      <StickyInstrumentIdentity instrument={instrument} typeLabel={typeLabel} marketView={marketView} />
       <InstrumentTabs tabs={tabs} />
     </div>
   );
