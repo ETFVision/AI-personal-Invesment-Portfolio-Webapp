@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-25 SGT (added Medium 42 — bond ETF analytical enrichment; Medium 43 — diversification score inconsistency Risk page vs Portfolio Review)
+Last updated: 2026-06-25 SGT (added Medium 42 — bond ETF analytical enrichment; Medium 43 — diversification score inconsistency Risk page vs Portfolio Review; Low 14 — no stored 5Y/3Y volatility window)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -12,8 +12,8 @@ An independent deep architecture audit with live read-only database verification
 |---|---|---|---|
 | High | 10 | 8 | 2 |
 | Medium | 43 | 28 | 15 |
-| Low | 13 | 12 | 1 |
-| **Total** | **66** | **48** | **18** |
+| Low | 14 | 13 | 1 |
+| **Total** | **67** | **49** | **18** |
 
 **Open blockers — before public alpha:**
 
@@ -574,6 +574,11 @@ in their phases. Capture each batch as its own implementation-log entry.
     - Not started. Pricing page, payment flow, subscription enforcement, onboarding, and refund/cancellation process are not yet productized.
     - Not required for private alpha. Required before paid launch.
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 20.
+
+14. No stored 5Y (or 3Y) volatility window
+    - `instrument_risk_metrics` has volatility at 30D / 90D / 1Y (base) and 10Y / 15Y / 20Y (migration 133) — but **not 3Y or 5Y**. So any UI with a 5Y volatility column (e.g. the Long-Horizon Returns card) renders "—" for 5Y volatility even though 5Y *return* and 5Y *max drawdown* (`max_drawdown_5y`) do exist. Cosmetic coverage gap, not a data error.
+    - Fix if wanted: add `volatility_5y` (and optionally `volatility_3y`) to `instrument_risk_metrics` and the risk refresh functions, mirroring the migration-133 windows (stddev_samp×√252, history-completeness gated). Small migration; display-only; low priority.
+    - Noted 2026-06-25 (Claude review).
 
 ## Pending Implementation Tasks
 
