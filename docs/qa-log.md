@@ -2,6 +2,33 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-25 SGT - Instrument Detail IA Real Tabs QA
+
+Scope:
+- Verify the instrument detail page IA now uses a focused Overview plus one-at-a-time tabs, with long-horizon metrics surfaced as display-only context.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Instrument tabs rendered every panel stacked on the page | Fixed; the tab shell now renders only the active panel and supports keyboard navigation |
+| Long-horizon return, volatility, and drawdown fields were loaded but not presented together | Fixed; Overview includes a compact 10Y/15Y/20Y display-only table |
+| Performance tab duplicated fields already better suited for Overview | Fixed; returns, 52-week range, liquidity, freshness, history start, and observations moved to Overview |
+| Placeholder-only tabs made the detail page feel unfinished | Fixed; empty telemetry, ETF exposure/holdings, bond duration/credit-quality, commodity profile, and benchmark relative placeholders are hidden |
+| Fundamentals trend table made the fundamentals tab heavy by default | Fixed; detailed trend rows are collapsed behind a show/hide disclosure |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Browser spot-check representative stock, young stock, ETF, and bond ETF records against a seeded database to confirm populated versus `Insufficient history` long-horizon states and active-panel-only DOM behavior.
+
 ## 2026-06-24 SGT - Long-Horizon Risk Display Windows QA
 
 Scope:

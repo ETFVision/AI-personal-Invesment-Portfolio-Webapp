@@ -4,8 +4,7 @@ import { Suspense } from "react";
 import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { createContainer } from "@/server/container";
 import {
-  InstrumentHeader,
-  InstrumentSummaryCard,
+  InstrumentOverviewPanel,
   InstrumentTabs,
   MarketVisionContextCard,
   NewsSummaryCard,
@@ -26,10 +25,6 @@ import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils
 type InstrumentDetailPageProps = {
   params: Promise<{ symbol: string }>;
 };
-
-function detailId(label: string) {
-  return label.toLowerCase().replaceAll(" ", "-");
-}
 
 function score(value: number | null | undefined) {
   return value == null ? "-" : `${Math.round(value)}/100`;
@@ -191,57 +186,60 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
           {detail.trends.length === 0 ? (
             <p className="text-sm text-muted-foreground">Trend rows will appear after the next fundamentals refresh.</p>
           ) : (
-            <div className="space-y-5">
-              {["growth", "margin", "profitability", "balance_sheet", "quality"].map((category) => {
-                const rows = detail.trends.filter((trend) => trend.metricCategory === category);
-                if (rows.length === 0) return null;
-                return (
-                  <div key={category} className="space-y-2">
-                    <h3 className="text-sm font-semibold">{categoryLabel(category)}</h3>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-left text-xs">
-                        <thead className="border-b uppercase text-muted-foreground">
-                          <tr>
-                            <th className="py-2 pr-3">Metric</th>
-                            <th className="py-2 pr-3">Latest shown</th>
-                            <th className="py-2 pr-3">Prior shown</th>
-                            <th className="py-2 pr-3">Short term</th>
-                            <th className="py-2 pr-3">Long term</th>
-                            <th className="py-2 pr-3">Basis</th>
-                            <th className="py-2 pr-3">Overall</th>
-                            <th className="py-2 pr-3">Score</th>
-                            <th className="py-2 pr-3">Confidence</th>
-                            <th className="py-2 pr-3">Explanation</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map((trend) => (
-                            <tr key={trend.metricName} className="border-b align-top last:border-0">
-                              <td className="py-2 pr-3 font-medium capitalize">{trend.metricName.replaceAll("_", " ")}</td>
-                              <td className="py-2 pr-3">
-                                {trendValue(trend.currentValue, trend.metricName)}
-                                <div className="text-[11px] text-muted-foreground">{displayPeriodLabel(trend.displayPeriod)}</div>
-                              </td>
-                              <td className="py-2 pr-3">
-                                {trendValue(trend.previousValue, trend.metricName)}
-                                <div className="text-[11px] text-muted-foreground">{displayPeriodLabel(trend.displayPeriod)}</div>
-                              </td>
-                              <td className="py-2 pr-3 capitalize">{trendLabel(trend.shortTermTrendDirection)} ({trend.shortTermPeriodsAnalyzed})</td>
-                              <td className="py-2 pr-3 capitalize">{trendLabel(trend.longTermTrendDirection)} ({trend.longTermPeriodsAnalyzed})</td>
-                              <td className="py-2 pr-3">{basisLabel(trend.displayWindow, trend.displayPeriod)}</td>
-                              <td className="py-2 pr-3 capitalize">{trendLabel(trend.overallTrendDirection)}</td>
-                              <td className="py-2 pr-3">{score(trend.overallTrendScore)}</td>
-                              <td className="py-2 pr-3">{formatPercent(trend.overallConfidenceScore / 100)}</td>
-                              <td className="max-w-md py-2 pr-3 text-muted-foreground">{trend.explanation}</td>
+            <details className="rounded-lg border bg-background p-3">
+              <summary className="cursor-pointer text-sm font-semibold">Show detailed trend rows</summary>
+              <div className="mt-4 space-y-5">
+                {["growth", "margin", "profitability", "balance_sheet", "quality"].map((category) => {
+                  const rows = detail.trends.filter((trend) => trend.metricCategory === category);
+                  if (rows.length === 0) return null;
+                  return (
+                    <div key={category} className="space-y-2">
+                      <h3 className="text-sm font-semibold">{categoryLabel(category)}</h3>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-left text-xs">
+                          <thead className="border-b uppercase text-muted-foreground">
+                            <tr>
+                              <th className="py-2 pr-3">Metric</th>
+                              <th className="py-2 pr-3">Latest shown</th>
+                              <th className="py-2 pr-3">Prior shown</th>
+                              <th className="py-2 pr-3">Short term</th>
+                              <th className="py-2 pr-3">Long term</th>
+                              <th className="py-2 pr-3">Basis</th>
+                              <th className="py-2 pr-3">Overall</th>
+                              <th className="py-2 pr-3">Score</th>
+                              <th className="py-2 pr-3">Confidence</th>
+                              <th className="py-2 pr-3">Explanation</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {rows.map((trend) => (
+                              <tr key={trend.metricName} className="border-b align-top last:border-0">
+                                <td className="py-2 pr-3 font-medium capitalize">{trend.metricName.replaceAll("_", " ")}</td>
+                                <td className="py-2 pr-3">
+                                  {trendValue(trend.currentValue, trend.metricName)}
+                                  <div className="text-[11px] text-muted-foreground">{displayPeriodLabel(trend.displayPeriod)}</div>
+                                </td>
+                                <td className="py-2 pr-3">
+                                  {trendValue(trend.previousValue, trend.metricName)}
+                                  <div className="text-[11px] text-muted-foreground">{displayPeriodLabel(trend.displayPeriod)}</div>
+                                </td>
+                                <td className="py-2 pr-3 capitalize">{trendLabel(trend.shortTermTrendDirection)} ({trend.shortTermPeriodsAnalyzed})</td>
+                                <td className="py-2 pr-3 capitalize">{trendLabel(trend.longTermTrendDirection)} ({trend.longTermPeriodsAnalyzed})</td>
+                                <td className="py-2 pr-3">{basisLabel(trend.displayWindow, trend.displayPeriod)}</td>
+                                <td className="py-2 pr-3 capitalize">{trendLabel(trend.overallTrendDirection)}</td>
+                                <td className="py-2 pr-3">{score(trend.overallTrendScore)}</td>
+                                <td className="py-2 pr-3">{formatPercent(trend.overallConfidenceScore / 100)}</td>
+                                <td className="max-w-md py-2 pr-3 text-muted-foreground">{trend.explanation}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            </details>
           )}
         </CardContent>
       </Card>
@@ -298,47 +296,17 @@ function BondProfilePanel({ profile }: { profile: BondProfile | null }) {
   );
 }
 
-function PerformancePanel({ marketView }: { marketView: InstrumentMarketView }) {
-  const currency = marketView.instrument.currency ?? "USD";
-  const range =
-    marketView.fiftyTwoWeekLow == null || marketView.fiftyTwoWeekHigh == null
-      ? "-"
-      : `${formatCurrencyWithCode(marketView.fiftyTwoWeekLow, currency)} - ${formatCurrencyWithCode(marketView.fiftyTwoWeekHigh, currency)}`;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Performance</CardTitle>
-        <CardDescription>Instrument-level market metrics from stored derived price data.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryMetric label="Latest price" value={marketView.latestPrice == null ? "-" : formatCurrencyWithCode(marketView.latestPrice, currency)} />
-        <SummaryMetric label="Latest date" value={marketView.latestPriceDate ?? "-"} />
-        <SummaryMetric label="Daily" value={marketView.dailyReturn == null ? "-" : formatPercent(marketView.dailyReturn)} />
-        <SummaryMetric label="YTD" value={marketView.ytdReturn == null ? "-" : formatPercent(marketView.ytdReturn)} />
-        <SummaryMetric label="1Y" value={marketView.oneYearReturn == null ? "-" : formatPercent(marketView.oneYearReturn)} />
-        <SummaryMetric label="3Y" value={marketView.threeYearReturn == null ? "-" : formatPercent(marketView.threeYearReturn)} />
-        <SummaryMetric label="5Y" value={marketView.fiveYearReturn == null ? "-" : formatPercent(marketView.fiveYearReturn)} />
-        <SummaryMetric label="52W range" value={range} />
-        <SummaryMetric label="Liquidity" value={marketView.liquidity} />
-        <SummaryMetric label="Freshness" value={marketView.freshnessLabel} />
-        <SummaryMetric label="History start" value={marketView.priceHistoryStart ?? "-"} />
-        <SummaryMetric label="Observations" value={formatNumber(marketView.priceObservationCount)} />
-      </CardContent>
-    </Card>
-  );
-}
-
 function tabsForType(
   type: CanonicalInstrumentType,
   instrument: Instrument,
+  typeLabel: string,
   marketView: InstrumentMarketView,
   bondProfile: BondProfile | null,
   riskMetric: InstrumentRiskMetric | null,
   recommendation: InstrumentRecommendation | null
 ) {
   const common = {
-    overview: <InstrumentSummaryCard marketView={marketView} />,
+    overview: <InstrumentOverviewPanel instrument={instrument} typeLabel={typeLabel} marketView={marketView} riskMetric={riskMetric} recommendation={recommendation} />,
     news: <NewsSummaryCard />,
     themes: <ThemesPanel instrument={instrument} />,
     risk: <RiskSummaryCard instrument={instrument} riskMetric={riskMetric} />,
@@ -349,12 +317,6 @@ function tabsForType(
   if (type === "stock") {
     return [
       { label: "Overview", content: common.overview },
-      { label: "Insights", content: common.recommendations },
-      { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
-      { label: "News", content: common.news },
-      { label: "Themes", content: common.themes },
-      { label: "Risk", content: common.risk },
-      { label: "Market Vision Context", content: common.marketVision },
       {
         label: "Fundamentals",
         content: instrument.symbol ? (
@@ -365,20 +327,21 @@ function tabsForType(
           <FundamentalsPanel detail={null} />
         )
       },
-      { label: "Telemetry", content: <PlaceholderPanel title="Telemetry" description="Reserved for future telemetry learning." /> }
+      { label: "Risk", content: common.risk },
+      { label: "Insights", content: common.recommendations },
+      { label: "News", content: common.news },
+      { label: "Themes", content: common.themes },
+      { label: "Market Vision Context", content: common.marketVision }
     ];
   }
 
   if (type === "bond_etf") {
     return [
       { label: "Overview", content: common.overview },
-      { label: "Insights", content: common.recommendations },
-      { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
       { label: "Bond Profile", content: <BondProfilePanel profile={bondProfile} /> },
-      { label: "Duration", content: <PlaceholderPanel title="Duration" description="Duration analytics are prepared here and remain calculated in the bond intelligence service." /> },
-      { label: "Credit Quality", content: <PlaceholderPanel title="Credit Quality" description="Credit exposure context is prepared here for bond intelligence." /> },
-      { label: "News", content: common.news },
       { label: "Risk", content: common.risk },
+      { label: "Insights", content: common.recommendations },
+      { label: "News", content: common.news },
       { label: "Market Vision Context", content: common.marketVision }
     ];
   }
@@ -386,11 +349,9 @@ function tabsForType(
   if (type === "gold_etf") {
     return [
       { label: "Overview", content: common.overview },
-      { label: "Insights", content: common.recommendations },
-      { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
-      { label: "Commodity Profile", content: <PlaceholderPanel title="Commodity Profile" description="Prepared for commodity and inflation-hedge context." /> },
-      { label: "News", content: common.news },
       { label: "Risk", content: common.risk },
+      { label: "Insights", content: common.recommendations },
+      { label: "News", content: common.news },
       { label: "Market Vision Context", content: common.marketVision }
     ];
   }
@@ -398,11 +359,10 @@ function tabsForType(
   if (type === "crypto") {
     return [
       { label: "Overview", content: common.overview },
+      { label: "Risk", content: common.risk },
       { label: "Insights", content: common.recommendations },
-      { label: "Price Context", content: <PerformancePanel marketView={marketView} /> },
       { label: "News", content: common.news },
       { label: "Themes", content: common.themes },
-      { label: "Risk", content: common.risk },
       { label: "Market Vision Context", content: common.marketVision }
     ];
   }
@@ -410,8 +370,6 @@ function tabsForType(
   if (type === "benchmark") {
     return [
       { label: "Overview", content: common.overview },
-      { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
-      { label: "Relative Performance", content: <PlaceholderPanel title="Relative Performance" description="Benchmark-relative analytics remain portfolio-level for this phase." /> },
       { label: "Risk", content: common.risk },
       { label: "Market Vision Context", content: common.marketVision }
     ];
@@ -419,13 +377,10 @@ function tabsForType(
 
   return [
     { label: "Overview", content: common.overview },
+    { label: "Risk", content: common.risk },
     { label: "Insights", content: common.recommendations },
-    { label: "Performance", content: <PerformancePanel marketView={marketView} /> },
-    { label: "ETF Exposure", content: <PlaceholderPanel title="ETF Exposure" description="Prepared for ETF exposure detail and future fundamentals support." /> },
-    { label: "Holdings", content: <PlaceholderPanel title="Holdings" description="Prepared for ETF underlying holdings once provider support is added." /> },
     { label: "Themes", content: common.themes },
     { label: "News", content: common.news },
-    { label: "Risk", content: common.risk },
     { label: "Market Vision Context", content: common.marketVision }
   ];
 }
@@ -453,7 +408,7 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
     ])
   );
   const marketView = marketViews[0];
-  const tabs = tabsForType(type, instrument, marketView, bondProfile, riskMetric, recommendation);
+  const tabs = tabsForType(type, instrument, typeLabel, marketView, bondProfile, riskMetric, recommendation);
 
   return (
     <div className="space-y-6">
@@ -461,14 +416,6 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
         <Link href="/instruments/universe" className="hover:underline">Instruments</Link>
         <span>/</span>
         <span>{decodedSymbol}</span>
-      </div>
-      <InstrumentHeader instrument={instrument} typeLabel={typeLabel} marketView={marketView} />
-      <div className="flex gap-2 overflow-x-auto rounded-md border p-2">
-        {tabs.map((tab) => (
-          <a key={tab.label} href={`#${detailId(tab.label)}`} className="whitespace-nowrap rounded-md bg-muted px-3 py-1.5 text-xs">
-            {tab.label}
-          </a>
-        ))}
       </div>
       <InstrumentTabs tabs={tabs} />
     </div>

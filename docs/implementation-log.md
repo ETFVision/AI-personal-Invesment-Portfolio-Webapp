@@ -1,3 +1,38 @@
+## 2026-06-25 - Instrument Detail IA Real Tabs
+
+### Source
+Claude Code
+
+### Objective
+Restructure the instrument detail page into a focused Overview plus one-at-a-time tabs, surface already-loaded long-horizon metrics, and remove placeholder clutter without changing scoring or data pipelines.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Converted `InstrumentTabs` to a client-side accessible tablist that renders only the active panel, supports left/right arrow navigation, and keeps URL hash deep links in sync.
+- Added a focused Overview panel with a reserved price-chart slot, header/summary, key returns, long-horizon return/volatility/drawdown table, characteristics breakdown, data-quality line, and compliance disclaimer.
+- Surfaced 10Y/15Y/20Y total return, volatility, and max drawdown values with `Insufficient history` for null long-horizon fields.
+- Removed the standalone Performance tab and moved its useful fields into Overview.
+- Hid empty placeholder tabs for telemetry, ETF holdings/exposure, commodity profile, benchmark relative performance, and bond duration/credit-quality placeholders while preserving real/type-relevant tabs.
+- Collapsed the detailed Fundamentals trend table behind a native show/hide disclosure.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- UI/IA change only. No scoring, methodology, data-pipeline, feature-flag, access-control, or recommendation logic changed.
+- Browser spot-check is still recommended for representative stock, young stock, ETF, and bond ETF records against a seeded database.
+
 ## 2026-06-24 - Deep History Maintenance Docs
 
 ### Source

@@ -1,11 +1,13 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
 import type { InstrumentRecommendation, RecommendationHistoryItem } from "@/domain/recommendations/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MiniRangeBar } from "@/components/ui/charts";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 import { DataFreshnessBadge, InstrumentTypeBadge, ThemeBadgeList } from "./instrument-badges";
-import { assessmentClassName, assessmentLabel } from "@/application/services/recommendations/recommendationPresentation";
+import { assessmentClassName, assessmentLabel, assessmentTone, businessQualityLabel } from "@/application/services/recommendations/recommendationPresentation";
 
 export function InstrumentHeader({
   instrument,
@@ -17,8 +19,8 @@ export function InstrumentHeader({
   marketView: InstrumentMarketView;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] sm:flex sm:items-start sm:justify-between sm:gap-5">
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-700 via-cyan-500 to-slate-300" />
+    <div className="relative overflow-hidden rounded-lg border bg-card p-5 shadow-sm sm:flex sm:items-start sm:justify-between sm:gap-5">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-700 via-cyan-500 to-muted" />
       <div>
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <InstrumentTypeBadge label={typeLabel} />
@@ -26,8 +28,8 @@ export function InstrumentHeader({
           <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{instrument.isActive ? "Active" : "Inactive"}</span>
         </div>
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">Instrument detail</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{instrument.symbol ?? "-"} - {instrument.name}</h1>
-        <p className="mt-2 text-sm text-slate-500">
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{instrument.symbol ?? "-"} - {instrument.name}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
           {instrument.exchange ?? "No exchange"} - {instrument.currency ?? "No currency"} - {instrument.geography ?? "No geography"}
         </p>
       </div>
@@ -56,8 +58,8 @@ export function InstrumentSummaryCard({ marketView }: { marketView: InstrumentMa
         <SummaryMetric label="1Y return" value={marketView.oneYearReturn == null ? "-" : formatPercent(marketView.oneYearReturn)} />
         <SummaryMetric label="52W low" value={marketView.fiftyTwoWeekLow == null ? "-" : formatCurrencyWithCode(marketView.fiftyTwoWeekLow, currency)} />
         <SummaryMetric label="52W high" value={marketView.fiftyTwoWeekHigh == null ? "-" : formatCurrencyWithCode(marketView.fiftyTwoWeekHigh, currency)} />
-        <div className="rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm sm:col-span-2 lg:col-span-4">
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">52W position</p>
+        <div className="rounded-lg border bg-background p-3 shadow-sm sm:col-span-2 lg:col-span-4">
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">52W position</p>
           <div className="mt-3">
             <MiniRangeBar
               current={marketView.latestPrice}
@@ -90,6 +92,22 @@ function scoreValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value)}/100` : "-";
 }
 
+function tabId(label: string) {
+  return label.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function toneClassName(tone: string) {
+  if (tone === "positive") return "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100";
+  if (tone === "info") return "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100";
+  if (tone === "warning") return "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100";
+  if (tone === "danger") return "border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100";
+  return "border-border bg-muted text-muted-foreground";
+}
+
+function ToneChip({ label, tone }: { label: string; tone: string }) {
+  return <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-medium ${toneClassName(tone)}`}>{label}</span>;
+}
+
 function scoreComponents(recommendation: InstrumentRecommendation) {
   const components = recommendation.scoringBreakdown.components;
   const rows = Array.isArray(components) ? components.map((component) => ({
@@ -113,6 +131,12 @@ function scoreComponents(recommendation: InstrumentRecommendation) {
   }
 
   return rows;
+}
+
+function componentQualityLabel(component: { key: string; score: unknown }) {
+  if (typeof component.score !== "number" || !Number.isFinite(component.score)) return null;
+  if (!component.key.includes("fundamental") && !component.key.includes("business_quality")) return null;
+  return businessQualityLabel(component.score);
 }
 
 function componentDisplayReason(component: { key: string; label: string; score: unknown; reason: string }) {
@@ -155,7 +179,7 @@ export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMe
     <Card>
       <CardHeader>
         <CardTitle>Risk</CardTitle>
-        <CardDescription>Calculated from stored price history. Return, price and liquidity metrics stay in Performance.</CardDescription>
+        <CardDescription>Calculated from stored price history. Long-horizon windows are display-only diagnostics.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryMetric label="Risk score" value={riskMetric.riskScore == null ? "-" : `${Math.round(riskMetric.riskScore)}/100`} />
@@ -186,6 +210,169 @@ export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMe
         <SummaryMetric label="Risk observations" value={formatNumber(riskMetric.observationCount)} />
       </CardContent>
     </Card>
+  );
+}
+
+function marketPercent(value: number | null | undefined) {
+  return value == null ? "Insufficient history" : formatPercent(value);
+}
+
+function compactPercent(value: number | null | undefined) {
+  return value == null ? "-" : formatPercent(value);
+}
+
+function rangeValue(marketView: InstrumentMarketView) {
+  const currency = marketView.instrument.currency ?? "USD";
+  if (marketView.fiftyTwoWeekLow == null || marketView.fiftyTwoWeekHigh == null) return "-";
+  return `${formatCurrencyWithCode(marketView.fiftyTwoWeekLow, currency)} - ${formatCurrencyWithCode(marketView.fiftyTwoWeekHigh, currency)}`;
+}
+
+function LongHorizonBlock({ marketView, riskMetric }: { marketView: InstrumentMarketView; riskMetric: InstrumentRiskMetric | null }) {
+  const rows = [
+    {
+      label: "Total return",
+      values: [marketView.tenYearReturn, marketView.fifteenYearReturn, marketView.twentyYearReturn]
+    },
+    {
+      label: "Volatility",
+      values: [riskMetric?.volatility10y, riskMetric?.volatility15y, riskMetric?.volatility20y]
+    },
+    {
+      label: "Max drawdown",
+      values: [riskMetric?.maxDrawdown10y, riskMetric?.maxDrawdown15y, riskMetric?.maxDrawdown20y]
+    }
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Long-horizon - display only</CardTitle>
+        <CardDescription>These diagnostics are shown for context and do not feed scoring or guardrails.</CardDescription>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="border-b text-xs uppercase text-muted-foreground">
+            <tr>
+              <th className="py-2 pr-4">Metric</th>
+              <th className="py-2 pr-4">10Y</th>
+              <th className="py-2 pr-4">15Y</th>
+              <th className="py-2 pr-4">20Y</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.label} className="border-b last:border-0">
+                <td className="py-2 pr-4 font-medium">{row.label}</td>
+                {row.values.map((value, index) => (
+                  <td key={`${row.label}-${index}`} className="py-2 pr-4 text-muted-foreground">{marketPercent(value)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CharacteristicsBreakdown({ recommendation }: { recommendation: InstrumentRecommendation | null }) {
+  if (!recommendation) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Characteristics breakdown</CardTitle>
+          <CardDescription>No instrument insight has been generated for this instrument yet.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+  const components = scoreComponents(recommendation);
+  const finalTone = assessmentTone(recommendation.recommendationLabel);
+
+  return (
+    <Card>
+      <CardHeader className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle>Characteristics breakdown</CardTitle>
+            <CardDescription>Stored scoring components and weights from the latest deterministic insight.</CardDescription>
+          </div>
+          <ToneChip label={assessmentLabel(recommendation.recommendationLabel)} tone={finalTone} />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {components.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No component breakdown stored.</p>
+        ) : (
+          components.map((component) => {
+            const score = typeof component.score === "number" && Number.isFinite(component.score) ? Math.round(component.score) : null;
+            const quality = componentQualityLabel(component);
+            return (
+              <div key={component.key || component.label} className="rounded-lg border bg-background p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{component.label}</p>
+                    <p className="text-xs text-muted-foreground">Weight {typeof component.weight === "number" ? formatPercent(component.weight) : "-"}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {quality ? <ToneChip label={quality.label} tone={quality.tone} /> : null}
+                    <ToneChip label={score == null ? "-" : `${score}/100`} tone={score == null ? "neutral" : score >= 70 ? "positive" : score >= 45 ? "info" : "warning"} />
+                  </div>
+                </div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-teal-600" style={{ width: `${Math.max(0, Math.min(100, score ?? 0))}%` }} />
+                </div>
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function InstrumentOverviewPanel({
+  instrument,
+  typeLabel,
+  marketView,
+  riskMetric,
+  recommendation
+}: {
+  instrument: Instrument;
+  typeLabel: string;
+  marketView: InstrumentMarketView;
+  riskMetric: InstrumentRiskMetric | null;
+  recommendation: InstrumentRecommendation | null;
+}) {
+  return (
+    <div className="space-y-4">
+      <div id="instrument-price-chart-slot" className="flex h-44 items-center justify-center rounded-lg border border-dashed bg-muted/40 text-sm font-medium text-muted-foreground">
+        {/* instrument-price-chart-slot */}
+        Price chart
+      </div>
+      <InstrumentHeader instrument={instrument} typeLabel={typeLabel} marketView={marketView} />
+      <InstrumentSummaryCard marketView={marketView} />
+      <Card>
+        <CardHeader>
+          <CardTitle>Key returns</CardTitle>
+          <CardDescription>Stored derived market metrics for quick orientation.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryMetric label="YTD" value={compactPercent(marketView.ytdReturn)} />
+          <SummaryMetric label="1Y" value={compactPercent(marketView.oneYearReturn)} />
+          <SummaryMetric label="5Y" value={compactPercent(marketView.fiveYearReturn)} />
+          <SummaryMetric label="52W range" value={rangeValue(marketView)} />
+        </CardContent>
+      </Card>
+      <LongHorizonBlock marketView={marketView} riskMetric={riskMetric} />
+      <CharacteristicsBreakdown recommendation={recommendation} />
+      <p className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+        Data quality: liquidity {marketView.liquidity}; freshness {marketView.freshnessLabel}; history start {marketView.priceHistoryStart ?? "-"}; observations {formatNumber(marketView.priceObservationCount)}.
+      </p>
+      <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+        Analytical classifications only; not investment advice or a recommendation to buy, sell, or hold.
+      </p>
+    </div>
   );
 }
 
@@ -331,20 +518,68 @@ export function MarketVisionContextCard() {
 }
 
 export function InstrumentTabs({ tabs }: { tabs: Array<{ label: string; content: ReactNode }> }) {
+  const ids = useMemo(() => tabs.map((tab) => tabId(tab.label)), [tabs]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  useEffect(() => {
+    const selectFromHash = () => {
+      const hash = window.location.hash.slice(1);
+      const index = ids.indexOf(hash);
+      if (index >= 0) setActiveIndex(index);
+    };
+    selectFromHash();
+    window.addEventListener("hashchange", selectFromHash);
+    return () => window.removeEventListener("hashchange", selectFromHash);
+  }, [ids]);
+
+  function activate(index: number, focus = false) {
+    setActiveIndex(index);
+    const id = ids[index];
+    if (id) window.history.replaceState(null, "", `#${id}`);
+    if (focus) tabRefs.current[index]?.focus();
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    event.preventDefault();
+    const delta = event.key === "ArrowRight" ? 1 : -1;
+    activate((index + delta + tabs.length) % tabs.length, true);
+  }
+
+  const activeTab = tabs[activeIndex] ?? tabs[0];
+  const activeId = ids[activeIndex] ?? ids[0] ?? "overview";
+
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white/80 p-2 shadow-sm">
-        {tabs.map((tab) => (
-          <a key={tab.label} href={`#${tab.label.toLowerCase().replaceAll(" ", "-")}`} className="whitespace-nowrap rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-teal-200 hover:bg-teal-50 hover:text-teal-900">
+      <div role="tablist" aria-label="Instrument detail sections" className="flex gap-2 overflow-x-auto rounded-lg border bg-card p-2 shadow-sm">
+        {tabs.map((tab, index) => (
+          <button
+            key={tab.label}
+            ref={(element) => {
+              tabRefs.current[index] = element;
+            }}
+            id={`${ids[index]}-tab`}
+            type="button"
+            role="tab"
+            aria-selected={index === activeIndex}
+            aria-controls={`${ids[index]}-panel`}
+            tabIndex={index === activeIndex ? 0 : -1}
+            onClick={() => activate(index)}
+            onKeyDown={(event) => handleKeyDown(event, index)}
+            className={`whitespace-nowrap rounded-md border px-3 py-1.5 text-xs font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-ring ${
+              index === activeIndex
+                ? "border-teal-600 bg-teal-600 text-white"
+                : "border-border bg-background text-muted-foreground hover:border-teal-300 hover:text-foreground"
+            }`}
+          >
             {tab.label}
-          </a>
+          </button>
         ))}
       </div>
-      {tabs.map((tab) => (
-        <section key={tab.label} id={tab.label.toLowerCase().replaceAll(" ", "-")}>
-          {tab.content}
-        </section>
-      ))}
+      <section id={`${activeId}-panel`} role="tabpanel" aria-labelledby={`${activeId}-tab`}>
+        {activeTab?.content}
+      </section>
     </div>
   );
 }
@@ -357,7 +592,7 @@ export function PlaceholderPanel({ title, description }: { title: string; descri
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-4 text-sm text-slate-500">Prepared for the next layer. No functionality is implemented in this phase.</p>
+        <p className="rounded-lg border border-dashed bg-muted/70 p-4 text-sm text-muted-foreground">Prepared for the next layer. No functionality is implemented in this phase.</p>
       </CardContent>
     </Card>
   );
@@ -383,9 +618,9 @@ export function ThemesPanel({ instrument }: { instrument: Instrument }) {
 
 export function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm">
-      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold capitalize text-slate-900">{value}</p>
+    <div className="rounded-lg border bg-background p-3 shadow-sm">
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-semibold capitalize text-foreground">{value}</p>
     </div>
   );
 }
