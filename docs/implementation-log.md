@@ -4390,3 +4390,37 @@ Completed.
 ### Notes for Claude
 - Initial `npm.cmd test` failed before executing tests because TypeScript could not write `.test-build` files under sandboxed filesystem permissions (`EPERM`); rerunning the same command with elevated filesystem permission passed.
 - Browser recheck for stock, ETF, and bond ETF component sets is still pending in an authenticated session.
+
+## 2026-06-25 - Instrument Price Chart Axis and Header Return Alignment
+
+### Source
+Claude Code
+
+### Objective
+Move price chart y-axis labels to the left and align named-period chart header returns with stored Overview market metrics.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-price-chart.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Moved the price-scale y-axis labels for the 25/50/75% gridline prices to a left-edge HTML overlay.
+- Kept the 52-week high/low reference labels on the right edge next to their dashed reference lines.
+- Passed stored 1Y, 5Y, and 20Y return metrics from `marketView` into the streamed price chart.
+- Updated the chart header change figure and line/area/end-dot color for 1Y, 5Y, and 20Y to use the stored return value, with absolute dollar change derived from the latest price; 1M/3M/6M remain window-computed.
+- Left the plotted line/area geometry, date ticks, 52-week reference lines, and hover tooltip behavior unchanged.
+- Kept the work display-only; no scoring, recommendation, methodology, access-control, or data-pipeline logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Browser recheck in an authenticated session is still pending; verify a deep mover such as NVDA has chart header 1Y/5Y/20Y percentages matching the Overview stored returns exactly.

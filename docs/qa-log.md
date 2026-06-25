@@ -6601,3 +6601,27 @@ Expected behavior:
 - Breakdown colors use 65/48 bands rather than the interim 70/50 thresholds, and the warning icon appears only below 35.
 - Score-trend band guides use the shared score-band constants, not duplicated magic numbers, and remain display-only.
 - No scoring, recommendation labels, guardrail logic, methodology formulas, access controls, or data-pipeline behavior changed.
+
+---
+
+## 2026-06-25 - Instrument Price Chart Axis and Header Return Alignment QA
+
+Scope:
+- Moved price y-axis value labels from the right edge to the left edge of the instrument price chart.
+- Kept 52-week high/low labels on the right edge beside their dashed reference lines.
+- Updated the chart header return for 1Y, 5Y, and 20Y to use stored `marketView` returns so it matches the Overview metrics; 1M/3M/6M remain visible-window calculations.
+- Preserved chart geometry, local period slicing, x-axis ticks, 52-week reference lines, and crosshair tooltip behavior.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- Price-scale labels render on the left while 52-week labels remain on the right.
+- For named stored periods, chart header percentages match Overview's stored 1Y, 5Y, and 20Y returns exactly.
+- Header dollar change is derived from latest price and the stored return for those periods.
+- Hover tooltip remains window-relative and labelled "from period start."
+- No scoring, recommendation, methodology, access-control, or data-pipeline behavior changed.

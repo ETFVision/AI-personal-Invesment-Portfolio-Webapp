@@ -288,18 +288,33 @@ async function AsyncInstrumentPriceChart({
   instrumentId,
   fromYears,
   fiftyTwoWeekLow,
-  fiftyTwoWeekHigh
+  fiftyTwoWeekHigh,
+  oneYearReturn,
+  fiveYearReturn,
+  twentyYearReturn
 }: {
   instrumentId: string;
   fromYears: number;
   fiftyTwoWeekLow: number | null;
   fiftyTwoWeekHigh: number | null;
+  oneYearReturn: number | null;
+  fiveYearReturn: number | null;
+  twentyYearReturn: number | null;
 }) {
   const container = createContainer();
   const series = await measureRenderStep(`instrument-detail:${instrumentId}:price-series`, () =>
     container.universeRepository.getInstrumentPriceSeries(instrumentId, { fromYears })
   );
-  return <InstrumentPriceChart series={series} fiftyTwoWeekLow={fiftyTwoWeekLow} fiftyTwoWeekHigh={fiftyTwoWeekHigh} />;
+  return (
+    <InstrumentPriceChart
+      series={series}
+      fiftyTwoWeekLow={fiftyTwoWeekLow}
+      fiftyTwoWeekHigh={fiftyTwoWeekHigh}
+      oneYearReturn={oneYearReturn}
+      fiveYearReturn={fiveYearReturn}
+      twentyYearReturn={twentyYearReturn}
+    />
+  );
 }
 
 function ScoreTrendPanelFallback() {
@@ -532,6 +547,9 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
         fromYears={20}
         fiftyTwoWeekLow={marketView.fiftyTwoWeekLow}
         fiftyTwoWeekHigh={marketView.fiftyTwoWeekHigh}
+        oneYearReturn={marketView.oneYearReturn}
+        fiveYearReturn={marketView.fiveYearReturn}
+        twentyYearReturn={marketView.twentyYearReturn}
       />
     </Suspense>
   );

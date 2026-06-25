@@ -71,6 +71,32 @@ function changeMetrics(series: PriceSeriesPoint[]) {
   return { first, latest, absolute, percent, positive };
 }
 
+function storedReturnForPeriod(
+  periodKey: (typeof PERIODS)[number]["key"],
+  returns: { oneYearReturn: number | null; fiveYearReturn: number | null; twentyYearReturn: number | null }
+) {
+  if (periodKey === "1Y") return returns.oneYearReturn;
+  if (periodKey === "5Y") return returns.fiveYearReturn;
+  if (periodKey === "20Y") return returns.twentyYearReturn;
+  return null;
+}
+
+function headerChangeMetrics(series: PriceSeriesPoint[], storedReturn: number | null) {
+  const windowMetrics = changeMetrics(series);
+  if (storedReturn == null || !Number.isFinite(storedReturn) || Math.abs(1 + storedReturn) < 0.000001) {
+    return windowMetrics;
+  }
+  const latest = windowMetrics.latest;
+  const absolute = latest * (storedReturn / (1 + storedReturn));
+  return {
+    first: latest - absolute,
+    latest,
+    absolute,
+    percent: storedReturn * 100,
+    positive: storedReturn >= 0
+  };
+}
+
 function getTicks(series: PriceSeriesPoint[]) {
   if (series.length === 0) return [];
   const targetCount = Math.min(6, series.length);
@@ -132,11 +158,17 @@ function axisLabels(geometry: ChartGeometry) {
 export function InstrumentPriceChart({
   series,
   fiftyTwoWeekLow,
-  fiftyTwoWeekHigh
+  fiftyTwoWeekHigh,
+  oneYearReturn,
+  fiveYearReturn,
+  twentyYearReturn
 }: {
   series: PriceSeriesPoint[];
   fiftyTwoWeekLow: number | null;
   fiftyTwoWeekHigh: number | null;
+  oneYearReturn: number | null;
+  fiveYearReturn: number | null;
+  twentyYearReturn: number | null;
 }) {
   const [periodKey, setPeriodKey] = useState<(typeof PERIODS)[number]["key"]>("1Y");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -162,7 +194,8 @@ export function InstrumentPriceChart({
     );
   }
 
-  const { latest, absolute, percent, positive } = changeMetrics(periodSeries);
+  const storedReturn = storedReturnForPeriod(periodKey, { oneYearReturn, fiveYearReturn, twentyYearReturn });
+  const { latest, absolute, percent, positive } = headerChangeMetrics(periodSeries, storedReturn);
   const color = positive ? GREEN : RED;
   const direction = positive ? "\u25B2" : "\u25BC";
   const geometry = chartGeometry(periodSeries);
@@ -219,16 +252,18 @@ export function InstrumentPriceChart({
       </CardHeader>
       <CardContent>
         <div className="relative" onMouseMove={handleMouseMove} onMouseLeave={() => setHoverIndex(null)}>
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16">
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16">
             {yAxisLabels.map((label) => (
               <span
                 key={label.topPct}
-                className="absolute right-0 -translate-y-1/2 rounded bg-background/80 px-1 text-right text-[11px] tabular-nums text-muted-foreground"
+                className="absolute left-0 -translate-y-1/2 rounded bg-background/80 px-1 text-left text-[11px] tabular-nums text-muted-foreground"
                 style={{ top: `${label.topPct}%` }}
               >
                 {axisMoney(label.value)}
               </span>
             ))}
+          </div>
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24">
             {references.map((line) => (
               <span
                 key={line.label}
