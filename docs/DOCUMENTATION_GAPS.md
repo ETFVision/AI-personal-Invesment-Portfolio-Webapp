@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-19 SGT (Prioritized Execution Order added; Medium 36 verified — no service-role leak)
+Last updated: 2026-06-25 SGT (added Medium 42 — bond ETF analytical enrichment via issuer feeds)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -11,9 +11,9 @@ An independent deep architecture audit with live read-only database verification
 | Priority | Total items | Open | Closed |
 |---|---|---|---|
 | High | 10 | 8 | 2 |
-| Medium | 41 | 26 | 15 |
+| Medium | 42 | 27 | 15 |
 | Low | 13 | 12 | 1 |
-| **Total** | **64** | **46** | **18** |
+| **Total** | **65** | **47** | **18** |
 
 **Open blockers — before public alpha:**
 
@@ -421,6 +421,14 @@ in their phases. Capture each batch as its own implementation-log entry.
     - The alpha product assumes users arrive with an existing portfolio. A brand-new alpha user landing on `/portfolio` with no holdings, no transactions, and no cash balance will see an empty state with no guidance on how to get started.
     - Remaining: define and implement a first-login empty state on the portfolio dashboard (e.g. a "get started" prompt or guide explaining how to add holdings and transactions); verify the empty state is informative and does not surface errors or broken UI.
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 35.
+
+42. Bond ETF analytical enrichment via issuer fund-characteristics feeds
+    - Bond ETF *quantitative* profile fields (`effectiveDuration`, `averageMaturity`, `secYield`, `yieldToMaturity`, `spreadDuration`, `optionAdjustedSpread`, credit-quality breakdown) are hardcoded in `SEEDED_BOND_PROFILES` (`src/application/services/bonds/BondProfileService.ts`) and migrations `016`/`017` — manually maintained and drift as funds reposition. FMP does **not** carry fixed-income portfolio analytics (only ETF expense ratio + holdings/weightings); the authoritative source is the fund issuers (iShares/BlackRock, Vanguard, SPDR/SSGA, Invesco, Schwab).
+    - Existing plumbing supports it: `NormalizedBondProfile` already separates the **curated** classification layer (`durationCategory` bucket, `bondType`, `creditQuality` bucket, sensitivities, `liquidityRole` — keep manual) from the **quantitative** metrics, and `isManualOverride` + migration 016's "curated stays deterministic" rule let a provider fill the quantitative fields without clobbering the taxonomy.
+    - Approach: a `BondCharacteristicsProvider` port + per-issuer adapters (start with **iShares**, broadest coverage + most structured data), an instrument→issuer mapping, and a low-frequency enrichment job that upserts **only the quantitative fields**, skips `isManualOverride` rows, keeps last-known values on fetch failure, and records `source` + `as_of_date`. Companion quick-win: automate expense ratio (+ distribution yield) from FMP's ETF info endpoint (FMP *does* carry those).
+    - **Gate 1 — data licensing (ties to High 9):** scraping issuer pages risks ToS and is fragile; prefer a licensed feed for production. Scraping is alpha/internal only and must be cleared before the first paying user.
+    - **Gate 2 — score drift:** `BondEtfRecommendationService` may consume these fields; swapping seeded → sourced values will move bond ETF scores. Economic anchors stay frozen; add a before/after bond-ETF score comparison as a validation gate.
+    - Priority: **not an alpha blocker** (manual seeds work today); improves bond-intelligence accuracy and removes manual upkeep. Sequence after the instrument detail-page redesign. Scoped 2026-06-25 (Claude review).
 
 ## Low Priority
 
