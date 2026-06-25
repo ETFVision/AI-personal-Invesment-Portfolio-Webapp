@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-25 SGT (added Medium 42 — bond ETF analytical enrichment via issuer feeds)
+Last updated: 2026-06-25 SGT (added Medium 42 — bond ETF analytical enrichment; Medium 43 — diversification score inconsistency Risk page vs Portfolio Review)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -11,9 +11,9 @@ An independent deep architecture audit with live read-only database verification
 | Priority | Total items | Open | Closed |
 |---|---|---|---|
 | High | 10 | 8 | 2 |
-| Medium | 42 | 27 | 15 |
+| Medium | 43 | 28 | 15 |
 | Low | 13 | 12 | 1 |
-| **Total** | **65** | **47** | **18** |
+| **Total** | **66** | **48** | **18** |
 
 **Open blockers — before public alpha:**
 
@@ -429,6 +429,14 @@ in their phases. Capture each batch as its own implementation-log entry.
     - **Gate 1 — data licensing (ties to High 9):** scraping issuer pages risks ToS and is fragile; prefer a licensed feed for production. Scraping is alpha/internal only and must be cleared before the first paying user.
     - **Gate 2 — score drift:** `BondEtfRecommendationService` may consume these fields; swapping seeded → sourced values will move bond ETF scores. Economic anchors stay frozen; add a before/after bond-ETF score comparison as a validation gate.
     - Priority: **not an alpha blocker** (manual seeds work today); improves bond-intelligence accuracy and removes manual upkeep. Sequence after the instrument detail-page redesign. Scoped 2026-06-25 (Claude review).
+
+43. Diversification score inconsistency — Risk page vs Portfolio Review (look-through + live/stored)
+    - The Risk page shows a "Diversification" score computed **live** and **surface-only** (`riskMath.diversificationScore`: holding/asset-class/sector/currency breadth + 30 − correlationPenalty; **no ETF look-through**). The Portfolio Review "Diversification" section (`DiversificationReviewService`) **starts from that same risk score** and adds a look-through breadth bonus (`min(8, lookthroughSectorCount + lookthroughCountryCount)`), and is a **stored weekly snapshot**. Result: the same portfolio shows different numbers on the two pages (observed **76** on Risk vs **88** on Review), which confuses users.
+    - Root cause — two definitions never unified: (a) **depth** — the Risk page ignores what's inside ETFs (understates true diversification for ETF-heavy portfolios), while the Review credits look-through breadth but only as a crude +8 cap on the same base; (b) **timing** — the Risk page is live, the Review is a stored weekly snapshot, so even the shared base differs.
+    - The more correct measure of *overall* diversification is **look-through-aware AND live**, combined with the existing holding-level correlation signal — which neither page currently does in full (Risk page has live + correlation but shallow breadth; Review has look-through breadth but stale + crude + reuses the same correlation).
+    - Recommended resolution: unify to ONE diversification definition (look-through breadth + holding-level correlation, computed live) shown consistently on both the Risk page and Portfolio Review — make the canonical Risk page the look-through-aware version — or, minimally, clearly label live-vs-stored / with-vs-without look-through.
+    - Before changing: confirm the diversification score is display + portfolio-review-section only and does **not** feed instrument scoring/recommendation logic (believed display-only). Document in `SCORE_METHODOLOGY.md`; it shifts a displayed score, so treat as a deliberate methodology update.
+    - Priority: **not an alpha blocker** (each score is individually correct); user-facing consistency / commercialization-readiness. Logged 2026-06-25 (Claude review).
 
 ## Low Priority
 
