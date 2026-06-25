@@ -336,19 +336,21 @@ export function InstrumentOverviewPanel({
   typeLabel,
   marketView,
   riskMetric,
-  recommendation
+  recommendation,
+  priceChart
 }: {
   instrument: Instrument;
   typeLabel: string;
   marketView: InstrumentMarketView;
   riskMetric: InstrumentRiskMetric | null;
   recommendation: InstrumentRecommendation | null;
+  priceChart: ReactNode;
 }) {
   return (
     <div className="space-y-4">
-      <div id="instrument-price-chart-slot" className="flex h-44 items-center justify-center rounded-lg border border-dashed bg-muted/40 text-sm font-medium text-muted-foreground">
+      <div id="instrument-price-chart-slot">
         {/* instrument-price-chart-slot */}
-        Price chart
+        {priceChart}
       </div>
       <InstrumentHeader instrument={instrument} typeLabel={typeLabel} marketView={marketView} />
       <InstrumentSummaryCard marketView={marketView} />

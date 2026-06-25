@@ -4236,3 +4236,42 @@ Completed, with one unrelated existing Portfolio Review wording-test follow-up n
 - Admin-vs-user decisions: `recommendationActions.runRecommendationsAction` stayed user-accessible as a self-service Insights run; `portfolioReviewActions.runPortfolioReviewAction` stayed user-accessible; `portfolioReviewActions.refreshEtfLookthroughExposureAction` became admin-only; `marketVisionActions` draft/save/publish/archive/generate actions became admin-only editorial actions because they mutate global Market Vision reports.
 - `universeActions` is mixed: seed, metadata/price refresh, active status, tags, and bond profile overrides became admin-only; watchlist add/remove stayed user-accessible.
 - This change does not add a DB `users.is_admin` flag, does not alter RLS, and does not address the broader `assets` RLS or write-policy audit.
+
+## 2026-06-25 — Instrument Detail Interactive Price Chart
+
+### Source
+Claude Code
+
+### Objective
+Fill the instrument detail Overview price-chart slot with a streamed, display-only SVG area chart using stored adjusted close history.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/application/ports/repositories/UniverseRepository.ts`
+- `src/components/instruments/instrument-cards.tsx`
+- `src/components/instruments/instrument-price-chart.tsx`
+- `src/domain/universe/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `tests/universe-repository.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added `PriceSeriesPoint` and `UniverseRepository.getInstrumentPriceSeries()` for stored close-price history.
+- Implemented Supabase price-series loading with positive-price filtering, 20-year default horizon, and server-side downsampling that keeps roughly the latest 5 years daily while thinning older history to weekly cadence.
+- Added a client-only hand-rolled SVG area chart with period toggles, selected-period green/red coloring, gradient fill, gridlines, end dot, hover crosshair tooltip, and adaptive time-axis labels.
+- Streamed the chart through `Suspense` into the existing `instrument-price-chart-slot` so the instrument shell and metrics are not blocked by the price-series fetch.
+- Kept the change display-only; no scoring, recommendation, guardrail, methodology, or data-pipeline logic was changed.
+
+### Tests Run
+- `npm.cmd run typecheck` — PASS
+- `npm.cmd run lint` — PASS
+- `npm.cmd test` — PASS, 353 tests
+- `npm.cmd run build` — PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Browser smoke verification was attempted. The local dev server remained stuck at `Starting...`, but the production server served on port 3001 after a successful build; `/instruments/MSFT` redirected to `/login`, so the chart UI still needs a recheck in an authenticated browser session.
+- The new repository test verifies the getter uses the expected `instrument_prices` filters and preserves the latest point after downsampling.

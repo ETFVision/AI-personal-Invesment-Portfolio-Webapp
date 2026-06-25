@@ -7,6 +7,7 @@ import {
   InstrumentPrice,
   InstrumentRiskMetric,
   MetadataRefreshLog,
+  PriceSeriesPoint,
   Watchlist,
   WatchlistItem
 } from "@/domain/universe/types";
@@ -183,6 +184,30 @@ function mapInstrumentPrice(row: any): InstrumentPrice {
     currency: row.currency,
     rawPayload: row.raw_payload ?? {}
   };
+}
+
+function mapPriceSeriesPoint(row: any): PriceSeriesPoint {
+  return {
+    date: row.price_date,
+    close: Number(row.close_price)
+  };
+}
+
+function yearsAgoIso(years: number) {
+  const date = new Date();
+  date.setUTCFullYear(date.getUTCFullYear() - years);
+  return date.toISOString().slice(0, 10);
+}
+
+function downsamplePriceSeries(points: PriceSeriesPoint[]) {
+  const dailyTailLength = 1260;
+  if (points.length <= dailyTailLength) return points;
+
+  const dailyStartIndex = Math.max(0, points.length - dailyTailLength);
+  const sampled = points.filter((_, index) => index >= dailyStartIndex || index % 5 === 0);
+  const latest = points.at(-1);
+  if (latest && sampled.at(-1)?.date !== latest.date) sampled.push(latest);
+  return sampled;
 }
 
 function mapInstrumentMarketMetric(row: any): InstrumentMarketMetric {
@@ -450,6 +475,33 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     }
 
     return rows.map(mapInstrumentPrice);
+  }
+
+  async getInstrumentPriceSeries(instrumentId: string, options?: { fromYears?: number }) {
+    const normalizedId = uuidOrUndefined(instrumentId);
+    if (!normalizedId) return [];
+
+    const rows: any[] = [];
+    const fromYears = Math.max(1, options?.fromYears ?? 20);
+    const sinceDate = yearsAgoIso(fromYears);
+
+    for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+      const { data, error } = await this.db
+        .from("instrument_prices")
+        .select("price_date, close_price")
+        .eq("instrument_id", normalizedId)
+        .gt("close_price", 0)
+        .gte("price_date", sinceDate)
+        .order("price_date", { ascending: true })
+        .range(from, from + SUPABASE_PAGE_SIZE - 1);
+
+      if (isMissingUniverseTable(error)) return [];
+      if (error) throw new Error(error.message);
+      rows.push(...(data ?? []));
+      if ((data ?? []).length < SUPABASE_PAGE_SIZE) break;
+    }
+
+    return downsamplePriceSeries(rows.map(mapPriceSeriesPoint));
   }
 
   async listInstrumentPriceStats(instrumentIds?: string[]) {

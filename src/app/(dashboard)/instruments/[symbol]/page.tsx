@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
 import { createContainer } from "@/server/container";
 import {
@@ -14,6 +14,7 @@ import {
   SummaryMetric,
   ThemesPanel
 } from "@/components/instruments/instrument-cards";
+import { InstrumentPriceChart } from "@/components/instruments/instrument-price-chart";
 import { instrumentTypeLabel, resolveInstrumentType, type CanonicalInstrumentType } from "@/application/services/instruments/InstrumentTypeResolver";
 import { scoreBusinessQuality } from "@/application/services/recommendations/recommendationScoring";
 import type { FundamentalsDetail } from "@/domain/fundamentals/types";
@@ -261,6 +262,28 @@ function FundamentalsPanelFallback() {
   );
 }
 
+function InstrumentPriceChartFallback() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Price chart</CardTitle>
+        <CardDescription>Loading stored adjusted close history...</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="h-44 animate-pulse rounded-lg border bg-muted/40" />
+      </CardContent>
+    </Card>
+  );
+}
+
+async function AsyncInstrumentPriceChart({ instrumentId, fromYears }: { instrumentId: string; fromYears: number }) {
+  const container = createContainer();
+  const series = await measureRenderStep(`instrument-detail:${instrumentId}:price-series`, () =>
+    container.universeRepository.getInstrumentPriceSeries(instrumentId, { fromYears })
+  );
+  return <InstrumentPriceChart series={series} />;
+}
+
 async function AsyncFundamentalsPanel({ symbol }: { symbol: string }) {
   const container = createContainer();
   const detail = await measureRenderStep(`instrument-detail:${symbol}:fundamentals-detail-data`, () =>
@@ -303,10 +326,11 @@ function tabsForType(
   marketView: InstrumentMarketView,
   bondProfile: BondProfile | null,
   riskMetric: InstrumentRiskMetric | null,
-  recommendation: InstrumentRecommendation | null
+  recommendation: InstrumentRecommendation | null,
+  priceChart: ReactNode
 ) {
   const common = {
-    overview: <InstrumentOverviewPanel instrument={instrument} typeLabel={typeLabel} marketView={marketView} riskMetric={riskMetric} recommendation={recommendation} />,
+    overview: <InstrumentOverviewPanel instrument={instrument} typeLabel={typeLabel} marketView={marketView} riskMetric={riskMetric} recommendation={recommendation} priceChart={priceChart} />,
     news: <NewsSummaryCard />,
     themes: <ThemesPanel instrument={instrument} />,
     risk: <RiskSummaryCard instrument={instrument} riskMetric={riskMetric} />,
@@ -408,7 +432,12 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
     ])
   );
   const marketView = marketViews[0];
-  const tabs = tabsForType(type, instrument, typeLabel, marketView, bondProfile, riskMetric, recommendation);
+  const priceChart = (
+    <Suspense fallback={<InstrumentPriceChartFallback />}>
+      <AsyncInstrumentPriceChart instrumentId={instrument.id} fromYears={20} />
+    </Suspense>
+  );
+  const tabs = tabsForType(type, instrument, typeLabel, marketView, bondProfile, riskMetric, recommendation, priceChart);
 
   return (
     <div className="space-y-6">

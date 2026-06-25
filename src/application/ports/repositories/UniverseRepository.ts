@@ -7,6 +7,7 @@ import {
   InstrumentRiskMetric,
   Instrument,
   MetadataRefreshLog,
+  PriceSeriesPoint,
   Watchlist,
   WatchlistItem
 } from "@/domain/universe/types";
@@ -135,6 +136,7 @@ export interface UniverseRepository {
   listMetadataRefreshLogs(limit?: number): Promise<MetadataRefreshLog[]>;
   insertMetadataRefreshLog(input: Omit<MetadataRefreshLog, "id" | "createdAt">): Promise<void>;
   listInstrumentPrices(instrumentIds?: string[], sinceDate?: string): Promise<InstrumentPrice[]>;
+  getInstrumentPriceSeries(instrumentId: string, options?: { fromYears?: number }): Promise<PriceSeriesPoint[]>;
   listInstrumentPriceStats(instrumentIds?: string[]): Promise<InstrumentPriceStats[]>;
   refreshInstrumentDailyReturns(instrumentIds?: string[], recentWindowDays?: number | null, forceFull?: boolean): Promise<void>;
   listInstrumentDailyReturnStats(instrumentIds?: string[]): Promise<InstrumentDailyReturnStats[]>;

@@ -6507,3 +6507,26 @@ Validation:
 - PASS: `npm.cmd run build`
 - PASS: Manual source review confirmed internal labels are not exposed in the public methodology assessment table.
 - NOTE: Browser/Supabase acknowledgement metadata verification should still be repeated in the deployed environment because it depends on authenticated session state and live Supabase user metadata.
+
+---
+
+## 2026-06-25 — Instrument Detail Price Chart QA
+
+Scope:
+- Added a display-only interactive SVG price chart to the instrument detail Overview.
+- Added streamed server loading of stored adjusted close history via `getInstrumentPriceSeries`.
+- Added client-side period slicing for 1M / 3M / 6M / 1Y / 5Y / 20Y, selected-period up/down coloring, hover crosshair tooltip, and adaptive x-axis labels.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (353 tests)
+- PASS: `npm.cmd run build`
+- PASS: Repository unit coverage confirms the price-series getter filters positive close prices, paginates, downsamples older history, and preserves the latest point.
+- NOTE: Browser smoke verification was attempted. The local dev server stayed at `Starting...`, but the production server served on port 3001 after a successful build; `/instruments/MSFT` redirected to `/login`, so recheck a deep-history name and a recent IPO in an authenticated browser session.
+
+Expected behavior:
+- The Overview chart renders from already-stored price history and is streamed through Suspense, so the page shell is not blocked by the chart query.
+- Period toggles reslice the in-memory series without network refetch.
+- Hover tooltip shows only factual date, price, and period-to-date percentage context.
+- This is display-only and does not feed scoring, guardrails, recommendation labels, or methodology.

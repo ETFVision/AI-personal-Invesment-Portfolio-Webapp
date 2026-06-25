@@ -79,6 +79,11 @@ export type InstrumentPrice = {
   rawPayload: unknown;
 };
 
+export type PriceSeriesPoint = {
+  date: string;
+  close: number;
+};
+
 export type InstrumentMarketMetric = {
   instrumentId: string;
   latestPrice: number | null;
