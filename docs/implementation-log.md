@@ -4354,3 +4354,39 @@ Completed.
 ### Notes for Claude
 - Browser recheck for stock, ETF, and bond ETF pages is still pending in an authenticated session; local unauthenticated instrument detail checks redirect to `/login`.
 - Sticky header uses `top-16`; verify against the deployed dashboard shell top-nav height during authenticated browser QA.
+
+## 2026-06-25 - Instrument Detail Characteristics Methodology Alignment
+
+### Source
+Claude Code
+
+### Objective
+Align the instrument detail Characteristics breakdown and score-trend visual references with documented component inputs and `RecommendationRulesService.labelFromScore` score bands.
+
+### Files Changed
+- `src/application/services/recommendations/RecommendationRulesService.ts`
+- `src/application/services/recommendations/recommendationPresentation.ts`
+- `src/components/instruments/instrument-cards.tsx`
+- `src/components/instruments/score-trend-panel.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added one-line factual component descriptions in the Characteristics breakdown for stock, ETF, bond ETF, gold, and crypto component keys, sourced from `docs/SCORE_METHODOLOGY.md` and the current recommendation scoring services.
+- Introduced a shared `CHARACTERISTICS_SCORE_BANDS` constant and wired `RecommendationRulesService.labelFromScore` to it so UI score-band visuals track the documented thresholds.
+- Updated Characteristics progress bars and score chips to use 65/48 score bands, with the low-score warning icon only below 35.
+- Added faint score-band reference lines at Excellent/Good/Neutral thresholds to the Characteristics score-trend panel, plus a guardrail note that displayed assessment labels may be capped below the raw score band.
+- Kept the work display-only; no scoring formulas, weights, data pipelines, feature flags, access controls, or advisory wording changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests after rerun with elevated filesystem permission
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Initial `npm.cmd test` failed before executing tests because TypeScript could not write `.test-build` files under sandboxed filesystem permissions (`EPERM`); rerunning the same command with elevated filesystem permission passed.
+- Browser recheck for stock, ETF, and bond ETF component sets is still pending in an authenticated session.

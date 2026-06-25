@@ -7,7 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { MiniRangeBar } from "@/components/ui/charts";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 import { ThemeBadgeList } from "./instrument-badges";
-import { assessmentClassName, assessmentLabel, assessmentTone, businessQualityLabel } from "@/application/services/recommendations/recommendationPresentation";
+import {
+  CHARACTERISTICS_SCORE_BANDS,
+  assessmentClassName,
+  assessmentLabel,
+  assessmentTone,
+  businessQualityLabel
+} from "@/application/services/recommendations/recommendationPresentation";
 
 export function InstrumentSummaryCard({
   marketView,
@@ -109,6 +115,51 @@ function toneClassName(tone: string) {
 
 function ToneChip({ label, tone }: { label: string; tone: string }) {
   return <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-medium ${toneClassName(tone)}`}>{label}</span>;
+}
+
+const COMPONENT_DESCRIPTIONS: Record<string, string> = {
+  business_quality: "Growth, profitability, cash flow, balance sheet strength, and earnings quality.",
+  fundamentals: "Stored fundamental sub-scores across growth, profitability, cash flow, balance sheet, quality, and valuation.",
+  valuation: "Valuation multiples and free cash flow yield from the latest annual fundamental inputs.",
+  fundamental_trends: "Direction and confidence from stored fundamental trend calculations.",
+  risk_analytics: "Price-history risk metrics including volatility, drawdown, downside behavior, and confidence.",
+  market_vision_alignment: "Alignment between the instrument profile and the current Market Vision context.",
+  theme_alignment: "Instrument taxonomy themes compared with active Market Vision themes.",
+  momentum: "Recent price trend from YTD and latest daily return inputs.",
+  macro_fit: "ETF category and sensitivity mapped against the current macro regime context.",
+  benchmark_relative: "One-year excess return versus the mapped external asset-class benchmark.",
+  theme_fit: "ETF category, role, and theme tags used for thematic classification.",
+  duration_fit: "Bond duration profile compared with the current rate-regime context.",
+  rate_regime: "Interest-rate regime context applied to the bond ETF profile.",
+  inflation_regime: "Inflation-regime context applied to the bond ETF profile.",
+  yield_curve: "Yield-curve context and the bond ETF profile's rate sensitivity.",
+  credit_risk: "Credit-quality and high-yield exposure context for the bond ETF profile.",
+  portfolio_stability: "Stability role from treasury, core bond, cash-like, or ballast characteristics.",
+  inflation_hedge: "Gold and precious-metals exposure in the current inflation context.",
+  geopolitical_hedge: "Gold hedge classification in the current market-stress context.",
+  rates_context: "Gold exposure interpreted against the current rates context.",
+  risk: "Stored price-history risk metrics for high-volatility instruments.",
+  liquidity_regime: "Liquidity and market-regime context for the instrument profile.",
+  macro_risk_appetite: "Macro risk-appetite context from the current Market Vision regime.",
+  theme_score: "Crypto or digital-asset theme classification used in the component score."
+};
+
+function componentDescription(key: string) {
+  return COMPONENT_DESCRIPTIONS[key];
+}
+
+function componentScoreTone(score: number | null) {
+  if (score == null) return "neutral";
+  if (score >= CHARACTERISTICS_SCORE_BANDS.good) return "positive";
+  if (score >= CHARACTERISTICS_SCORE_BANDS.neutral) return "warning";
+  return "danger";
+}
+
+function componentBarClass(score: number | null) {
+  if (score == null) return "bg-muted-foreground/40";
+  if (score >= CHARACTERISTICS_SCORE_BANDS.good) return "bg-emerald-600";
+  if (score >= CHARACTERISTICS_SCORE_BANDS.neutral) return "bg-amber-500";
+  return "bg-red-600";
 }
 
 function scoreComponents(recommendation: InstrumentRecommendation) {
@@ -300,13 +351,15 @@ function CharacteristicsBreakdown({ recommendation }: { recommendation: Instrume
           components.map((component) => {
             const score = typeof component.score === "number" && Number.isFinite(component.score) ? Math.round(component.score) : null;
             const quality = componentQualityLabel(component);
-            const scoreTone = score == null ? "neutral" : score >= 70 ? "positive" : score >= 50 ? "warning" : "danger";
-            const barClass = score == null ? "bg-muted-foreground/40" : score >= 70 ? "bg-emerald-600" : score >= 50 ? "bg-amber-500" : "bg-red-600";
+            const scoreTone = componentScoreTone(score);
+            const barClass = componentBarClass(score);
+            const description = componentDescription(component.key);
             return (
               <div key={component.key || component.label} className="rounded-lg border bg-background p-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="font-medium">{score != null && score < 40 ? <span className="mr-1 text-amber-600" aria-label="Low component score">{"\u26a0"}</span> : null}{component.label}</p>
+                    <p className="font-medium">{score != null && score < CHARACTERISTICS_SCORE_BANDS.weak ? <span className="mr-1 text-amber-600" aria-label="Low component score">{"\u26a0"}</span> : null}{component.label}</p>
+                    {description ? <p className="mt-1 max-w-2xl text-xs text-muted-foreground">{description}</p> : null}
                     <p className="text-xs text-muted-foreground">Weight {typeof component.weight === "number" ? formatPercent(component.weight) : "-"}</p>
                   </div>
                   <div className="flex items-center gap-2">

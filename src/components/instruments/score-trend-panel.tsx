@@ -2,7 +2,7 @@
 
 import { type MouseEvent, useMemo, useState } from "react";
 import type { RecommendationScoreHistoryPoint } from "@/domain/recommendations/types";
-import { assessmentLabel, assessmentTone } from "@/application/services/recommendations/recommendationPresentation";
+import { CHARACTERISTICS_SCORE_BANDS, assessmentLabel, assessmentTone } from "@/application/services/recommendations/recommendationPresentation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const WIDTH = 360;
@@ -10,6 +10,11 @@ const HEIGHT = 110;
 const PADDING_X = 16;
 const PADDING_Y = 12;
 const ACCENT = "#0f766e";
+const BAND_LINES = [
+  { score: CHARACTERISTICS_SCORE_BANDS.excellent, label: "Excellent", lineClassName: "text-emerald-600 dark:text-emerald-400", labelClassName: "text-emerald-700 dark:text-emerald-300" },
+  { score: CHARACTERISTICS_SCORE_BANDS.good, label: "Good", lineClassName: "text-emerald-600 dark:text-emerald-400", labelClassName: "text-emerald-700 dark:text-emerald-300" },
+  { score: CHARACTERISTICS_SCORE_BANDS.neutral, label: "Neutral", lineClassName: "text-blue-600 dark:text-blue-400", labelClassName: "text-blue-700 dark:text-blue-300" }
+];
 
 type ChartPoint = RecommendationScoreHistoryPoint & {
   score: number;
@@ -77,6 +82,14 @@ function chartGeometry(history: RecommendationScoreHistoryPoint[]) {
   return { points, linePath };
 }
 
+function scoreToY(score: number) {
+  return PADDING_Y + ((100 - score) / 100) * (HEIGHT - PADDING_Y * 2);
+}
+
+function scoreToTopPercent(score: number) {
+  return `${(scoreToY(score) / HEIGHT) * 100}%`;
+}
+
 export function ScoreTrendPanel({ history }: { history: RecommendationScoreHistoryPoint[] }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const scoredHistory = useMemo(() => history.filter((point) => point.overallScore != null), [history]);
@@ -141,6 +154,17 @@ export function ScoreTrendPanel({ history }: { history: RecommendationScoreHisto
                 </span>
               ))}
             </div>
+            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20">
+              {BAND_LINES.map((band) => (
+                <span
+                  key={band.score}
+                  className={`absolute right-0 -translate-y-1/2 rounded bg-background/80 px-1 text-[11px] font-medium tabular-nums ${band.labelClassName}`}
+                  style={{ top: scoreToTopPercent(band.score) }}
+                >
+                  {band.label}
+                </span>
+              ))}
+            </div>
             <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="h-32 w-full overflow-visible" role="img" aria-label="Characteristics score trend sparkline">
               {[0, 0.25, 0.5, 0.75, 1].map((line) => (
                 <line
@@ -152,6 +176,21 @@ export function ScoreTrendPanel({ history }: { history: RecommendationScoreHisto
                   stroke="currentColor"
                   strokeOpacity="0.12"
                   strokeWidth="1"
+                />
+              ))}
+              {BAND_LINES.map((band) => (
+                <line
+                  key={band.score}
+                  x1={PADDING_X}
+                  x2={WIDTH - PADDING_X}
+                  y1={scoreToY(band.score)}
+                  y2={scoreToY(band.score)}
+                  className={band.lineClassName}
+                  stroke="currentColor"
+                  strokeDasharray="4 4"
+                  strokeOpacity="0.22"
+                  strokeWidth="1"
+                  vectorEffect="non-scaling-stroke"
                 />
               ))}
               <path d={geometry.linePath} fill="none" stroke={ACCENT} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" vectorEffect="non-scaling-stroke" />
@@ -181,6 +220,9 @@ export function ScoreTrendPanel({ history }: { history: RecommendationScoreHisto
         </div>
         <p className="text-xs text-muted-foreground">
           Updated each insight run {"\u00b7"} since {formatDate(history[0].runDate)}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Score-band guides show raw score thresholds; displayed assessment labels can be capped below the score band when guardrails apply.
         </p>
       </CardContent>
     </Card>

@@ -6579,3 +6579,25 @@ Expected behavior:
 - Price chart overlays do not alter the y-domain; 52-week reference lines only render when the reference price falls inside the selected period domain.
 - Score trend remains display-only and neutral, with a fixed 0-100 scale.
 - Characteristics component colors and warning icons are visual diagnostics only and do not affect scoring.
+
+---
+
+## 2026-06-25 - Instrument Detail Characteristics Methodology Alignment QA
+
+Scope:
+- Added factual one-line descriptions below Characteristics component names for stock, ETF, bond ETF, gold, and crypto component keys.
+- Aligned Characteristics row colors, score chips, and the low-score warning icon with the documented `RecommendationRulesService.labelFromScore` bands: Excellent 80+, Good 65+, Neutral 48+, Weak 35+, Poor 20+.
+- Added faint score-band guide lines to the Characteristics score-trend chart at 80, 65, and 48, with HTML labels and a note that guardrails can cap the displayed assessment below the raw score band.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests; initial sandboxed run hit `.test-build` EPERM, elevated rerun passed)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck for stock, ETF, and bond ETF pages remains pending in an authenticated session.
+
+Expected behavior:
+- Characteristics descriptions render when a known component key is present and are omitted for unmapped keys.
+- Breakdown colors use 65/48 bands rather than the interim 70/50 thresholds, and the warning icon appears only below 35.
+- Score-trend band guides use the shared score-band constants, not duplicated magic numbers, and remain display-only.
+- No scoring, recommendation labels, guardrail logic, methodology formulas, access controls, or data-pipeline behavior changed.

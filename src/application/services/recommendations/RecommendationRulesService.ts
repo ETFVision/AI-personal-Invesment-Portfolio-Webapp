@@ -1,5 +1,5 @@
 import type { RecommendationLabel } from "@/domain/recommendations/types";
-import { isStrongOrExceptionalBusinessQuality } from "./recommendationPresentation";
+import { CHARACTERISTICS_SCORE_BANDS, isStrongOrExceptionalBusinessQuality } from "./recommendationPresentation";
 
 const LABEL_ORDER: RecommendationLabel[] = ["Sell", "Reduce", "Watch", "Hold", "Buy", "Strong Buy"];
 
@@ -63,11 +63,11 @@ export class RecommendationRulesService {
 
   labelFromScore(score: number | null): RecommendationLabel {
     if (score == null) return "Insufficient Data";
-    if (score >= 80) return "Strong Buy";
-    if (score >= 65) return "Buy";
-    if (score >= 48) return "Hold";
-    if (score >= 35) return "Watch";
-    if (score >= 20) return "Reduce";
+    if (score >= CHARACTERISTICS_SCORE_BANDS.excellent) return "Strong Buy";
+    if (score >= CHARACTERISTICS_SCORE_BANDS.good) return "Buy";
+    if (score >= CHARACTERISTICS_SCORE_BANDS.neutral) return "Hold";
+    if (score >= CHARACTERISTICS_SCORE_BANDS.weak) return "Watch";
+    if (score >= CHARACTERISTICS_SCORE_BANDS.poor) return "Reduce";
     return "Sell";
   }
 
