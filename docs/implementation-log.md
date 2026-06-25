@@ -4275,3 +4275,45 @@ Completed.
 ### Notes for Claude
 - Browser smoke verification was attempted. The local dev server remained stuck at `Starting...`, but the production server served on port 3001 after a successful build; `/instruments/MSFT` redirected to `/login`, so the chart UI still needs a recheck in an authenticated browser session.
 - The new repository test verifies the getter uses the expected `instrument_prices` filters and preserves the latest point after downsampling.
+
+## 2026-06-25 - Instrument Detail Characteristics Score Trend Panel
+
+### Source
+Claude Code
+
+### Objective
+Add a display-only Characteristics score-trend panel to the instrument detail Overview, streamed independently from stored recommendation history.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/application/ports/repositories/RecommendationRepository.ts`
+- `src/application/services/recommendations/RecommendationService.ts`
+- `src/components/instruments/instrument-cards.tsx`
+- `src/components/instruments/score-trend-panel.tsx`
+- `src/domain/recommendations/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseRecommendationRepository.ts`
+- `tests/recommendations.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added `RecommendationScoreHistoryPoint` plus `getScoreHistory(instrumentId)` on the recommendation repository/service.
+- Implemented Supabase history loading from `recommendation_history`, deduped to one row per `run_date` with the latest `created_at` winning, ordered ascending by run date.
+- Added a client-only neutral SVG Characteristics score-trend card with latest score, assessment chip, previous-run delta, sparse-point markers, hover tooltip, and empty/single-point states.
+- Streamed the score-trend panel through `Suspense` into the Overview without adding it to the blocking instrument-detail `Promise.all`.
+- Paired the score-trend card with the existing Characteristics breakdown on large screens, stacked on smaller screens.
+- Kept the panel display-only and observational; no scoring, methodology, recommendation, guardrail, or data-pipeline logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- The new getter test verifies the one-row-per-run-date dedupe behavior and ascending return order.
+- The score-history series is currently expected to be short, roughly a few insight runs, and will fill in as future recommendation runs accumulate.
+- Browser recheck in an authenticated session is still pending; unauthenticated local checks redirect instrument detail pages to `/login`.

@@ -6530,3 +6530,27 @@ Expected behavior:
 - Period toggles reslice the in-memory series without network refetch.
 - Hover tooltip shows only factual date, price, and period-to-date percentage context.
 - This is display-only and does not feed scoring, guardrails, recommendation labels, or methodology.
+
+---
+
+## 2026-06-25 - Instrument Detail Characteristics Score Trend QA
+
+Scope:
+- Added a display-only Characteristics score-trend panel to the instrument detail Overview.
+- Added `getScoreHistory(instrumentId)` over `recommendation_history`, deduped to one row per `run_date` with the latest run for that date winning.
+- Streamed the panel through Suspense so score-history loading does not block the instrument detail shell.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests)
+- PASS: `npm.cmd run build`
+- PASS: Unit coverage confirms score-history rows dedupe by run date, select the latest created row for duplicate dates, and return in ascending run-date order.
+- NOTE: Browser recheck in an authenticated session is still pending; unauthenticated local instrument detail requests redirect to `/login`.
+
+Expected behavior:
+- Overview shows a compact Characteristics score trend next to the Characteristics breakdown on large screens and stacked on mobile.
+- Empty history shows "No insight history yet"; a one-point history shows the current score and explains that the trend builds over successive insight runs.
+- Multi-point history shows a neutral SVG sparkline, markers, previous-run delta, and factual hover tooltip with run date and score.
+- The series is currently short, roughly a few insight runs, and fills in as future recommendation runs accumulate.
+- This is display-only and does not feed scoring, guardrails, recommendation labels, methodology, or data-pipeline logic.

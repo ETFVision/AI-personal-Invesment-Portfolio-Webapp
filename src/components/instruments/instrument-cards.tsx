@@ -337,7 +337,8 @@ export function InstrumentOverviewPanel({
   marketView,
   riskMetric,
   recommendation,
-  priceChart
+  priceChart,
+  scoreTrend
 }: {
   instrument: Instrument;
   typeLabel: string;
@@ -345,6 +346,7 @@ export function InstrumentOverviewPanel({
   riskMetric: InstrumentRiskMetric | null;
   recommendation: InstrumentRecommendation | null;
   priceChart: ReactNode;
+  scoreTrend: ReactNode;
 }) {
   return (
     <div className="space-y-4">
@@ -367,7 +369,10 @@ export function InstrumentOverviewPanel({
         </CardContent>
       </Card>
       <LongHorizonBlock marketView={marketView} riskMetric={riskMetric} />
-      <CharacteristicsBreakdown recommendation={recommendation} />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+        {scoreTrend}
+        <CharacteristicsBreakdown recommendation={recommendation} />
+      </div>
       <p className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
         Data quality: liquidity {marketView.liquidity}; freshness {marketView.freshnessLabel}; history start {marketView.priceHistoryStart ?? "-"}; observations {formatNumber(marketView.priceObservationCount)}.
       </p>

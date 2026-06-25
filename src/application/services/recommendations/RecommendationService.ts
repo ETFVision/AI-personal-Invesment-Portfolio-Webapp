@@ -119,6 +119,10 @@ export class RecommendationService {
     return this.recommendationRepository.listHistoryForInstrument(instrumentId, limit);
   }
 
+  getScoreHistory(instrumentId: string) {
+    return this.recommendationRepository.getScoreHistory(instrumentId);
+  }
+
   async runRecommendations(input: {
     runType?: RecommendationRunType | string;
     symbol?: string;

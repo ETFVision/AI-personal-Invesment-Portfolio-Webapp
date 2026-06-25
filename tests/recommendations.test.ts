@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import Module from "node:module";
 import { RecommendationRulesService } from "../src/application/services/recommendations/RecommendationRulesService";
 import { StockRecommendationService } from "../src/application/services/recommendations/StockRecommendationService";
 import { benchmarkKeyForEtf, EtfRecommendationService, scoreBenchmarkRelative } from "../src/application/services/recommendations/EtfRecommendationService";
@@ -14,6 +16,89 @@ import type { FundamentalScore, FundamentalsSummaryRow } from "../src/domain/fun
 import type { MarketVisionReport } from "../src/domain/marketVision/types";
 
 const rules = new RecommendationRulesService();
+
+let aliasResolverInstalled = false;
+
+function installTestAliasResolver() {
+  if (aliasResolverInstalled) return;
+  aliasResolverInstalled = true;
+  const originalResolveFilename = (Module as unknown as { _resolveFilename: (...args: any[]) => string })._resolveFilename;
+  (Module as unknown as { _resolveFilename: (...args: any[]) => string })._resolveFilename = function resolveFilename(
+    request: string,
+    ...rest: any[]
+  ) {
+    if (request.startsWith("@/")) {
+      return originalResolveFilename.call(this, path.resolve(process.cwd(), ".test-build/src", request.slice(2)), ...rest);
+    }
+    return originalResolveFilename.call(this, request, ...rest);
+  };
+}
+
+test("recommendation score history dedupes run dates with latest run winning", async () => {
+  installTestAliasResolver();
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://example.supabase.co";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-anon-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
+  const { SupabaseRecommendationRepository } = await import("../src/infrastructure/repositories/supabase/SupabaseRecommendationRepository.js");
+  const calls: Array<{ op: string; args: unknown[] }> = [];
+  const rows = [
+    {
+      run_date: "2026-06-18",
+      overall_score: 74,
+      recommendation_label: "Hold",
+      created_at: "2026-06-18T20:00:00.000Z"
+    },
+    {
+      run_date: "2026-06-18",
+      overall_score: 70,
+      recommendation_label: "Watch",
+      created_at: "2026-06-18T10:00:00.000Z"
+    },
+    {
+      run_date: "2026-06-25",
+      overall_score: 76,
+      recommendation_label: "Buy",
+      created_at: "2026-06-25T20:00:00.000Z"
+    }
+  ];
+  const db = {
+    from(table: string) {
+      assert.equal(table, "recommendation_history");
+      const query: any = {
+        select(...args: unknown[]) {
+          calls.push({ op: "select", args });
+          return query;
+        },
+        eq(...args: unknown[]) {
+          calls.push({ op: "eq", args });
+          return query;
+        },
+        order(...args: unknown[]) {
+          calls.push({ op: "order", args });
+          return query;
+        },
+        then(resolve: (value: unknown) => void) {
+          resolve({ data: rows, error: null });
+        }
+      };
+      return query;
+    }
+  };
+  const repository = new SupabaseRecommendationRepository(db as never);
+
+  const history = await repository.getScoreHistory("instrument-1");
+
+  assert.deepEqual(calls, [
+    { op: "select", args: ["run_date, overall_score, recommendation_label, created_at"] },
+    { op: "eq", args: ["instrument_id", "instrument-1"] },
+    { op: "order", args: ["run_date", { ascending: true }] },
+    { op: "order", args: ["created_at", { ascending: false }] }
+  ]);
+  assert.deepEqual(history, [
+    { runDate: "2026-06-18", overallScore: 74, recommendationLabel: "Hold" },
+    { runDate: "2026-06-25", overallScore: 76, recommendationLabel: "Buy" }
+  ]);
+});
 
 function withStockPhase2Flag<T>(enabled: boolean, callback: () => T): T {
   const previous = process.env.ENABLE_STOCK_PHASE2_SCORES;
