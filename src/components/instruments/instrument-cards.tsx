@@ -268,52 +268,121 @@ export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMe
 }
 
 function marketPercent(value: number | null | undefined) {
-  return value == null ? "Insufficient history" : formatPercent(value);
+  return value == null ? "—" : formatPercent(value);
 }
 
 function LongHorizonBlock({ marketView, riskMetric }: { marketView: InstrumentMarketView; riskMetric: InstrumentRiskMetric | null }) {
+  const annualizedReturn = (totalReturn: number | null | undefined, years: number) => {
+    if (totalReturn == null || !Number.isFinite(totalReturn) || totalReturn < -1) return null;
+    return Math.pow(1 + totalReturn, 1 / years) - 1;
+  };
+  const periods = [
+    {
+      label: "1Y",
+      annualizedReturn: marketView.oneYearReturn,
+      volatility: riskMetric?.volatility1y,
+      maxDrawdown: riskMetric?.maxDrawdown1y
+    },
+    {
+      label: "5Y",
+      annualizedReturn: annualizedReturn(marketView.fiveYearReturn, 5),
+      volatility: null,
+      maxDrawdown: riskMetric?.maxDrawdown5y
+    },
+    {
+      label: "10Y",
+      annualizedReturn: annualizedReturn(marketView.tenYearReturn, 10),
+      volatility: riskMetric?.volatility10y,
+      maxDrawdown: riskMetric?.maxDrawdown10y
+    },
+    {
+      label: "15Y",
+      annualizedReturn: annualizedReturn(marketView.fifteenYearReturn, 15),
+      volatility: riskMetric?.volatility15y,
+      maxDrawdown: riskMetric?.maxDrawdown15y
+    },
+    {
+      label: "20Y",
+      annualizedReturn: annualizedReturn(marketView.twentyYearReturn, 20),
+      volatility: riskMetric?.volatility20y,
+      maxDrawdown: riskMetric?.maxDrawdown20y
+    }
+  ];
   const rows = [
     {
-      label: "Total return",
-      values: [marketView.tenYearReturn, marketView.fifteenYearReturn, marketView.twentyYearReturn]
+      label: "Annualised return",
+      values: periods.map((period) => period.annualizedReturn)
     },
     {
       label: "Volatility",
-      values: [riskMetric?.volatility10y, riskMetric?.volatility15y, riskMetric?.volatility20y]
+      values: periods.map((period) => period.volatility)
     },
     {
       label: "Max drawdown",
-      values: [riskMetric?.maxDrawdown10y, riskMetric?.maxDrawdown15y, riskMetric?.maxDrawdown20y]
+      values: periods.map((period) => period.maxDrawdown)
     }
   ];
+  const barPeriods = periods.filter((period): period is typeof period & { annualizedReturn: number } => period.annualizedReturn != null);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Long-horizon - display only</CardTitle>
-        <CardDescription>Display-only context; not used in scoring or guardrails.</CardDescription>
+        <CardTitle>Long-Horizon Returns</CardTitle>
+        <CardDescription>Annualised (CAGR) by period · display only, not used in scoring</CardDescription>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
-          <thead className="border-b text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="py-2 pr-4">Metric</th>
-              <th className="py-2 pr-4">10Y</th>
-              <th className="py-2 pr-4">15Y</th>
-              <th className="py-2 pr-4">20Y</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.label} className="border-b last:border-0">
-                <td className="py-2 pr-4 font-medium">{row.label}</td>
-                {row.values.map((value, index) => (
-                  <td key={`${row.label}-${index}`} className="py-2 pr-4 text-muted-foreground">{marketPercent(value)}</td>
+      <CardContent className="space-y-4">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="border-b">
+              <tr>
+                <th className="py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground" aria-label="Metric" />
+                {periods.map((period) => (
+                  <th key={period.label} className="py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {period.label}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.label} className="border-b last:border-0">
+                  <td className="py-2 pr-4 font-medium">{row.label}</td>
+                  {row.values.map((value, index) => (
+                    <td key={`${row.label}-${periods[index].label}`} className="py-2 pr-4 text-muted-foreground">{marketPercent(value)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {barPeriods.length > 0 ? (
+          <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+            {barPeriods.map((period) => {
+              const width = Math.min(100, Math.abs(period.annualizedReturn) * 100);
+              const barClass =
+                period.annualizedReturn > 0.2
+                  ? "bg-emerald-600"
+                  : period.annualizedReturn > 0
+                    ? "bg-amber-500"
+                    : period.annualizedReturn < 0
+                      ? "bg-red-600"
+                      : "bg-muted-foreground/40";
+              return (
+                <div key={period.label} className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] items-center gap-3 text-xs">
+                  <span className="font-semibold text-muted-foreground">{period.label}</span>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div className={`h-full rounded-full ${barClass}`} style={{ width: `${width}%` }} />
+                  </div>
+                  <span className="text-right font-medium text-foreground">{formatPercent(period.annualizedReturn)}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <p>Annualised return = (1 + total return)^(1/years) − 1. Figures are backward-looking and do not predict future performance.</p>
+          <p>Display-only context; not used in scoring or guardrails.</p>
+        </div>
       </CardContent>
     </Card>
   );

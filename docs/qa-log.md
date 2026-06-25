@@ -6625,3 +6625,27 @@ Expected behavior:
 - Header dollar change is derived from latest price and the stored return for those periods.
 - Hover tooltip remains window-relative and labelled "from period start."
 - No scoring, recommendation, methodology, access-control, or data-pipeline behavior changed.
+
+---
+
+## 2026-06-25 - Instrument Long-Horizon CAGR Display QA
+
+Scope:
+- Updated the instrument detail Long-Horizon card to present 1Y, 5Y, 10Y, 15Y, and 20Y columns.
+- Converted 5Y/10Y/15Y/20Y stored total returns to annualised CAGR for display; 1Y remains unchanged.
+- Left volatility and max drawdown rows as stored values, with 5Y volatility shown as "—" because no stored field exists.
+- Added CAGR bars and display-only disclosures.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests; initial sandboxed run hit `.test-build` EPERM, elevated rerun passed)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- Null periods render as "—".
+- 5Y/10Y/15Y/20Y return cells show CAGR, not total return.
+- Volatility remains annualised stored volatility; drawdown remains stored drawdown magnitude and is not annualised.
+- CAGR bars clip visually above 100% while preserving the true percentage label.
+- No scoring, recommendation, methodology, access-control, or data-pipeline behavior changed.

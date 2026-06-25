@@ -4424,3 +4424,38 @@ Completed.
 
 ### Notes for Claude
 - Browser recheck in an authenticated session is still pending; verify a deep mover such as NVDA has chart header 1Y/5Y/20Y percentages matching the Overview stored returns exactly.
+
+## 2026-06-25 - Instrument Long-Horizon CAGR Display
+
+### Source
+Claude Code
+
+### Objective
+Update the instrument detail Long-Horizon card to display annualised multi-year returns while preserving stored volatility and drawdown diagnostics.
+
+### Files Changed
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Renamed the card to "Long-Horizon Returns" and changed the subtitle to clarify annualised CAGR display-only context.
+- Reworked the table into horizontal 1Y, 5Y, 10Y, 15Y, and 20Y period columns.
+- Displayed 1Y return unchanged and converted stored 5Y/10Y/15Y/20Y total returns to CAGR using nominal period years.
+- Left volatility and max drawdown values as stored display values; 5Y volatility intentionally renders as "—" because no stored 5Y volatility field exists.
+- Added CAGR bar visualization with clipped width at 100% CAGR and green/amber/red coloring by annualised return level.
+- Added the requested CAGR formula disclosure and preserved the display-only scoring/guardrail disclaimer.
+- Kept the work display-only; no scoring, methodology, recommendation, access-control, or data-pipeline logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests after rerun with elevated filesystem permission
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Initial `npm.cmd test` failed before executing tests because TypeScript could not write `.test-build` files under sandboxed filesystem permissions (`EPERM`); rerunning the same command with elevated filesystem permission passed.
+- Browser recheck in an authenticated session is still pending; verify a deep-history name such as NVDA shows separated 15Y/20Y annualised returns rather than near-identical total returns.
