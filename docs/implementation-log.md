@@ -4796,3 +4796,35 @@ Completed
 
 ### Notes for Claude
 - Sequential fan-out is fine for alpha. If active portfolio count grows, revisit batching/concurrency and the 25-minute lock TTL on `portfolio-review-run`.
+
+## 2026-06-26 — Holding Valuation Price Source
+
+### Source
+Claude Code
+
+### Objective
+Anchor holding valuation latest price and price date on `instrument_prices` so stale `instrument_market_metrics` rows cannot freeze portfolio valuation tails.
+
+### Files Changed
+- `supabase/migrations/135_holding_valuation_price_source.sql`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added migration `135_holding_valuation_price_source.sql` to recreate `refresh_holding_portfolio_metrics`.
+- Changed only the effective latest price precedence so the latest `instrument_prices` row is preferred before `instrument_market_metrics`, with average cost still as the final fallback.
+- Kept previous close and 52-week range sourced from `instrument_market_metrics` as derived analytics.
+- Ended the migration with `select refresh_holding_portfolio_metrics();` to recompute all portfolios after manual apply.
+- Documented that holding valuation anchors on `instrument_prices` while `instrument_market_metrics` supports derived analytics.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed (initial sandboxed run hit `.test-build` EPERM; elevated rerun passed)
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Migration `135` is manual-apply. After applying it, run `portfolio-valuation-refresh` with no `portfolioId` to rewrite snapshots with fresh holding prices; this should fill the frozen Jun-10 valuation tail.

@@ -76,6 +76,7 @@ Holdings and portfolio calculations differ from universe/watchlist metrics:
 
 - Universe/watchlist returns are historical instrument returns.
 - Holding returns are position-specific and use transaction cost basis/inception context.
+- Holding valuation anchors latest price and latest price date on `instrument_prices`, the price source of truth; `instrument_market_metrics` is used only for derived analytics such as previous close and 52-week range (ref gaps 47/48).
 - Holding metrics are stored in `holding_market_metrics`.
 - Portfolio current metrics are stored in `portfolio_current_metrics`.
 
