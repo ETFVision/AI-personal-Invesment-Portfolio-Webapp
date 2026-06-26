@@ -49,8 +49,8 @@ Since migration `117` the daily chain is anchored to the US market close: it sta
 5. Risk metrics (single full-universe pass, `batchSize=350`; previously two passes).
 6. Metadata.
 7. Benchmarks.
-8. Portfolio valuation.
-9. Portfolio summary refresh.
+8. Portfolio valuation across all active portfolios.
+9. Portfolio summary refresh across all active portfolios.
 10. FRED macro.
 11. FMP news.
 12. NewsData.
@@ -64,8 +64,8 @@ Weekly runs Sunday morning Singapore time and stays within Saturday UTC (`23:30`
 1. Fundamentals refresh.
 2. Weekly news reconciliation.
 3. Market Vision.
-4. Recommendations.
-5. Portfolio Review.
+4. Recommendations (universe-wide; optional portfolio context only).
+5. Portfolio Review across all active portfolios.
 6. Telemetry evaluation.
 
 ## Monthly Schedule Summary
@@ -74,6 +74,22 @@ Monthly runs on the first day of the month. Since migration `120` ETF look-throu
 
 1. ETF look-through refresh.
 2. Universe validation.
+
+## Deep History Maintenance
+
+Adjusted close is retroactive: dividends, splits, and provider adjustments can rescale historical prices after the original daily bar was stored. The daily price cron appends the latest adjusted EOD bar, but it does not rebuild the full historical price series. The deep market-history backfill was unscheduled in migration `062`, so long-horizon adjusted history needs a planned manual maintenance cycle.
+
+Run a quarterly manual deep market-history backfill, then force-recompute the derived layers that depend on price history:
+
+```sql
+select refresh_instrument_daily_returns(null, p_force_full => true);
+select refresh_instrument_return_anchors(null);
+select refresh_instrument_market_metrics_only(null);
+select refresh_instrument_risk_metrics_only(null);
+select refresh_instrument_risk_period_drawdowns_only(null);
+```
+
+After migration `133`, monitor the daily risk-cron runtime. The added 10Y/15Y/20Y display-only volatility and drawdown windows increase the risk refresh workload, and runtime should stay comfortably inside the job's lock and serverless limits.
 
 ## Operational QA Checks
 
@@ -86,6 +102,8 @@ Check these before relying on weekly outputs:
 - NewsData and FMP news ingestion succeeded.
 - FRED macro ingestion succeeded.
 - Weekly Market Vision and recommendations ran after news/macro updates.
+
+Portfolio valuation, portfolio summary, and Portfolio Review scheduled endpoints fan out across all active portfolios when no `portfolioId` query parameter is supplied. Explicit `portfolioId` runs still process a single portfolio. Sequential fan-out is acceptable for the alpha portfolio count; if active portfolios grow meaningfully, revisit batching or concurrency, especially for Portfolio Review and its 25-minute lock TTL.
 
 ## Cache Invalidation Pattern
 

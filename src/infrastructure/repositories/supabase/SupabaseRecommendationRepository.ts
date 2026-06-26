@@ -3,7 +3,7 @@ import type {
   RecommendationRepository,
   UpsertInstrumentRecommendationInput
 } from "@/application/ports/repositories/RecommendationRepository";
-import type { InstrumentRecommendation, RecommendationHistoryItem, RecommendationRun } from "@/domain/recommendations/types";
+import type { InstrumentRecommendation, RecommendationHistoryItem, RecommendationRun, RecommendationScoreHistoryPoint } from "@/domain/recommendations/types";
 import { createSupabaseAdminClient } from "@/infrastructure/db/supabaseAdmin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -71,6 +71,14 @@ function mapHistory(row: any): RecommendationHistoryItem {
     confidenceScore: Number(row.confidence_score ?? 0),
     runDate: row.run_date,
     createdAt: row.created_at
+  };
+}
+
+function mapScoreHistory(row: any): RecommendationScoreHistoryPoint {
+  return {
+    runDate: row.run_date,
+    overallScore: row.overall_score == null ? null : Number(row.overall_score),
+    recommendationLabel: row.recommendation_label
   };
 }
 
@@ -181,5 +189,24 @@ export class SupabaseRecommendationRepository implements RecommendationRepositor
     if (isMissingRecommendationsTable(error)) return [];
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapHistory);
+  }
+
+  async getScoreHistory(instrumentId: string) {
+    const { data, error } = await this.db
+      .from("recommendation_history")
+      .select("run_date, overall_score, recommendation_label, created_at")
+      .eq("instrument_id", instrumentId)
+      .order("run_date", { ascending: true })
+      .order("created_at", { ascending: false });
+    if (isMissingRecommendationsTable(error)) return [];
+    if (error) throw new Error(error.message);
+
+    const byRunDate = new Map<string, RecommendationScoreHistoryPoint>();
+    for (const row of data ?? []) {
+      if (!byRunDate.has(row.run_date)) {
+        byRunDate.set(row.run_date, mapScoreHistory(row));
+      }
+    }
+    return Array.from(byRunDate.values()).sort((a, b) => a.runDate.localeCompare(b.runDate));
   }
 }

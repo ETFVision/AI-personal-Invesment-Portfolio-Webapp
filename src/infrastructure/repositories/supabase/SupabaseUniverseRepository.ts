@@ -7,6 +7,7 @@ import {
   InstrumentPrice,
   InstrumentRiskMetric,
   MetadataRefreshLog,
+  PriceSeriesPoint,
   Watchlist,
   WatchlistItem
 } from "@/domain/universe/types";
@@ -85,6 +86,7 @@ function mapInstrument(row: any): Instrument {
     liquidityRole: row.liquidity_role,
     cryptoClassification: row.crypto_classification,
     metadataLastRefreshedAt: row.metadata_last_refreshed_at,
+    priceHistoryBackfilledThrough: row.price_history_backfilled_through ?? null,
     identifierLastRefreshedAt: row.identifier_last_refreshed_at ?? null,
     isin: row.isin ?? null,
     cusip: row.cusip ?? null,
@@ -184,6 +186,30 @@ function mapInstrumentPrice(row: any): InstrumentPrice {
   };
 }
 
+function mapPriceSeriesPoint(row: any): PriceSeriesPoint {
+  return {
+    date: row.price_date,
+    close: Number(row.close_price)
+  };
+}
+
+function yearsAgoIso(years: number) {
+  const date = new Date();
+  date.setUTCFullYear(date.getUTCFullYear() - years);
+  return date.toISOString().slice(0, 10);
+}
+
+function downsamplePriceSeries(points: PriceSeriesPoint[]) {
+  const dailyTailLength = 1260;
+  if (points.length <= dailyTailLength) return points;
+
+  const dailyStartIndex = Math.max(0, points.length - dailyTailLength);
+  const sampled = points.filter((_, index) => index >= dailyStartIndex || index % 5 === 0);
+  const latest = points.at(-1);
+  if (latest && sampled.at(-1)?.date !== latest.date) sampled.push(latest);
+  return sampled;
+}
+
 function mapInstrumentMarketMetric(row: any): InstrumentMarketMetric {
   return {
     instrumentId: row.instrument_id,
@@ -196,6 +222,9 @@ function mapInstrumentMarketMetric(row: any): InstrumentMarketMetric {
     oneYearReturn: row.one_year_return == null ? null : Number(row.one_year_return),
     threeYearReturn: row.three_year_return == null ? null : Number(row.three_year_return),
     fiveYearReturn: row.five_year_return == null ? null : Number(row.five_year_return),
+    tenYearReturn: row.return_10y == null ? null : Number(row.return_10y),
+    fifteenYearReturn: row.return_15y == null ? null : Number(row.return_15y),
+    twentyYearReturn: row.return_20y == null ? null : Number(row.return_20y),
     fiftyTwoWeekLow: row.fifty_two_week_low == null ? null : Number(row.fifty_two_week_low),
     fiftyTwoWeekHigh: row.fifty_two_week_high == null ? null : Number(row.fifty_two_week_high),
     observationCount: Number(row.observation_count ?? 0),
@@ -212,6 +241,10 @@ function mapInstrumentRiskMetric(row: any): InstrumentRiskMetric {
     volatility30d: row.volatility_30d == null ? null : Number(row.volatility_30d),
     volatility90d: row.volatility_90d == null ? null : Number(row.volatility_90d),
     volatility1y: row.volatility_1y == null ? null : Number(row.volatility_1y),
+    volatility5y: row.volatility_5y == null ? null : Number(row.volatility_5y),
+    volatility10y: row.volatility_10y == null ? null : Number(row.volatility_10y),
+    volatility15y: row.volatility_15y == null ? null : Number(row.volatility_15y),
+    volatility20y: row.volatility_20y == null ? null : Number(row.volatility_20y),
     volatilityTrend: row.volatility_trend ?? "insufficient_data",
     downsideVolatility: row.downside_volatility == null ? null : Number(row.downside_volatility),
     currentDrawdown1y: row.current_drawdown_1y == null ? null : Number(row.current_drawdown_1y),
@@ -220,6 +253,9 @@ function mapInstrumentRiskMetric(row: any): InstrumentRiskMetric {
     maxDrawdown3y: row.max_drawdown_3y == null ? null : Number(row.max_drawdown_3y),
     currentDrawdown5y: row.current_drawdown_5y == null ? null : Number(row.current_drawdown_5y),
     maxDrawdown5y: row.max_drawdown_5y == null ? null : Number(row.max_drawdown_5y),
+    maxDrawdown10y: row.max_drawdown_10y == null ? null : Number(row.max_drawdown_10y),
+    maxDrawdown15y: row.max_drawdown_15y == null ? null : Number(row.max_drawdown_15y),
+    maxDrawdown20y: row.max_drawdown_20y == null ? null : Number(row.max_drawdown_20y),
     currentDrawdown: row.current_drawdown == null ? null : Number(row.current_drawdown),
     maxDrawdown: row.max_drawdown == null ? null : Number(row.max_drawdown),
     drawdownDurationDays: row.drawdown_duration_days == null ? null : Number(row.drawdown_duration_days),
@@ -442,6 +478,33 @@ export class SupabaseUniverseRepository implements UniverseRepository {
     return rows.map(mapInstrumentPrice);
   }
 
+  async getInstrumentPriceSeries(instrumentId: string, options?: { fromYears?: number }) {
+    const normalizedId = uuidOrUndefined(instrumentId);
+    if (!normalizedId) return [];
+
+    const rows: any[] = [];
+    const fromYears = Math.max(1, options?.fromYears ?? 20);
+    const sinceDate = yearsAgoIso(fromYears);
+
+    for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+      const { data, error } = await this.db
+        .from("instrument_prices")
+        .select("price_date, close_price")
+        .eq("instrument_id", normalizedId)
+        .gt("close_price", 0)
+        .gte("price_date", sinceDate)
+        .order("price_date", { ascending: true })
+        .range(from, from + SUPABASE_PAGE_SIZE - 1);
+
+      if (isMissingUniverseTable(error)) return [];
+      if (error) throw new Error(error.message);
+      rows.push(...(data ?? []));
+      if ((data ?? []).length < SUPABASE_PAGE_SIZE) break;
+    }
+
+    return downsamplePriceSeries(rows.map(mapPriceSeriesPoint));
+  }
+
   async listInstrumentPriceStats(instrumentIds?: string[]) {
     const { data, error } = await this.db.rpc("get_instrument_price_stats", {
       p_instrument_ids: instrumentIds && instrumentIds.length > 0 ? instrumentIds : null
@@ -520,6 +583,21 @@ export class SupabaseUniverseRepository implements UniverseRepository {
         })),
         { onConflict: "instrument_id,provider,price_date" }
       );
+      if (isMissingUniverseTable(error)) return;
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async updateInstrumentPriceHistoryBackfilledThrough(input: Array<{ instrumentId: string; backfilledThrough: string }>) {
+    if (input.length === 0) return;
+
+    for (const item of input) {
+      const id = uuidOrUndefined(item.instrumentId);
+      if (!id) continue;
+      const { error } = await this.db
+        .from("instruments")
+        .update({ price_history_backfilled_through: item.backfilledThrough })
+        .eq("id", id);
       if (isMissingUniverseTable(error)) return;
       if (error) throw new Error(error.message);
     }
@@ -650,6 +728,10 @@ export class SupabaseUniverseRepository implements UniverseRepository {
         volatility_30d: item.volatility30d,
         volatility_90d: item.volatility90d,
         volatility_1y: item.volatility1y,
+        volatility_5y: item.volatility5y,
+        volatility_10y: item.volatility10y,
+        volatility_15y: item.volatility15y,
+        volatility_20y: item.volatility20y,
         volatility_trend: item.volatilityTrend,
         downside_volatility: item.downsideVolatility,
         current_drawdown_1y: item.currentDrawdown1y,
@@ -658,6 +740,9 @@ export class SupabaseUniverseRepository implements UniverseRepository {
         max_drawdown_3y: item.maxDrawdown3y,
         current_drawdown_5y: item.currentDrawdown5y,
         max_drawdown_5y: item.maxDrawdown5y,
+        max_drawdown_10y: item.maxDrawdown10y,
+        max_drawdown_15y: item.maxDrawdown15y,
+        max_drawdown_20y: item.maxDrawdown20y,
         current_drawdown: item.currentDrawdown,
         max_drawdown: item.maxDrawdown,
         drawdown_duration_days: item.drawdownDurationDays,

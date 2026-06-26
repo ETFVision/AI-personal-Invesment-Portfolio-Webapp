@@ -1,3 +1,235 @@
+## 2026-06-26 — Instrument Long-Horizon Cards v3 and 5Y Volatility
+
+### Source
+Claude Code
+
+### Objective
+Redesign the instrument Overview long-horizon cards to bars-only, add chart 1W period selection, and add stored display-only 5Y volatility.
+
+### Files Changed
+- `src/components/instruments/instrument-cards.tsx`
+- `src/components/instruments/instrument-price-chart.tsx`
+- `src/domain/universe/types.ts`
+- `src/application/services/InstrumentRiskService.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `supabase/migrations/134_display_only_5y_volatility.sql`
+- `tests/instrument-ia.test.ts`
+- `tests/recommendations.test.ts`
+- `tests/scoring-golden.test.ts`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Replaced the active Overview long-horizon returns and risk tables with scaled bar groups only.
+- Scaled return bars to the largest absolute annualised return in the card, using green for non-negative CAGR and red for negative CAGR.
+- Rendered long-horizon risk as separate volatility and max-drawdown bar groups, including the new 5Y volatility field.
+- Added `volatility5y` to the risk metric domain, TypeScript fallback risk calculation, Supabase mapping/upsert path, and detailed risk card.
+- Added migration 134 to create nullable `instrument_risk_metrics.volatility_5y`, recompute it in both risk metric refresh functions, and repopulate risk metrics via `refresh_instrument_risk_metrics_only(null)`.
+- Added a chart-only 1W period option while leaving the default chart period at 1Y.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only change except the stored 5Y volatility data field. No scoring, anchor, guardrail, recommendation, feature-flag, or access-control logic changed.
+- Migration 134 must be applied manually. Existing rows remain null until `refresh_instrument_risk_metrics_only(null)` or an equivalent forced risk recompute runs; freshness-gated buttons may otherwise skip existing rows.
+- `DOCUMENTATION_GAPS.md` Low 14 now records 5Y volatility as implemented and keeps 3Y volatility deferred.
+
+## 2026-06-25 - Instrument Detail IA Real Tabs
+
+### Source
+Claude Code
+
+### Objective
+Restructure the instrument detail page into a focused Overview plus one-at-a-time tabs, surface already-loaded long-horizon metrics, and remove placeholder clutter without changing scoring or data pipelines.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Converted `InstrumentTabs` to a client-side accessible tablist that renders only the active panel, supports left/right arrow navigation, and keeps URL hash deep links in sync.
+- Added a focused Overview panel with a reserved price-chart slot, header/summary, key returns, long-horizon return/volatility/drawdown table, characteristics breakdown, data-quality line, and compliance disclaimer.
+- Surfaced 10Y/15Y/20Y total return, volatility, and max drawdown values with `Insufficient history` for null long-horizon fields.
+- Removed the standalone Performance tab and moved its useful fields into Overview.
+- Hid empty placeholder tabs for telemetry, ETF holdings/exposure, commodity profile, benchmark relative performance, and bond duration/credit-quality placeholders while preserving real/type-relevant tabs.
+- Collapsed the detailed Fundamentals trend table behind a native show/hide disclosure.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- UI/IA change only. No scoring, methodology, data-pipeline, feature-flag, access-control, or recommendation logic changed.
+- Browser spot-check is still recommended for representative stock, young stock, ETF, and bond ETF records against a seeded database.
+
+## 2026-06-24 - Deep History Maintenance Docs
+
+### Source
+Claude Code
+
+### Objective
+Document quarterly manual deep-history maintenance for retroactive adjusted-close changes and the post-backfill derived-metric recompute sequence.
+
+### Files Changed
+- `docs/JOBS_AND_OPERATIONS.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added a Deep History Maintenance section explaining that adjusted close is retroactive, the daily cron only appends the latest bar, and the deep market-history backfill was unscheduled in migration 062.
+- Documented the quarterly manual deep backfill plus forced recompute sequence for daily returns, return anchors, market metrics, risk metrics, and period drawdowns.
+- Added an operations note to monitor daily risk-cron runtime after migration 133 because the new long-horizon display windows increase refresh workload.
+
+### Tests Run
+- Not run; documentation-only change.
+
+### Result
+Completed.
+
+### Notes for Claude
+- No application code, SQL, scoring, labels, feature flags, or access-control behavior changed.
+
+## 2026-06-24 - Long-Horizon Risk Display Windows
+
+### Source
+Claude Code
+
+### Objective
+Add display-only 10Y, 15Y, and 20Y volatility and max-drawdown fields to instrument risk metrics without changing any risk score, bucket, confidence, scoring, guardrail, or recommendation logic.
+
+### Files Changed
+- `src/application/services/InstrumentRiskService.ts`
+- `src/components/instruments/instrument-cards.tsx`
+- `src/domain/universe/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `supabase/migrations/133_long_horizon_risk_windows.sql`
+- `tests/instrument-ia.test.ts`
+- `tests/recommendations.test.ts`
+- `tests/scoring-golden.test.ts`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added migration 133 with nullable `instrument_risk_metrics` columns for 10Y/15Y/20Y volatility and max drawdown.
+- Recreated both risk metric refresh functions and both period drawdown refresh functions so the new windows populate when sufficient history exists.
+- Gated 10Y/15Y windows with 30-day tolerance and 20Y windows with 120-day tolerance, matching the provider 5,000-bar/deepest-available history note from migration 132.
+- Surfaced the new long-horizon risk fields on the instrument detail risk card as neutral display-only diagnostics, using `Insufficient history` when null.
+- Extended TypeScript fallback risk calculations and tests while preserving the existing risk-score formula and buckets.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run test -- instrument-ia.test.js` - PASS (352/352; command currently runs the full configured suite plus the extra argument)
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 133 must be applied manually to Supabase; it repopulates all risk metrics and period drawdowns at the end.
+- The new 10Y/15Y/20Y volatility and drawdown fields are display-only. They do not feed `risk_score`, `risk_bucket`, `volatility_bucket`, `confidence_score`, scoring, guardrails, or recommendation logic.
+- 20Y long-horizon risk windows use the same 120-day completeness tolerance as the migration-132 return-window fix because FMP historical EOD is capped near 5,000 bars.
+
+## 2026-06-24 - Forced Deep Price Backfill Marker
+
+### Source
+Claude Code
+
+### Objective
+Enable the 20-year market-history backfill to fetch fresh-but-shallow instruments by depth, while marking attempted deep backfills so FMP-limited instruments converge instead of re-fetching forever.
+
+### Files Changed
+- `src/server/actions/dataRefreshActions.ts`
+- `src/application/services/InstrumentMarketService.ts`
+- `src/application/ports/repositories/UniverseRepository.ts`
+- `src/domain/universe/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `supabase/migrations/131_instrument_price_history_backfill_marker.sql`
+- `tests/price-refresh.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added migration 131 with nullable `instruments.price_history_backfilled_through` to record the deepest raw price-history target attempted.
+- Threaded `forceDeepBackfill` from the admin history-backfill action through the price refresh service.
+- Added depth-based force selection that can fetch instruments whose latest price is current but earliest stored price is later than the 20-year target.
+- Preserved the existing non-force `needsHistoryBackfill` freshness behavior unchanged.
+- Updated the repository port, Supabase mapping, and repository implementation so force-deep runs mark attempted depth after provider fetches, including empty provider responses.
+- Added tests proving force-deep selection, marker convergence, and unchanged non-force behavior.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run test -- price-refresh.test.js` - PASS (351/351; command currently runs the full configured suite plus the extra argument)
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (351/351)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 131 must be applied manually to Supabase before the marker can persist.
+- The planned Phase-3 risk migration number is now 132.
+- This is a data-refresh selection/convergence fix only; no scoring, methodology, label, compliance, feature-flag, or access-control behavior changed.
+
+## 2026-06-24 - Long-Horizon Display Returns
+
+### Source
+Claude Code
+
+### Objective
+Extend stored price and benchmark history from 5 years to 20 years, and expose 10-year, 15-year, and 20-year total return metrics as display-only instrument market data.
+
+### Files Changed
+- `src/server/actions/dataRefreshActions.ts`
+- `src/application/services/InstrumentMarketService.ts`
+- `src/domain/universe/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `supabase/migrations/130_market_metrics_long_horizon_returns.sql`
+- `tests/price-refresh.test.ts`
+- `tests/recommendations.test.ts`
+- `tests/scoring-golden.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Increased market-history and benchmark refresh lookbacks from 1,825 days to 7,300 days.
+- Added nullable display-only `return_10y`, `return_15y`, and `return_20y` columns through migration 130 and updated the market-metrics refresh RPC to populate them.
+- Extended the instrument market metric/view domain types and Supabase row mapping so the long-horizon returns flow through the app data model.
+- Updated fallback market-view construction to load 20 years by default and calculate long-horizon returns only when sufficient history is present.
+- Added tests for sufficient and insufficient 10Y/15Y/20Y history coverage.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run test` - PASS (349/349)
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Migration 130 must be applied manually to Supabase before persisted `instrument_market_metrics` rows can store the new fields.
+- The new return fields are display-only data plumbing. They do not feed scoring, guardrails, risk metrics, methodology math, or recommendation logic.
+- UI presentation and any descriptive calculation-methodology note can follow in the later UI phase.
+
 ## 2026-06-23 - Security Master Mapping Cleanup
 
 ### Source
@@ -4049,3 +4281,583 @@ Completed, with one unrelated existing Portfolio Review wording-test follow-up n
 - Admin-vs-user decisions: `recommendationActions.runRecommendationsAction` stayed user-accessible as a self-service Insights run; `portfolioReviewActions.runPortfolioReviewAction` stayed user-accessible; `portfolioReviewActions.refreshEtfLookthroughExposureAction` became admin-only; `marketVisionActions` draft/save/publish/archive/generate actions became admin-only editorial actions because they mutate global Market Vision reports.
 - `universeActions` is mixed: seed, metadata/price refresh, active status, tags, and bond profile overrides became admin-only; watchlist add/remove stayed user-accessible.
 - This change does not add a DB `users.is_admin` flag, does not alter RLS, and does not address the broader `assets` RLS or write-policy audit.
+
+## 2026-06-25 — Instrument Detail Interactive Price Chart
+
+### Source
+Claude Code
+
+### Objective
+Fill the instrument detail Overview price-chart slot with a streamed, display-only SVG area chart using stored adjusted close history.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/application/ports/repositories/UniverseRepository.ts`
+- `src/components/instruments/instrument-cards.tsx`
+- `src/components/instruments/instrument-price-chart.tsx`
+- `src/domain/universe/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `tests/universe-repository.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added `PriceSeriesPoint` and `UniverseRepository.getInstrumentPriceSeries()` for stored close-price history.
+- Implemented Supabase price-series loading with positive-price filtering, 20-year default horizon, and server-side downsampling that keeps roughly the latest 5 years daily while thinning older history to weekly cadence.
+- Added a client-only hand-rolled SVG area chart with period toggles, selected-period green/red coloring, gradient fill, gridlines, end dot, hover crosshair tooltip, and adaptive time-axis labels.
+- Streamed the chart through `Suspense` into the existing `instrument-price-chart-slot` so the instrument shell and metrics are not blocked by the price-series fetch.
+- Kept the change display-only; no scoring, recommendation, guardrail, methodology, or data-pipeline logic was changed.
+
+### Tests Run
+- `npm.cmd run typecheck` — PASS
+- `npm.cmd run lint` — PASS
+- `npm.cmd test` — PASS, 353 tests
+- `npm.cmd run build` — PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Browser smoke verification was attempted. The local dev server remained stuck at `Starting...`, but the production server served on port 3001 after a successful build; `/instruments/MSFT` redirected to `/login`, so the chart UI still needs a recheck in an authenticated browser session.
+- The new repository test verifies the getter uses the expected `instrument_prices` filters and preserves the latest point after downsampling.
+
+## 2026-06-25 - Instrument Detail Characteristics Score Trend Panel
+
+### Source
+Claude Code
+
+### Objective
+Add a display-only Characteristics score-trend panel to the instrument detail Overview, streamed independently from stored recommendation history.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/application/ports/repositories/RecommendationRepository.ts`
+- `src/application/services/recommendations/RecommendationService.ts`
+- `src/components/instruments/instrument-cards.tsx`
+- `src/components/instruments/score-trend-panel.tsx`
+- `src/domain/recommendations/types.ts`
+- `src/infrastructure/repositories/supabase/SupabaseRecommendationRepository.ts`
+- `tests/recommendations.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added `RecommendationScoreHistoryPoint` plus `getScoreHistory(instrumentId)` on the recommendation repository/service.
+- Implemented Supabase history loading from `recommendation_history`, deduped to one row per `run_date` with the latest `created_at` winning, ordered ascending by run date.
+- Added a client-only neutral SVG Characteristics score-trend card with latest score, assessment chip, previous-run delta, sparse-point markers, hover tooltip, and empty/single-point states.
+- Streamed the score-trend panel through `Suspense` into the Overview without adding it to the blocking instrument-detail `Promise.all`.
+- Paired the score-trend card with the existing Characteristics breakdown on large screens, stacked on smaller screens.
+- Kept the panel display-only and observational; no scoring, methodology, recommendation, guardrail, or data-pipeline logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- The new getter test verifies the one-row-per-run-date dedupe behavior and ascending return order.
+- The score-history series is currently expected to be short, roughly a few insight runs, and will fill in as future recommendation runs accumulate.
+- Browser recheck in an authenticated session is still pending; unauthenticated local checks redirect instrument detail pages to `/login`.
+
+## 2026-06-25 - Instrument Detail UI Polish
+
+### Source
+Claude Code
+
+### Objective
+Improve the instrument detail page UI/UX with a sticky identity header, refined Overview metrics, chart reference overlays, and clearer Characteristics visuals.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-cards.tsx`
+- `src/components/instruments/instrument-price-chart.tsx`
+- `src/components/instruments/score-trend-panel.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added a sticky page-level identity header above the tab nav with back link, ticker/name, type/freshness/active badges, latest price, daily change, and 1Y return.
+- Removed duplicate instrument identity content from the Overview body and reorganized Overview into asset context, key returns, 52-week position, long-horizon diagnostics, score trend, and Characteristics breakdown.
+- Added display-only 52-week high/low reference lines and HTML y-axis price labels to the price chart, with active period buttons using the primary-token filled style.
+- Updated the score-trend panel to use a fixed 0-100 y-domain, HTML y-axis labels, explicit previous-run delta wording, and a footer summary row.
+- Colored Characteristics component progress bars by score level and added a low-score warning icon for components below 40.
+- Kept the work UI-only and display-only; no scoring, methodology, recommendation, guardrail, access-control, or data-pipeline logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Browser recheck for stock, ETF, and bond ETF pages is still pending in an authenticated session; local unauthenticated instrument detail checks redirect to `/login`.
+- Sticky header uses `top-16`; verify against the deployed dashboard shell top-nav height during authenticated browser QA.
+
+## 2026-06-25 - Instrument Detail Characteristics Methodology Alignment
+
+### Source
+Claude Code
+
+### Objective
+Align the instrument detail Characteristics breakdown and score-trend visual references with documented component inputs and `RecommendationRulesService.labelFromScore` score bands.
+
+### Files Changed
+- `src/application/services/recommendations/RecommendationRulesService.ts`
+- `src/application/services/recommendations/recommendationPresentation.ts`
+- `src/components/instruments/instrument-cards.tsx`
+- `src/components/instruments/score-trend-panel.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added one-line factual component descriptions in the Characteristics breakdown for stock, ETF, bond ETF, gold, and crypto component keys, sourced from `docs/SCORE_METHODOLOGY.md` and the current recommendation scoring services.
+- Introduced a shared `CHARACTERISTICS_SCORE_BANDS` constant and wired `RecommendationRulesService.labelFromScore` to it so UI score-band visuals track the documented thresholds.
+- Updated Characteristics progress bars and score chips to use 65/48 score bands, with the low-score warning icon only below 35.
+- Added faint score-band reference lines at Excellent/Good/Neutral thresholds to the Characteristics score-trend panel, plus a guardrail note that displayed assessment labels may be capped below the raw score band.
+- Kept the work display-only; no scoring formulas, weights, data pipelines, feature flags, access controls, or advisory wording changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests after rerun with elevated filesystem permission
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Initial `npm.cmd test` failed before executing tests because TypeScript could not write `.test-build` files under sandboxed filesystem permissions (`EPERM`); rerunning the same command with elevated filesystem permission passed.
+- Browser recheck for stock, ETF, and bond ETF component sets is still pending in an authenticated session.
+
+## 2026-06-25 - Instrument Price Chart Axis and Header Return Alignment
+
+### Source
+Claude Code
+
+### Objective
+Move price chart y-axis labels to the left and align named-period chart header returns with stored Overview market metrics.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-price-chart.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Moved the price-scale y-axis labels for the 25/50/75% gridline prices to a left-edge HTML overlay.
+- Kept the 52-week high/low reference labels on the right edge next to their dashed reference lines.
+- Passed stored 1Y, 5Y, and 20Y return metrics from `marketView` into the streamed price chart.
+- Updated the chart header change figure and line/area/end-dot color for 1Y, 5Y, and 20Y to use the stored return value, with absolute dollar change derived from the latest price; 1M/3M/6M remain window-computed.
+- Left the plotted line/area geometry, date ticks, 52-week reference lines, and hover tooltip behavior unchanged.
+- Kept the work display-only; no scoring, recommendation, methodology, access-control, or data-pipeline logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Browser recheck in an authenticated session is still pending; verify a deep mover such as NVDA has chart header 1Y/5Y/20Y percentages matching the Overview stored returns exactly.
+
+## 2026-06-25 - Instrument Long-Horizon CAGR Display
+
+### Source
+Claude Code
+
+### Objective
+Update the instrument detail Long-Horizon card to display annualised multi-year returns while preserving stored volatility and drawdown diagnostics.
+
+### Files Changed
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Renamed the card to "Long-Horizon Returns" and changed the subtitle to clarify annualised CAGR display-only context.
+- Reworked the table into horizontal 1Y, 5Y, 10Y, 15Y, and 20Y period columns.
+- Displayed 1Y return unchanged and converted stored 5Y/10Y/15Y/20Y total returns to CAGR using nominal period years.
+- Left volatility and max drawdown values as stored display values; 5Y volatility intentionally renders as "—" because no stored 5Y volatility field exists.
+- Added CAGR bar visualization with clipped width at 100% CAGR and green/amber/red coloring by annualised return level.
+- Added the requested CAGR formula disclosure and preserved the display-only scoring/guardrail disclaimer.
+- Kept the work display-only; no scoring, methodology, recommendation, access-control, or data-pipeline logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests after rerun with elevated filesystem permission
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Initial `npm.cmd test` failed before executing tests because TypeScript could not write `.test-build` files under sandboxed filesystem permissions (`EPERM`); rerunning the same command with elevated filesystem permission passed.
+- Browser recheck in an authenticated session is still pending; verify a deep-history name such as NVDA shows separated 15Y/20Y annualised returns rather than near-identical total returns.
+
+## 2026-06-26 - Return Character Worst Week All-History
+
+### Source
+Claude Code
+
+### Objective
+Replace the instrument detail Overview Return Character "Worst week" tile with an all-history, date-based weekly return computed from the loaded price series.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Added an all-history weekly-return calculation over the sorted price series using the latest earlier point at least seven calendar days before each observation.
+- Updated Return Character stats to expose `worstWeekAllHistory` and render the "Worst week" tile from that value instead of the trailing-1Y `riskMetric.worstWeeklyReturn`.
+- Kept the change display-only; no scoring, methodology, data-pipeline, guardrail, or recommendation logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS after elevated rerun; initial sandbox run hit `.test-build` EPERM writes.
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- The all-history weekly value is exact for the daily recent segment and approximate in older downsampled history, matching the existing long-term Return Character context.
+
+## 2026-06-26 - Instrument Detail Overview Polish
+
+### Source
+Claude Code
+
+### Objective
+Apply four display-only polish fixes to the instrument detail Overview: lucide icons, chart/facts height alignment, long-horizon risk bars, and date-based rolling 1Y return-character stats.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-cards.tsx`
+- `src/components/instruments/instrument-price-chart.tsx`
+- `src/components/instruments/score-trend-panel.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Replaced blank Tabler class-name spans with `lucide-react` icon components in Key Observations and Characteristics breakdown.
+- Made the price chart card, Key Facts card, score trend card, and return-character card participate in equal-height rows; the chart SVG now flexes vertically within its card.
+- Added red max-drawdown bars to the Long-horizon risk card for 1Y/5Y/10Y/15Y/20Y windows.
+- Recomputed rolling one-year return-character stats by date rather than a fixed row offset, avoiding overstated older downsampled periods.
+- Kept all changes display-only; no scoring, methodology, recommendation, guardrail, data-pipeline, access-control, or feature-flag logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Browser recheck in an authenticated session is still pending; verify lucide icons render, chart/facts rows align, long-horizon risk bars render, and NVDA rolling 1Y stats are no longer inflated by downsampled index offsets.
+
+## 2026-06-26 - Instrument Detail Overview v2
+
+### Source
+Claude Code
+
+### Objective
+Evolve the instrument detail Overview tab into the approved v2 layout with streamed facts, deterministic observations, rolling return-character diagnostics, split long-horizon cards, and a balanced score-first presentation.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/application/services/recommendations/RecommendationService.ts`
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added a read-only latest-score helper filtered to active instruments so the Overview can stream a "Top X% vs universe" percentile.
+- Reused the streamed price-series read for both the SVG chart and deterministic return-character rolling stats.
+- Added streamed Key Facts from existing fundamentals detail fields and stored risk metrics; missing values render as "—".
+- Added deterministic Key Observation cards from stored scoring components and documented score bands; no generated text or scoring changes.
+- Reworked Overview into the v2 layout: verdict hero, chart plus facts, full-width two-column Characteristics breakdown, split long-horizon returns/risk cards, score trend plus return character, and bottom display-only disclaimer.
+- Kept all changes display-only; no scoring, guardrail, methodology, data-pipeline, access-control, or feature-flag logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests after rerun with elevated filesystem permission
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Initial sandboxed `npm.cmd test` failed before executing tests because TypeScript could not write `.test-build` files (`EPERM`); rerunning the same command with elevated filesystem permission passed.
+- Browser recheck in an authenticated session is still pending for a deep stock, young IPO, ETF, and bond ETF.
+- Dividend yield is shown as "—" because the current fundamentals ratio/profile domain model does not expose a dividend-yield field.
+## 2026-06-26 — Instrument Overview Lower-Grid Relayout
+
+### Source
+Claude Code
+
+### Objective
+Relayout the instrument Overview lower card grid so returns and score trend stack against risk, with return character spanning full width.
+
+### Files Changed
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Split the active long-horizon wrapper into exported `LongHorizonReturnsCard` and `LongHorizonRiskCard` components without changing bar calculations, colours, footnotes, or wording.
+- Placed the compact returns card above score trend in the left column and the stretching risk card in the right column.
+- Moved Return Character to a full-width row below the two-column lower grid.
+- Updated Return Character tiles to render as 6-up on desktop, 3-up on small screens, and 2-up on mobile.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Pure layout/markup change. No data, scoring, methodology, wording, component-logic, guardrail, recommendation, feature-flag, or access-control behavior changed.
+
+## 2026-06-26 — Instrument Long-Horizon Risk Snapshot Strip
+
+### Source
+Claude Code
+
+### Objective
+Add a display-only risk snapshot strip to the instrument Overview Long-horizon risk card.
+
+### Files Changed
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Added a stable three-tile risk snapshot strip above the Long-horizon risk volatility and drawdown groups.
+- Surfaced existing stored fields for current drawdown, 1Y downside volatility, and volatility trend without changing data, scoring, methodology, or wording elsewhere.
+- Used existing formatting helpers and risk tone conventions, with lucide trend icons for rising, falling, and stable volatility states.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Display-only card addition. No scoring, methodology, data-pipeline, guardrail, recommendation, feature-flag, or access-control behavior changed.
+
+## 2026-06-26 — Instrument Risk Snapshot Explainer
+
+### Source
+Claude Code
+
+### Objective
+Add a one-line display-only explainer to the Long-horizon risk snapshot on the instrument Overview.
+
+### Files Changed
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Inserted a muted helper line explaining current drawdown, downside volatility, and volatility trend above the three risk snapshot tiles.
+- Left the snapshot tiles, volatility and max-drawdown bar groups, footnote, data, scoring, and methodology unchanged.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Display-only text addition. No data, logic, scoring, methodology, data-pipeline, guardrail, recommendation, feature-flag, or access-control behavior changed.
+
+## 2026-06-26 — Instrument Fundamentals Tab v2 Redesign
+
+### Source
+Claude Code
+
+### Objective
+Redesign the instrument detail Fundamentals tab into a premium deterministic v2 presentation without changing scoring, methodology, data fetching, or anchors.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Reworked the Fundamentals tab around a Business Quality verdict hero using the shared Business Quality composite and documented score bands.
+- Added band-coloured fundamental sub-score rows, side-by-side Key Ratios and Financial Snapshot cards, and null-safe metric rendering.
+- Rebuilt Fundamental Trends into five category cards with deterministic aggregate direction chips and illustrative glyphs.
+- Replaced the old wide trend table with a collapsed metric-level detail section grouped by stored trend category.
+- Preserved deterministic, non-advisory language and did not change scoring, data, methodology, feature flags, access controls, or pipelines.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Browser recheck in an authenticated session is still pending for a stock with complete fundamentals and one with sparse trend data.
+
+## 2026-06-26 — Fundamentals Tab Period Consistency
+
+### Source
+Claude Code
+
+### Objective
+Make the instrument Fundamentals tab period basis clearer by using annual ratios for Key Ratios, separating latest-quarter YoY momentum, and disambiguating current-level sub-scores from trend trajectory.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Switched the Key Ratios card to the latest annual ratio row, matching the stored score, trend, and snapshot basis.
+- Added an optional Latest quarter (YoY) line for revenue and EPS growth when a quarterly growth row is available.
+- Updated sub-score and trend descriptions to distinguish current level from trajectory.
+- De-emphasized trend card scores, added the level-vs-trajectory clarifier, and changed metric detail from signed deltas to prior values.
+- Removed the now-unused signed-delta helper. No data, scoring, methodology, repository, feature-flag, access-control, or pipeline behavior changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Browser recheck in an authenticated session is still pending for annual-ratio and quarterly-growth display examples.
+
+## 2026-06-26 — Portfolio Scheduled Job Fan-Out
+
+### Source
+Claude Code
+
+### Objective
+Make scheduled portfolio valuation, portfolio summary, and Portfolio Review jobs process every active portfolio when no `portfolioId` is supplied.
+
+### Files Changed
+- `src/application/ports/repositories/PortfolioRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabasePortfolioRepository.ts`
+- `src/server/jobs/portfolioScheduledFanout.ts`
+- `src/app/api/jobs/portfolio-valuation-refresh/route.ts`
+- `src/app/api/jobs/portfolio-summary-refresh/route.ts`
+- `src/app/api/jobs/portfolio-review-run/route.ts`
+- `tests/portfolio-job-fanout.test.ts`
+- `package.json`
+- `docs/scheduled-jobs.md`
+- `docs/JOBS_AND_OPERATIONS.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added `listActivePortfolioIds()` to the portfolio repository port and Supabase implementation.
+- Updated the three per-portfolio scheduled routes so explicit `portfolioId` runs remain single-portfolio, while scheduled no-param runs fan out across all active portfolios.
+- Added per-portfolio error isolation with aggregate `success`, `partial_success`, and `failed` statuses plus processed/failed counts.
+- Left recommendation-run unchanged because it is universe-wide with optional portfolio context.
+- Added route-runner regression tests for explicit single runs, all-active fan-out, and partial success isolation for valuation, summary, and review jobs.
+- Updated operations docs to document all-active portfolio fan-out and the scale follow-up for Portfolio Review if portfolio count grows.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Sequential fan-out is fine for alpha. If active portfolio count grows, revisit batching/concurrency and the 25-minute lock TTL on `portfolio-review-run`.
+
+## 2026-06-26 — Holding Valuation Price Source
+
+### Source
+Claude Code
+
+### Objective
+Anchor holding valuation latest price and price date on `instrument_prices` so stale `instrument_market_metrics` rows cannot freeze portfolio valuation tails.
+
+### Files Changed
+- `supabase/migrations/135_holding_valuation_price_source.sql`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added migration `135_holding_valuation_price_source.sql` to recreate `refresh_holding_portfolio_metrics`.
+- Changed only the effective latest price precedence so the latest `instrument_prices` row is preferred before `instrument_market_metrics`, with average cost still as the final fallback.
+- Kept previous close and 52-week range sourced from `instrument_market_metrics` as derived analytics.
+- Ended the migration with `select refresh_holding_portfolio_metrics();` to recompute all portfolios after manual apply.
+- Documented that holding valuation anchors on `instrument_prices` while `instrument_market_metrics` supports derived analytics.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed (initial sandboxed run hit `.test-build` EPERM; elevated rerun passed)
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Migration `135` is manual-apply. After applying it, run `portfolio-valuation-refresh` with no `portfolioId` to rewrite snapshots with fresh holding prices; this should fill the frozen Jun-10 valuation tail.
+
+## 2026-06-26 — Portfolio Snapshot Holding Metrics Refresh
+
+### Source
+Claude Code
+
+### Objective
+Recompute per-portfolio derived holding metrics immediately before creating analytics snapshots so daily snapshots cannot read stale `holding_market_metrics`.
+
+### Files Changed
+- `src/application/services/PortfolioService.ts`
+- `tests/analytics.test.ts`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `analyticsRepository.refreshHoldingPortfolioMetrics(portfolioId)` at the start of `createAnalyticsSnapshot`.
+- This makes the daily `portfolio-valuation-refresh` fan-out, admin refreshes, and transaction-triggered snapshots rebuild `holding_market_metrics` / `portfolio_current_metrics` before dashboard reads.
+- Added a regression test asserting the refresh happens before dashboard construction starts.
+- Marked documentation gap 49 fixed.
+- No scoring, methodology, recommendation, guardrail, feature-flag, or access-control behavior changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Combined with migration 135, the snapshot path is now both fresh and source-of-truth-priced. After deploying/applying migration 135, run `portfolio-valuation-refresh` with no `portfolioId` to rewrite snapshots with fresh portfolio values.

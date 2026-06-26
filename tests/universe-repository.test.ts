@@ -67,6 +67,62 @@ test("listInstrumentPriceStats reads grouped price stats from RPC", async () => 
   ]);
 });
 
+test("getInstrumentPriceSeries reads positive prices and downsamples older history", async () => {
+  ensureSupabaseEnv();
+  const { SupabaseUniverseRepository } = await import("../src/infrastructure/repositories/supabase/SupabaseUniverseRepository.js");
+  const rows = Array.from({ length: 1505 }, (_, index) => ({
+    price_date: new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+    close_price: index + 1
+  }));
+  const calls: Array<{ op: string; args: unknown[] }> = [];
+  const db = {
+    from(table: string) {
+      assert.equal(table, "instrument_prices");
+      const query: any = {
+        select(...args: unknown[]) {
+          calls.push({ op: "select", args });
+          return query;
+        },
+        eq(...args: unknown[]) {
+          calls.push({ op: "eq", args });
+          return query;
+        },
+        gt(...args: unknown[]) {
+          calls.push({ op: "gt", args });
+          return query;
+        },
+        gte(...args: unknown[]) {
+          calls.push({ op: "gte", args });
+          return query;
+        },
+        order(...args: unknown[]) {
+          calls.push({ op: "order", args });
+          return query;
+        },
+        range(from: number, to: number) {
+          calls.push({ op: "range", args: [from, to] });
+          return Promise.resolve({ data: rows.slice(from, to + 1), error: null });
+        }
+      };
+      return query;
+    }
+  };
+
+  const repository = new SupabaseUniverseRepository(db as never);
+  const series = await repository.getInstrumentPriceSeries("11111111-1111-1111-1111-111111111111", { fromYears: 20 });
+
+  assert.ok(calls.filter((call) => call.op === "eq").every((call) =>
+    JSON.stringify(call.args) === JSON.stringify(["instrument_id", "11111111-1111-1111-1111-111111111111"])
+  ));
+  assert.ok(calls.filter((call) => call.op === "gt").every((call) =>
+    JSON.stringify(call.args) === JSON.stringify(["close_price", 0])
+  ));
+  assert.equal(series.at(-1)?.date, rows.at(-1)?.price_date);
+  assert.equal(series.at(-1)?.close, rows.at(-1)?.close_price);
+  assert.ok(series.length < rows.length);
+  assert.equal(series.slice(-1260).length, 1260);
+});
+
 test("listInstrumentPriceStats passes null for all-instrument RPC scans and preserves missing-table guard", async () => {
   ensureSupabaseEnv();
   const { SupabaseUniverseRepository } = await import("../src/infrastructure/repositories/supabase/SupabaseUniverseRepository.js");

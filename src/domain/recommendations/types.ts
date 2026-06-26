@@ -64,6 +64,12 @@ export type RecommendationHistoryItem = {
   createdAt: string;
 };
 
+export type RecommendationScoreHistoryPoint = {
+  runDate: string;
+  overallScore: number | null;
+  recommendationLabel: RecommendationLabel;
+};
+
 export type RecommendationDashboard = {
   latestRun: RecommendationRun | null;
   recommendations: InstrumentRecommendation[];

@@ -1,5 +1,13 @@
 import type { RecommendationLabel } from "@/domain/recommendations/types";
 
+export const CHARACTERISTICS_SCORE_BANDS = {
+  excellent: 80,
+  good: 65,
+  neutral: 48,
+  weak: 35,
+  poor: 20
+} as const;
+
 export const ASSESSMENT_LABELS: Record<RecommendationLabel, string> = {
   "Strong Buy": "Excellent",
   Buy: "Good",
@@ -35,10 +43,10 @@ export function assessmentClassName(label: string) {
 
 export function businessQualityLabel(businessQualityScore: number | null | undefined): { label: string; tone: string } | null {
   if (businessQualityScore == null) return null;
-  if (businessQualityScore >= 80) return { label: "Exceptional", tone: "positive" };
-  if (businessQualityScore >= 65) return { label: "Strong", tone: "positive" };
+  if (businessQualityScore >= CHARACTERISTICS_SCORE_BANDS.excellent) return { label: "Exceptional", tone: "positive" };
+  if (businessQualityScore >= CHARACTERISTICS_SCORE_BANDS.good) return { label: "Strong", tone: "positive" };
   if (businessQualityScore >= 50) return { label: "Solid", tone: "info" };
-  if (businessQualityScore >= 35) return { label: "Moderate", tone: "warning" };
+  if (businessQualityScore >= CHARACTERISTICS_SCORE_BANDS.weak) return { label: "Moderate", tone: "warning" };
   return { label: "Weak", tone: "danger" };
 }
 

@@ -23,6 +23,13 @@ function testLatestExpectedEodDate() {
   return date.toISOString().slice(0, 10);
 }
 
+function testYearsAgoIso(years: number, offsetDays = 0) {
+  const date = new Date();
+  date.setUTCFullYear(date.getUTCFullYear() - years);
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+
 test("portfolio price refresh is driven by the master instrument price refresh", async () => {
   const calls: string[] = [];
   const instrumentMarketService = {
@@ -126,6 +133,70 @@ function riskPriceRows(instrumentId: string, count = 80) {
     };
   });
 }
+
+function priceRow(instrumentId: string, priceDate: string, closePrice: number) {
+  return {
+    id: `${instrumentId}-${priceDate}`,
+    instrumentId,
+    provider: "test",
+    symbol: instrumentId.replace("inst-", ""),
+    priceDate,
+    closePrice,
+    currency: "USD",
+    rawPayload: {}
+  };
+}
+
+test("instrument market views compute 10Y 15Y and 20Y returns when history is sufficient", async () => {
+  const subject = instrument("VOO");
+  const prices = [
+    priceRow(subject.id, testYearsAgoIso(20, 1), 50),
+    priceRow(subject.id, testYearsAgoIso(15, 1), 80),
+    priceRow(subject.id, testYearsAgoIso(10, 1), 100),
+    priceRow(subject.id, testYearsAgoIso(5, 1), 125),
+    priceRow(subject.id, testYearsAgoIso(3, 1), 150),
+    priceRow(subject.id, testYearsAgoIso(1, 1), 180),
+    priceRow(subject.id, new Date().toISOString().slice(0, 10), 200)
+  ];
+  const repository = {
+    async listInstrumentMarketMetrics() {
+      return [];
+    },
+    async listInstrumentPrices() {
+      return prices;
+    }
+  } as unknown as UniverseRepository;
+  const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
+
+  const [view] = await new InstrumentMarketService(repository, provider).buildInstrumentMarketViews([subject]);
+
+  assert.equal(view.tenYearReturn, 1);
+  assert.equal(view.fifteenYearReturn, 1.5);
+  assert.equal(view.twentyYearReturn, 3);
+});
+
+test("instrument market views null long-horizon returns when price history is insufficient", async () => {
+  const subject = instrument("NEW");
+  const prices = [
+    priceRow(subject.id, testYearsAgoIso(10, 20), 100),
+    priceRow(subject.id, new Date().toISOString().slice(0, 10), 200)
+  ];
+  const repository = {
+    async listInstrumentMarketMetrics() {
+      return [];
+    },
+    async listInstrumentPrices() {
+      return prices;
+    }
+  } as unknown as UniverseRepository;
+  const provider = { name: "financial_modeling_prep" } as unknown as MarketDataProvider;
+
+  const [view] = await new InstrumentMarketService(repository, provider).buildInstrumentMarketViews([subject]);
+
+  assert.equal(view.tenYearReturn, null);
+  assert.equal(view.fifteenYearReturn, null);
+  assert.equal(view.twentyYearReturn, null);
+});
 
 test("instrument price refresh maps BRK.B to the FMP provider symbol BRK-B", async () => {
   const requestedBatches: string[][] = [];
@@ -592,6 +663,85 @@ test("history backfill selects stale end dates for recent catch-up", async () =>
   assert.equal(requested.length, 1);
   assert.equal(requested[0]?.symbol, "RYT");
   assert.equal(requested[0]?.from, "2025-07-03");
+});
+
+test("force deep history backfill selects fresh shallow history once and records attempted depth", async () => {
+  const targetStartDate = testDaysBeforeIso(new Date().toISOString().slice(0, 10), 7300);
+  let subject = instrument("VOO", { assetClass: "etf", instrumentType: "etf" });
+  const requested: Array<{ symbol: string; from: string }> = [];
+  const markerUpdates: Array<{ instrumentId: string; backfilledThrough: string }> = [];
+  const repository = {
+    async listInstruments() {
+      return [subject];
+    },
+    async listInstrumentPriceStats() {
+      return [{ instrumentId: subject.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2999-01-01", observationCount: 1200 }];
+    },
+    async upsertInstrumentPrices() {},
+    async updateInstrumentPriceHistoryBackfilledThrough(input: Array<{ instrumentId: string; backfilledThrough: string }>) {
+      markerUpdates.push(...input);
+      subject = { ...subject, priceHistoryBackfilledThrough: input[0]?.backfilledThrough ?? null };
+    }
+  } as unknown as UniverseRepository;
+  const provider = {
+    name: "financial_modeling_prep",
+    async getHistoricalPrices(symbol: string, from: string) {
+      requested.push({ symbol, from });
+      return [{ symbol, price: 110, currency: "USD", asOfDate: "2026-01-01", raw: {} }];
+    }
+  } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const first = await service.refreshInstrumentPrices({
+    lookbackDays: 7300,
+    maxSymbols: 10,
+    includeBackfill: true,
+    forceDeepBackfill: true,
+    skipDerivedMetrics: true
+  });
+  const second = await service.refreshInstrumentPrices({
+    lookbackDays: 7300,
+    maxSymbols: 10,
+    includeBackfill: true,
+    forceDeepBackfill: true,
+    skipDerivedMetrics: true
+  });
+
+  assert.deepEqual(first.requestedSymbols, ["VOO"]);
+  assert.deepEqual(requested, [{ symbol: "VOO", from: targetStartDate }]);
+  assert.deepEqual(markerUpdates, [{ instrumentId: subject.id, backfilledThrough: targetStartDate }]);
+  assert.deepEqual(second.requestedSymbols, []);
+});
+
+test("non-force backfill still skips fresh histories even when depth is shallow", async () => {
+  const subject = instrument("VOO", { assetClass: "etf", instrumentType: "etf" });
+  const repository = {
+    async listInstruments() {
+      return [subject];
+    },
+    async listInstrumentPriceStats() {
+      return [{ instrumentId: subject.id, earliestPriceDate: "2021-01-01", latestPriceDate: "2999-01-01", observationCount: 1200 }];
+    },
+    async updateInstrumentPriceHistoryBackfilledThrough() {
+      throw new Error("non-force backfill should not update the deep-backfill marker");
+    }
+  } as unknown as UniverseRepository;
+  const provider = {
+    name: "financial_modeling_prep",
+    async getHistoricalPrices() {
+      throw new Error("fresh shallow history should not be fetched without forceDeepBackfill");
+    }
+  } as unknown as MarketDataProvider;
+
+  const service = new InstrumentMarketService(repository, provider);
+  const result = await service.refreshInstrumentPrices({
+    lookbackDays: 7300,
+    maxSymbols: 10,
+    includeBackfill: true,
+    skipDerivedMetrics: true
+  });
+
+  assert.deepEqual(result.requestedSymbols, []);
 });
 
 test("history backfill skips current shorter-lived instruments with available history", async () => {

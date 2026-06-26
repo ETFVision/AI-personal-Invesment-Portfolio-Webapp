@@ -1,29 +1,12 @@
 import { NextRequest } from "next/server";
 import { createContainer } from "@/server/container";
-import { env } from "@/infrastructure/config/env";
 import { runCronJob } from "@/server/jobs/runCronJob";
+import { runScheduledPortfolioReviews } from "@/server/jobs/portfolioScheduledFanout";
 
 export async function POST(request: NextRequest) {
-  const portfolioId = request.nextUrl.searchParams.get("portfolioId") ?? env.SCHEDULED_PORTFOLIO_ID;
+  const portfolioId = request.nextUrl.searchParams.get("portfolioId");
   return runCronJob(request, { jobName: "portfolio-review-run", lockTtlSeconds: 25 * 60 }, async () => {
-    if (!portfolioId) {
-      return {
-        status: "failed",
-        message: "portfolio-review-run requires SCHEDULED_PORTFOLIO_ID or portfolioId query parameter.",
-        errors: ["Missing portfolioId."]
-      };
-    }
-    const result = await createContainer().jobs.portfolioReviewRun.run({
-      portfolioId,
-      runType: "scheduled"
-    });
-    return {
-      status: "success",
-      runId: result.run.id,
-      reportId: result.report?.id ?? null,
-      overallPortfolioScore: result.report?.overallPortfolioScore ?? null,
-      run: result.run
-    };
+    return runScheduledPortfolioReviews(createContainer(), portfolioId);
   });
 }
 

@@ -23,6 +23,7 @@ export interface PortfolioRepository {
   getDefaultPortfolio(userId: string): Promise<Portfolio | null>;
   getFirstDefaultPortfolio(): Promise<Portfolio | null>;
   getPortfolioById(portfolioId: string): Promise<Portfolio | null>;
+  listActivePortfolioIds(): Promise<string[]>;
   createPortfolio(userId: string, input: SetupPortfolioInput): Promise<Portfolio>;
   updatePortfolio(portfolioId: string, input: SetupPortfolioInput): Promise<Portfolio>;
   listAssets(): Promise<Asset[]>;

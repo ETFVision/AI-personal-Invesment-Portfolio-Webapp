@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-19 SGT (Prioritized Execution Order added; Medium 36 verified — no service-role leak)
+Last updated: 2026-06-26 SGT (added 44 expense/dividend not ingested; 45 annual-only score freshness/TTM; 46 Fundamentals period-basis; 47 derived-metrics transient lag + latent batch-cap risk (corrected down from HIGH; active universe verified 391/391 fresh); 48 holding valuation prefers derived cache (defensive fix); 49 fixed per-portfolio derived tables refreshed before snapshots; 50 duplicate portfolio at setup (double-submit race); updated Low 14 — stored 5Y volatility)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -11,9 +11,9 @@ An independent deep architecture audit with live read-only database verification
 | Priority | Total items | Open | Closed |
 |---|---|---|---|
 | High | 10 | 8 | 2 |
-| Medium | 41 | 26 | 15 |
-| Low | 13 | 12 | 1 |
-| **Total** | **64** | **46** | **18** |
+| Medium | 43 | 28 | 15 |
+| Low | 14 | 13 | 1 |
+| **Total** | **67** | **49** | **18** |
 
 **Open blockers — before public alpha:**
 
@@ -422,6 +422,68 @@ in their phases. Capture each batch as its own implementation-log entry.
     - Remaining: define and implement a first-login empty state on the portfolio dashboard (e.g. a "get started" prompt or guide explaining how to add holdings and transactions); verify the empty state is informative and does not surface errors or broken UI.
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 35.
 
+42. Bond ETF analytical enrichment via issuer fund-characteristics feeds
+    - Bond ETF *quantitative* profile fields (`effectiveDuration`, `averageMaturity`, `secYield`, `yieldToMaturity`, `spreadDuration`, `optionAdjustedSpread`, credit-quality breakdown) are hardcoded in `SEEDED_BOND_PROFILES` (`src/application/services/bonds/BondProfileService.ts`) and migrations `016`/`017` — manually maintained and drift as funds reposition. FMP does **not** carry fixed-income portfolio analytics (only ETF expense ratio + holdings/weightings); the authoritative source is the fund issuers (iShares/BlackRock, Vanguard, SPDR/SSGA, Invesco, Schwab).
+    - Existing plumbing supports it: `NormalizedBondProfile` already separates the **curated** classification layer (`durationCategory` bucket, `bondType`, `creditQuality` bucket, sensitivities, `liquidityRole` — keep manual) from the **quantitative** metrics, and `isManualOverride` + migration 016's "curated stays deterministic" rule let a provider fill the quantitative fields without clobbering the taxonomy.
+    - Approach: a `BondCharacteristicsProvider` port + per-issuer adapters (start with **iShares**, broadest coverage + most structured data), an instrument→issuer mapping, and a low-frequency enrichment job that upserts **only the quantitative fields**, skips `isManualOverride` rows, keeps last-known values on fetch failure, and records `source` + `as_of_date`. Companion quick-win: automate expense ratio (+ distribution yield) from FMP's ETF info endpoint (FMP *does* carry those).
+    - **Gate 1 — data licensing (ties to High 9):** scraping issuer pages risks ToS and is fragile; prefer a licensed feed for production. Scraping is alpha/internal only and must be cleared before the first paying user.
+    - **Gate 2 — score drift:** `BondEtfRecommendationService` may consume these fields; swapping seeded → sourced values will move bond ETF scores. Economic anchors stay frozen; add a before/after bond-ETF score comparison as a validation gate.
+    - Priority: **not an alpha blocker** (manual seeds work today); improves bond-intelligence accuracy and removes manual upkeep. Sequence after the instrument detail-page redesign. Scoped 2026-06-25 (Claude review).
+
+43. Diversification score inconsistency — Risk page vs Portfolio Review (look-through + live/stored)
+    - The Risk page shows a "Diversification" score computed **live** and **surface-only** (`riskMath.diversificationScore`: holding/asset-class/sector/currency breadth + 30 − correlationPenalty; **no ETF look-through**). The Portfolio Review "Diversification" section (`DiversificationReviewService`) **starts from that same risk score** and adds a look-through breadth bonus (`min(8, lookthroughSectorCount + lookthroughCountryCount)`), and is a **stored weekly snapshot**. Result: the same portfolio shows different numbers on the two pages (observed **76** on Risk vs **88** on Review), which confuses users.
+    - Root cause — two definitions never unified: (a) **depth** — the Risk page ignores what's inside ETFs (understates true diversification for ETF-heavy portfolios), while the Review credits look-through breadth but only as a crude +8 cap on the same base; (b) **timing** — the Risk page is live, the Review is a stored weekly snapshot, so even the shared base differs.
+    - The more correct measure of *overall* diversification is **look-through-aware AND live**, combined with the existing holding-level correlation signal — which neither page currently does in full (Risk page has live + correlation but shallow breadth; Review has look-through breadth but stale + crude + reuses the same correlation).
+    - Recommended resolution: unify to ONE diversification definition (look-through breadth + holding-level correlation, computed live) shown consistently on both the Risk page and Portfolio Review — make the canonical Risk page the look-through-aware version — or, minimally, clearly label live-vs-stored / with-vs-without look-through.
+    - Before changing: confirm the diversification score is display + portfolio-review-section only and does **not** feed instrument scoring/recommendation logic (believed display-only). Document in `SCORE_METHODOLOGY.md`; it shifts a displayed score, so treat as a deliberate methodology update.
+    - Priority: **not an alpha blocker** (each score is individually correct); user-facing consistency / commercialization-readiness. Logged 2026-06-25 (Claude review).
+
+44. ETF expense ratio and equity dividend yield are not ingested
+    - The UI scaffolding exists but the data is never fetched, so both render blank:
+      - **Dividend yield (equities):** the Key Facts card has a `dividendYield` field and a "Dividend yield" `SummaryMetric`, but it is always `null` → renders "—". `FmpFundamentalsProvider` (key-metrics) captures `freeCashFlowYield` but **not** `dividendYield`; `FmpAssetMetadataProvider` (`/profile`) keeps the raw payload (which contains `lastDiv`) but maps only symbol/name/exchange/sector/industry/ids and drops it. No `dividend_yield` column is populated anywhere.
+      - **Expense ratio (ETFs):** an `expenseRatio` field exists, but only on the **bond profile** type, and it is populated solely by manual seed (`SEEDED_BOND_PROFILES`) or manual form override (`universeActions`). `FmpEtfExposureProvider` fetches `etf/sector-weightings` / `etf/country-weightings` / `etf/holdings` only — it never calls FMP's `etf/info` endpoint, where `expenseRatio` lives. No automated ETF/equity expense-ratio ingestion exists.
+    - Both are available on the FMP Ultimate plan: `key-metrics.dividendYield` (TTM) or `profile.lastDiv ÷ price` for yield; `etf/info.expenseRatio` for ETFs.
+    - Fix if wanted: add `dividend_yield` (equities) and `expense_ratio` (ETFs) to the metadata/fundamentals refresh, store them, and wire the existing "—" fields. Display-only (no scoring/guardrail impact); would need a forced recompute/backfill like the 5Y-volatility addition (migration 134).
+    - Priority: **not an alpha blocker**; display completeness, relevant to the Fundamentals/Key-Facts surfaces. Logged 2026-06-26 (Claude review).
+
+45. Fundamental scores refresh only annually — evaluate TTM scoring basis (methodology)
+    - `FundamentalScoringService` uses `latestAnnualRatio` / latest **annual** statements, so the deterministic fundamental scores (growth/profitability/valuation/etc.) only meaningfully update when the **annual** report lands — potentially ~11 months stale even though companies report quarterly. Example: NVDA revenue growth has gone +114% (FY2025) → ~20% (latest quarter YoY), but the annual-based score won't reflect the deceleration for up to a year.
+    - Raw single-quarter scoring is **not** the fix (single quarters are noisy/unaudited; this is exactly what caused the [[cashflow-score-quarterly-period-artifact]] — latest-quarter FCF floored the cash-flow score, which is why scoring was moved to annual). The disciplined answer is **TTM (trailing twelve months)**: updates every quarter, seasonality-neutral (rolling 12mo), and smooths single-quarter noise.
+    - Scope if pursued: compute TTM ratios/statements from 4 quarters (only `quarterly` + `annual` rows are stored today — no TTM row), switch the scoring (and ideally the trend engine) input basis to TTM, **recalibrate score bands + update golden tests** (changes inputs to a calibrated/anchored score across the universe — brushes the "frozen anchors, don't refit lightly" rule), and update `SCORE_METHODOLOGY` / `CALCULATION_METHODOLOGY`. Belongs in the paused scoring methodology programme ([[scoring-programme-resume]]), not a quick fix.
+    - Priority: **not an alpha blocker**; meaningful "intelligence freshness" weakness for commercial readiness. Logged 2026-06-26 (Claude review).
+
+46. Fundamentals page mixes period bases for the same metric (annual vs latest quarter)
+    - On the instrument Fundamentals tab, the **Key Ratios card** uses `detail.latestRatio` = the newest `financial_ratios` row of **any** period (ordered by `report_date` desc in the repo), which is currently the **latest quarterly YoY** row (e.g. NVDA Q1 FY2027: revenue growth 19.8%, EPS 35.59%). The **Fundamental trends**, the **statements snapshot**, and the **fundamental scores** all use **annual** (e.g. NVDA FY2026: revenue growth 65.47%). So the same metric ("Revenue growth") shows two very different, **unlabeled** numbers on one page — and the displayed Key-Ratios growth isn't even the figure feeding the score.
+    - Both values are individually correct and seasonality-neutral (quarterly figure is YoY, not sequential); the defect is the **inconsistent, unlabeled period basis**.
+    - Near-term fix (display-only, in progress 2026-06-26): make the Key Ratios card use the latest **annual** ratio (consistent with score/trends/snapshot) + label "Annual · FY{year}", and surface the latest **quarter YoY** as a clearly-labeled "latest momentum" line for timeliness. `FundamentalsDetail.ratios[]` already exposes all periods, so no repo change needed. Deeper timeliness handled by gap 45 (TTM).
+    - Priority: user-facing clarity. Logged 2026-06-26 (Claude review).
+
+47. Derived-metrics freshness — a transient lag window + latent batch-cap risk (NOT a structural coverage failure)
+    - **Corrected 2026-06-26 with DB evidence.** Initially logged as HIGH "much of the universe stale," but verification shows the **active universe is fully fresh**: `select count(*) ... where is_active` = **391**, with **0** active instruments stale >5 days and **0** missing a market metric; all 15 portfolio holdings fresh across price/anchor/metric (all 2026-06-25); and **no active instrument** has a price older than 10 days. So price-fetch and the derived layer are healthy now.
+    - What actually happened: the portfolio TWR chart went flat Jun 10–25 because the **derived-metrics chain (`instrument_daily_returns → instrument_return_anchors → instrument_market_metrics`) lagged/didn't run during that window** in this environment; it has since fully caught up. `portfolio_snapshots` for those dates baked in the stale value (snapshots aren't recomputed retroactively) → residual is a **cosmetic historical flat segment**, fixed going forward by re-running `portfolio-valuation-refresh`.
+    - The earlier "months/years stale" rows (SLY 2023, EWCO 2023, RYx 2025) are **`is_active = false`** instruments — leftover rows in `instrument_market_metrics`; the refresh already excludes them (`refreshStaleInstrumentMarketMetricsOnly` filters `is_active = true`). Cosmetic; optional cleanup (delete inactive metric rows).
+    - **Latent risk (the real remaining item):** the daily derived crons run `batchSize=25 & maxBatches=14` = **350/run**, below the **391** active universe (and growing toward ~476 after the +85 seed). It's empirically keeping up via stalest-first rotation, but with **no safety margin** — if a cron misses runs, recovery is slow (likely what caused the Jun 10–25 window). Recommended: raise/remove `maxBatches` on `instrument-daily-returns-refresh` / `instrument-return-anchors-refresh` / `instrument-market-metrics-refresh` so each covers the full active universe (the service computes full coverage when `maxBatches` is unset), and add **cron-run monitoring/alerting** so a multi-day derived-metrics gap is caught.
+    - Priority: **Medium** (was overstated as HIGH) — universe-display hygiene + ops resilience; not a current correctness failure. Logged/corrected 2026-06-26 (Claude review).
+
+48. Holding valuation prefers the derived cache over the source-of-truth price (defensive fix in progress)
+    - `refresh_holding_portfolio_metrics` (migration 032) sets the holding price via `coalesce(instrument_market_metrics.latest_price, instrument_prices.close_price, average_cost)` — it **prefers the derived cache even when stale**, so a lagging `instrument_market_metrics` (gap 47) would freeze portfolio valuations despite fresh raw prices. Principle: `instrument_prices` is the source of truth; the derived cache must not override it for the raw price.
+    - Current impact: **none right now** — holdings' market metrics are fresh (gap 47 resolved), so the coalesce isn't producing wrong values today. This is a **defensive/robustness fix**, not an active-bug fix.
+    - Fix (migration 135, in progress): reorder precedence to source the valuation price from the latest `instrument_prices` first, using `instrument_market_metrics` only for derived analytics (prev-close/day-change, 52w, returns). Valuation correctness; no scoring/anchor change.
+
+49. Per-portfolio derived tables not refreshed by the daily chain — the actual flat-TWR root cause (FIXED 2026-06-26)
+    - **Confirmed 2026-06-26 with DB evidence.** `holding_market_metrics` for the portfolio showed `updated_at = 2026-06-11`, `latest_price_date = 2026-06-10` — i.e. it had not been recomputed in two weeks and was frozen at the Jun-10 price, even though the instrument-level `instrument_market_metrics` was fresh to Jun-25 (universe crons all ran). The portfolio dashboard total value AND the TWR snapshots both read `holding_market_metrics`, so both displayed the stale Jun-10 value.
+    - Root cause: `refresh_holding_portfolio_metrics` (populates `holding_market_metrics` + `portfolio_current_metrics`) is **NOT called by the daily refresh chain**. `refreshDerivedMetrics` only refreshes instrument-level tables (daily-returns → anchors → `instrument_market_metrics` → risk); the daily EOD price cron runs `skipDerivedMetrics=true`; and `createAnalyticsSnapshot` reads `holding_market_metrics` via `getDashboard` **without refreshing it first**. So the per-portfolio tables only update on ad-hoc triggers (holding/transaction mutation, manual run) and otherwise go stale while the daily valuation snapshot faithfully captures the stale value.
+    - This is distinct from gap 47 (instrument-level, which is healthy) and is the layer gap 48's price-precedence fix operates within — but gap 48 alone is insufficient: `refresh_holding_portfolio_metrics` must actually RUN for the fresh price to land.
+    - Fix implemented 2026-06-26: `PortfolioService.createAnalyticsSnapshot(portfolioId)` now calls `refreshHoldingPortfolioMetrics(portfolioId)` before reading the dashboard, so daily valuation fan-out, admin refreshes, and transaction-triggered snapshots all rebuild `holding_market_metrics` / `portfolio_current_metrics` at the snapshot chokepoint. Immediate remediation: apply migration 135 (its trailing `refresh_holding_portfolio_metrics()` recomputes all portfolios now), then run `portfolio-valuation-refresh` with no `portfolioId` to rewrite fresh snapshots.
+    - Priority: **HIGH** — directly causes wrong displayed portfolio value/return. Logged 2026-06-26 (Claude review).
+
+50. Duplicate portfolio created at setup (double-submit race)
+    - **Found 2026-06-26 with DB evidence.** A single user has **two `is_active` portfolios with the same name** ("Muthu's Personal Portfolio"), created **5 seconds apart** (`f8043b29…` `is_default=true` 15:02:09; `447e92e5…` `is_default=false` 15:02:14, both 2026-05-25). The default one holds the real positions (16 holdings, 1 txn); the stray is empty (0/0). The stray broke `name LIKE` queries (doubled rows) and — now that the per-portfolio jobs **fan out across all active portfolios** — would receive daily junk snapshots.
+    - Root cause: the setup / `getOrCreateDefaultPortfolio` path is **not idempotent** — a double-submit (or concurrent request) during onboarding created a second portfolio. No DB guard prevents more than one active default per user.
+    - Fix: make portfolio creation idempotent (return the existing default instead of inserting a second) and add a **DB guard** — e.g. a partial unique index on `portfolios (user_id) where is_default and is_active`, or unique `(user_id, name)`. Consider a soft-delete/merge path for any existing duplicates.
+    - Manual remediation already applied for this user: deleted the stray's snapshots and set `447e92e5… is_active = false`.
+    - Priority: **Medium** — data-integrity / commercialization (matters as soon as real users onboard). Logged 2026-06-26 (Claude review).
+
 ## Low Priority
 
 1. Provider endpoint inventory
@@ -504,6 +566,23 @@ in their phases. Capture each batch as its own implementation-log entry.
 
    **Financial-sector scoring note (Claude review, 2026-06-23):** `isFinancialSector()` (FundamentalScoringService) gates on the FMP profile `sector` containing "financial" AND `industry` containing one of bank / capital markets / broker / broker-dealer / insurance / thrifts / mortgage finance. Of the 10 new Financials-sleeve stocks: `PGR` (P&C insurer) correctly uses the financial path; `AJG`/`MRSH` (insurance brokers) are caught by `insurance` but behave like fee-based services firms; `ICE`/`CME`/`NDAQ`/`SPGI`/`MCO`/`MSCI`/`FDS` (data/exchange businesses with real margins + FCF) should land on the **standard** path under FMP's usual "Financial Data & Stock Exchanges" industry label — but if FMP tags any of them "Capital Markets" they flip to the financial path and get mis-scored (FCF/margins nulled). Post-seed: verify each of these 7 names' stored FMP `sector`/`industry` and `isFinancial` outcome; if mis-gated, refine `isFinancialSector` to exclude "Financial Data & Stock Exchanges" (separate scoring change with methodology-doc update).
 
+   **Next ETF batch — PLANNED for 2026-06-24 (8 ETFs, alternatives / quality-dividend / international small-cap / global low-vol):** extends the universe toward fuller asset-class + factor coverage. Same implementation pattern as the 2026-06-23 expansion (add to `alphaUniverse.ts` `EtfCategory` + `ETF_CATEGORY_LABELS` + `ALPHA_ETF_CATEGORIES`; classify in `TaxonomyService.etfCategorySectors`/themes + `EtfRecommendationService` benchmark map + `ETF_ASSET_CATEGORY`; sync methodology page + SCORE_METHODOLOGY benchmark table; then seed runbook). FMP coverage TBD per symbol — verify live before seeding (as done for the prior batch).
+
+   - **NEW category `MANAGED_FUTURES`** (Alternatives): `DBMF` (iMGP DBi Managed Futures), `KMLM` (KFA Mount Lucas), `CTA` (Simplify Managed Futures). Proposed classification: canonical sector `Multi-Asset / Broad Market`, asset category `MULTI_ASSET`. Benchmark = DECISION (managed-futures are absolute-return/trend across asset classes; equity/bond benchmarks fit poorly — likely route to no Benchmark Relative component, like "other single-country ETFs"). Look-through: holdings are futures/derivatives, not companies → expect empty/odd exposure (like the option-income/funds-of-funds cases) → spot-check.
+   - **NEW category `INTERNATIONAL_SMALL_CAP`**: `SCZ` (iShares MSCI EAFE Small-Cap — developed ex-US), `VSS` (Vanguard FTSE All-World ex-US Small-Cap). Proposed: canonical sector `Multi-Asset / Broad Market`, asset category `EQUITY`, benchmark `developed_ex_us`.
+   - **Existing `DIVIDEND` category** += `QDIV` (Global X S&P 500 Quality Dividend), `DGRS` (WisdomTree US SmallCap Quality Dividend Growth). Inherits DIVIDEND classification (sp500 benchmark, EQUITY).
+   - **Existing `FACTOR_INVESTING` category** += `ACWV` (iShares MSCI Global Min Vol). NOTE: FACTOR_INVESTING currently benchmarks to `sp500`, but ACWV is GLOBAL min-vol — consider routing it to `global_equities` instead (small benchmark-map decision at implementation time).
+
+   Source: user-proposed coverage batch, 2026-06-23 (for 2026-06-24 implementation). Category/subcategory taxonomy provided: Alternatives→Managed Futures; Dividend→Quality Dividend / Quality Dividend Growth; International Equity→Developed/Global ex-US Small Cap; Factor→Global Low Volatility.
+
+   **PLANNED FEATURE — 20-year history + long-horizon display metrics (user-requested 2026-06-23):** extend stored price history from 5yr → **20yr** (up to 20yr where FMP has it), and add **10/15/20-year** total return, annualized volatility, and drawdown (current + max) as **DISPLAY-ONLY** metrics alongside the existing 1Y/3Y/5Y. Display-only ⇒ **no scoring/methodology change** (no anchor refit, no frozen-constant impact; risk_score still uses the existing 1Y/full-history inputs). Phases:
+   1. **Price window:** `lookbackDays 1825→7300` (backfill action + benchmark backfill); metric-computation `lookbackYears→20`. One-time 20yr backfill (~2M rows; vacuum-between-presses; adaptive daily-returns auto-rebuilds deep history).
+   2. **Returns 10/15/20Y:** add `return_10y/15y/20y` columns to `instrument_market_metrics`; extend the in-service baseline/completeBy computation (`InstrumentMarketService` ~1029-1117, copy the 3Y/5Y pattern).
+   3. **Vol + drawdown 10/15/20Y:** extend the period-drawdowns RPC `period_definitions` union (`+10y/15y/20y`) + `current_drawdown_/max_drawdown_*` columns (migration 075 pattern); add `volatility_10y/15y/20y` columns + windowed `stddev×√252`. Risk score unchanged.
+   4. **UI:** surface the new return/vol/drawdown columns on instrument detail / universe / risk / performance (null = insufficient history, same as 3Y/5Y today).
+   5. **Docs:** descriptive note in `CALCULATION_METHODOLOGY.md` + methodology page that the display windows exist (NOT a scoring-math change).
+   Caveats: ~4× price + daily-returns data; long-horizon vol/drawdown scans are the heaviest new compute (covered by maxDuration/auto-sizing/autovacuum); "20yr" = up to 20yr available so expect large null coverage on long horizons for recent instruments.
+
 6. Branch and deployment governance formal policy
    - Runtime `PRODUCT_MODE=alpha|full` reduces alpha branch drift risk, and the development → main → alpha merge workflow is in practice.
    - Remaining: formal written policy documenting merge direction, Vercel deployment targets per branch, environment variable governance, and rollback process.
@@ -541,6 +620,11 @@ in their phases. Capture each batch as its own implementation-log entry.
     - Not started. Pricing page, payment flow, subscription enforcement, onboarding, and refund/cancellation process are not yet productized.
     - Not required for private alpha. Required before paid launch.
     - Source: `docs/COMMERCIALIZATION_AUDIT_PLAN.md` Section 20.
+
+14. No stored 3Y volatility window
+    - `instrument_risk_metrics` has volatility at 30D / 90D / 1Y (base), 5Y (migration 134), and 10Y / 15Y / 20Y (migration 133). The prior 5Y UI gap is resolved once migration 134 is applied and `refresh_instrument_risk_metrics_only(null)` is run.
+    - Remaining: there is still no stored `volatility_3y` field. No current Long-Horizon Overview surface needs 3Y volatility; add it later only if a UI/API surface requires it.
+    - Updated 2026-06-26 after the display-only 5Y volatility addition.
 
 ## Pending Implementation Tasks
 
