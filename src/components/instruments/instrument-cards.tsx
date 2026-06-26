@@ -1,6 +1,29 @@
 "use client";
 
 import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import type { LucideIcon } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  Anchor,
+  BarChart3,
+  Building2,
+  DollarSign,
+  Droplet,
+  Flame,
+  Gem,
+  Globe,
+  LineChart,
+  Percent,
+  Puzzle,
+  Scale,
+  Shield,
+  ShieldHalf,
+  Spline,
+  Target,
+  Timer,
+  Waves
+} from "lucide-react";
 import type { Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
 import type { InstrumentRecommendation, RecommendationHistoryItem } from "@/domain/recommendations/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,7 +58,7 @@ export type ReturnCharacterStats = {
   positiveRollingOneYearWindows: number | null;
   belowFiftyTwoWeekHigh: number | null;
   deepestDrawdown: number | null;
-  worstWeek: number | null;
+  worstWeekAllHistory: number | null;
 };
 
 export function InstrumentSummaryCard({
@@ -187,31 +210,31 @@ function componentDescription(key: string) {
   return COMPONENT_DESCRIPTIONS[key];
 }
 
-const COMPONENT_ICONS: Record<string, string> = {
-  business_quality: "ti ti-diamond",
-  fundamentals: "ti ti-building-bank",
-  valuation: "ti ti-currency-dollar",
-  fundamental_trends: "ti ti-chart-line",
-  risk_analytics: "ti ti-alert-triangle",
-  market_vision_alignment: "ti ti-target",
-  theme_alignment: "ti ti-puzzle",
-  theme_fit: "ti ti-puzzle",
-  momentum: "ti ti-activity",
-  macro_fit: "ti ti-world",
-  benchmark_relative: "ti ti-scale",
-  duration_fit: "ti ti-timeline",
-  rate_regime: "ti ti-percentage",
-  inflation_regime: "ti ti-flame",
-  yield_curve: "ti ti-chart-arcs",
-  credit_risk: "ti ti-shield-half",
-  portfolio_stability: "ti ti-anchor",
-  inflation_hedge: "ti ti-shield",
-  geopolitical_hedge: "ti ti-world",
-  rates_context: "ti ti-percentage",
-  risk: "ti ti-alert-triangle",
-  liquidity_regime: "ti ti-droplet",
-  macro_risk_appetite: "ti ti-wave-sine",
-  theme_score: "ti ti-puzzle"
+const COMPONENT_ICONS: Record<string, LucideIcon> = {
+  business_quality: Gem,
+  fundamentals: Building2,
+  valuation: DollarSign,
+  fundamental_trends: LineChart,
+  risk_analytics: AlertTriangle,
+  market_vision_alignment: Target,
+  theme_alignment: Puzzle,
+  theme_fit: Puzzle,
+  theme_score: Puzzle,
+  momentum: Activity,
+  macro_fit: Globe,
+  benchmark_relative: Scale,
+  duration_fit: Timer,
+  rate_regime: Percent,
+  rates_context: Percent,
+  inflation_regime: Flame,
+  yield_curve: Spline,
+  credit_risk: ShieldHalf,
+  portfolio_stability: Anchor,
+  inflation_hedge: Shield,
+  geopolitical_hedge: Globe,
+  risk: AlertTriangle,
+  liquidity_regime: Droplet,
+  macro_risk_appetite: Waves
 };
 
 type ObservationTone = "positive" | "info" | "warning" | "danger" | "neutral";
@@ -221,7 +244,7 @@ type KeyObservation = {
   title: string;
   description: string;
   tone: ObservationTone;
-  icon: string;
+  Icon: LucideIcon;
 };
 
 function componentDisplayLabel(key: string, fallback: string) {
@@ -229,14 +252,14 @@ function componentDisplayLabel(key: string, fallback: string) {
 }
 
 function strengthObservation(component: { key: string; label: string; score: number }): KeyObservation {
-  const icon = COMPONENT_ICONS[component.key] ?? "ti ti-chart-bar";
+  const Icon = COMPONENT_ICONS[component.key] ?? BarChart3;
   if (component.key === "business_quality") {
     return {
       key: component.key,
       title: component.score >= CHARACTERISTICS_SCORE_BANDS.excellent ? "Exceptional business quality" : "Strong business quality",
       description: "Strong profitability, cash flow and balance-sheet strength.",
       tone: "positive",
-      icon
+      Icon
     };
   }
   if (component.key === "theme_alignment" || component.key === "theme_fit" || component.key === "theme_score") {
@@ -245,7 +268,7 @@ function strengthObservation(component: { key: string; label: string; score: num
       title: "Strong theme alignment",
       description: "Closely aligned with active Market Vision themes.",
       tone: "positive",
-      icon
+      Icon
     };
   }
   if (component.key === "market_vision_alignment") {
@@ -254,7 +277,7 @@ function strengthObservation(component: { key: string; label: string; score: num
       title: "Supportive market alignment",
       description: "Current Market Vision context aligns with this instrument's profile.",
       tone: "positive",
-      icon
+      Icon
     };
   }
   if (component.key === "momentum") {
@@ -263,7 +286,7 @@ function strengthObservation(component: { key: string; label: string; score: num
       title: "Positive price momentum",
       description: "Recent price trend inputs are above neutral thresholds.",
       tone: "positive",
-      icon
+      Icon
     };
   }
   if (component.key === "benchmark_relative") {
@@ -272,7 +295,7 @@ function strengthObservation(component: { key: string; label: string; score: num
       title: "Positive benchmark-relative return",
       description: "One-year return is above the mapped asset-class benchmark.",
       tone: "positive",
-      icon
+      Icon
     };
   }
   if (component.key === "fundamental_trends") {
@@ -281,7 +304,7 @@ function strengthObservation(component: { key: string; label: string; score: num
       title: "Improving fundamental trends",
       description: "Stored trend rows are above neutral thresholds.",
       tone: "positive",
-      icon
+      Icon
     };
   }
   return {
@@ -289,19 +312,19 @@ function strengthObservation(component: { key: string; label: string; score: num
     title: `Strong ${componentDisplayLabel(component.key, component.label).toLowerCase()}`,
     description: componentDescription(component.key) ?? "Stored component score is above the Good threshold.",
     tone: "positive",
-    icon
+    Icon
   };
 }
 
 function watchObservation(component: { key: string; label: string; score: number }): KeyObservation {
-  const icon = COMPONENT_ICONS[component.key] ?? "ti ti-alert-circle";
+  const Icon = COMPONENT_ICONS[component.key] ?? BarChart3;
   if (component.key === "risk_analytics" || component.key === "risk") {
     return {
       key: component.key,
       title: "Elevated risk",
       description: "High volatility and meaningful drawdown versus the broad market.",
       tone: "warning",
-      icon
+      Icon
     };
   }
   if (component.key === "valuation") {
@@ -310,7 +333,7 @@ function watchObservation(component: { key: string; label: string; score: number
       title: "Full valuation",
       description: "Trades at a premium on current fundamental inputs.",
       tone: "info",
-      icon
+      Icon
     };
   }
   if (component.key === "fundamental_trends") {
@@ -319,7 +342,7 @@ function watchObservation(component: { key: string; label: string; score: number
       title: "Weak fundamental trends",
       description: "Stored trend rows are below neutral thresholds.",
       tone: "warning",
-      icon
+      Icon
     };
   }
   if (component.key === "momentum") {
@@ -328,7 +351,7 @@ function watchObservation(component: { key: string; label: string; score: number
       title: "Weak price momentum",
       description: "Recent price trend inputs are below neutral thresholds.",
       tone: "warning",
-      icon
+      Icon
     };
   }
   if (component.key === "market_vision_alignment") {
@@ -337,7 +360,7 @@ function watchObservation(component: { key: string; label: string; score: number
       title: "Limited market alignment",
       description: "Current Market Vision context has limited alignment with this instrument.",
       tone: "info",
-      icon
+      Icon
     };
   }
   if (component.key === "theme_alignment" || component.key === "theme_fit" || component.key === "theme_score") {
@@ -346,7 +369,7 @@ function watchObservation(component: { key: string; label: string; score: number
       title: "Limited theme alignment",
       description: "Theme tags are below neutral alignment thresholds.",
       tone: "info",
-      icon
+      Icon
     };
   }
   return {
@@ -354,7 +377,7 @@ function watchObservation(component: { key: string; label: string; score: number
     title: `${componentDisplayLabel(component.key, component.label)} watch area`,
     description: componentDescription(component.key) ?? "Stored component score is below the Neutral threshold.",
     tone: "warning",
-    icon
+    Icon
   };
 }
 
@@ -651,10 +674,11 @@ function LongHorizonV2Block({ marketView, riskMetric }: { marketView: Instrument
     { label: "20Y", annualizedReturn: annualizedReturn(marketView.twentyYearReturn, 20), volatility: riskMetric?.volatility20y, maxDrawdown: riskMetric?.maxDrawdown20y }
   ];
   const barPeriods = periods.filter((period): period is typeof period & { annualizedReturn: number } => period.annualizedReturn != null);
+  const drawdownBarPeriods = periods.filter((period): period is typeof period & { maxDrawdown: number } => period.maxDrawdown != null);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card>
+      <Card className="h-full">
         <CardHeader>
           <CardTitle>Long-horizon returns</CardTitle>
           <CardDescription>Annualised (CAGR) by period; display-only context.</CardDescription>
@@ -709,12 +733,12 @@ function LongHorizonV2Block({ marketView, riskMetric }: { marketView: Instrument
           <p className="text-xs text-muted-foreground">Annualised return = (1 + total return)^(1/years) - 1. Figures are backward-looking and do not predict future performance.</p>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="h-full">
         <CardHeader>
           <CardTitle>Long-horizon risk</CardTitle>
           <CardDescription>Stored volatility and drawdown windows; display-only context.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b">
@@ -743,6 +767,23 @@ function LongHorizonV2Block({ marketView, riskMetric }: { marketView: Instrument
               </tbody>
             </table>
           </div>
+          {drawdownBarPeriods.length > 0 ? (
+            <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+              {drawdownBarPeriods.map((period) => {
+                const magnitude = Math.abs(period.maxDrawdown);
+                const width = Math.min(100, magnitude * 100);
+                return (
+                  <div key={period.label} className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] items-center gap-3 text-xs">
+                    <span className="font-semibold text-muted-foreground">{period.label}</span>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-red-600" style={{ width: `${width}%` }} />
+                    </div>
+                    <span className="text-right font-medium text-foreground">{formatPercent(period.maxDrawdown)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
           <p className="mt-4 text-xs text-muted-foreground">Display-only context; not used in scoring or guardrails.</p>
         </CardContent>
       </Card>
@@ -785,12 +826,14 @@ function CharacteristicsBreakdown({ recommendation }: { recommendation: Instrume
             const scoreTone = componentScoreTone(score);
             const barClass = componentBarClass(score);
             const description = componentDescription(component.key);
-            const icon = COMPONENT_ICONS[component.key] ?? "ti ti-chart-bar";
+            const Icon = COMPONENT_ICONS[component.key] ?? BarChart3;
             return (
               <div key={component.key || component.label} className="rounded-lg border bg-background p-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex min-w-0 gap-3">
-                    <span className={`mt-0.5 h-8 w-8 shrink-0 rounded-lg border bg-muted/40 text-center text-base leading-8 text-muted-foreground ${icon}`} aria-hidden />
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground" aria-hidden>
+                      <Icon className="h-4 w-4" />
+                    </span>
                     <div className="min-w-0">
                     <p className="font-medium">{score != null && score < CHARACTERISTICS_SCORE_BANDS.weak ? <span className="mr-1 text-amber-600" aria-label="Low component score">{"\u26a0"}</span> : null}{component.label}</p>
                     {description ? <p className="mt-1 max-w-2xl text-xs text-muted-foreground">{description}</p> : null}
@@ -826,17 +869,22 @@ function KeyObservationsGrid({ recommendation }: { recommendation: InstrumentRec
   }
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      {observations.map((observation) => (
-        <div key={observation.key} className={`rounded-xl border p-3 ${toneClassName(observation.tone)}`}>
-          <div className="flex gap-3">
-            <span className={`mt-0.5 h-8 w-8 shrink-0 rounded-lg border bg-background/60 text-center text-base leading-8 ${observation.icon}`} aria-hidden />
-            <div>
-              <p className="text-sm font-semibold">{observation.title}</p>
-              <p className="mt-1 text-xs opacity-85">{observation.description}</p>
+      {observations.map((observation) => {
+        const Icon = observation.Icon;
+        return (
+          <div key={observation.key} className={`rounded-xl border p-3 ${toneClassName(observation.tone)}`}>
+            <div className="flex gap-3">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border bg-background/60" aria-hidden>
+                <Icon className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">{observation.title}</p>
+                <p className="mt-1 text-xs opacity-85">{observation.description}</p>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -859,7 +907,7 @@ function VerdictHero({
   const priceDate = marketView.latestPriceDate ?? EMPTY_VALUE;
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div className="space-y-4">
           <div>
@@ -907,7 +955,7 @@ function VerdictHero({
 export function KeyFactsCard({ facts }: { facts: OverviewKeyFacts | null }) {
   if (!facts) {
     return (
-      <Card>
+      <Card className="h-full">
         <CardHeader>
           <CardTitle>Key facts</CardTitle>
           <CardDescription>Loading profile and ratio fields...</CardDescription>
@@ -919,7 +967,7 @@ export function KeyFactsCard({ facts }: { facts: OverviewKeyFacts | null }) {
     );
   }
   return (
-    <Card>
+      <Card className="h-full">
       <CardHeader>
         <CardTitle>Key facts</CardTitle>
         <CardDescription>Profile, valuation, and stored risk context.</CardDescription>
@@ -949,7 +997,7 @@ function ReturnCharacterTile({ label, value, tone }: { label: string; value: str
 
 export function ReturnCharacterCard({ stats }: { stats: ReturnCharacterStats | null }) {
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
         <CardTitle>Return character</CardTitle>
         <CardDescription>Rolling-window and drawdown context from stored price history.</CardDescription>
@@ -960,7 +1008,7 @@ export function ReturnCharacterCard({ stats }: { stats: ReturnCharacterStats | n
         <ReturnCharacterTile label="Positive 1Y windows" value={formatMaybePercent(stats?.positiveRollingOneYearWindows)} tone="positive" />
         <ReturnCharacterTile label="Below 52W high" value={formatMaybePercent(stats?.belowFiftyTwoWeekHigh)} tone="neutral" />
         <ReturnCharacterTile label="Deepest drawdown" value={formatMaybePercent(stats?.deepestDrawdown)} tone="danger" />
-        <ReturnCharacterTile label="Worst week" value={formatMaybePercent(stats?.worstWeek)} tone="danger" />
+        <ReturnCharacterTile label="Worst week" value={formatMaybePercent(stats?.worstWeekAllHistory)} tone="danger" />
       </CardContent>
     </Card>
   );
@@ -988,8 +1036,8 @@ export function InstrumentOverviewPanel({
   return (
     <div className="space-y-4">
       <VerdictHero marketView={marketView} recommendation={recommendation} universePercentile={universePercentile} />
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(20rem,1fr)]">
-      <div id="instrument-price-chart-slot">
+      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(20rem,1fr)]">
+      <div id="instrument-price-chart-slot" className="h-full">
         {/* instrument-price-chart-slot */}
         {priceChart}
       </div>
@@ -997,9 +1045,9 @@ export function InstrumentOverviewPanel({
       </div>
       <CharacteristicsBreakdown recommendation={recommendation} />
       <LongHorizonV2Block marketView={marketView} riskMetric={riskMetric} />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div>{scoreTrend}</div>
-        <div>{returnCharacter}</div>
+      <div className="grid items-stretch gap-4 lg:grid-cols-2">
+        <div className="h-full">{scoreTrend}</div>
+        <div className="h-full">{returnCharacter}</div>
       </div>
       <p className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
         Data quality: liquidity {marketView.liquidity}; freshness {marketView.freshnessLabel}; history start {marketView.priceHistoryStart ?? EMPTY_VALUE}; observations {formatNumber(marketView.priceObservationCount)}. Peer comparison and assessment sensitivity live in the Insights tab.

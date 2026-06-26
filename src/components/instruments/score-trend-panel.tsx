@@ -107,7 +107,7 @@ export function ScoreTrendPanel({ history }: { history: RecommendationScoreHisto
 
   if (scoredHistory.length === 0) {
     return (
-      <Card>
+      <Card className="h-full">
         <CardHeader>
           <CardTitle>Characteristics score trend</CardTitle>
           <CardDescription>No insight history yet.</CardDescription>
@@ -122,7 +122,7 @@ export function ScoreTrendPanel({ history }: { history: RecommendationScoreHisto
   }
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

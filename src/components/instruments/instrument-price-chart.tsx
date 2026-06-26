@@ -180,13 +180,13 @@ export function InstrumentPriceChart({
 
   if (periodSeries.length < 2) {
     return (
-      <Card>
+      <Card className="flex h-full flex-col">
         <CardHeader>
           <CardTitle>Price chart</CardTitle>
           <CardDescription>Stored adjusted close history.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex h-44 items-center justify-center rounded-lg border bg-muted/40 text-sm font-medium text-muted-foreground">
+        <CardContent className="flex flex-1 flex-col">
+          <div className="flex min-h-44 flex-1 items-center justify-center rounded-lg border bg-muted/40 text-sm font-medium text-muted-foreground">
             No price history
           </div>
         </CardContent>
@@ -216,7 +216,7 @@ export function InstrumentPriceChart({
   }
 
   return (
-    <Card>
+    <Card className="flex h-full flex-col">
       <CardHeader className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -250,8 +250,8 @@ export function InstrumentPriceChart({
           ))}
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="relative" onMouseMove={handleMouseMove} onMouseLeave={() => setHoverIndex(null)}>
+      <CardContent className="flex flex-1 flex-col">
+        <div className="relative flex min-h-44 flex-1 flex-col" onMouseMove={handleMouseMove} onMouseLeave={() => setHoverIndex(null)}>
           <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16">
             {yAxisLabels.map((label) => (
               <span
@@ -274,7 +274,7 @@ export function InstrumentPriceChart({
               </span>
             ))}
           </div>
-          <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="h-44 w-full overflow-visible" role="img" aria-label={`${selectedPeriod.label} adjusted close price chart`}>
+          <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="min-h-44 w-full flex-1 overflow-visible" role="img" aria-label={`${selectedPeriod.label} adjusted close price chart`}>
             <defs>
               <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0%" stopColor={color} stopOpacity="0.18" />

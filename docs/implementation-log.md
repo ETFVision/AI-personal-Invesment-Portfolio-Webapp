@@ -4460,6 +4460,71 @@ Completed.
 - Initial `npm.cmd test` failed before executing tests because TypeScript could not write `.test-build` files under sandboxed filesystem permissions (`EPERM`); rerunning the same command with elevated filesystem permission passed.
 - Browser recheck in an authenticated session is still pending; verify a deep-history name such as NVDA shows separated 15Y/20Y annualised returns rather than near-identical total returns.
 
+## 2026-06-26 - Return Character Worst Week All-History
+
+### Source
+Claude Code
+
+### Objective
+Replace the instrument detail Overview Return Character "Worst week" tile with an all-history, date-based weekly return computed from the loaded price series.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Added an all-history weekly-return calculation over the sorted price series using the latest earlier point at least seven calendar days before each observation.
+- Updated Return Character stats to expose `worstWeekAllHistory` and render the "Worst week" tile from that value instead of the trailing-1Y `riskMetric.worstWeeklyReturn`.
+- Kept the change display-only; no scoring, methodology, data-pipeline, guardrail, or recommendation logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PENDING
+- `npm.cmd run lint` - PENDING
+- `npm.cmd test` - PENDING
+- `npm.cmd run build` - PENDING
+
+### Result
+Pending validation.
+
+### Notes for Claude
+- The all-history weekly value is exact for the daily recent segment and approximate in older downsampled history, matching the existing long-term Return Character context.
+
+## 2026-06-26 - Instrument Detail Overview Polish
+
+### Source
+Claude Code
+
+### Objective
+Apply four display-only polish fixes to the instrument detail Overview: lucide icons, chart/facts height alignment, long-horizon risk bars, and date-based rolling 1Y return-character stats.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-cards.tsx`
+- `src/components/instruments/instrument-price-chart.tsx`
+- `src/components/instruments/score-trend-panel.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Replaced blank Tabler class-name spans with `lucide-react` icon components in Key Observations and Characteristics breakdown.
+- Made the price chart card, Key Facts card, score trend card, and return-character card participate in equal-height rows; the chart SVG now flexes vertically within its card.
+- Added red max-drawdown bars to the Long-horizon risk card for 1Y/5Y/10Y/15Y/20Y windows.
+- Recomputed rolling one-year return-character stats by date rather than a fixed row offset, avoiding overstated older downsampled periods.
+- Kept all changes display-only; no scoring, methodology, recommendation, guardrail, data-pipeline, access-control, or feature-flag logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Browser recheck in an authenticated session is still pending; verify lucide icons render, chart/facts rows align, long-horizon risk bars render, and NVDA rolling 1Y stats are no longer inflated by downsampled index offsets.
+
 ## 2026-06-26 - Instrument Detail Overview v2
 
 ### Source

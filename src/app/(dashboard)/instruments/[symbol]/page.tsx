@@ -45,14 +45,26 @@ function percent(value: number | null | undefined) {
 }
 
 function rollingOneYearStats(series: PriceSeriesPoint[]): Pick<ReturnCharacterStats, "bestRollingOneYear" | "worstRollingOneYear" | "positiveRollingOneYearWindows"> {
+  const sorted = series
+    .filter((point) => point.date && Number.isFinite(point.close) && point.close > 0)
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date));
   const returns: number[] = [];
-  for (let index = 252; index < series.length; index += 1) {
-    const baseline = series[index - 252]?.close;
-    const close = series[index]?.close;
-    if (baseline == null || close == null || baseline <= 0) continue;
-    returns.push(close / baseline - 1);
+  let baselineIndex = 0;
+  for (let index = 1; index < sorted.length; index += 1) {
+    const point = sorted[index];
+    const pointDate = new Date(`${point.date}T00:00:00Z`);
+    if (Number.isNaN(pointDate.getTime())) continue;
+    pointDate.setUTCDate(pointDate.getUTCDate() - 365);
+    const targetDate = pointDate.toISOString().slice(0, 10);
+    while (baselineIndex + 1 < index && sorted[baselineIndex + 1].date <= targetDate) {
+      baselineIndex += 1;
+    }
+    const baseline = sorted[baselineIndex];
+    if (!baseline || baseline.date > targetDate || baseline.close <= 0) continue;
+    returns.push(point.close / baseline.close - 1);
   }
-  if (returns.length === 0) {
+  if (returns.length < 20) {
     return { bestRollingOneYear: null, worstRollingOneYear: null, positiveRollingOneYearWindows: null };
   }
   return {
@@ -60,6 +72,29 @@ function rollingOneYearStats(series: PriceSeriesPoint[]): Pick<ReturnCharacterSt
     worstRollingOneYear: Math.min(...returns),
     positiveRollingOneYearWindows: returns.filter((value) => value > 0).length / returns.length
   };
+}
+
+function worstWeekAllHistory(series: PriceSeriesPoint[]) {
+  const sorted = series
+    .filter((point) => point.date && Number.isFinite(point.close) && point.close > 0)
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const weeklyReturns: number[] = [];
+  let baselineIndex = 0;
+  for (let index = 1; index < sorted.length; index += 1) {
+    const point = sorted[index];
+    const pointDate = new Date(`${point.date}T00:00:00Z`);
+    if (Number.isNaN(pointDate.getTime())) continue;
+    pointDate.setUTCDate(pointDate.getUTCDate() - 7);
+    const targetDate = pointDate.toISOString().slice(0, 10);
+    while (baselineIndex + 1 < index && sorted[baselineIndex + 1].date <= targetDate) {
+      baselineIndex += 1;
+    }
+    const baseline = sorted[baselineIndex];
+    if (!baseline || baseline.date > targetDate || baseline.close <= 0) continue;
+    weeklyReturns.push(point.close / baseline.close - 1);
+  }
+  return weeklyReturns.length === 0 ? null : Math.min(...weeklyReturns);
 }
 
 function returnCharacterStats(series: PriceSeriesPoint[], marketView: InstrumentMarketView, riskMetric: InstrumentRiskMetric | null): ReturnCharacterStats {
@@ -72,7 +107,7 @@ function returnCharacterStats(series: PriceSeriesPoint[], marketView: Instrument
     ...rolling,
     belowFiftyTwoWeekHigh: belowHigh,
     deepestDrawdown: riskMetric?.maxDrawdown20y ?? riskMetric?.maxDrawdown ?? null,
-    worstWeek: riskMetric?.worstWeeklyReturn ?? null
+    worstWeekAllHistory: worstWeekAllHistory(series)
   };
 }
 

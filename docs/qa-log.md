@@ -6652,6 +6652,30 @@ Expected behavior:
 
 ---
 
+## 2026-06-26 - Instrument Detail Overview Polish QA
+
+Scope:
+- Replaced blank Tabler icon class spans with `lucide-react` icons in Key Observations and Characteristics breakdown.
+- Made the chart/facts row and score-trend/return-character row participate in equal-height layouts.
+- Added red max-drawdown bars to the Long-horizon risk card.
+- Corrected rolling one-year return-character stats to use date-based 365-day windows instead of downsampled row offsets.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- Lucide icons render in both observation cards and breakdown rows.
+- Chart bottom aligns with Key Facts and fills its card vertically.
+- Long-horizon risk card shows red drawdown bars and visually balances the returns card.
+- NVDA-style deep histories no longer show rolling 1Y stats inflated by weekly downsampling before the most recent 5 years.
+- No scoring, methodology, guardrail, recommendation, access-control, feature-flag, or data-pipeline behavior changed.
+
+---
+
 ## 2026-06-26 - Instrument Detail Overview v2 QA
 
 Scope:
