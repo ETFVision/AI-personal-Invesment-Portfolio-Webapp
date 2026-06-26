@@ -4479,13 +4479,13 @@ Replace the instrument detail Overview Return Character "Worst week" tile with a
 - Kept the change display-only; no scoring, methodology, data-pipeline, guardrail, or recommendation logic changed.
 
 ### Tests Run
-- `npm.cmd run typecheck` - PENDING
-- `npm.cmd run lint` - PENDING
-- `npm.cmd test` - PENDING
-- `npm.cmd run build` - PENDING
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS after elevated rerun; initial sandbox run hit `.test-build` EPERM writes.
+- `npm.cmd run build` - PASS
 
 ### Result
-Pending validation.
+Completed.
 
 ### Notes for Claude
 - The all-history weekly value is exact for the daily recent segment and approximate in older downsampled history, matching the existing long-term Return Character context.
