@@ -49,8 +49,8 @@ Since migration `117` the daily chain is anchored to the US market close: it sta
 5. Risk metrics (single full-universe pass, `batchSize=350`; previously two passes).
 6. Metadata.
 7. Benchmarks.
-8. Portfolio valuation.
-9. Portfolio summary refresh.
+8. Portfolio valuation across all active portfolios.
+9. Portfolio summary refresh across all active portfolios.
 10. FRED macro.
 11. FMP news.
 12. NewsData.
@@ -64,8 +64,8 @@ Weekly runs Sunday morning Singapore time and stays within Saturday UTC (`23:30`
 1. Fundamentals refresh.
 2. Weekly news reconciliation.
 3. Market Vision.
-4. Recommendations.
-5. Portfolio Review.
+4. Recommendations (universe-wide; optional portfolio context only).
+5. Portfolio Review across all active portfolios.
 6. Telemetry evaluation.
 
 ## Monthly Schedule Summary
@@ -102,6 +102,8 @@ Check these before relying on weekly outputs:
 - NewsData and FMP news ingestion succeeded.
 - FRED macro ingestion succeeded.
 - Weekly Market Vision and recommendations ran after news/macro updates.
+
+Portfolio valuation, portfolio summary, and Portfolio Review scheduled endpoints fan out across all active portfolios when no `portfolioId` query parameter is supplied. Explicit `portfolioId` runs still process a single portfolio. Sequential fan-out is acceptable for the alpha portfolio count; if active portfolios grow meaningfully, revisit batching or concurrency, especially for Portfolio Review and its 25-minute lock TTL.
 
 ## Cache Invalidation Pattern
 

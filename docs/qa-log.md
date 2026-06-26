@@ -6704,6 +6704,28 @@ Expected behavior:
 
 ---
 
+## 2026-06-26 - Portfolio Scheduled Fan-Out QA
+
+Scope:
+- Portfolio valuation, portfolio summary, and Portfolio Review scheduled endpoints now process all active portfolios when no `portfolioId` query parameter is supplied.
+- Explicit `portfolioId` runs still process a single portfolio.
+- Recommendation-run remains universe-wide and was not changed.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (363 tests)
+- PASS: `npm.cmd run build`
+
+Expected behavior:
+- A scheduled no-param valuation run creates analytics snapshots and refreshes dashboard/performance summaries for every active portfolio.
+- A scheduled no-param summary run refreshes dashboard/performance summaries for every active portfolio.
+- A scheduled no-param Portfolio Review run creates review runs/reports for every active portfolio.
+- One failing portfolio is reported as `partial_success` while other portfolios continue.
+- Sequential processing is acceptable for alpha; revisit concurrency and the Portfolio Review 25-minute lock TTL if the active portfolio count grows.
+
+---
+
 ## 2026-06-26 - Instrument Detail Overview v2 QA
 
 Scope:

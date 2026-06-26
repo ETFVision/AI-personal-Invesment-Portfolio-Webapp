@@ -28,12 +28,12 @@ Provider and database variables remain in Vercel:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `CRON_SECRET`
 
-Portfolio-specific scheduled jobs also need:
+Portfolio-specific scheduled jobs may use:
 
 - `SCHEDULED_USER_ID`
 - `SCHEDULED_PORTFOLIO_ID`
 
-These are used by `/api/jobs/portfolio-valuation-refresh`, `/api/jobs/recommendation-run`, and `/api/jobs/portfolio-review-run` when the job endpoint does not receive query parameters.
+`/api/jobs/portfolio-valuation-refresh`, `/api/jobs/portfolio-summary-refresh`, and `/api/jobs/portfolio-review-run` fan out across all active portfolios when the endpoint does not receive a `portfolioId` query parameter. `SCHEDULED_PORTFOLIO_ID` remains optional context for `/api/jobs/recommendation-run`, which is universe-wide rather than a per-portfolio batch.
 
 ## Supabase Schedule
 
@@ -52,8 +52,8 @@ The chain is anchored to the US market close. Migration `117` re-cascades every 
 | `app-daily-instrument-risk-refresh` | `50 22 * * *` | 6:50 AM daily | `/api/jobs/instrument-risk-refresh?batchSize=350&minObservations=30&lockTtlSeconds=600` | Refresh stored instrument risk metrics for the full universe in a single pass. Migration 117 collapses the previous two passes (`batchSize=200` + `150`) into one; the service chunks the set-based RPC internally (`chunkSize` default 25) with a per-instrument fallback on statement timeout. |
 | `app-daily-instrument-metadata-refresh` | `55 22 * * *` | 6:55 AM daily | `/api/jobs/instrument-metadata-refresh?batchSize=25&maxBatches=14&lockTtlSeconds=600` | Refresh instrument profile metadata and taxonomy inputs. |
 | `app-daily-benchmark-refresh` | `0 23 * * *` | 7:00 AM daily | `/api/jobs/benchmark-refresh?lookbackDays=30` | Keep benchmark comparison series current. |
-| `app-daily-portfolio-valuation-refresh` | `5 23 * * *` | 7:05 AM daily | `/api/jobs/portfolio-valuation-refresh` | Create current portfolio valuation snapshots. |
-| `app-daily-portfolio-summary-refresh` | `10 23 * * *` | 7:10 AM daily | `/api/jobs/portfolio-summary-refresh` | Refresh portfolio dashboard and performance summary read models after valuation. |
+| `app-daily-portfolio-valuation-refresh` | `5 23 * * *` | 7:05 AM daily | `/api/jobs/portfolio-valuation-refresh` | Create current portfolio valuation snapshots for all active portfolios. |
+| `app-daily-portfolio-summary-refresh` | `10 23 * * *` | 7:10 AM daily | `/api/jobs/portfolio-summary-refresh` | Refresh portfolio dashboard and performance summary read models for all active portfolios after valuation. |
 | `app-daily-fred-macro-ingestion` | `15 23 * * *` | 7:15 AM daily | `/api/jobs/fred-macro-ingestion` | Refresh FRED macro indicators and macro signals. |
 | `app-daily-fmp-news-ingestion` | `20 23 * * *` | 7:20 AM daily | `/api/jobs/daily-news-ingestion` | Refresh FMP instrument and general market news. |
 | `app-daily-newsdata-ingestion` | `25 23 * * *` | 7:25 AM daily | `/api/jobs/newsdata-news-ingestion` | Refresh NewsData macro and world-news query groups. |
@@ -69,8 +69,8 @@ Runs every Sunday morning (Singapore time) using Friday-close market data that i
 | `app-weekly-fundamentals-refresh` | `30 23 * * 6` | 7:30 AM Sunday | `/api/jobs/fundamentals-refresh` | Refresh due fundamentals in one bounded-concurrency pass. |
 | `app-weekly-news-reconciliation` | `35 23 * * 6` | 7:35 AM Sunday | `/api/jobs/weekly-news-reconciliation` | Build weekly asset and theme news summaries. |
 | `app-weekly-market-vision` | `40 23 * * 6` | 7:40 AM Sunday | `/api/jobs/weekly-market-vision` | Generate the weekly CIO-style Market Vision draft and capture Market Vision telemetry snapshots. |
-| `app-weekly-recommendation-run` | `45 23 * * 6` | 7:45 AM Sunday | `/api/jobs/recommendation-run` | Refresh recommendation outputs and capture recommendation telemetry snapshots. |
-| `app-weekly-portfolio-review-run` | `50 23 * * 6` | 7:50 AM Sunday | `/api/jobs/portfolio-review-run` | Refresh Portfolio Review and capture Portfolio Review telemetry snapshots. |
+| `app-weekly-recommendation-run` | `45 23 * * 6` | 7:45 AM Sunday | `/api/jobs/recommendation-run` | Refresh universe-wide recommendation outputs and capture recommendation telemetry snapshots. |
+| `app-weekly-portfolio-review-run` | `50 23 * * 6` | 7:50 AM Sunday | `/api/jobs/portfolio-review-run` | Refresh Portfolio Review for all active portfolios and capture Portfolio Review telemetry snapshots. |
 | `app-weekly-telemetry-evaluation` | `55 23 * * 6` | 7:55 AM Sunday | `/api/jobs/telemetry-evaluation` | Check whether any 1m, 3m, 6m or 12m telemetry horizons have matured and evaluate only those ready observations. |
 
 Telemetry evaluation is scheduled weekly, but the evaluation horizons are not weekly. The job checks all stored snapshots and evaluates only observations whose configured 1m, 3m, 6m or 12m maturity date has arrived.

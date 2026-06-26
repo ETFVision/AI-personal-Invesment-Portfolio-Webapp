@@ -4754,3 +4754,45 @@ Completed
 
 ### Notes for Claude
 - Browser recheck in an authenticated session is still pending for annual-ratio and quarterly-growth display examples.
+
+## 2026-06-26 — Portfolio Scheduled Job Fan-Out
+
+### Source
+Claude Code
+
+### Objective
+Make scheduled portfolio valuation, portfolio summary, and Portfolio Review jobs process every active portfolio when no `portfolioId` is supplied.
+
+### Files Changed
+- `src/application/ports/repositories/PortfolioRepository.ts`
+- `src/infrastructure/repositories/supabase/SupabasePortfolioRepository.ts`
+- `src/server/jobs/portfolioScheduledFanout.ts`
+- `src/app/api/jobs/portfolio-valuation-refresh/route.ts`
+- `src/app/api/jobs/portfolio-summary-refresh/route.ts`
+- `src/app/api/jobs/portfolio-review-run/route.ts`
+- `tests/portfolio-job-fanout.test.ts`
+- `package.json`
+- `docs/scheduled-jobs.md`
+- `docs/JOBS_AND_OPERATIONS.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added `listActivePortfolioIds()` to the portfolio repository port and Supabase implementation.
+- Updated the three per-portfolio scheduled routes so explicit `portfolioId` runs remain single-portfolio, while scheduled no-param runs fan out across all active portfolios.
+- Added per-portfolio error isolation with aggregate `success`, `partial_success`, and `failed` statuses plus processed/failed counts.
+- Left recommendation-run unchanged because it is universe-wide with optional portfolio context.
+- Added route-runner regression tests for explicit single runs, all-active fan-out, and partial success isolation for valuation, summary, and review jobs.
+- Updated operations docs to document all-active portfolio fan-out and the scale follow-up for Portfolio Review if portfolio count grows.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Sequential fan-out is fine for alpha. If active portfolio count grows, revisit batching/concurrency and the 25-minute lock TTL on `portfolio-review-run`.
