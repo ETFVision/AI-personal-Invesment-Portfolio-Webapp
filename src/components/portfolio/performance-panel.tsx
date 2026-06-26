@@ -322,6 +322,7 @@ function MultiBenchmarkPeriodChart({
                   className={isZero ? "stroke-muted-foreground" : "stroke-muted"}
                   strokeWidth={isZero ? "0.7" : "0.4"}
                   strokeDasharray={isZero ? undefined : "2 2"}
+                  vectorEffect="non-scaling-stroke"
                 />
                 <text x={left - 1.5} y={y + 1.2} textAnchor="end" className="fill-muted-foreground text-[3.8px]">
                   {formatPercent(value)}
@@ -337,9 +338,9 @@ function MultiBenchmarkPeriodChart({
               </text>
             );
           })}
-          <polyline points={buildPath(portfolioSegments.solid)} fill="none" className="stroke-primary" strokeWidth="2.1" strokeLinecap="round" />
+          <polyline points={buildPath(portfolioSegments.solid)} fill="none" className="stroke-primary" strokeWidth="2.1" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           {portfolioSegments.dashed.length >= 2 ? (
-            <polyline points={buildPath(portfolioSegments.dashed)} fill="none" className="stroke-primary opacity-50" strokeWidth="2.1" strokeLinecap="round" strokeDasharray="3 2" />
+            <polyline points={buildPath(portfolioSegments.dashed)} fill="none" className="stroke-primary opacity-50" strokeWidth="2.1" strokeLinecap="round" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
           ) : null}
           {benchmarkSeries.map((series) => {
             const segments = splitForFreshness(series.values);
@@ -351,6 +352,7 @@ function MultiBenchmarkPeriodChart({
                   stroke={series.color}
                   strokeWidth="1.4"
                   strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
                 />
                 {segments.dashed.length >= 2 ? (
                   <polyline
@@ -361,6 +363,7 @@ function MultiBenchmarkPeriodChart({
                     strokeLinecap="round"
                     strokeDasharray="3 2"
                     opacity="0.45"
+                    vectorEffect="non-scaling-stroke"
                   />
                 ) : null}
               </g>

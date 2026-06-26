@@ -5056,3 +5056,34 @@ Completed.
 ### Notes for Claude
 - Display-only layout/theming change. No data, scoring, recommendation, feature-flag, access-control, or methodology logic changed.
 - Browser recheck recommended for responsive dashboard layout and geography threshold display.
+
+## 2026-06-26 - Portfolio Dashboard Chart Stroke and Health Card Polish
+
+### Source
+Claude Code
+
+### Objective
+Fix stretched performance-chart strokes under full-width SVG scaling and refine the Portfolio Health card hierarchy.
+
+### Files Changed
+- `src/app/(dashboard)/portfolio/page.tsx`
+- `src/components/portfolio/performance-panel.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Added non-scaling SVG stroke behavior to performance-chart gridlines, the 0% line, the portfolio line, and all plotted benchmark lines.
+- Reworked the Portfolio Health gauge so the arc, score, and band chip are vertically stacked instead of overlapping.
+- Enlarged the health gauge/score treatment, moved the explanatory description to a bottom caption with divider, and changed sub-ratings to a wider 2x2 grid.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS after rerun; first attempt hit stale generated `.next/types` entries before `next build` regenerated route types.
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only portfolio dashboard polish. No data, scoring, recommendation, feature-flag, access-control, or methodology logic changed.
+- Browser recheck recommended for chart stroke rendering and the revised health-card layout.

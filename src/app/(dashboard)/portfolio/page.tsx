@@ -145,23 +145,21 @@ function HealthGauge({ score }: { score: number | null | undefined }) {
   const band = scoreBand(score);
   const value = Math.max(0, Math.min(100, score ?? 0));
   return (
-    <div className="relative mx-auto h-28 w-48">
-      <svg viewBox="0 0 160 92" className="h-full w-full" role="img" aria-label="Portfolio health gauge">
-        <path d="M 20 76 A 60 60 0 0 1 140 76" fill="none" className="stroke-muted" strokeWidth="14" strokeLinecap="round" pathLength={100} />
+    <div className="mx-auto flex w-56 flex-col items-center text-center">
+      <svg viewBox="0 0 180 108" className="h-32 w-full" role="img" aria-label="Portfolio health gauge">
+        <path d="M 22 88 A 68 68 0 0 1 158 88" fill="none" className="stroke-muted" strokeWidth="16" strokeLinecap="round" pathLength={100} />
         <path
-          d="M 20 76 A 60 60 0 0 1 140 76"
+          d="M 22 88 A 68 68 0 0 1 158 88"
           fill="none"
           className={band.stroke}
-          strokeWidth="14"
+          strokeWidth="16"
           strokeLinecap="round"
           pathLength={100}
           strokeDasharray={`${value} 100`}
         />
       </svg>
-      <div className="absolute inset-x-0 bottom-0 text-center">
-        <div className="text-3xl font-semibold tabular-nums text-foreground">{scoreText(score)}</div>
-        <div className={cn("text-xs font-semibold uppercase tracking-wide", band.textClass)}>{band.label}</div>
-      </div>
+      <div className="mt-1 text-4xl font-semibold tabular-nums text-foreground">{scoreText(score)}</div>
+      <span className={cn("mt-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide", band.badgeClass)}>{band.label}</span>
     </div>
   );
 }
@@ -179,26 +177,24 @@ function SubRating({ label, section }: { label: string; section: PortfolioReview
 }
 
 function PortfolioHealthCard({ review }: { review: PortfolioReviewReport | null }) {
-  const band = scoreBand(review?.overallPortfolioScore);
   return (
     <DashboardCard>
-      <div className="flex h-full flex-col gap-4 lg:flex-row lg:items-center">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center lg:w-[26rem] lg:shrink-0">
-          <HealthGauge score={review?.overallPortfolioScore} />
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Portfolio health</p>
-            <div className="mt-2">
-              <span className={cn("rounded-full border px-2.5 py-1 text-xs font-semibold", band.badgeClass)}>{band.label}</span>
-            </div>
-            <p className="mt-3 text-sm text-muted-foreground">Latest deterministic review across allocation, concentration, diversification and risk.</p>
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
+          <div className="lg:w-72 lg:shrink-0">
+            <p className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Portfolio health</p>
+            <HealthGauge score={review?.overallPortfolioScore} />
+          </div>
+          <div className="grid flex-1 gap-2 sm:grid-cols-2">
+            <SubRating label="Diversification" section={review?.diversificationReview} />
+            <SubRating label="Concentration" section={review?.concentrationReview} />
+            <SubRating label="Risk" section={review?.riskReview} />
+            <SubRating label="Allocation" section={review?.allocationReview} />
           </div>
         </div>
-        <div className="grid flex-1 gap-2 sm:grid-cols-4">
-          <SubRating label="Diversification" section={review?.diversificationReview} />
-          <SubRating label="Concentration" section={review?.concentrationReview} />
-          <SubRating label="Risk" section={review?.riskReview} />
-          <SubRating label="Allocation" section={review?.allocationReview} />
-        </div>
+        <p className="border-t border-border pt-3 text-xs text-muted-foreground">
+          Latest deterministic review across allocation, concentration, diversification and risk.
+        </p>
       </div>
     </DashboardCard>
   );
