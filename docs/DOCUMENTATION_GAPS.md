@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-26 SGT (added Medium 44 — ETF expense ratio + equity dividend yield not ingested; updated Low 14 — stored 5Y volatility added, 3Y still deferred)
+Last updated: 2026-06-26 SGT (added Medium 44 — expense ratio/dividend yield not ingested; Medium 45 — annual-only score freshness / TTM basis; Medium 46 — Fundamentals page period-basis mismatch; updated Low 14 — stored 5Y volatility added, 3Y still deferred)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -445,6 +445,18 @@ in their phases. Capture each batch as its own implementation-log entry.
     - Both are available on the FMP Ultimate plan: `key-metrics.dividendYield` (TTM) or `profile.lastDiv ÷ price` for yield; `etf/info.expenseRatio` for ETFs.
     - Fix if wanted: add `dividend_yield` (equities) and `expense_ratio` (ETFs) to the metadata/fundamentals refresh, store them, and wire the existing "—" fields. Display-only (no scoring/guardrail impact); would need a forced recompute/backfill like the 5Y-volatility addition (migration 134).
     - Priority: **not an alpha blocker**; display completeness, relevant to the Fundamentals/Key-Facts surfaces. Logged 2026-06-26 (Claude review).
+
+45. Fundamental scores refresh only annually — evaluate TTM scoring basis (methodology)
+    - `FundamentalScoringService` uses `latestAnnualRatio` / latest **annual** statements, so the deterministic fundamental scores (growth/profitability/valuation/etc.) only meaningfully update when the **annual** report lands — potentially ~11 months stale even though companies report quarterly. Example: NVDA revenue growth has gone +114% (FY2025) → ~20% (latest quarter YoY), but the annual-based score won't reflect the deceleration for up to a year.
+    - Raw single-quarter scoring is **not** the fix (single quarters are noisy/unaudited; this is exactly what caused the [[cashflow-score-quarterly-period-artifact]] — latest-quarter FCF floored the cash-flow score, which is why scoring was moved to annual). The disciplined answer is **TTM (trailing twelve months)**: updates every quarter, seasonality-neutral (rolling 12mo), and smooths single-quarter noise.
+    - Scope if pursued: compute TTM ratios/statements from 4 quarters (only `quarterly` + `annual` rows are stored today — no TTM row), switch the scoring (and ideally the trend engine) input basis to TTM, **recalibrate score bands + update golden tests** (changes inputs to a calibrated/anchored score across the universe — brushes the "frozen anchors, don't refit lightly" rule), and update `SCORE_METHODOLOGY` / `CALCULATION_METHODOLOGY`. Belongs in the paused scoring methodology programme ([[scoring-programme-resume]]), not a quick fix.
+    - Priority: **not an alpha blocker**; meaningful "intelligence freshness" weakness for commercial readiness. Logged 2026-06-26 (Claude review).
+
+46. Fundamentals page mixes period bases for the same metric (annual vs latest quarter)
+    - On the instrument Fundamentals tab, the **Key Ratios card** uses `detail.latestRatio` = the newest `financial_ratios` row of **any** period (ordered by `report_date` desc in the repo), which is currently the **latest quarterly YoY** row (e.g. NVDA Q1 FY2027: revenue growth 19.8%, EPS 35.59%). The **Fundamental trends**, the **statements snapshot**, and the **fundamental scores** all use **annual** (e.g. NVDA FY2026: revenue growth 65.47%). So the same metric ("Revenue growth") shows two very different, **unlabeled** numbers on one page — and the displayed Key-Ratios growth isn't even the figure feeding the score.
+    - Both values are individually correct and seasonality-neutral (quarterly figure is YoY, not sequential); the defect is the **inconsistent, unlabeled period basis**.
+    - Near-term fix (display-only, in progress 2026-06-26): make the Key Ratios card use the latest **annual** ratio (consistent with score/trends/snapshot) + label "Annual · FY{year}", and surface the latest **quarter YoY** as a clearly-labeled "latest momentum" line for timeliness. `FundamentalsDetail.ratios[]` already exposes all periods, so no repo change needed. Deeper timeliness handled by gap 45 (TTM).
+    - Priority: user-facing clarity. Logged 2026-06-26 (Claude review).
 
 ## Low Priority
 
