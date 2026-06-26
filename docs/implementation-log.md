@@ -4664,3 +4664,62 @@ Completed
 
 ### Notes for Claude
 - Display-only card addition. No scoring, methodology, data-pipeline, guardrail, recommendation, feature-flag, or access-control behavior changed.
+
+## 2026-06-26 — Instrument Risk Snapshot Explainer
+
+### Source
+Claude Code
+
+### Objective
+Add a one-line display-only explainer to the Long-horizon risk snapshot on the instrument Overview.
+
+### Files Changed
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Inserted a muted helper line explaining current drawdown, downside volatility, and volatility trend above the three risk snapshot tiles.
+- Left the snapshot tiles, volatility and max-drawdown bar groups, footnote, data, scoring, and methodology unchanged.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Display-only text addition. No data, logic, scoring, methodology, data-pipeline, guardrail, recommendation, feature-flag, or access-control behavior changed.
+
+## 2026-06-26 — Instrument Fundamentals Tab v2 Redesign
+
+### Source
+Claude Code
+
+### Objective
+Redesign the instrument detail Fundamentals tab into a premium deterministic v2 presentation without changing scoring, methodology, data fetching, or anchors.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Reworked the Fundamentals tab around a Business Quality verdict hero using the shared Business Quality composite and documented score bands.
+- Added band-coloured fundamental sub-score rows, side-by-side Key Ratios and Financial Snapshot cards, and null-safe metric rendering.
+- Rebuilt Fundamental Trends into five category cards with deterministic aggregate direction chips and illustrative glyphs.
+- Replaced the old wide trend table with a collapsed metric-level detail section grouped by stored trend category.
+- Preserved deterministic, non-advisory language and did not change scoring, data, methodology, feature flags, access controls, or pipelines.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Browser recheck in an authenticated session is still pending for a stock with complete fundamentals and one with sparse trend data.

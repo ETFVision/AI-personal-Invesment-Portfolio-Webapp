@@ -742,6 +742,9 @@ export function LongHorizonRiskCard({ riskMetric }: { riskMetric: InstrumentRisk
         <CardDescription>Stored volatility and drawdown windows; display-only context.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col justify-center space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Current drawdown = decline from the all-time peak · Downside vol = volatility of losing days only · Volatility trend = 30-day vs 90-day direction.
+        </p>
         <div className="grid grid-cols-3 gap-3">
           <div className="rounded-lg border bg-muted/20 p-3">
             <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Current drawdown</p>
