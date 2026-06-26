@@ -4895,3 +4895,37 @@ Completed
 
 ### Notes for Claude
 - Browser recheck in an authenticated session is still pending for the final visual symmetry, chart provisional-tail rendering, and dark-mode pass.
+
+## 2026-06-26 — Portfolio Dashboard Re-Skin Pass 1 Polish
+
+### Source
+Claude Code
+
+### Objective
+Polish the portfolio dashboard v2 layout by aligning value cards, making performance charts tabbed, and collapsing long exposure bar lists.
+
+### Files Changed
+- `src/app/(dashboard)/portfolio/page.tsx`
+- `src/components/portfolio/analytics-panels.tsx`
+- `src/components/ui/charts.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Changed the health/value row to `Health | Total | Cash | Invested` using `lg:grid-cols-[1.5fr_1fr_1fr_1fr]`.
+- Updated value cards so labels/icons stay at the top while the larger `text-3xl` value/detail block is vertically centered.
+- Converted `PerformancePanel` to a client component with a 1Y / YTD / Since inception toggle so only one benchmark period chart renders at a time, while Daily / Weekly / Monthly summary cards remain visible.
+- Added `maxItems` support to `HorizontalExposureBars`, collapsing long exposure lists into an `Other` row; geography uses `maxItems={8}`.
+- Replaced hardcoded slate styling in `HorizontalExposureBars` with design tokens for better light/dark consistency.
+- No data, scoring, methodology, wording, recommendation, guardrail, feature-flag, or access-control behavior changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed after elevated rerun; first sandboxed attempt hit `.test-build` EPERM
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Browser recheck in an authenticated session remains pending for the tabbed performance panel and long-list exposure collapse.

@@ -1,8 +1,13 @@
+"use client";
+
+import { useState } from "react";
 import { AllocationItem, BenchmarkComparison, CashPerformance, PerformanceMetric, PortfolioDashboard, ProductPerformance } from "@/domain/portfolio/types";
 import { HorizontalExposureBars } from "@/components/ui/charts";
 import { formatAssetTypeLabel, formatCurrencyWithCode, formatPercent } from "@/lib/utils";
 
 const chartColors = ["#0f766e", "#0891b2", "#2563eb", "#7c3aed", "#059669", "#d97706", "#64748b"];
+const performancePeriods = ["1Y", "YTD", "Since inception"] as const;
+type PerformancePeriod = (typeof performancePeriods)[number];
 
 function groupAllocationForDisplay(items: AllocationItem[], maxItems = 6) {
   if (items.length <= maxItems) return items;
@@ -182,6 +187,7 @@ type PerformancePanelData = {
 };
 
 export function PerformancePanel({ dashboard }: { dashboard: PerformancePanelData }) {
+  const [selectedPeriod, setSelectedPeriod] = useState<PerformancePeriod>("1Y");
   const shortTermMetrics = dashboard.performance.filter(
     (item) => item.label === "Daily" || item.label === "Weekly" || item.label === "Monthly"
   );
@@ -190,6 +196,8 @@ export function PerformancePanel({ dashboard }: { dashboard: PerformancePanelDat
     <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
       <LongTermPerformanceCharts
         dashboard={dashboard}
+        selectedPeriod={selectedPeriod}
+        onSelectPeriod={setSelectedPeriod}
       />
       <ShortTermPerformanceGrid
         metrics={shortTermMetrics}
@@ -290,9 +298,13 @@ function getShortTermBenchmarkSpread(
 }
 
 function LongTermPerformanceCharts({
-  dashboard
+  dashboard,
+  selectedPeriod,
+  onSelectPeriod
 }: {
   dashboard: PerformancePanelData;
+  selectedPeriod: PerformancePeriod;
+  onSelectPeriod: (period: PerformancePeriod) => void;
 }) {
   const comparisons = dashboard.benchmarkComparisons.filter((comparison) => comparison.points.length >= 2);
   if (comparisons.length === 0) {
@@ -303,41 +315,44 @@ function LongTermPerformanceCharts({
     );
   }
 
+  const periodConfig: Record<PerformancePeriod, { fallbackMessage: string; metricLabel: PerformanceMetric["label"] }> = {
+    "1Y": { fallbackMessage: "Needs 1Y history", metricLabel: "1Y" },
+    "YTD": { fallbackMessage: "Needs YTD history", metricLabel: "YTD" },
+    "Since inception": { fallbackMessage: "Needs inception history", metricLabel: "Since inception" }
+  };
+  const config = periodConfig[selectedPeriod];
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between text-sm">
-        <span className="font-medium">Longer-term performance</span>
-        <span className="text-muted-foreground">TWR portfolio vs price-return benchmarks</span>
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="text-sm">
+          <span className="font-medium">Longer-term performance</span>
+          <span className="ml-2 text-muted-foreground">TWR portfolio vs price-return benchmarks</span>
+        </div>
+        <div className="inline-flex rounded-lg border border-border bg-muted/40 p-1">
+          {performancePeriods.map((period) => (
+            <button
+              key={period}
+              type="button"
+              onClick={() => onSelectPeriod(period)}
+              className={period === selectedPeriod
+                ? "rounded-md bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm"
+                : "rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"}
+            >
+              {period}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <MultiBenchmarkPeriodChart
-          label="1Y"
-          comparisons={comparisons}
-          portfolioMetric={dashboard.performance.find((metric) => metric.label === "1Y")}
-          portfolioCurrency={dashboard.portfolio.baseCurrency}
-          period="1Y"
-          fallbackMessage="Needs 1Y history"
-          latestPriceDate={dashboard.latestPriceDate}
-        />
-        <MultiBenchmarkPeriodChart
-          label="YTD"
-          comparisons={comparisons}
-          portfolioMetric={dashboard.performance.find((metric) => metric.label === "YTD")}
-          portfolioCurrency={dashboard.portfolio.baseCurrency}
-          period="YTD"
-          fallbackMessage="Needs YTD history"
-          latestPriceDate={dashboard.latestPriceDate}
-        />
-        <MultiBenchmarkPeriodChart
-          label="Since inception"
-          comparisons={comparisons}
-          portfolioMetric={dashboard.performance.find((metric) => metric.label === "Since inception")}
-          portfolioCurrency={dashboard.portfolio.baseCurrency}
-          period="Since inception"
-          fallbackMessage="Needs inception history"
-          latestPriceDate={dashboard.latestPriceDate}
-        />
-      </div>
+      <MultiBenchmarkPeriodChart
+        label={selectedPeriod}
+        comparisons={comparisons}
+        portfolioMetric={dashboard.performance.find((metric) => metric.label === config.metricLabel)}
+        portfolioCurrency={dashboard.portfolio.baseCurrency}
+        period={selectedPeriod}
+        fallbackMessage={config.fallbackMessage}
+        latestPriceDate={dashboard.latestPriceDate}
+      />
     </div>
   );
 }

@@ -217,15 +217,15 @@ function ValueCard({
   const iconClass = tone === "positive" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" : tone === "warning" ? "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300" : "bg-primary/10 text-primary";
   return (
     <DashboardCard>
-      <div className="flex h-full flex-col justify-between gap-4">
+      <div className="flex h-full flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
           <span className={cn("rounded-lg p-2", iconClass)}>
             <Icon className="h-4 w-4" aria-hidden="true" />
           </span>
         </div>
-        <div>
-          <div className="text-2xl font-semibold tabular-nums text-foreground">{value}</div>
+        <div className="flex flex-1 flex-col justify-center">
+          <div className="text-3xl font-semibold tabular-nums text-foreground">{value}</div>
           <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
         </div>
       </div>
@@ -389,6 +389,7 @@ function ExposurePanel({
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </div>
       <HorizontalExposureBars
+        maxItems={8}
         emptyText={emptyText}
         items={items.map((item) => ({
           label: formatter(item.label),
@@ -565,7 +566,7 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </DashboardCard>
       ) : null}
 
-      <section className="grid items-stretch gap-4 lg:grid-cols-[1.5fr_1fr_1fr]">
+      <section className="grid items-stretch gap-4 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
         <PortfolioHealthCard review={latestPortfolioReview} />
         <ValueCard
           icon={Wallet}
@@ -574,20 +575,18 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
           detail={hasMixedOrNonBaseCurrency ? "Native-currency sum until FX conversion is added." : `Prices ${dashboard.latestPriceDate ? `as of ${dashboard.latestPriceDate}` : "not refreshed"}.`}
           tone="positive"
         />
-        <div className="grid gap-4">
-          <ValueCard
-            icon={PiggyBank}
-            label="Cash"
-            value={formatMaybeCurrency(dashboard.totalCash, displayCurrency)}
-            detail={`${formatPercent(dashboard.cashPercent)} cash · ${formatPercent(dashboard.investedPercent)} invested`}
-          />
-          <ValueCard
-            icon={Briefcase}
-            label="Invested"
-            value={formatMaybeCurrency(dashboard.totalHoldingsMarketValue, displayCurrency)}
-            detail={`${formatPercent(dashboard.investedPercent)} invested · ${formatPercent(dashboard.cashPercent)} cash`}
-          />
-        </div>
+        <ValueCard
+          icon={PiggyBank}
+          label="Cash"
+          value={formatMaybeCurrency(dashboard.totalCash, displayCurrency)}
+          detail={`${formatPercent(dashboard.cashPercent)} cash · ${formatPercent(dashboard.investedPercent)} invested`}
+        />
+        <ValueCard
+          icon={Briefcase}
+          label="Invested"
+          value={formatMaybeCurrency(dashboard.totalHoldingsMarketValue, displayCurrency)}
+          detail={`${formatPercent(dashboard.investedPercent)} invested · ${formatPercent(dashboard.cashPercent)} cash`}
+        />
       </section>
 
       <PortfolioBanner summary={performanceSummary} review={latestPortfolioReview} />

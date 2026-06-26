@@ -1,5 +1,5 @@
 import * as React from "react";
-import { cn } from "@/lib/utils";
+import { cn, formatPercent } from "@/lib/utils";
 
 export type ExposureBarItem = {
   label: string;
@@ -14,8 +14,25 @@ const toneBars = {
   positive: "bg-emerald-600",
   warning: "bg-amber-500",
   danger: "bg-red-500",
-  muted: "bg-slate-400"
+  muted: "bg-muted-foreground"
 };
+
+function collapseExposureItems(items: ExposureBarItem[], maxItems: number) {
+  if (items.length <= maxItems) return items;
+  const sorted = [...items].sort((a, b) => b.value - a.value);
+  const visible = sorted.slice(0, maxItems);
+  const remaining = sorted.slice(maxItems);
+  const otherValue = remaining.reduce((sum, item) => sum + item.value, 0);
+  return [
+    ...visible,
+    {
+      label: "Other",
+      value: otherValue,
+      valueLabel: formatPercent(otherValue),
+      tone: "muted" as const
+    }
+  ];
+}
 
 export function ChartShell({
   title,
@@ -45,31 +62,35 @@ export function HorizontalExposureBars({
   items,
   emptyText = "No exposure data available.",
   max = 1,
-  className
+  className,
+  maxItems = 8
 }: {
   items: ExposureBarItem[];
   emptyText?: string;
   max?: number;
   className?: string;
+  maxItems?: number;
 }) {
   if (items.length === 0) {
-    return <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-4 text-sm text-slate-500">{emptyText}</div>;
+    return <div className="rounded-xl border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">{emptyText}</div>;
   }
+
+  const displayItems = collapseExposureItems(items, maxItems);
 
   return (
     <div className={cn("space-y-3", className)}>
-      {items.map((item) => {
+      {displayItems.map((item) => {
         const width = `${Math.min(100, Math.max(0, (item.value / max) * 100))}%`;
         return (
           <div key={item.label} className="space-y-1.5">
             <div className="flex items-start justify-between gap-3 text-sm">
               <div className="min-w-0">
-                <p className="truncate font-medium text-slate-800">{item.label}</p>
-                {item.detail ? <p className="text-xs text-slate-500">{item.detail}</p> : null}
+                <p className="truncate font-medium text-foreground">{item.label}</p>
+                {item.detail ? <p className="text-xs text-muted-foreground">{item.detail}</p> : null}
               </div>
-              <span className="shrink-0 font-semibold text-slate-900">{item.valueLabel}</span>
+              <span className="shrink-0 font-semibold tabular-nums text-foreground">{item.valueLabel}</span>
             </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-2.5 overflow-hidden rounded-full bg-muted">
               <div className={cn("h-full rounded-full", toneBars[item.tone ?? "default"])} style={{ width }} />
             </div>
           </div>
