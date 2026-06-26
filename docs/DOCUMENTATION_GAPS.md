@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-26 SGT (added 44 expense/dividend not ingested; 45 annual-only score freshness/TTM; 46 Fundamentals period-basis; 47 derived-metrics transient lag + latent batch-cap risk (corrected down from HIGH; active universe verified 391/391 fresh); 48 holding valuation prefers derived cache (defensive fix); 49 HIGH per-portfolio derived tables off the daily chain — actual flat-TWR root cause; updated Low 14 — stored 5Y volatility)
+Last updated: 2026-06-26 SGT (added 44 expense/dividend not ingested; 45 annual-only score freshness/TTM; 46 Fundamentals period-basis; 47 derived-metrics transient lag + latent batch-cap risk (corrected down from HIGH; active universe verified 391/391 fresh); 48 holding valuation prefers derived cache (defensive fix); 49 HIGH per-portfolio derived tables off the daily chain — actual flat-TWR root cause; 50 duplicate portfolio at setup (double-submit race); updated Low 14 — stored 5Y volatility)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -476,6 +476,13 @@ in their phases. Capture each batch as its own implementation-log entry.
     - This is distinct from gap 47 (instrument-level, which is healthy) and is the layer gap 48's price-precedence fix operates within — but gap 48 alone is insufficient: `refresh_holding_portfolio_metrics` must actually RUN for the fresh price to land.
     - Fix: make the daily `portfolio-valuation-refresh` flow call `refreshHoldingPortfolioMetrics(portfolioId)` for each active portfolio (via the fan-out) **before** `createAnalyticsSnapshot` (or have `createAnalyticsSnapshot` refresh first). Immediate remediation: apply migration 135 (its trailing `refresh_holding_portfolio_metrics()` recomputes all portfolios now).
     - Priority: **HIGH** — directly causes wrong displayed portfolio value/return. Logged 2026-06-26 (Claude review).
+
+50. Duplicate portfolio created at setup (double-submit race)
+    - **Found 2026-06-26 with DB evidence.** A single user has **two `is_active` portfolios with the same name** ("Muthu's Personal Portfolio"), created **5 seconds apart** (`f8043b29…` `is_default=true` 15:02:09; `447e92e5…` `is_default=false` 15:02:14, both 2026-05-25). The default one holds the real positions (16 holdings, 1 txn); the stray is empty (0/0). The stray broke `name LIKE` queries (doubled rows) and — now that the per-portfolio jobs **fan out across all active portfolios** — would receive daily junk snapshots.
+    - Root cause: the setup / `getOrCreateDefaultPortfolio` path is **not idempotent** — a double-submit (or concurrent request) during onboarding created a second portfolio. No DB guard prevents more than one active default per user.
+    - Fix: make portfolio creation idempotent (return the existing default instead of inserting a second) and add a **DB guard** — e.g. a partial unique index on `portfolios (user_id) where is_default and is_active`, or unique `(user_id, name)`. Consider a soft-delete/merge path for any existing duplicates.
+    - Manual remediation already applied for this user: deleted the stray's snapshots and set `447e92e5… is_active = false`.
+    - Priority: **Medium** — data-integrity / commercialization (matters as soon as real users onboard). Logged 2026-06-26 (Claude review).
 
 ## Low Priority
 
