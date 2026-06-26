@@ -4606,3 +4606,32 @@ Completed.
 - Initial sandboxed `npm.cmd test` failed before executing tests because TypeScript could not write `.test-build` files (`EPERM`); rerunning the same command with elevated filesystem permission passed.
 - Browser recheck in an authenticated session is still pending for a deep stock, young IPO, ETF, and bond ETF.
 - Dividend yield is shown as "—" because the current fundamentals ratio/profile domain model does not expose a dividend-yield field.
+## 2026-06-26 — Instrument Overview Lower-Grid Relayout
+
+### Source
+Claude Code
+
+### Objective
+Relayout the instrument Overview lower card grid so returns and score trend stack against risk, with return character spanning full width.
+
+### Files Changed
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Split the active long-horizon wrapper into exported `LongHorizonReturnsCard` and `LongHorizonRiskCard` components without changing bar calculations, colours, footnotes, or wording.
+- Placed the compact returns card above score trend in the left column and the stretching risk card in the right column.
+- Moved Return Character to a full-width row below the two-column lower grid.
+- Updated Return Character tiles to render as 6-up on desktop, 3-up on small screens, and 2-up on mobile.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Pure layout/markup change. No data, scoring, methodology, wording, component-logic, guardrail, recommendation, feature-flag, or access-control behavior changed.

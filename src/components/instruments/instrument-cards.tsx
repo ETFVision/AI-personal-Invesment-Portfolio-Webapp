@@ -662,98 +662,110 @@ export function LongHorizonBlock({ marketView, riskMetric }: { marketView: Instr
   );
 }
 
-function LongHorizonV2Block({ marketView, riskMetric }: { marketView: InstrumentMarketView; riskMetric: InstrumentRiskMetric | null }) {
+export function LongHorizonReturnsCard({ marketView }: { marketView: InstrumentMarketView }) {
   const annualizedReturn = (totalReturn: number | null | undefined, years: number) => {
     if (totalReturn == null || !Number.isFinite(totalReturn) || totalReturn < -1) return null;
     return Math.pow(1 + totalReturn, 1 / years) - 1;
   };
   const periods = [
-    { label: "1Y", annualizedReturn: marketView.oneYearReturn, volatility: riskMetric?.volatility1y, maxDrawdown: riskMetric?.maxDrawdown1y },
-    { label: "5Y", annualizedReturn: annualizedReturn(marketView.fiveYearReturn, 5), volatility: riskMetric?.volatility5y, maxDrawdown: riskMetric?.maxDrawdown5y },
-    { label: "10Y", annualizedReturn: annualizedReturn(marketView.tenYearReturn, 10), volatility: riskMetric?.volatility10y, maxDrawdown: riskMetric?.maxDrawdown10y },
-    { label: "15Y", annualizedReturn: annualizedReturn(marketView.fifteenYearReturn, 15), volatility: riskMetric?.volatility15y, maxDrawdown: riskMetric?.maxDrawdown15y },
-    { label: "20Y", annualizedReturn: annualizedReturn(marketView.twentyYearReturn, 20), volatility: riskMetric?.volatility20y, maxDrawdown: riskMetric?.maxDrawdown20y }
+    { label: "1Y", annualizedReturn: marketView.oneYearReturn },
+    { label: "5Y", annualizedReturn: annualizedReturn(marketView.fiveYearReturn, 5) },
+    { label: "10Y", annualizedReturn: annualizedReturn(marketView.tenYearReturn, 10) },
+    { label: "15Y", annualizedReturn: annualizedReturn(marketView.fifteenYearReturn, 15) },
+    { label: "20Y", annualizedReturn: annualizedReturn(marketView.twentyYearReturn, 20) }
   ];
   const returnPeriods = periods.filter((period): period is typeof period & { annualizedReturn: number } => period.annualizedReturn != null);
+  const returnScale = Math.max(...returnPeriods.map((period) => Math.abs(period.annualizedReturn)), 0);
+  const scaledWidth = (value: number, scale: number) => (scale > 0 ? Math.min(100, (Math.abs(value) / scale) * 100) : 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Long-horizon returns</CardTitle>
+        <CardDescription>Annualised (CAGR) by period; display-only context.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {returnPeriods.length > 0 ? (
+          <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+            {returnPeriods.map((period) => {
+              const width = scaledWidth(period.annualizedReturn, returnScale);
+              const barClass = period.annualizedReturn >= 0 ? "bg-emerald-600" : "bg-red-600";
+              return (
+                <div key={period.label} className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] items-center gap-3 text-xs">
+                  <span className="font-semibold text-muted-foreground">{period.label}</span>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div className={`h-full rounded-full ${barClass}`} style={{ width: `${width}%` }} />
+                  </div>
+                  <span className="text-right font-medium text-foreground">{formatPercent(period.annualizedReturn)}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        <p className="text-xs text-muted-foreground">Annualised return = (1 + total return)^(1/years) - 1. Figures are backward-looking and do not predict future performance.</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function LongHorizonRiskCard({ riskMetric }: { riskMetric: InstrumentRiskMetric | null }) {
+  const periods = [
+    { label: "1Y", volatility: riskMetric?.volatility1y, maxDrawdown: riskMetric?.maxDrawdown1y },
+    { label: "5Y", volatility: riskMetric?.volatility5y, maxDrawdown: riskMetric?.maxDrawdown5y },
+    { label: "10Y", volatility: riskMetric?.volatility10y, maxDrawdown: riskMetric?.maxDrawdown10y },
+    { label: "15Y", volatility: riskMetric?.volatility15y, maxDrawdown: riskMetric?.maxDrawdown15y },
+    { label: "20Y", volatility: riskMetric?.volatility20y, maxDrawdown: riskMetric?.maxDrawdown20y }
+  ];
   const volatilityPeriods = periods.filter((period): period is typeof period & { volatility: number } => period.volatility != null);
   const drawdownPeriods = periods.filter((period): period is typeof period & { maxDrawdown: number } => period.maxDrawdown != null);
-  const returnScale = Math.max(...returnPeriods.map((period) => Math.abs(period.annualizedReturn)), 0);
   const volatilityScale = Math.max(...volatilityPeriods.map((period) => Math.abs(period.volatility)), 0);
   const drawdownScale = Math.max(...drawdownPeriods.map((period) => Math.abs(period.maxDrawdown)), 0);
   const scaledWidth = (value: number, scale: number) => (scale > 0 ? Math.min(100, (Math.abs(value) / scale) * 100) : 0);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <Card className="flex h-full flex-col">
-        <CardHeader>
-          <CardTitle>Long-horizon returns</CardTitle>
-          <CardDescription>Annualised (CAGR) by period; display-only context.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-1 flex-col justify-center space-y-4">
-          {returnPeriods.length > 0 ? (
-            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
-              {returnPeriods.map((period) => {
-                const width = scaledWidth(period.annualizedReturn, returnScale);
-                const barClass = period.annualizedReturn >= 0 ? "bg-emerald-600" : "bg-red-600";
-                return (
-                  <div key={period.label} className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] items-center gap-3 text-xs">
-                    <span className="font-semibold text-muted-foreground">{period.label}</span>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div className={`h-full rounded-full ${barClass}`} style={{ width: `${width}%` }} />
-                    </div>
-                    <span className="text-right font-medium text-foreground">{formatPercent(period.annualizedReturn)}</span>
+    <Card className="flex h-full flex-col">
+      <CardHeader>
+        <CardTitle>Long-horizon risk</CardTitle>
+        <CardDescription>Stored volatility and drawdown windows; display-only context.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col justify-center space-y-4">
+        {volatilityPeriods.length > 0 ? (
+          <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Volatility</p>
+            {volatilityPeriods.map((period) => {
+              const width = scaledWidth(period.volatility, volatilityScale);
+              return (
+                <div key={period.label} className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] items-center gap-3 text-xs">
+                  <span className="font-semibold text-muted-foreground">{period.label}</span>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-amber-500" style={{ width: `${width}%` }} />
                   </div>
-                );
-              })}
-            </div>
-          ) : null}
-          <p className="text-xs text-muted-foreground">Annualised return = (1 + total return)^(1/years) - 1. Figures are backward-looking and do not predict future performance.</p>
-        </CardContent>
-      </Card>
-      <Card className="flex h-full flex-col">
-        <CardHeader>
-          <CardTitle>Long-horizon risk</CardTitle>
-          <CardDescription>Stored volatility and drawdown windows; display-only context.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-1 flex-col justify-center space-y-4">
-          {volatilityPeriods.length > 0 ? (
-            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Volatility</p>
-              {volatilityPeriods.map((period) => {
-                const width = scaledWidth(period.volatility, volatilityScale);
-                return (
-                  <div key={period.label} className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] items-center gap-3 text-xs">
-                    <span className="font-semibold text-muted-foreground">{period.label}</span>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-amber-500" style={{ width: `${width}%` }} />
-                    </div>
-                    <span className="text-right font-medium text-foreground">{formatPercent(period.volatility)}</span>
+                  <span className="text-right font-medium text-foreground">{formatPercent(period.volatility)}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        {drawdownPeriods.length > 0 ? (
+          <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Max drawdown</p>
+            {drawdownPeriods.map((period) => {
+              const width = scaledWidth(period.maxDrawdown, drawdownScale);
+              return (
+                <div key={period.label} className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] items-center gap-3 text-xs">
+                  <span className="font-semibold text-muted-foreground">{period.label}</span>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-red-600" style={{ width: `${width}%` }} />
                   </div>
-                );
-              })}
-            </div>
-          ) : null}
-          {drawdownPeriods.length > 0 ? (
-            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Max drawdown</p>
-              {drawdownPeriods.map((period) => {
-                const width = scaledWidth(period.maxDrawdown, drawdownScale);
-                return (
-                  <div key={period.label} className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] items-center gap-3 text-xs">
-                    <span className="font-semibold text-muted-foreground">{period.label}</span>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-red-600" style={{ width: `${width}%` }} />
-                    </div>
-                    <span className="text-right font-medium text-red-600">{formatPercent(period.maxDrawdown)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
-          <p className="mt-4 text-xs text-muted-foreground">Display-only context; not used in scoring or guardrails.</p>
-        </CardContent>
-      </Card>
-    </div>
+                  <span className="text-right font-medium text-red-600">{formatPercent(period.maxDrawdown)}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        <p className="mt-4 text-xs text-muted-foreground">Display-only context; not used in scoring or guardrails.</p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -968,7 +980,7 @@ export function ReturnCharacterCard({ stats }: { stats: ReturnCharacterStats | n
         <CardTitle>Return character</CardTitle>
         <CardDescription>Rolling-window and drawdown context from stored price history.</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-3 sm:grid-cols-2">
+      <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <ReturnCharacterTile label="Best rolling 1Y" value={formatMaybePercent(stats?.bestRollingOneYear)} tone="positive" />
         <ReturnCharacterTile label="Worst rolling 1Y" value={formatMaybePercent(stats?.worstRollingOneYear)} tone="danger" />
         <ReturnCharacterTile label="Positive 1Y windows" value={formatMaybePercent(stats?.positiveRollingOneYearWindows)} tone="positive" />
@@ -1010,11 +1022,14 @@ export function InstrumentOverviewPanel({
       {keyFacts}
       </div>
       <CharacteristicsBreakdown recommendation={recommendation} />
-      <LongHorizonV2Block marketView={marketView} riskMetric={riskMetric} />
       <div className="grid items-stretch gap-4 lg:grid-cols-2">
-        <div className="h-full">{scoreTrend}</div>
-        <div className="h-full">{returnCharacter}</div>
+        <div className="flex flex-col gap-4">
+          <LongHorizonReturnsCard marketView={marketView} />
+          <div className="flex flex-1 flex-col">{scoreTrend}</div>
+        </div>
+        <LongHorizonRiskCard riskMetric={riskMetric} />
       </div>
+      <div>{returnCharacter}</div>
       <p className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
         Data quality: liquidity {marketView.liquidity}; freshness {marketView.freshnessLabel}; history start {marketView.priceHistoryStart ?? EMPTY_VALUE}; observations {formatNumber(marketView.priceObservationCount)}. Peer comparison and assessment sensitivity live in the Insights tab.
       </p>
