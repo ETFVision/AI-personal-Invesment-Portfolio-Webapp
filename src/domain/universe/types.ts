@@ -112,6 +112,7 @@ export type InstrumentRiskMetric = {
   volatility30d: number | null;
   volatility90d: number | null;
   volatility1y: number | null;
+  volatility5y: number | null;
   volatility10y: number | null;
   volatility15y: number | null;
   volatility20y: number | null;

@@ -151,6 +151,7 @@ test("instrument risk service requires enough history before fixed-period drawdo
   assert.equal(metric.maxDrawdown3y, null);
   assert.equal(metric.currentDrawdown5y, null);
   assert.equal(metric.maxDrawdown5y, null);
+  assert.equal(metric.volatility5y, null);
   assert.equal(metric.volatility10y, null);
   assert.equal(metric.volatility15y, null);
   assert.equal(metric.volatility20y, null);
@@ -163,6 +164,7 @@ test("instrument risk service calculates display-only long-horizon risk windows"
   const service = new InstrumentRiskService({} as UniverseRepository);
   const metric = service.calculate(instrument({ id: "instrument-id", symbol: "TEST" }), datedPriceSeries(7300));
 
+  assert.ok(metric.volatility5y !== null && metric.volatility5y > 0);
   assert.ok(metric.volatility10y !== null && metric.volatility10y > 0);
   assert.ok(metric.volatility15y !== null && metric.volatility15y > 0);
   assert.ok(metric.volatility20y !== null && metric.volatility20y > 0);

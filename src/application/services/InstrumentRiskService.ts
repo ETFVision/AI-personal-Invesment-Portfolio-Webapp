@@ -188,6 +188,7 @@ export class InstrumentRiskService {
     const vol30 = annualizedVolatility(windowValues(returns, 30), 10);
     const vol90 = annualizedVolatility(windowValues(returns, 90), 30);
     const vol1y = annualizedVolatility(windowValues(returns, 252), 60);
+    const vol5y = annualizedVolatility(periodReturnValues(returns, 365 * 5, 30));
     const vol10y = annualizedVolatility(periodReturnValues(returns, 365 * 10, 30));
     const vol15y = annualizedVolatility(periodReturnValues(returns, 365 * 15, 30));
     const vol20y = annualizedVolatility(periodReturnValues(returns, 365 * 20, 120));
@@ -216,6 +217,7 @@ export class InstrumentRiskService {
       volatility30d: vol30,
       volatility90d: vol90,
       volatility1y: vol1y,
+      volatility5y: vol5y,
       volatility10y: vol10y,
       volatility15y: vol15y,
       volatility20y: vol20y,

@@ -11,6 +11,7 @@ const HEIGHT = 160;
 const PADDING_X = 16;
 const PADDING_Y = 14;
 const PERIODS = [
+  { key: "1W", label: "1W", points: 5 },
   { key: "1M", label: "1M", points: 21 },
   { key: "3M", label: "3M", points: 63 },
   { key: "6M", label: "6M", points: 126 },

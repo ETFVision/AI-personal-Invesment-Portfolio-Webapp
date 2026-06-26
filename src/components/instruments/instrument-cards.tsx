@@ -516,6 +516,7 @@ export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMe
         <SummaryMetric label="30D volatility" value={riskPercent(riskMetric.volatility30d)} />
         <SummaryMetric label="90D volatility" value={riskPercent(riskMetric.volatility90d)} />
         <SummaryMetric label="1Y volatility" value={riskPercent(riskMetric.volatility1y)} />
+        <SummaryMetric label="5Y volatility" value={longWindowRiskPercent(riskMetric.volatility5y)} />
         <SummaryMetric label="10Y volatility" value={longWindowRiskPercent(riskMetric.volatility10y)} />
         <SummaryMetric label="15Y volatility" value={longWindowRiskPercent(riskMetric.volatility15y)} />
         <SummaryMetric label="20Y volatility" value={longWindowRiskPercent(riskMetric.volatility20y)} />
@@ -668,56 +669,32 @@ function LongHorizonV2Block({ marketView, riskMetric }: { marketView: Instrument
   };
   const periods = [
     { label: "1Y", annualizedReturn: marketView.oneYearReturn, volatility: riskMetric?.volatility1y, maxDrawdown: riskMetric?.maxDrawdown1y },
-    { label: "5Y", annualizedReturn: annualizedReturn(marketView.fiveYearReturn, 5), volatility: null, maxDrawdown: riskMetric?.maxDrawdown5y },
+    { label: "5Y", annualizedReturn: annualizedReturn(marketView.fiveYearReturn, 5), volatility: riskMetric?.volatility5y, maxDrawdown: riskMetric?.maxDrawdown5y },
     { label: "10Y", annualizedReturn: annualizedReturn(marketView.tenYearReturn, 10), volatility: riskMetric?.volatility10y, maxDrawdown: riskMetric?.maxDrawdown10y },
     { label: "15Y", annualizedReturn: annualizedReturn(marketView.fifteenYearReturn, 15), volatility: riskMetric?.volatility15y, maxDrawdown: riskMetric?.maxDrawdown15y },
     { label: "20Y", annualizedReturn: annualizedReturn(marketView.twentyYearReturn, 20), volatility: riskMetric?.volatility20y, maxDrawdown: riskMetric?.maxDrawdown20y }
   ];
-  const barPeriods = periods.filter((period): period is typeof period & { annualizedReturn: number } => period.annualizedReturn != null);
-  const drawdownBarPeriods = periods.filter((period): period is typeof period & { maxDrawdown: number } => period.maxDrawdown != null);
+  const returnPeriods = periods.filter((period): period is typeof period & { annualizedReturn: number } => period.annualizedReturn != null);
+  const volatilityPeriods = periods.filter((period): period is typeof period & { volatility: number } => period.volatility != null);
+  const drawdownPeriods = periods.filter((period): period is typeof period & { maxDrawdown: number } => period.maxDrawdown != null);
+  const returnScale = Math.max(...returnPeriods.map((period) => Math.abs(period.annualizedReturn)), 0);
+  const volatilityScale = Math.max(...volatilityPeriods.map((period) => Math.abs(period.volatility)), 0);
+  const drawdownScale = Math.max(...drawdownPeriods.map((period) => Math.abs(period.maxDrawdown)), 0);
+  const scaledWidth = (value: number, scale: number) => (scale > 0 ? Math.min(100, (Math.abs(value) / scale) * 100) : 0);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card className="h-full">
+      <Card className="flex h-full flex-col">
         <CardHeader>
           <CardTitle>Long-horizon returns</CardTitle>
           <CardDescription>Annualised (CAGR) by period; display-only context.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b">
-                <tr>
-                  <th className="py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Period</th>
-                  {periods.map((period) => (
-                    <th key={period.label} className="py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {period.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="py-2 pr-4 font-medium">Annualised return</td>
-                  {periods.map((period) => (
-                    <td key={period.label} className="py-2 pr-4 text-muted-foreground">{marketPercent(period.annualizedReturn)}</td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          {barPeriods.length > 0 ? (
-            <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-              {barPeriods.map((period) => {
-                const width = Math.min(100, Math.abs(period.annualizedReturn) * 100);
-                const barClass =
-                  period.annualizedReturn > 0.2
-                    ? "bg-emerald-600"
-                    : period.annualizedReturn > 0
-                      ? "bg-amber-500"
-                      : period.annualizedReturn < 0
-                        ? "bg-red-600"
-                        : "bg-muted-foreground/40";
+        <CardContent className="flex flex-1 flex-col justify-center space-y-4">
+          {returnPeriods.length > 0 ? (
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+              {returnPeriods.map((period) => {
+                const width = scaledWidth(period.annualizedReturn, returnScale);
+                const barClass = period.annualizedReturn >= 0 ? "bg-emerald-600" : "bg-red-600";
                 return (
                   <div key={period.label} className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] items-center gap-3 text-xs">
                     <span className="font-semibold text-muted-foreground">{period.label}</span>
@@ -733,52 +710,41 @@ function LongHorizonV2Block({ marketView, riskMetric }: { marketView: Instrument
           <p className="text-xs text-muted-foreground">Annualised return = (1 + total return)^(1/years) - 1. Figures are backward-looking and do not predict future performance.</p>
         </CardContent>
       </Card>
-      <Card className="h-full">
+      <Card className="flex h-full flex-col">
         <CardHeader>
           <CardTitle>Long-horizon risk</CardTitle>
           <CardDescription>Stored volatility and drawdown windows; display-only context.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b">
-                <tr>
-                  <th className="py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground" aria-label="Metric" />
-                  {periods.map((period) => (
-                    <th key={period.label} className="py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {period.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b">
-                  <td className="py-2 pr-4 font-medium">Volatility</td>
-                  {periods.map((period) => (
-                    <td key={`vol-${period.label}`} className="py-2 pr-4 text-muted-foreground">{marketPercent(period.volatility)}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td className="py-2 pr-4 font-medium">Max drawdown</td>
-                  {periods.map((period) => (
-                    <td key={`dd-${period.label}`} className="py-2 pr-4 text-muted-foreground">{marketPercent(period.maxDrawdown)}</td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          {drawdownBarPeriods.length > 0 ? (
-            <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-              {drawdownBarPeriods.map((period) => {
-                const magnitude = Math.abs(period.maxDrawdown);
-                const width = Math.min(100, magnitude * 100);
+        <CardContent className="flex flex-1 flex-col justify-center space-y-4">
+          {volatilityPeriods.length > 0 ? (
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Volatility</p>
+              {volatilityPeriods.map((period) => {
+                const width = scaledWidth(period.volatility, volatilityScale);
+                return (
+                  <div key={period.label} className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] items-center gap-3 text-xs">
+                    <span className="font-semibold text-muted-foreground">{period.label}</span>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-amber-500" style={{ width: `${width}%` }} />
+                    </div>
+                    <span className="text-right font-medium text-foreground">{formatPercent(period.volatility)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+          {drawdownPeriods.length > 0 ? (
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Max drawdown</p>
+              {drawdownPeriods.map((period) => {
+                const width = scaledWidth(period.maxDrawdown, drawdownScale);
                 return (
                   <div key={period.label} className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] items-center gap-3 text-xs">
                     <span className="font-semibold text-muted-foreground">{period.label}</span>
                     <div className="h-2 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full bg-red-600" style={{ width: `${width}%` }} />
                     </div>
-                    <span className="text-right font-medium text-foreground">{formatPercent(period.maxDrawdown)}</span>
+                    <span className="text-right font-medium text-red-600">{formatPercent(period.maxDrawdown)}</span>
                   </div>
                 );
               })}

@@ -2,6 +2,34 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-26 SGT - Long-Horizon Cards v3 and 5Y Volatility QA
+
+Scope:
+- Verify the instrument detail Overview long-horizon cards are bars-only, the price chart includes a 1W period, and 5Y volatility is available as a display-only risk metric.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Long-horizon cards were table-heavy and visually unbalanced | Fixed; active Overview cards now use scaled bar groups only |
+| 5Y volatility rendered as missing even though 5Y return and drawdown existed | Fixed; migration 134 adds nullable `volatility_5y` and the app maps it to `volatility5y` |
+| Risk card lacked a 5Y volatility metric while displaying 10Y/15Y/20Y windows | Fixed; the detailed risk card now includes 5Y volatility |
+| Price chart had no chart-only one-week view | Fixed; `1W` was added to the chart period selector and falls back to local window change |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd test` | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/134_display_only_5y_volatility.sql` manually.
+- Recompute risk metrics with `refresh_instrument_risk_metrics_only(null)` or an equivalent forced risk recompute so existing rows populate `volatility_5y`.
+- Browser recheck remains pending for representative deep-history and young instruments.
+
 ## 2026-06-25 SGT - Instrument Detail IA Real Tabs QA
 
 Scope:

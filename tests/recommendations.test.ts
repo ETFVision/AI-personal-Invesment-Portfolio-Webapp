@@ -186,6 +186,7 @@ const riskMetric: InstrumentRiskMetric = {
   volatility30d: 0.18,
   volatility90d: 0.2,
   volatility1y: 0.22,
+  volatility5y: null,
   volatility10y: null,
   volatility15y: null,
   volatility20y: null,

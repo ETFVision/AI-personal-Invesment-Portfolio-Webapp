@@ -1,3 +1,48 @@
+## 2026-06-26 — Instrument Long-Horizon Cards v3 and 5Y Volatility
+
+### Source
+Claude Code
+
+### Objective
+Redesign the instrument Overview long-horizon cards to bars-only, add chart 1W period selection, and add stored display-only 5Y volatility.
+
+### Files Changed
+- `src/components/instruments/instrument-cards.tsx`
+- `src/components/instruments/instrument-price-chart.tsx`
+- `src/domain/universe/types.ts`
+- `src/application/services/InstrumentRiskService.ts`
+- `src/infrastructure/repositories/supabase/SupabaseUniverseRepository.ts`
+- `supabase/migrations/134_display_only_5y_volatility.sql`
+- `tests/instrument-ia.test.ts`
+- `tests/recommendations.test.ts`
+- `tests/scoring-golden.test.ts`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Replaced the active Overview long-horizon returns and risk tables with scaled bar groups only.
+- Scaled return bars to the largest absolute annualised return in the card, using green for non-negative CAGR and red for negative CAGR.
+- Rendered long-horizon risk as separate volatility and max-drawdown bar groups, including the new 5Y volatility field.
+- Added `volatility5y` to the risk metric domain, TypeScript fallback risk calculation, Supabase mapping/upsert path, and detailed risk card.
+- Added migration 134 to create nullable `instrument_risk_metrics.volatility_5y`, recompute it in both risk metric refresh functions, and repopulate risk metrics via `refresh_instrument_risk_metrics_only(null)`.
+- Added a chart-only 1W period option while leaving the default chart period at 1Y.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only change except the stored 5Y volatility data field. No scoring, anchor, guardrail, recommendation, feature-flag, or access-control logic changed.
+- Migration 134 must be applied manually. Existing rows remain null until `refresh_instrument_risk_metrics_only(null)` or an equivalent forced risk recompute runs; freshness-gated buttons may otherwise skip existing rows.
+- `DOCUMENTATION_GAPS.md` Low 14 now records 5Y volatility as implemented and keeps 3Y volatility deferred.
+
 ## 2026-06-25 - Instrument Detail IA Real Tabs
 
 ### Source
