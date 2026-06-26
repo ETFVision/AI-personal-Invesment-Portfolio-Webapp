@@ -10,9 +10,9 @@ import { PageContainer, PageHeader, StatusBadge } from "@/components/ui/professi
 import {
   AllocationDonutPanel,
   CurrencyExposurePanel,
-  PerformancePanel,
   WinnersLosersPanel
 } from "@/components/portfolio/analytics-panels";
+import { PerformancePanel } from "@/components/portfolio/performance-panel";
 import { HorizontalExposureBars, Sparkline } from "@/components/ui/charts";
 import { cn, formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
 import type { AllocationItem, BenchmarkComparison, PortfolioDashboard, PortfolioPerformanceSummary } from "@/domain/portfolio/types";

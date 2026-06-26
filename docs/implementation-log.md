@@ -1,3 +1,67 @@
+## 2026-06-26 — Portfolio PerformancePanel RSC Boundary Fix
+
+### Source
+Claude Code
+
+### Objective
+Fix the portfolio page RSC serialization error by scoping `"use client"` to the interactive performance chart only.
+
+### Files Changed
+- `src/app/(dashboard)/portfolio/page.tsx`
+- `src/components/portfolio/analytics-panels.tsx`
+- `src/components/portfolio/performance-panel.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Extracted the stateful tabbed `PerformancePanel` and its chart helpers into a new client-only module.
+- Removed `"use client"` from `analytics-panels.tsx` so allocation, exposure, winners/losers, cash, and benchmark panels remain server components.
+- Updated the portfolio page to import `PerformancePanel` from the new client module while keeping `AllocationDonutPanel` server-safe for `labelFormatter={formatAssetTypeLabel}`.
+- Scanned for remaining server-to-client function props in the affected portfolio path; none remain from `analytics-panels.tsx`.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS after rerun outside the sandbox; the sandboxed attempt failed with EPERM writing `.test-build` files.
+- `npm.cmd run build` - PASS
+- Local route hit: `GET /portfolio` on `next start` returned `307` to `/login?redirectTo=%2Fportfolio`, confirming the route responds without a server crash in the unauthenticated path.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only/RSC-boundary fix only. No data, scoring, recommendation, feature-flag, access-control, or methodology logic changed.
+- Authenticated browser recheck is still recommended to confirm the full portfolio dashboard renders past the login gate.
+
+## 2026-06-26 — Portfolio Performance Chart Layout and Benchmark Curation
+
+### Source
+Claude Code
+
+### Objective
+Rework the portfolio dashboard performance chart so the plot sits beside an aligned legend/return-summary column and only curated benchmarks are plotted.
+
+### Files Changed
+- `src/components/portfolio/analytics-panels.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Rebuilt the tabbed performance period card as a left plot plus right-side legend and return-summary column with aligned label/value rows.
+- Restricted plotted benchmark lines and legend rows to the display-only curated set: 60/40 portfolio proxy, Global equities, S&P 500, and Gold.
+- Removed the below-chart benchmark legend and `+N more benchmarks` expander while leaving the underlying benchmark data untouched.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only portfolio dashboard polish. No data, scoring, recommendation, feature-flag, access-control, or methodology logic changed.
+- Browser recheck remains recommended for the portfolio dashboard period tabs and responsive chart/right-column layout.
+
 ## 2026-06-26 — Instrument Long-Horizon Cards v3 and 5Y Volatility
 
 ### Source
