@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { AllocationService } from "../src/application/services/AllocationService";
 import { AnalyticsService } from "../src/application/services/AnalyticsService";
 import { PerformanceService } from "../src/application/services/PerformanceService";
+import { PortfolioService } from "../src/application/services/PortfolioService";
 import type { CashBalance, Holding, HoldingMarketMetric, HoldingValuation, PortfolioSnapshot } from "../src/domain/portfolio/types";
 
 function holding(): Holding {
@@ -178,4 +179,68 @@ test("dashboard product performance falls back from sparse zero baselines to inc
   assert.equal(product.metrics.find((metric) => metric.label === "Monthly")?.percentChange, 0.0282);
   assert.equal(product.metrics.find((metric) => metric.label === "1Y")?.percentChange, 0.0282);
   assert.equal(product.metrics.find((metric) => metric.label === "YTD")?.percentChange, 0.0282);
+});
+
+test("portfolio analytics snapshot refreshes holding metrics before reading dashboard", async () => {
+  const calls: string[] = [];
+  const position = holding();
+  const repository = {
+    listCashBalances: async (portfolioId: string) => {
+      calls.push(`dashboard:${portfolioId}`);
+      return [cashBalance()];
+    },
+    listHoldings: async () => [position],
+    listTransactions: async () => [],
+    getPortfolioById: async (portfolioId: string) => ({
+      id: portfolioId,
+      userId: "user",
+      name: "Portfolio",
+      baseCurrency: "USD",
+      isDefault: true
+    })
+  };
+  const analyticsRepository = {
+    refreshHoldingPortfolioMetrics: async (portfolioId: string) => {
+      calls.push(`refresh:${portfolioId}`);
+    },
+    listPortfolioSnapshots: async () => [],
+    listCashSnapshots: async () => [],
+    listHoldingMarketMetrics: async () => [{
+      holdingId: position.id,
+      instrumentId: "instrument",
+      latestPrice: 120,
+      latestPriceDate: "2026-06-26",
+      marketValue: 1200,
+      dailyReturn: null,
+      weeklyReturn: null,
+      monthlyReturn: null,
+      ytdReturn: null,
+      oneYearReturn: null,
+      threeYearReturn: null,
+      fiveYearReturn: null,
+      sinceInceptionReturn: 0.2,
+      fiftyTwoWeekLow: null,
+      fiftyTwoWeekHigh: null,
+      updatedAt: "2026-06-26T00:00:00Z"
+    } satisfies HoldingMarketMetric],
+    getPortfolioCurrentMetric: async () => null,
+    listHoldingSnapshots: async () => [],
+    upsertPortfolioSnapshot: async () => {
+      calls.push("snapshot");
+    },
+    upsertAssetSnapshots: async () => {},
+    upsertHoldingSnapshots: async () => {},
+    upsertCashSnapshots: async () => {}
+  };
+  const service = new PortfolioService(
+    repository as any,
+    undefined,
+    analyticsRepository as any,
+    new AnalyticsService(new AllocationService(), new PerformanceService())
+  );
+
+  await service.createAnalyticsSnapshot("portfolio");
+
+  assert.deepEqual(calls.slice(0, 2), ["refresh:portfolio", "dashboard:portfolio"]);
+  assert.ok(calls.includes("snapshot"));
 });

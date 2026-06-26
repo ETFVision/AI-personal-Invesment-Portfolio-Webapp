@@ -223,6 +223,7 @@ export class PortfolioService {
 
   async createAnalyticsSnapshot(portfolioId: string) {
     if (!this.analyticsRepository) throw new Error("Analytics repository is not configured.");
+    await this.analyticsRepository.refreshHoldingPortfolioMetrics(portfolioId);
     const dashboard = await this.getDashboard(portfolioId);
     const snapshotDate = new Date().toISOString().slice(0, 10);
     await this.analyticsRepository.upsertPortfolioSnapshot({

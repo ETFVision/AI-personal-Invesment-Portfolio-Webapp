@@ -4828,3 +4828,36 @@ Completed
 
 ### Notes for Claude
 - Migration `135` is manual-apply. After applying it, run `portfolio-valuation-refresh` with no `portfolioId` to rewrite snapshots with fresh holding prices; this should fill the frozen Jun-10 valuation tail.
+
+## 2026-06-26 — Portfolio Snapshot Holding Metrics Refresh
+
+### Source
+Claude Code
+
+### Objective
+Recompute per-portfolio derived holding metrics immediately before creating analytics snapshots so daily snapshots cannot read stale `holding_market_metrics`.
+
+### Files Changed
+- `src/application/services/PortfolioService.ts`
+- `tests/analytics.test.ts`
+- `docs/DOCUMENTATION_GAPS.md`
+- `docs/implementation-log.md`
+
+### Summary
+- Added `analyticsRepository.refreshHoldingPortfolioMetrics(portfolioId)` at the start of `createAnalyticsSnapshot`.
+- This makes the daily `portfolio-valuation-refresh` fan-out, admin refreshes, and transaction-triggered snapshots rebuild `holding_market_metrics` / `portfolio_current_metrics` before dashboard reads.
+- Added a regression test asserting the refresh happens before dashboard construction starts.
+- Marked documentation gap 49 fixed.
+- No scoring, methodology, recommendation, guardrail, feature-flag, or access-control behavior changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Combined with migration 135, the snapshot path is now both fresh and source-of-truth-priced. After deploying/applying migration 135, run `portfolio-valuation-refresh` with no `portfolioId` to rewrite snapshots with fresh portfolio values.
