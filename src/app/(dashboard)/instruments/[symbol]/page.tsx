@@ -264,21 +264,19 @@ function TrendArrow({ direction, periods }: { direction: FundamentalTrendDirecti
   );
 }
 
-function signedDelta(current: number | null | undefined, previous: number | null | undefined, metricName: string) {
-  if (current == null || previous == null || !Number.isFinite(current) || !Number.isFinite(previous)) return "-";
-  const delta = current - previous;
-  const sign = delta > 0 ? "+" : "";
-  if (metricName.includes("margin") || ["roe", "roic", "roa"].includes(metricName)) return `${sign}${(delta * 100).toFixed(1)} pp`;
-  if (metricName.includes("growth")) return `${sign}${formatPercent(delta)}`;
-  if (Math.abs(delta) >= 1_000_000) return `${sign}${formatNumber(delta)}`;
-  return `${sign}${formatNumber(delta)}`;
-}
-
 function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
   if (!detail) {
     return <PlaceholderPanel title="Fundamentals" description="No fundamentals are linked to this stock yet. Refresh fundamentals from Admin Data Sources." />;
   }
   const latestRatio = detail.latestRatio;
+  const annualRatio = detail.ratios
+    .filter((ratio) => ratio.period === "annual")
+    .slice()
+    .sort((a, b) => (b.reportDate ?? "").localeCompare(a.reportDate ?? ""))[0] ?? detail.latestRatio;
+  const latestQuarter = detail.ratios
+    .filter((ratio) => ratio.period === "quarterly" && ratio.revenueGrowth != null)
+    .slice()
+    .sort((a, b) => (b.reportDate ?? "").localeCompare(a.reportDate ?? ""))[0] ?? null;
   const latestIncome = detail.statements.find((statement) => statement.statementType === "income_statement");
   const latestCashFlow = detail.statements.find((statement) => statement.statementType === "cash_flow");
   const latestBalance = detail.statements.find((statement) => statement.statementType === "balance_sheet");
@@ -340,7 +338,7 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
       <Card>
         <CardHeader>
           <CardTitle>Fundamental sub-scores</CardTitle>
-          <CardDescription>Six stored components. Business Quality is summarized above.</CardDescription>
+          <CardDescription>Current level / strength of each component - higher means stronger fundamentals today. Business Quality is summarized above.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-2">
           {FUNDAMENTAL_COMPONENTS.map((component) => {
@@ -371,17 +369,24 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
         <Card>
           <CardHeader>
             <CardTitle>Key ratios</CardTitle>
-            <CardDescription>Valuation, profitability, growth, and leverage inputs.</CardDescription>
+            <CardDescription>Valuation, profitability, growth, and leverage | Annual | FY{annualRatio?.fiscalYear ?? "-"}</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-            <SummaryMetric label="P/E" value={ratio(latestRatio?.peRatio)} />
-            <SummaryMetric label="Price / sales" value={ratio(latestRatio?.priceToSales)} />
-            <SummaryMetric label="Gross margin" value={percent(latestRatio?.grossMargin)} />
-            <SummaryMetric label="Operating margin" value={percent(latestRatio?.operatingMargin)} />
-            <SummaryMetric label="Revenue growth" value={percent(latestRatio?.revenueGrowth)} />
-            <SummaryMetric label="EPS growth" value={percent(latestRatio?.epsGrowth)} />
-            <SummaryMetric label="ROE" value={percent(latestRatio?.roe)} />
-            <SummaryMetric label="Debt / equity" value={ratio(latestRatio?.debtToEquity)} />
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 text-sm sm:grid-cols-2">
+              <SummaryMetric label="P/E" value={ratio(annualRatio?.peRatio)} />
+              <SummaryMetric label="Price / sales" value={ratio(annualRatio?.priceToSales)} />
+              <SummaryMetric label="Gross margin" value={percent(annualRatio?.grossMargin)} />
+              <SummaryMetric label="Operating margin" value={percent(annualRatio?.operatingMargin)} />
+              <SummaryMetric label="Revenue growth" value={percent(annualRatio?.revenueGrowth)} />
+              <SummaryMetric label="EPS growth" value={percent(annualRatio?.epsGrowth)} />
+              <SummaryMetric label="ROE" value={percent(annualRatio?.roe)} />
+              <SummaryMetric label="Debt / equity" value={ratio(annualRatio?.debtToEquity)} />
+            </div>
+            {latestQuarter ? (
+              <p className="text-xs text-muted-foreground">
+                Latest quarter (YoY) | Q{latestQuarter.fiscalQuarter} FY{latestQuarter.fiscalYear ?? "-"}: revenue {percent(latestQuarter.revenueGrowth)} | EPS {percent(latestQuarter.epsGrowth)}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
         <Card>
@@ -414,7 +419,7 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle>Fundamental trends</CardTitle>
-              <CardDescription>Stored deterministic trend analysis from annual and quarterly fundamentals.</CardDescription>
+              <CardDescription>Direction of change over time (trajectory) - whether each area is improving or cooling, not its current level. A strong business can still show a cooling trend.</CardDescription>
             </div>
             {detail.trendSummary ? (
               <div className="flex flex-wrap items-center gap-2">
@@ -457,14 +462,17 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
                         <TrendGlyph direction={direction} />
                       </div>
                       <div className="mt-3 flex items-center justify-between gap-2">
-                        <span className="text-sm font-semibold text-foreground">{score(trendScore)}</span>
+                        <span className="text-xs text-muted-foreground">Trend score {score(trendScore)}</span>
                         <TrendChip direction={direction} />
                       </div>
                     </div>
                   );
                 })}
               </div>
-              <p className="text-xs text-muted-foreground">Glyphs are illustrative of stored trend direction, not an actual time series, and are not predictive.</p>
+              <div className="space-y-1 text-xs text-muted-foreground">
+                <p>Glyphs are illustrative of stored trend direction, not an actual time series, and are not predictive.</p>
+                <p>Sub-scores measure current level; trends measure trajectory - the two can diverge (e.g. strong growth that is decelerating).</p>
+              </div>
               <details className="rounded-lg border bg-background p-3">
                 <summary className="cursor-pointer text-sm font-semibold">Show metric-level detail</summary>
               <div className="mt-4 space-y-5">
@@ -491,10 +499,8 @@ function FundamentalsPanel({ detail }: { detail: FundamentalsDetail | null }) {
                               <p className="text-[11px] text-muted-foreground">{displayPeriodLabel(trend.displayPeriod)}</p>
                             </div>
                             <div>
-                              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Vs prior</p>
-                              <p className={`mt-1 font-medium ${trendDirectionTone(trend.overallTrendDirection) === "positive" ? "text-emerald-600" : trendDirectionTone(trend.overallTrendDirection) === "danger" ? "text-red-600" : "text-muted-foreground"}`}>
-                                {signedDelta(trend.currentValue, trend.previousValue, trend.metricName)}
-                              </p>
+                              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Prior</p>
+                              <p className="mt-1 font-medium text-muted-foreground">{trendValue(trend.previousValue, trend.metricName)}</p>
                             </div>
                             <div>
                               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">ST/LT</p>

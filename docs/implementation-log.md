@@ -4723,3 +4723,34 @@ Completed
 
 ### Notes for Claude
 - Browser recheck in an authenticated session is still pending for a stock with complete fundamentals and one with sparse trend data.
+
+## 2026-06-26 — Fundamentals Tab Period Consistency
+
+### Source
+Claude Code
+
+### Objective
+Make the instrument Fundamentals tab period basis clearer by using annual ratios for Key Ratios, separating latest-quarter YoY momentum, and disambiguating current-level sub-scores from trend trajectory.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Switched the Key Ratios card to the latest annual ratio row, matching the stored score, trend, and snapshot basis.
+- Added an optional Latest quarter (YoY) line for revenue and EPS growth when a quarterly growth row is available.
+- Updated sub-score and trend descriptions to distinguish current level from trajectory.
+- De-emphasized trend card scores, added the level-vs-trajectory clarifier, and changed metric detail from signed deltas to prior values.
+- Removed the now-unused signed-delta helper. No data, scoring, methodology, repository, feature-flag, access-control, or pipeline behavior changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Browser recheck in an authenticated session is still pending for annual-ratio and quarterly-growth display examples.
