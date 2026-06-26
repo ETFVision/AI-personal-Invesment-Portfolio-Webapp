@@ -1,23 +1,24 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import type { ReactNode } from "react";
+import { Activity, AlertTriangle, Briefcase, CheckCircle2, CircleDollarSign, ExternalLink, PiggyBank, Wallet } from "lucide-react";
 import { createContainer } from "@/server/container";
 import { measureRenderStep } from "@/infrastructure/observability/renderTiming";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { MetricCard, PageContainer, PageHeader, SectionHeader, StatusBadge } from "@/components/ui/professional";
+import { PageContainer, PageHeader, StatusBadge } from "@/components/ui/professional";
 import {
   AllocationDonutPanel,
-  AllocationPanel,
-  CashInvestedPanel,
   CurrencyExposurePanel,
-  PerformancePanel,
   WinnersLosersPanel
 } from "@/components/portfolio/analytics-panels";
-import { formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
-import type { AllocationItem, PortfolioDashboard, PortfolioPerformanceSummary } from "@/domain/portfolio/types";
+import { PerformancePanel } from "@/components/portfolio/performance-panel";
+import { HorizontalExposureBars } from "@/components/ui/charts";
+import { cn, formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
+import type { AllocationItem, BenchmarkComparison, PortfolioDashboard, PortfolioPerformanceSummary } from "@/domain/portfolio/types";
 import type { PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
 import { consolidatePortfolioLookthroughExposures } from "@/domain/etfLookthrough/exposureNormalization";
-import type { PortfolioReviewSummary } from "@/application/ports/repositories/PortfolioReviewRepository";
+import type { PortfolioReviewReport, PortfolioReviewSection } from "@/domain/portfolioReview/types";
 
 type PortfolioPageProps = {
   searchParams?: Promise<{
@@ -28,6 +29,13 @@ type PortfolioPageProps = {
     refreshMessage?: string;
     refreshError?: string;
   }>;
+};
+
+type PerformanceDashboard = {
+  portfolio: Pick<PortfolioDashboard["portfolio"], "baseCurrency">;
+  performance: PortfolioPerformanceSummary["performance"];
+  benchmarkComparisons: PortfolioPerformanceSummary["benchmarkComparisons"];
+  latestPriceDate?: string | null;
 };
 
 function lookthroughReportFromSnapshot(value: unknown): PortfolioLookthroughReport | null {
@@ -53,35 +61,270 @@ function allocationFromLookthrough(rows: PortfolioLookthroughReport["sectorExpos
   }));
 }
 
-function LoadingCard({ title }: { title: string }) {
+function DashboardCard({
+  children,
+  className,
+  id
+}: {
+  children: ReactNode;
+  className?: string;
+  id?: string;
+}) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>Loading stored analytics...</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="h-24 rounded-xl border border-dashed bg-slate-50" />
-      </CardContent>
+    <Card id={id} className={cn("h-full rounded-lg border border-border/60 bg-card p-4 shadow-sm", className)}>
+      {children}
     </Card>
   );
 }
 
-function performanceDashboardFromSummary(portfolio: PortfolioDashboard["portfolio"], summary: PortfolioPerformanceSummary) {
+function LoadingCard({ title }: { title: string }) {
+  return (
+    <DashboardCard>
+      <div className="space-y-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+          <p className="mt-1 text-sm text-muted-foreground">Loading stored analytics...</p>
+        </div>
+        <div className="h-24 rounded-lg border border-dashed bg-muted/40" />
+      </div>
+    </DashboardCard>
+  );
+}
+
+function performanceDashboardFromSummary(portfolio: PortfolioDashboard["portfolio"], summary: PortfolioPerformanceSummary): PerformanceDashboard {
   return {
     portfolio,
     performance: summary.performance,
-    benchmarkComparisons: summary.benchmarkComparisons
+    benchmarkComparisons: summary.benchmarkComparisons,
+    latestPriceDate: summary.latestPriceDate
   };
 }
 
+function scoreBand(score: number | null | undefined) {
+  if (score == null) {
+    return {
+      label: "Not reviewed",
+      textClass: "text-muted-foreground",
+      bgClass: "bg-muted",
+      stroke: "stroke-muted-foreground",
+      badgeClass: "border-border bg-muted text-muted-foreground"
+    };
+  }
+  if (score >= 75) {
+    return {
+      label: "Good",
+      textClass: "text-emerald-700 dark:text-emerald-400",
+      bgClass: "bg-emerald-50 dark:bg-emerald-950/30",
+      stroke: "stroke-emerald-600",
+      badgeClass: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300"
+    };
+  }
+  if (score >= 55) {
+    return {
+      label: "Moderate",
+      textClass: "text-amber-700 dark:text-amber-400",
+      bgClass: "bg-amber-50 dark:bg-amber-950/30",
+      stroke: "stroke-amber-500",
+      badgeClass: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
+    };
+  }
+  return {
+    label: "Watch",
+    textClass: "text-red-700 dark:text-red-400",
+    bgClass: "bg-red-50 dark:bg-red-950/30",
+    stroke: "stroke-red-600",
+    badgeClass: "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+  };
+}
+
+function scoreText(score: number | null | undefined) {
+  return score == null ? "-" : `${Math.round(score)}/100`;
+}
+
+function HealthGauge({ score }: { score: number | null | undefined }) {
+  const band = scoreBand(score);
+  const value = Math.max(0, Math.min(100, score ?? 0));
+  return (
+    <div className="mx-auto flex w-56 flex-col items-center text-center">
+      <svg viewBox="0 0 180 108" className="h-32 w-full" role="img" aria-label="Portfolio health gauge">
+        <path d="M 22 88 A 68 68 0 0 1 158 88" fill="none" className="stroke-muted" strokeWidth="16" strokeLinecap="round" pathLength={100} />
+        <path
+          d="M 22 88 A 68 68 0 0 1 158 88"
+          fill="none"
+          className={band.stroke}
+          strokeWidth="16"
+          strokeLinecap="round"
+          pathLength={100}
+          strokeDasharray={`${value} 100`}
+        />
+      </svg>
+      <div className="mt-1 text-4xl font-semibold tabular-nums text-foreground">{scoreText(score)}</div>
+      <span className={cn("mt-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide", band.badgeClass)}>{band.label}</span>
+    </div>
+  );
+}
+
+function SubRating({ label, section }: { label: string; section: PortfolioReviewSection | undefined }) {
+  const band = scoreBand(section?.score);
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+      <span className="text-sm font-medium text-foreground">{label}</span>
+      <span className={cn("rounded-full border px-2 py-0.5 text-xs font-semibold tabular-nums", band.badgeClass)}>
+        {scoreText(section?.score)}
+      </span>
+    </div>
+  );
+}
+
+function PortfolioHealthCard({ review }: { review: PortfolioReviewReport | null }) {
+  return (
+    <DashboardCard>
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
+          <div className="lg:w-72 lg:shrink-0">
+            <p className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Portfolio health</p>
+            <HealthGauge score={review?.overallPortfolioScore} />
+          </div>
+          <div className="grid flex-1 gap-2 sm:grid-cols-2">
+            <SubRating label="Diversification" section={review?.diversificationReview} />
+            <SubRating label="Concentration" section={review?.concentrationReview} />
+            <SubRating label="Risk" section={review?.riskReview} />
+            <SubRating label="Allocation" section={review?.allocationReview} />
+          </div>
+        </div>
+        <p className="border-t border-border pt-3 text-xs text-muted-foreground">
+          Latest deterministic review across allocation, concentration, diversification and risk.
+        </p>
+      </div>
+    </DashboardCard>
+  );
+}
+
+function formatMaybeCurrency(value: number | null | undefined, currency: string | undefined) {
+  if (value == null) return "-";
+  return currency ? formatCurrency(value, currency) : value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+
+function ValueCard({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  tone = "default"
+}: {
+  icon: typeof Wallet;
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "default" | "positive" | "warning";
+}) {
+  const iconClass = tone === "positive" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" : tone === "warning" ? "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300" : "bg-primary/10 text-primary";
+  return (
+    <DashboardCard>
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+          <span className={cn("rounded-lg p-2", iconClass)}>
+            <Icon className="h-4 w-4" aria-hidden="true" />
+          </span>
+        </div>
+        <div>
+          <div className="text-4xl font-semibold tabular-nums text-foreground">{value}</div>
+          <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+        </div>
+      </div>
+    </DashboardCard>
+  );
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  tone = "neutral"
+}: {
+  icon: typeof Wallet;
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "neutral" | "positive" | "danger";
+}) {
+  const valueClass = tone === "positive" ? "text-emerald-600" : tone === "danger" ? "text-destructive" : "text-foreground";
+  return (
+    <DashboardCard>
+      <div className="flex h-full flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+          <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        </div>
+        <div className="space-y-1">
+          <div className={cn("text-3xl font-semibold tabular-nums", valueClass)}>{value}</div>
+          <p className="text-xs text-muted-foreground">{detail}</p>
+        </div>
+      </div>
+    </DashboardCard>
+  );
+}
+
+function pickBenchmarkComparison(summary: PortfolioPerformanceSummary | null | undefined) {
+  return summary?.benchmarkComparisons.find((comparison) => comparison.benchmark.benchmarkKey === "sixty_forty") ?? null;
+}
+
+function rebaseReturn(current: number, baseline: number) {
+  const denominator = 1 + baseline;
+  return denominator === 0 ? 0 : (1 + current) / denominator - 1;
+}
+
+function formatPeriodLabel(points: BenchmarkComparison["points"]) {
+  if (points.length < 2) return "available period";
+  return `${points[0].snapshotDate} to ${points[points.length - 1].snapshotDate}`;
+}
+
+function PortfolioBanner({
+  summary,
+  review
+}: {
+  summary: PortfolioPerformanceSummary | null;
+  review: PortfolioReviewReport | null;
+}) {
+  const comparison = pickBenchmarkComparison(summary);
+  const points = comparison?.points ?? [];
+  const first = points[0];
+  const last = points[points.length - 1];
+  const delta = first && last
+    ? rebaseReturn(last.portfolioReturn, first.portfolioReturn) - rebaseReturn(last.benchmarkReturn, first.benchmarkReturn)
+    : null;
+  const watchCount = review?.watchAreas.length ?? 0;
+  const isPositive = (delta ?? 0) >= 0;
+
+  return (
+    <DashboardCard className={cn("border-l-4", isPositive ? "border-l-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20" : "border-l-muted-foreground/50 bg-muted/40")}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-foreground">
+          Portfolio return vs 60/40 benchmark:{" "}
+          <span className={cn("font-semibold tabular-nums", delta == null ? "text-muted-foreground" : delta < 0 ? "text-destructive" : "text-emerald-700 dark:text-emerald-400")}>
+            {delta == null ? "-" : formatPercent(delta)}
+          </span>{" "}
+          ({formatPeriodLabel(points)}) · {watchCount} watch area{watchCount === 1 ? "" : "s"} flagged · not investment advice.
+        </p>
+        <Link className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline" href="/portfolio-review">
+          Open review <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
+      </div>
+    </DashboardCard>
+  );
+}
+
 async function PortfolioPerformanceSection({
-  dashboard: summaryDashboard
+  dashboard: summaryDashboard,
+  initialSummary
 }: {
   dashboard: PortfolioDashboard;
+  initialSummary: PortfolioPerformanceSummary | null;
 }) {
   const container = createContainer();
-  const summary = await measureRenderStep(`portfolio:${summaryDashboard.portfolio.id}:performance-summary-data`, () =>
+  const summary = initialSummary ?? await measureRenderStep(`portfolio:${summaryDashboard.portfolio.id}:performance-summary-data`, () =>
     container.portfolioService.getPerformanceSummary(summaryDashboard.portfolio.id)
   );
   const performanceDashboard = summary
@@ -89,33 +332,62 @@ async function PortfolioPerformanceSection({
     : await measureRenderStep(`portfolio:${summaryDashboard.portfolio.id}:performance-history-data`, async () => {
         const liveDashboard = await container.portfolioService.getDashboard(summaryDashboard.portfolio.id);
         await container.portfolioService.savePerformanceSummaryFromDashboard(summaryDashboard.portfolio.id, liveDashboard);
-        return liveDashboard;
-      }
-  );
+        return { ...liveDashboard, latestPriceDate: liveDashboard.latestPriceDate };
+      });
 
   return (
-    <>
-      <SectionHeader
-        title="Performance Command Center"
-        description="Portfolio return and benchmark comparison panels using stored historical snapshots."
+    <DashboardCard id="performance" className="space-y-4">
+      <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Performance command center</p>
+          <h2 className="mt-1 text-xl font-semibold text-foreground">Performance</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Cumulative time-weighted return (TWR, incl. cash) vs key benchmarks · differs from cost-based unrealised G/L%.
+          </p>
+        </div>
+      </div>
+      {summary?.status === "stale" || summary?.status === "failed" ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          Performance summary is {summary.status}; showing last stored summary.
+        </div>
+      ) : null}
+      <PerformancePanel dashboard={performanceDashboard} />
+    </DashboardCard>
+  );
+}
+
+function ExposurePanel({
+  title,
+  description,
+  items,
+  emptyText,
+  formatter = (label) => label,
+  minPercent
+}: {
+  title: string;
+  description: string;
+  items: AllocationItem[];
+  emptyText: string;
+  formatter?: (label: string) => string;
+  minPercent?: number;
+}) {
+  return (
+    <DashboardCard>
+      <div className="mb-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </div>
+      <HorizontalExposureBars
+        maxItems={8}
+        minPercent={minPercent}
+        emptyText={emptyText}
+        items={items.map((item) => ({
+          label: formatter(item.label),
+          value: item.percent,
+          valueLabel: formatPercent(item.percent)
+        }))}
       />
-      <Card>
-        <CardHeader>
-          <CardTitle>Performance</CardTitle>
-          <CardDescription>
-            Time-weighted returns from stored snapshots. Deposits and withdrawals are excluded from gains where transaction history supports it.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {summary?.status === "stale" || summary?.status === "failed" ? (
-            <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              Performance summary is {summary.status}; showing last stored summary.
-            </div>
-          ) : null}
-          <PerformancePanel dashboard={performanceDashboard} />
-        </CardContent>
-      </Card>
-    </>
+    </DashboardCard>
   );
 }
 
@@ -124,7 +396,7 @@ function PortfolioAllocationSections({
   latestPortfolioReview
 }: {
   dashboard: PortfolioDashboard;
-  latestPortfolioReview: PortfolioReviewSummary | null;
+  latestPortfolioReview: PortfolioReviewReport | null;
 }) {
   const lookthroughReport = lookthroughReportFromSnapshot(latestPortfolioReview?.inputsSnapshot?.lookthroughExposure);
   const sectorAllocation = lookthroughReport?.sectorExposures.length
@@ -135,71 +407,75 @@ function PortfolioAllocationSections({
     : dashboard.allocationByGeography;
 
   return (
-    <>
-      <SectionHeader
-        title="Allocation & Exposure"
-        description="Portfolio composition with ETF look-through exposure when the latest review has cached provider data."
-      />
-      <Card id="allocation">
-        <CardHeader>
-          <CardTitle>Allocation by asset type</CardTitle>
-          <CardDescription>Uses latest stored prices when available, with cost basis as fallback.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            <AllocationDonutPanel
-              title="Asset allocation"
-              items={dashboard.allocationByType}
-              labelFormatter={formatAssetTypeLabel}
-            />
-            <AllocationPanel dashboard={dashboard} />
+    <section className="space-y-4">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Allocation & exposure</p>
+        <h2 className="mt-1 text-xl font-semibold text-foreground">Composition</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Portfolio composition with ETF look-through exposure when the latest review has cached provider data.
+        </p>
+      </div>
+      <div className="grid items-stretch gap-4 lg:grid-cols-2">
+        <DashboardCard>
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Asset class</p>
+            <p className="mt-1 text-sm text-muted-foreground">Latest allocation by holding type.</p>
           </div>
-        </CardContent>
-      </Card>
-
-      <section className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Currency exposure</CardTitle>
-            <CardDescription>Native currency exposure before FX conversion is added.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CurrencyExposurePanel dashboard={dashboard} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Sector allocation</CardTitle>
-            <CardDescription>
+          <AllocationDonutPanel title="Asset class" items={dashboard.allocationByType} labelFormatter={formatAssetTypeLabel} />
+        </DashboardCard>
+        <DashboardCard>
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sector</p>
+            <p className="mt-1 text-sm text-muted-foreground">
               {lookthroughReport ? "ETF look-through sector exposure from the latest Portfolio Review." : "Direct sector metadata; run Portfolio Review for ETF look-through exposure."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AllocationDonutPanel title="Sector allocation" items={sectorAllocation} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Geography allocation</CardTitle>
-            <CardDescription>
-              {lookthroughReport ? "ETF look-through country exposure from the latest Portfolio Review." : "Direct geography metadata; run Portfolio Review for ETF look-through exposure."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AllocationDonutPanel title="Geography allocation" items={geographyAllocation} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Top winners/losers</CardTitle>
-            <CardDescription>Unrealised movement from average cost using refreshed prices.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <WinnersLosersPanel dashboard={dashboard} />
-          </CardContent>
-        </Card>
-      </section>
-    </>
+            </p>
+          </div>
+          <AllocationDonutPanel title="Sector allocation" items={sectorAllocation} />
+        </DashboardCard>
+        <DashboardCard>
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Currency</p>
+            <p className="mt-1 text-sm text-muted-foreground">Native currency exposure before FX conversion is added.</p>
+          </div>
+          <CurrencyExposurePanel dashboard={dashboard} />
+        </DashboardCard>
+        <ExposurePanel
+          title="Geography"
+          description={lookthroughReport ? "ETF look-through country exposure from the latest Portfolio Review." : "Direct geography metadata; run Portfolio Review for ETF look-through exposure."}
+          items={geographyAllocation}
+          emptyText="No geography exposure available."
+          minPercent={0.004}
+        />
+      </div>
+    </section>
+  );
+}
+
+function WatchAreasCard({ review }: { review: PortfolioReviewReport | null }) {
+  const top = review?.watchAreas[0];
+  const count = review?.watchAreas.length ?? 0;
+  return (
+    <DashboardCard className="lg:col-span-1">
+      <div className="flex h-full flex-col justify-between gap-4">
+        <div>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Watch areas</p>
+            <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums">{count}</span>
+          </div>
+          {top ? (
+            <div className="mt-4 rounded-lg border border-border/60 bg-muted/30 p-3">
+              <p className="text-sm font-semibold text-foreground">{top.title}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{top.detail}</p>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-muted-foreground">No watch areas in the latest stored review.</p>
+          )}
+        </div>
+        <Link className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline" href="/portfolio-review">
+          Open review <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
+      </div>
+    </DashboardCard>
   );
 }
 
@@ -219,10 +495,11 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
     );
   }
 
-  const [dashboard, latestPortfolioReview] = await measureRenderStep(`portfolio:${portfolio.id}:summary-top-cards-data`, () =>
+  const [dashboard, latestPortfolioReview, performanceSummary] = await measureRenderStep(`portfolio:${portfolio.id}:summary-top-cards-data`, () =>
     Promise.all([
       container.portfolioService.getCachedDashboardSummary(portfolio.id),
-      container.portfolioReviewRepository.getLatestReportSummary(portfolio.id)
+      container.portfolioReviewRepository.getLatestReport(portfolio.id),
+      container.portfolioService.getPerformanceSummary(portfolio.id)
     ])
   );
   const cashCurrencies = new Set(dashboard.cashBalances.map((cash) => cash.currency));
@@ -230,175 +507,151 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
   const allCurrencies = new Set([...cashCurrencies, ...holdingCurrencies]);
   const hasMixedOrNonBaseCurrency = allCurrencies.size > 1 || (allCurrencies.size === 1 && !allCurrencies.has(portfolio.baseCurrency));
   const displayCurrency = hasMixedOrNonBaseCurrency ? undefined : portfolio.baseCurrency;
+  const distinctAssetClasses = new Set(dashboard.allocationByType.map((item) => item.label)).size;
+  const coverage = latestPortfolioReview?.confidenceScore ?? null;
 
   return (
     <PageContainer>
       <PageHeader
         eyebrow="Dashboard"
-        title={portfolio.name}
-        description="Executive view of portfolio value, performance, allocation, review status and data freshness."
+        title={`Hello, ${portfolio.name}`}
+        description="Executive overview of performance, allocation, review status and data freshness."
         meta={
           <>
             <StatusBadge tone={dashboard.latestPriceDate ? "positive" : "warning"}>
               Prices {dashboard.latestPriceDate ? `as of ${dashboard.latestPriceDate}` : "not refreshed"}
             </StatusBadge>
             <StatusBadge tone={latestPortfolioReview ? "info" : "neutral"}>
-              Review {latestPortfolioReview ? latestPortfolioReview.reviewDate : "not run"}
+              Reviewed {latestPortfolioReview ? latestPortfolioReview.reviewDate : "not run"}
             </StatusBadge>
           </>
         }
         actions={
           <>
-          <Link className="rounded-md border px-4 py-2 text-sm hover:bg-muted" href="/cash">Add cash</Link>
-          <Link className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground" href="/holdings">Add holding</Link>
+            <Link className="rounded-md border px-4 py-2 text-sm hover:bg-muted" href="/cash">Add cash</Link>
+            <Link className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground" href="/holdings">Add holding</Link>
           </>
         }
       />
 
       {resolvedSearchParams?.priceMessage || resolvedSearchParams?.benchmarkMessage || resolvedSearchParams?.refreshMessage ? (
-        <Card>
-          <CardContent className="p-4 text-sm">
-            <div className="space-y-1">
-              {resolvedSearchParams.refreshMessage ? (
-                <div className={resolvedSearchParams.refreshError ? "text-destructive" : "text-muted-foreground"}>
-                  {resolvedSearchParams.refreshError ?? resolvedSearchParams.refreshMessage}
-                </div>
-              ) : null}
-              {resolvedSearchParams.priceMessage ? (
-                <div className={resolvedSearchParams.priceError ? "text-destructive" : "text-muted-foreground"}>
-                  {resolvedSearchParams.priceError ?? resolvedSearchParams.priceMessage}
-                </div>
-              ) : null}
-              {resolvedSearchParams.benchmarkMessage ? (
-                <div className={resolvedSearchParams.benchmarkError ? "text-destructive" : "text-muted-foreground"}>
-                  {resolvedSearchParams.benchmarkError ?? resolvedSearchParams.benchmarkMessage}
-                </div>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
+        <DashboardCard>
+          <div className="space-y-1 text-sm">
+            {resolvedSearchParams.refreshMessage ? (
+              <div className={resolvedSearchParams.refreshError ? "text-destructive" : "text-muted-foreground"}>
+                {resolvedSearchParams.refreshError ?? resolvedSearchParams.refreshMessage}
+              </div>
+            ) : null}
+            {resolvedSearchParams.priceMessage ? (
+              <div className={resolvedSearchParams.priceError ? "text-destructive" : "text-muted-foreground"}>
+                {resolvedSearchParams.priceError ?? resolvedSearchParams.priceMessage}
+              </div>
+            ) : null}
+            {resolvedSearchParams.benchmarkMessage ? (
+              <div className={resolvedSearchParams.benchmarkError ? "text-destructive" : "text-muted-foreground"}>
+                {resolvedSearchParams.benchmarkError ?? resolvedSearchParams.benchmarkMessage}
+              </div>
+            ) : null}
+          </div>
+        </DashboardCard>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title="Total portfolio value"
-          description={
-            hasMixedOrNonBaseCurrency
-              ? "Native-currency sum shown until FX conversion is added."
-              : dashboard.latestPriceDate
-                ? `Cash plus latest stored prices as of ${dashboard.latestPriceDate}.`
-                : "Cash plus holding cost basis until prices are refreshed."
-          }
-          value={displayCurrency ? formatCurrency(dashboard.totalValueEstimate, displayCurrency) : dashboard.totalValueEstimate.toLocaleString("en-US")}
+      <section>
+        <PortfolioHealthCard review={latestPortfolioReview} />
+      </section>
+
+      <section className="grid items-stretch gap-4 lg:grid-cols-3">
+        <ValueCard
+          icon={Wallet}
+          label="Total portfolio value"
+          value={formatMaybeCurrency(dashboard.totalValueEstimate, displayCurrency)}
+          detail={hasMixedOrNonBaseCurrency ? "Native-currency sum until FX conversion is added." : `Prices ${dashboard.latestPriceDate ? `as of ${dashboard.latestPriceDate}` : "not refreshed"}.`}
+          tone="positive"
         />
-        <MetricCard
-          title="Cash"
-          description="Available balances entered manually."
-          value={displayCurrency ? formatCurrency(dashboard.totalCash, displayCurrency) : dashboard.totalCash.toLocaleString("en-US")}
+        <ValueCard
+          icon={PiggyBank}
+          label="Cash"
+          value={formatMaybeCurrency(dashboard.totalCash, displayCurrency)}
+          detail={`${formatPercent(dashboard.cashPercent)} cash · ${formatPercent(dashboard.investedPercent)} invested`}
         />
-        <MetricCard
-          title="Holdings"
-          description={
-            dashboard.latestPriceDate
-              ? `${dashboard.holdings.length} positions valued from latest stored prices where available.`
-              : `${dashboard.holdings.length} current manual positions.`
-          }
-          value={displayCurrency ? formatCurrency(dashboard.totalHoldingsMarketValue, displayCurrency) : dashboard.totalHoldingsMarketValue.toLocaleString("en-US")}
-        />
-        <MetricCard
-          title="Portfolio review"
-          description="Latest deterministic portfolio health readout."
-          tone={latestPortfolioReview?.overallPortfolioScore == null ? "neutral" : latestPortfolioReview.overallPortfolioScore >= 75 ? "positive" : latestPortfolioReview.overallPortfolioScore >= 55 ? "info" : "warning"}
-          value={latestPortfolioReview?.overallPortfolioScore == null ? "-" : `${Math.round(latestPortfolioReview.overallPortfolioScore)}/100`}
-          footer={latestPortfolioReview ? `Reviewed ${latestPortfolioReview.reviewDate}` : "Run Portfolio Review to populate"}
+        <ValueCard
+          icon={Briefcase}
+          label="Invested"
+          value={formatMaybeCurrency(dashboard.totalHoldingsMarketValue, displayCurrency)}
+          detail={`${formatPercent(dashboard.investedPercent)} invested · ${formatPercent(dashboard.cashPercent)} cash`}
         />
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <MetricCard
-          title="Unrealised gain/loss"
-          description="Current market value versus average cost."
+      <PortfolioBanner summary={performanceSummary} review={latestPortfolioReview} />
+
+      <section className="grid grid-cols-2 items-stretch gap-4 sm:grid-cols-4">
+        <StatCard
+          icon={Activity}
+          label="Unrealised G/L"
+          value={formatMaybeCurrency(dashboard.unrealizedGainLoss, displayCurrency)}
+          detail={formatPercent(dashboard.unrealizedGainLossPercent)}
           tone={dashboard.unrealizedGainLoss < 0 ? "danger" : dashboard.unrealizedGainLoss > 0 ? "positive" : "neutral"}
-          value={
-            displayCurrency
-              ? formatCurrency(dashboard.unrealizedGainLoss, displayCurrency)
-              : dashboard.unrealizedGainLoss.toLocaleString("en-US", { maximumFractionDigits: 2 })
-          }
-          footer={formatPercent(dashboard.unrealizedGainLossPercent)}
         />
-        <MetricCard
-          title="Realised gain/loss"
-          description="Calculated from buy/sell transactions where possible."
+        <StatCard
+          icon={CircleDollarSign}
+          label="Realised G/L"
+          value={formatMaybeCurrency(dashboard.realizedGainLoss, displayCurrency)}
+          detail="From sell transactions where available"
           tone={dashboard.realizedGainLoss < 0 ? "danger" : dashboard.realizedGainLoss > 0 ? "positive" : "neutral"}
-          value={
-            displayCurrency
-              ? formatCurrency(dashboard.realizedGainLoss, displayCurrency)
-              : dashboard.realizedGainLoss.toLocaleString("en-US", { maximumFractionDigits: 2 })
-          }
         />
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Cash vs invested</CardTitle>
-            <CardDescription>Portfolio balance between dry powder and holdings.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CashInvestedPanel dashboard={dashboard} />
-          </CardContent>
-        </Card>
+        <StatCard
+          icon={Briefcase}
+          label="Holdings"
+          value={`${dashboard.holdings.length}`}
+          detail={`${dashboard.holdings.length} positions · across ${distinctAssetClasses} asset class${distinctAssetClasses === 1 ? "" : "es"}`}
+        />
+        <StatCard
+          icon={coverage === 100 ? CheckCircle2 : AlertTriangle}
+          label="Data coverage"
+          value={coverage == null ? "-" : `${Math.round(coverage)}%`}
+          detail={coverage === 100 ? "Review inputs complete" : "Latest review confidence"}
+          tone={coverage === 100 ? "positive" : "neutral"}
+        />
       </section>
-
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <CardTitle>Portfolio Review Snapshot</CardTitle>
-              <CardDescription>
-                Deterministic review across allocation, concentration, risk, macro, insights and themes.
-              </CardDescription>
-            </div>
-            <Link className="rounded-md border px-3 py-2 text-sm hover:bg-muted" href="/portfolio-review">Open review</Link>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {latestPortfolioReview ? (
-            <div className="grid gap-3 sm:grid-cols-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Score</p>
-                <p className="text-xl font-semibold">{latestPortfolioReview.overallPortfolioScore == null ? "-" : `${Math.round(latestPortfolioReview.overallPortfolioScore)}/100`}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Data Coverage</p>
-                <p className="text-xl font-semibold">{formatPercent(latestPortfolioReview.confidenceScore / 100)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Watch areas</p>
-                <p className="text-xl font-semibold">{latestPortfolioReview.watchAreas.length}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Review date</p>
-                <p className="text-xl font-semibold">{latestPortfolioReview.reviewDate}</p>
-              </div>
-            </div>
-          ) : (
-            <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No portfolio review has been run yet.</p>
-          )}
-        </CardContent>
-      </Card>
 
       {hasMixedOrNonBaseCurrency ? (
-        <Card>
-          <CardContent className="p-4 text-sm text-muted-foreground">
+        <DashboardCard>
+          <p className="text-sm text-muted-foreground">
             Portfolio base currency is {portfolio.baseCurrency}, but your current cash/holding entries use{" "}
-            {Array.from(allCurrencies).join(", ")}. Phase 2 MVP preserves native currencies and does not convert FX yet, so totals are shown as unconverted estimates.
-          </CardContent>
-        </Card>
+            {Array.from(allCurrencies).join(", ")}. This dashboard preserves native currencies and does not convert FX yet, so totals are shown as unconverted estimates.
+          </p>
+        </DashboardCard>
       ) : null}
 
       <Suspense fallback={<LoadingCard title="Performance" />}>
-        <PortfolioPerformanceSection dashboard={dashboard} />
+        <PortfolioPerformanceSection dashboard={dashboard} initialSummary={performanceSummary} />
       </Suspense>
+
       <PortfolioAllocationSections dashboard={dashboard} latestPortfolioReview={latestPortfolioReview} />
 
+      <section className="grid items-stretch gap-4 lg:grid-cols-3">
+        <DashboardCard className="lg:col-span-2">
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Top movers</p>
+            <p className="mt-1 text-sm text-muted-foreground">Unrealised movement from average cost using refreshed prices.</p>
+          </div>
+          <WinnersLosersPanel dashboard={dashboard} />
+        </DashboardCard>
+        <WatchAreasCard review={latestPortfolioReview} />
+      </section>
+
+      <DashboardCard>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            Portfolio analytics are deterministic classifications for informational purposes only, not investment advice. Past performance is not indicative of future results.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link className="text-primary hover:underline" href="/methodology">Methodology</Link>
+            <Link className="text-primary hover:underline" href="/legal/disclosures">Legal</Link>
+            <Link className="text-primary hover:underline" href="/legal/disclosures#full-disclaimer">Full disclaimer</Link>
+          </div>
+        </div>
+      </DashboardCard>
     </PageContainer>
   );
 }

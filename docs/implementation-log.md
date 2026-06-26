@@ -1,3 +1,96 @@
+## 2026-06-26 — Horizontal Exposure Bars Design-Token Cleanup
+
+### Source
+Claude Code
+
+### Objective
+Replace remaining hardcoded slate color utilities in the chart/exposure-bar UI primitives with design tokens for light/dark theme consistency.
+
+### Files Changed
+- `src/components/ui/charts.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Replaced chart shell title, description, border, and background slate utilities with `text-foreground`, `text-muted-foreground`, `border-border`, and `bg-muted/40`.
+- Replaced remaining exposure/range helper slate text, border, and background classes with matching design tokens.
+- Preserved layout, item collapsing, and semantic tone bar colors.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only theming cleanup. No data, scoring, methodology, feature-flag, or access-control logic changed.
+
+## 2026-06-26 — Portfolio PerformancePanel RSC Boundary Fix
+
+### Source
+Claude Code
+
+### Objective
+Fix the portfolio page RSC serialization error by scoping `"use client"` to the interactive performance chart only.
+
+### Files Changed
+- `src/app/(dashboard)/portfolio/page.tsx`
+- `src/components/portfolio/analytics-panels.tsx`
+- `src/components/portfolio/performance-panel.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Extracted the stateful tabbed `PerformancePanel` and its chart helpers into a new client-only module.
+- Removed `"use client"` from `analytics-panels.tsx` so allocation, exposure, winners/losers, cash, and benchmark panels remain server components.
+- Updated the portfolio page to import `PerformancePanel` from the new client module while keeping `AllocationDonutPanel` server-safe for `labelFormatter={formatAssetTypeLabel}`.
+- Scanned for remaining server-to-client function props in the affected portfolio path; none remain from `analytics-panels.tsx`.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS after rerun outside the sandbox; the sandboxed attempt failed with EPERM writing `.test-build` files.
+- `npm.cmd run build` - PASS
+- Local route hit: `GET /portfolio` on `next start` returned `307` to `/login?redirectTo=%2Fportfolio`, confirming the route responds without a server crash in the unauthenticated path.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only/RSC-boundary fix only. No data, scoring, recommendation, feature-flag, access-control, or methodology logic changed.
+- Authenticated browser recheck is still recommended to confirm the full portfolio dashboard renders past the login gate.
+
+## 2026-06-26 — Portfolio Performance Chart Layout and Benchmark Curation
+
+### Source
+Claude Code
+
+### Objective
+Rework the portfolio dashboard performance chart so the plot sits beside an aligned legend/return-summary column and only curated benchmarks are plotted.
+
+### Files Changed
+- `src/components/portfolio/analytics-panels.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Rebuilt the tabbed performance period card as a left plot plus right-side legend and return-summary column with aligned label/value rows.
+- Restricted plotted benchmark lines and legend rows to the display-only curated set: 60/40 portfolio proxy, Global equities, S&P 500, and Gold.
+- Removed the below-chart benchmark legend and `+N more benchmarks` expander while leaving the underlying benchmark data untouched.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only portfolio dashboard polish. No data, scoring, recommendation, feature-flag, access-control, or methodology logic changed.
+- Browser recheck remains recommended for the portfolio dashboard period tabs and responsive chart/right-column layout.
+
 ## 2026-06-26 — Instrument Long-Horizon Cards v3 and 5Y Volatility
 
 ### Source
@@ -4861,3 +4954,136 @@ Completed
 
 ### Notes for Claude
 - Combined with migration 135, the snapshot path is now both fresh and source-of-truth-priced. After deploying/applying migration 135, run `portfolio-valuation-refresh` with no `portfolioId` to rewrite snapshots with fresh portfolio values.
+
+## 2026-06-26 — Portfolio Dashboard Re-Skin Pass 1
+
+### Source
+Claude Code
+
+### Objective
+Re-skin the portfolio dashboard into the approved v2 executive overview with health sub-ratings, descriptive benchmark banner, sparkline stat cards, labeled performance charts, and a cleaner allocation/watch-area layout.
+
+### Files Changed
+- `src/app/(dashboard)/portfolio/page.tsx`
+- `src/components/portfolio/analytics-panels.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Switched the dashboard page to load the full Portfolio Review report via `getLatestReport` so allocation, concentration, diversification, and risk sub-ratings can be displayed.
+- Loaded the stored performance summary at page level so the 60/40 benchmark banner and unrealised-value sparkline can use `benchmarkComparisons[].points[]`.
+- Rebuilt the page layout with shared card styling, a portfolio health gauge, value cards, four stat cards, descriptive benchmark banner, 2x2 allocation/exposure grid, top movers, watch-area card, and preserved compliance/disclaimer links.
+- Restyled the Performance command center and enhanced benchmark period charts with return-axis labels, date ticks, an emphasized 0% line, and a dashed provisional tail when snapshot dates exceed the latest price date.
+- Updated the allocation donut legend styling to use app design tokens for light/dark compatibility.
+- No scoring, methodology, data-pipeline, guardrail, access-control, or recommendation logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Browser recheck in an authenticated session is still pending for the final visual symmetry, chart provisional-tail rendering, and dark-mode pass.
+
+## 2026-06-26 — Portfolio Dashboard Re-Skin Pass 1 Polish
+
+### Source
+Claude Code
+
+### Objective
+Polish the portfolio dashboard v2 layout by aligning value cards, making performance charts tabbed, and collapsing long exposure bar lists.
+
+### Files Changed
+- `src/app/(dashboard)/portfolio/page.tsx`
+- `src/components/portfolio/analytics-panels.tsx`
+- `src/components/ui/charts.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Changed the health/value row to `Health | Total | Cash | Invested` using `lg:grid-cols-[1.5fr_1fr_1fr_1fr]`.
+- Updated value cards so labels/icons stay at the top while the larger `text-3xl` value/detail block is vertically centered.
+- Converted `PerformancePanel` to a client component with a 1Y / YTD / Since inception toggle so only one benchmark period chart renders at a time, while Daily / Weekly / Monthly summary cards remain visible.
+- Added `maxItems` support to `HorizontalExposureBars`, collapsing long exposure lists into an `Other` row; geography uses `maxItems={8}`.
+- Replaced hardcoded slate styling in `HorizontalExposureBars` with design tokens for better light/dark consistency.
+- No data, scoring, methodology, wording, recommendation, guardrail, feature-flag, or access-control behavior changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed after elevated rerun; first sandboxed attempt hit `.test-build` EPERM
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Browser recheck in an authenticated session remains pending for the tabbed performance panel and long-list exposure collapse.
+
+## 2026-06-26 - Portfolio Dashboard Polish v2
+
+### Source
+Claude Code
+
+### Objective
+Restructure the portfolio dashboard top section, expand the performance chart, align stat cards without sparkline clutter, and collapse small geography exposures.
+
+### Files Changed
+- `src/app/(dashboard)/portfolio/page.tsx`
+- `src/components/portfolio/performance-panel.tsx`
+- `src/components/ui/charts.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Moved Portfolio Health to its own full-width horizontal row with gauge, band chip, and four sub-rating pills.
+- Moved Total, Cash, and Invested into a separate equal three-card value row and enlarged/top-aligned values.
+- Removed the stat-card sparkline and aligned/enlarged the four stat-card values.
+- Made the selected performance chart fill its plot column with a full-width non-preserved-aspect SVG.
+- Added `minPercent` to `HorizontalExposureBars` and applied a 0.4% threshold to geography so small countries roll into `Other (N countries)`.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS after rerun outside sandbox; sandboxed attempt failed with EPERM writing `.test-build`
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only layout/theming change. No data, scoring, recommendation, feature-flag, access-control, or methodology logic changed.
+- Browser recheck recommended for responsive dashboard layout and geography threshold display.
+
+## 2026-06-26 - Portfolio Dashboard Chart Stroke and Health Card Polish
+
+### Source
+Claude Code
+
+### Objective
+Fix stretched performance-chart strokes under full-width SVG scaling and refine the Portfolio Health card hierarchy.
+
+### Files Changed
+- `src/app/(dashboard)/portfolio/page.tsx`
+- `src/components/portfolio/performance-panel.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Added non-scaling SVG stroke behavior to performance-chart gridlines, the 0% line, the portfolio line, and all plotted benchmark lines.
+- Reworked the Portfolio Health gauge so the arc, score, and band chip are vertically stacked instead of overlapping.
+- Enlarged the health gauge/score treatment, moved the explanatory description to a bottom caption with divider, and changed sub-ratings to a wider 2x2 grid.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS after rerun; first attempt hit stale generated `.next/types` entries before `next build` regenerated route types.
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only portfolio dashboard polish. No data, scoring, recommendation, feature-flag, access-control, or methodology logic changed.
+- Browser recheck recommended for chart stroke rendering and the revised health-card layout.
