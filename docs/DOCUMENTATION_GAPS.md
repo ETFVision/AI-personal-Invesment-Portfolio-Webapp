@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-26 SGT (added 44 expense/dividend not ingested; 45 annual-only score freshness/TTM; 46 Fundamentals period-basis; 47 derived-metrics transient lag + latent batch-cap risk (corrected down from HIGH; active universe verified 391/391 fresh); 48 holding valuation prefers derived cache (defensive fix); updated Low 14 — stored 5Y volatility)
+Last updated: 2026-06-26 SGT (added 44 expense/dividend not ingested; 45 annual-only score freshness/TTM; 46 Fundamentals period-basis; 47 derived-metrics transient lag + latent batch-cap risk (corrected down from HIGH; active universe verified 391/391 fresh); 48 holding valuation prefers derived cache (defensive fix); 49 HIGH per-portfolio derived tables off the daily chain — actual flat-TWR root cause; updated Low 14 — stored 5Y volatility)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -469,6 +469,13 @@ in their phases. Capture each batch as its own implementation-log entry.
     - `refresh_holding_portfolio_metrics` (migration 032) sets the holding price via `coalesce(instrument_market_metrics.latest_price, instrument_prices.close_price, average_cost)` — it **prefers the derived cache even when stale**, so a lagging `instrument_market_metrics` (gap 47) would freeze portfolio valuations despite fresh raw prices. Principle: `instrument_prices` is the source of truth; the derived cache must not override it for the raw price.
     - Current impact: **none right now** — holdings' market metrics are fresh (gap 47 resolved), so the coalesce isn't producing wrong values today. This is a **defensive/robustness fix**, not an active-bug fix.
     - Fix (migration 135, in progress): reorder precedence to source the valuation price from the latest `instrument_prices` first, using `instrument_market_metrics` only for derived analytics (prev-close/day-change, 52w, returns). Valuation correctness; no scoring/anchor change.
+
+49. Per-portfolio derived tables not refreshed by the daily chain — the actual flat-TWR root cause (HIGH)
+    - **Confirmed 2026-06-26 with DB evidence.** `holding_market_metrics` for the portfolio showed `updated_at = 2026-06-11`, `latest_price_date = 2026-06-10` — i.e. it had not been recomputed in two weeks and was frozen at the Jun-10 price, even though the instrument-level `instrument_market_metrics` was fresh to Jun-25 (universe crons all ran). The portfolio dashboard total value AND the TWR snapshots both read `holding_market_metrics`, so both displayed the stale Jun-10 value.
+    - Root cause: `refresh_holding_portfolio_metrics` (populates `holding_market_metrics` + `portfolio_current_metrics`) is **NOT called by the daily refresh chain**. `refreshDerivedMetrics` only refreshes instrument-level tables (daily-returns → anchors → `instrument_market_metrics` → risk); the daily EOD price cron runs `skipDerivedMetrics=true`; and `createAnalyticsSnapshot` reads `holding_market_metrics` via `getDashboard` **without refreshing it first**. So the per-portfolio tables only update on ad-hoc triggers (holding/transaction mutation, manual run) and otherwise go stale while the daily valuation snapshot faithfully captures the stale value.
+    - This is distinct from gap 47 (instrument-level, which is healthy) and is the layer gap 48's price-precedence fix operates within — but gap 48 alone is insufficient: `refresh_holding_portfolio_metrics` must actually RUN for the fresh price to land.
+    - Fix: make the daily `portfolio-valuation-refresh` flow call `refreshHoldingPortfolioMetrics(portfolioId)` for each active portfolio (via the fan-out) **before** `createAnalyticsSnapshot` (or have `createAnalyticsSnapshot` refresh first). Immediate remediation: apply migration 135 (its trailing `refresh_holding_portfolio_metrics()` recomputes all portfolios now).
+    - Priority: **HIGH** — directly causes wrong displayed portfolio value/return. Logged 2026-06-26 (Claude review).
 
 ## Low Priority
 
