@@ -84,17 +84,17 @@ export function AllocationDonutPanel({
     <div className="grid gap-5 md:grid-cols-[160px_1fr] md:items-center">
       <div
         aria-label={title}
-        className="mx-auto h-40 w-40 rounded-full border-[12px] border-white shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08),0_12px_30px_rgba(15,23,42,0.08)]"
-        style={{ background: `radial-gradient(circle at center, white 0 48%, transparent 49%), conic-gradient(${segments.join(", ")})` }}
+        className="mx-auto h-40 w-40 rounded-full border-[12px] border-background shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08),0_12px_30px_rgba(15,23,42,0.08)]"
+        style={{ background: `radial-gradient(circle at center, hsl(var(--background)) 0 48%, transparent 49%), conic-gradient(${segments.join(", ")})` }}
       />
       <div className="space-y-2">
         {displayItems.map((item, index) => (
-          <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-white/70 px-3 py-2 text-sm">
+          <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm">
             <span className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: chartColors[index % chartColors.length] }} />
-              <span className="font-medium text-slate-700">{labelFormatter(item.label)}</span>
+              <span className="font-medium text-foreground">{labelFormatter(item.label)}</span>
             </span>
-            <span className="font-semibold text-slate-900">{formatPercent(item.percent)}</span>
+            <span className="font-semibold tabular-nums text-foreground">{formatPercent(item.percent)}</span>
           </div>
         ))}
       </div>
@@ -178,6 +178,7 @@ type PerformancePanelData = {
   portfolio: Pick<PortfolioDashboard["portfolio"], "baseCurrency">;
   performance: PerformanceMetric[];
   benchmarkComparisons: BenchmarkComparison[];
+  latestPriceDate?: string | null;
 };
 
 export function PerformancePanel({ dashboard }: { dashboard: PerformancePanelData }) {
@@ -186,7 +187,7 @@ export function PerformancePanel({ dashboard }: { dashboard: PerformancePanelDat
   );
   const primaryBenchmark = dashboard.benchmarkComparisons.find((item) => item.benchmark.benchmarkKey === "sp500") ?? dashboard.benchmarkComparisons[0];
   return (
-    <div className="space-y-6">
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
       <LongTermPerformanceCharts
         dashboard={dashboard}
       />
@@ -316,6 +317,7 @@ function LongTermPerformanceCharts({
           portfolioCurrency={dashboard.portfolio.baseCurrency}
           period="1Y"
           fallbackMessage="Needs 1Y history"
+          latestPriceDate={dashboard.latestPriceDate}
         />
         <MultiBenchmarkPeriodChart
           label="YTD"
@@ -324,6 +326,7 @@ function LongTermPerformanceCharts({
           portfolioCurrency={dashboard.portfolio.baseCurrency}
           period="YTD"
           fallbackMessage="Needs YTD history"
+          latestPriceDate={dashboard.latestPriceDate}
         />
         <MultiBenchmarkPeriodChart
           label="Since inception"
@@ -332,6 +335,7 @@ function LongTermPerformanceCharts({
           portfolioCurrency={dashboard.portfolio.baseCurrency}
           period="Since inception"
           fallbackMessage="Needs inception history"
+          latestPriceDate={dashboard.latestPriceDate}
         />
       </div>
     </div>
@@ -364,13 +368,46 @@ function parseChartDate(value: string) {
   return new Date(`${value}T00:00:00.000Z`).getTime();
 }
 
+function selectReturnTicks(minValue: number, maxValue: number) {
+  const paddedMin = Math.min(minValue, 0);
+  const paddedMax = Math.max(maxValue, 0);
+  const mid = (paddedMin + paddedMax) / 2;
+  return Array.from(new Set([paddedMin, mid, 0, paddedMax].map((value) => Number(value.toFixed(4))))).sort((a, b) => a - b);
+}
+
+function sampleEvenly<T>(items: T[], limit: number) {
+  if (items.length <= limit) return items;
+  return Array.from({ length: limit }, (_, index) => items[Math.round((index / (limit - 1)) * (items.length - 1))]);
+}
+
+function selectDateTicks(
+  points: PortfolioDashboard["benchmarkComparisons"][number]["points"],
+  period: "1Y" | "YTD" | "Since inception"
+) {
+  if (points.length <= 2) return points;
+  const grouped = new Map<string, PortfolioDashboard["benchmarkComparisons"][number]["points"][number]>();
+  for (const point of points) {
+    const key = period === "Since inception" ? point.snapshotDate.slice(0, 4) : point.snapshotDate.slice(0, 7);
+    if (!grouped.has(key)) grouped.set(key, point);
+  }
+  const candidates = [points[0], ...Array.from(grouped.values()), points[points.length - 1]];
+  const unique = Array.from(new Map(candidates.map((point) => [point.snapshotDate, point])).values());
+  return sampleEvenly(unique, 6);
+}
+
+function formatChartDateLabel(value: string, period: "1Y" | "YTD" | "Since inception") {
+  if (period === "Since inception") return value.slice(0, 4);
+  return value.slice(5, 7) === "01" ? value.slice(0, 4) : value.slice(5, 7);
+}
+
 function MultiBenchmarkPeriodChart({
   label,
   comparisons,
   portfolioMetric,
   portfolioCurrency,
   period,
-  fallbackMessage
+  fallbackMessage,
+  latestPriceDate
 }: {
   label: string;
   comparisons: PortfolioDashboard["benchmarkComparisons"];
@@ -378,6 +415,7 @@ function MultiBenchmarkPeriodChart({
   portfolioCurrency: string;
   period: "1Y" | "YTD" | "Since inception";
   fallbackMessage: string;
+  latestPriceDate?: string | null;
 }) {
   const periodComparisons = comparisons
     .map((comparison) => ({
@@ -426,10 +464,13 @@ function MultiBenchmarkPeriodChart({
   const dateRange = Math.max(maxDate - minDate, 1);
   const width = 100;
   const height = 100;
-  const left = 8;
-  const right = 92;
+  const left = 13;
+  const right = 94;
   const top = 12;
-  const bottom = 88;
+  const bottom = 84;
+  const tickValues = selectReturnTicks(minValue, maxValue);
+  const dateTicks = selectDateTicks(portfolioPoints, period);
+  const staleTail = latestPriceDate ? portfolioSeries.some((point) => point.date > latestPriceDate) : false;
 
   const buildPath = (series: Array<{ date: string; value: number }>) =>
     series
@@ -439,6 +480,19 @@ function MultiBenchmarkPeriodChart({
         return `${x},${y}`;
       })
       .join(" ");
+
+  const yFor = (value: number) => bottom - ((value - minValue) / range) * (bottom - top);
+  const xFor = (date: string) => left + ((parseChartDate(date) - minDate) / dateRange) * (right - left);
+  const splitForFreshness = (series: Array<{ date: string; value: number }>) => {
+    if (!latestPriceDate) return { solid: series, dashed: [] as Array<{ date: string; value: number }> };
+    const firstStaleIndex = series.findIndex((point) => point.date > latestPriceDate);
+    if (firstStaleIndex === -1) return { solid: series, dashed: [] as Array<{ date: string; value: number }> };
+    return {
+      solid: series.slice(0, Math.max(firstStaleIndex, 1)),
+      dashed: series.slice(Math.max(0, firstStaleIndex - 1))
+    };
+  };
+  const portfolioSegments = splitForFreshness(portfolioSeries);
 
   return (
     <div className="rounded-md border p-4">
@@ -450,22 +504,67 @@ function MultiBenchmarkPeriodChart({
         <div className="text-xs text-muted-foreground">Portfolio / benchmarks</div>
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${label} portfolio versus benchmark chart`} className="h-44 w-full">
-        <line x1={left} y1={bottom} x2={right} y2={bottom} className="stroke-muted" strokeWidth="0.7" />
-        <line x1={left} y1={top} x2={right} y2={top} className="stroke-muted" strokeWidth="0.4" strokeDasharray="2 2" />
-        <polyline points={buildPath(portfolioSeries)} fill="none" className="stroke-primary" strokeWidth="2.1" strokeLinecap="round" />
-        {benchmarkSeries.map((series, index) => (
-          <polyline
-            key={series.id}
-            points={buildPath(series.values)}
-            fill="none"
-            stroke={chartColors[(index + 1) % chartColors.length]}
-            strokeWidth="1.4"
-            strokeLinecap="round"
-          />
-        ))}
-        <text x={left} y={97} textAnchor="start" className="fill-muted-foreground text-[4px]">{portfolioPoints[0].snapshotDate.slice(0, 7)}</text>
-        <text x={right} y={97} textAnchor="end" className="fill-muted-foreground text-[4px]">{portfolioPoints[portfolioPoints.length - 1].snapshotDate.slice(0, 7)}</text>
+        {tickValues.map((value) => {
+          const y = yFor(value);
+          const isZero = Math.abs(value) < 0.00001;
+          return (
+            <g key={value}>
+              <line
+                x1={left}
+                y1={y}
+                x2={right}
+                y2={y}
+                className={isZero ? "stroke-muted-foreground" : "stroke-muted"}
+                strokeWidth={isZero ? "0.7" : "0.4"}
+                strokeDasharray={isZero ? undefined : "2 2"}
+              />
+              <text x={left - 1.5} y={y + 1.2} textAnchor="end" className="fill-muted-foreground text-[3.8px]">
+                {formatPercent(value)}
+              </text>
+            </g>
+          );
+        })}
+        {dateTicks.map((point) => {
+          const x = xFor(point.snapshotDate);
+          return (
+            <text key={point.snapshotDate} x={x} y={97} textAnchor="middle" className="fill-muted-foreground text-[3.7px]">
+              {formatChartDateLabel(point.snapshotDate, period)}
+            </text>
+          );
+        })}
+        <polyline points={buildPath(portfolioSegments.solid)} fill="none" className="stroke-primary" strokeWidth="2.1" strokeLinecap="round" />
+        {portfolioSegments.dashed.length >= 2 ? (
+          <polyline points={buildPath(portfolioSegments.dashed)} fill="none" className="stroke-primary opacity-50" strokeWidth="2.1" strokeLinecap="round" strokeDasharray="3 2" />
+        ) : null}
+        {benchmarkSeries.map((series, index) => {
+          const segments = splitForFreshness(series.values);
+          return (
+            <g key={series.id}>
+              <polyline
+                points={buildPath(segments.solid)}
+                fill="none"
+                stroke={chartColors[(index + 1) % chartColors.length]}
+                strokeWidth="1.4"
+                strokeLinecap="round"
+              />
+              {segments.dashed.length >= 2 ? (
+                <polyline
+                  points={buildPath(segments.dashed)}
+                  fill="none"
+                  stroke={chartColors[(index + 1) % chartColors.length]}
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeDasharray="3 2"
+                  opacity="0.45"
+                />
+              ) : null}
+            </g>
+          );
+        })}
       </svg>
+      {staleTail && latestPriceDate ? (
+        <p className="mt-2 text-xs text-muted-foreground">prices as of {latestPriceDate} · provisional</p>
+      ) : null}
       <div className="mt-3 grid gap-2 rounded-md bg-muted/50 p-3 text-sm">
         <div>
           <div className="flex items-center justify-between gap-3">

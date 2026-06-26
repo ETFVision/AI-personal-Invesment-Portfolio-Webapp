@@ -4861,3 +4861,37 @@ Completed
 
 ### Notes for Claude
 - Combined with migration 135, the snapshot path is now both fresh and source-of-truth-priced. After deploying/applying migration 135, run `portfolio-valuation-refresh` with no `portfolioId` to rewrite snapshots with fresh portfolio values.
+
+## 2026-06-26 — Portfolio Dashboard Re-Skin Pass 1
+
+### Source
+Claude Code
+
+### Objective
+Re-skin the portfolio dashboard into the approved v2 executive overview with health sub-ratings, descriptive benchmark banner, sparkline stat cards, labeled performance charts, and a cleaner allocation/watch-area layout.
+
+### Files Changed
+- `src/app/(dashboard)/portfolio/page.tsx`
+- `src/components/portfolio/analytics-panels.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Switched the dashboard page to load the full Portfolio Review report via `getLatestReport` so allocation, concentration, diversification, and risk sub-ratings can be displayed.
+- Loaded the stored performance summary at page level so the 60/40 benchmark banner and unrealised-value sparkline can use `benchmarkComparisons[].points[]`.
+- Rebuilt the page layout with shared card styling, a portfolio health gauge, value cards, four stat cards, descriptive benchmark banner, 2x2 allocation/exposure grid, top movers, watch-area card, and preserved compliance/disclaimer links.
+- Restyled the Performance command center and enhanced benchmark period charts with return-axis labels, date ticks, an emphasized 0% line, and a dashed provisional tail when snapshot dates exceed the latest price date.
+- Updated the allocation donut legend styling to use app design tokens for light/dark compatibility.
+- No scoring, methodology, data-pipeline, guardrail, access-control, or recommendation logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Browser recheck in an authenticated session is still pending for the final visual symmetry, chart provisional-tail rendering, and dark-mode pass.

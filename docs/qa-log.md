@@ -6746,3 +6746,26 @@ Expected behavior:
 - The price chart and return-character card share the same streamed price-series read.
 - Key Facts render missing dividend yield as "—" because the current domain model does not expose that field.
 - No scoring, methodology, guardrail, recommendation, access-control, feature-flag, or data-pipeline behavior changed.
+
+---
+
+## 2026-06-26 - Portfolio Dashboard Re-Skin Pass 1 QA
+
+Scope:
+- Re-skinned the Portfolio dashboard into the v2 executive overview with full-report health sub-ratings, descriptive 60/40 benchmark banner, value/stat cards, sparkline, labeled performance chart, 2x2 allocation/exposure grid, and watch-area summary.
+- Loaded full Portfolio Review and performance summary data at page level for sub-ratings, banner delta, and sparkline context.
+- Enhanced the performance period charts with return-axis labels, date ticks, emphasized 0% line, and dashed provisional tails after the latest price date.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (364 tests)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session for visual alignment, provisional-tail rendering, and dark-mode presentation.
+
+Expected behavior:
+- Portfolio Health uses the full review report section scores for Diversification, Concentration, Risk, and Allocation.
+- The banner remains descriptive and includes "not investment advice."
+- Performance charts label return and date axes and mark price-lagged tails as provisional.
+- Allocation/exposure panels use a 2x2 layout with geography rendered as bars.
+- No scoring, methodology, data-pipeline, recommendation, guardrail, feature-flag, or access-control behavior changed.
