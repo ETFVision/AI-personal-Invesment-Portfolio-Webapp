@@ -55,8 +55,9 @@ Risk metrics are based on precomputed daily returns and include:
 
 - 30D/90D/1Y annualized volatility using `stddev_samp(daily_return) * sqrt(252)`.
 - Display-only 5Y/10Y/15Y/20Y annualized volatility using the same return-scale formula when sufficient history exists.
-- Downside volatility.
-- Current drawdown.
+- Downside volatility — annualized standard deviation of *negative* daily returns only over the trailing 1Y, `stddev_samp(daily_return) filter (daily_return < 0) * sqrt(252)`. Isolates the dispersion of losing days from total volatility.
+- Current drawdown — decline of the latest close from the running all-time peak of the price history; `0` at a fresh high.
+- Volatility trend — direction of *near-term* volatility, comparing 30D vs 90D annualized vol: `rising` when `volatility_30d > volatility_90d * 1.15`, `falling` when `volatility_30d < volatility_90d * 0.85`, else `stable` (within ±15%). Short-term signal, display-only; not a long-horizon trend.
 - Max drawdown over the available history and over fixed 1Y/3Y/5Y/10Y/15Y/20Y windows.
 - Drawdown duration.
 - Drawdown bucket.
