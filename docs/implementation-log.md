@@ -4635,3 +4635,32 @@ Completed
 
 ### Notes for Claude
 - Pure layout/markup change. No data, scoring, methodology, wording, component-logic, guardrail, recommendation, feature-flag, or access-control behavior changed.
+
+## 2026-06-26 — Instrument Long-Horizon Risk Snapshot Strip
+
+### Source
+Claude Code
+
+### Objective
+Add a display-only risk snapshot strip to the instrument Overview Long-horizon risk card.
+
+### Files Changed
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Added a stable three-tile risk snapshot strip above the Long-horizon risk volatility and drawdown groups.
+- Surfaced existing stored fields for current drawdown, 1Y downside volatility, and volatility trend without changing data, scoring, methodology, or wording elsewhere.
+- Used existing formatting helpers and risk tone conventions, with lucide trend icons for rising, falling, and stable volatility states.
+
+### Tests Run
+- `npm.cmd run typecheck` - passed
+- `npm.cmd run lint` - passed
+- `npm.cmd test` - passed
+- `npm.cmd run build` - passed
+
+### Result
+Completed
+
+### Notes for Claude
+- Display-only card addition. No scoring, methodology, data-pipeline, guardrail, recommendation, feature-flag, or access-control behavior changed.

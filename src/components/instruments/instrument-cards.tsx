@@ -6,6 +6,7 @@ import {
   Activity,
   AlertTriangle,
   Anchor,
+  ArrowRight,
   BarChart3,
   Building2,
   DollarSign,
@@ -22,6 +23,8 @@ import {
   Spline,
   Target,
   Timer,
+  TrendingDown,
+  TrendingUp,
   Waves
 } from "lucide-react";
 import type { Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
@@ -721,6 +724,16 @@ export function LongHorizonRiskCard({ riskMetric }: { riskMetric: InstrumentRisk
   const volatilityScale = Math.max(...volatilityPeriods.map((period) => Math.abs(period.volatility)), 0);
   const drawdownScale = Math.max(...drawdownPeriods.map((period) => Math.abs(period.maxDrawdown)), 0);
   const scaledWidth = (value: number, scale: number) => (scale > 0 ? Math.min(100, (Math.abs(value) / scale) * 100) : 0);
+  const volatilityTrend = riskMetric?.volatilityTrend ?? null;
+  const TrendIcon = volatilityTrend === "rising" ? TrendingUp : volatilityTrend === "falling" ? TrendingDown : volatilityTrend === "stable" ? ArrowRight : null;
+  const trendTone = volatilityTrend === "rising" ? "danger" : volatilityTrend === "falling" ? "positive" : volatilityTrend === "stable" ? "neutral" : "muted";
+  const trendLabel = volatilityTrend && volatilityTrend !== "insufficient_data" ? riskLabel(volatilityTrend) : EMPTY_VALUE;
+  const currentDrawdownValue = formatMaybePercent(riskMetric?.currentDrawdown);
+  const currentDrawdownClass = riskMetric?.currentDrawdown == null
+    ? "text-muted-foreground"
+    : riskMetric.currentDrawdown < 0
+      ? "text-red-600"
+      : "text-foreground";
 
   return (
     <Card className="flex h-full flex-col">
@@ -729,6 +742,27 @@ export function LongHorizonRiskCard({ riskMetric }: { riskMetric: InstrumentRisk
         <CardDescription>Stored volatility and drawdown windows; display-only context.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col justify-center space-y-4">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Current drawdown</p>
+            <p className={`mt-2 text-sm font-semibold ${currentDrawdownClass}`}>{currentDrawdownValue}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Downside vol (1Y)</p>
+            <p className="mt-2 text-sm font-semibold text-foreground">{formatMaybePercent(riskMetric?.downsideVolatility)}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Volatility trend</p>
+            {TrendIcon ? (
+              <span className={`mt-2 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${toneClassName(trendTone)}`}>
+                <TrendIcon className="h-3.5 w-3.5" />
+                {trendLabel}
+              </span>
+            ) : (
+              <p className="mt-2 text-sm font-semibold text-muted-foreground">{EMPTY_VALUE}</p>
+            )}
+          </div>
+        </div>
         {volatilityPeriods.length > 0 ? (
           <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Volatility</p>
