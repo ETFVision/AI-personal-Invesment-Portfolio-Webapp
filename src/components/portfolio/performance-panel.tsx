@@ -300,7 +300,7 @@ function MultiBenchmarkPeriodChart({
 
   return (
     <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
-      <div className="rounded-md border p-4">
+      <div className="w-full rounded-md border p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <div className="text-sm font-medium">{label}</div>
@@ -308,7 +308,7 @@ function MultiBenchmarkPeriodChart({
           </div>
           <div className="text-xs text-muted-foreground">Portfolio / benchmarks</div>
         </div>
-        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${label} portfolio versus benchmark chart`} className="h-44 w-full">
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${label} portfolio versus benchmark chart`} className="h-52 w-full">
           {tickValues.map((value) => {
             const y = yFor(value);
             const isZero = Math.abs(value) < 0.00001;

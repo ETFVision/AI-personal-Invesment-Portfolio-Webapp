@@ -5022,3 +5022,37 @@ Completed
 
 ### Notes for Claude
 - Browser recheck in an authenticated session remains pending for the tabbed performance panel and long-list exposure collapse.
+
+## 2026-06-26 - Portfolio Dashboard Polish v2
+
+### Source
+Claude Code
+
+### Objective
+Restructure the portfolio dashboard top section, expand the performance chart, align stat cards without sparkline clutter, and collapse small geography exposures.
+
+### Files Changed
+- `src/app/(dashboard)/portfolio/page.tsx`
+- `src/components/portfolio/performance-panel.tsx`
+- `src/components/ui/charts.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Moved Portfolio Health to its own full-width horizontal row with gauge, band chip, and four sub-rating pills.
+- Moved Total, Cash, and Invested into a separate equal three-card value row and enlarged/top-aligned values.
+- Removed the stat-card sparkline and aligned/enlarged the four stat-card values.
+- Made the selected performance chart fill its plot column with a full-width non-preserved-aspect SVG.
+- Added `minPercent` to `HorizontalExposureBars` and applied a 0.4% threshold to geography so small countries roll into `Other (N countries)`.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS after rerun outside sandbox; sandboxed attempt failed with EPERM writing `.test-build`
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only layout/theming change. No data, scoring, recommendation, feature-flag, access-control, or methodology logic changed.
+- Browser recheck recommended for responsive dashboard layout and geography threshold display.

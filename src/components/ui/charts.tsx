@@ -17,9 +17,29 @@ const toneBars = {
   muted: "bg-muted-foreground"
 };
 
-function collapseExposureItems(items: ExposureBarItem[], maxItems: number) {
-  if (items.length <= maxItems) return items;
+function collapseExposureItems(items: ExposureBarItem[], maxItems: number, minPercent?: number) {
   const sorted = [...items].sort((a, b) => b.value - a.value);
+  if (minPercent != null) {
+    const aboveThreshold = sorted.filter((item) => item.value >= minPercent);
+    const belowThreshold = sorted.filter((item) => item.value < minPercent);
+    const visibleCount = belowThreshold.length > 0 || aboveThreshold.length > maxItems ? Math.max(1, maxItems - 1) : maxItems;
+    const visible = aboveThreshold.slice(0, visibleCount);
+    const rolledUp = [...aboveThreshold.slice(visibleCount), ...belowThreshold];
+    const otherValue = rolledUp.reduce((sum, item) => sum + item.value, 0);
+    return rolledUp.length === 0
+      ? visible
+      : [
+          ...visible,
+          {
+            label: `Other (${rolledUp.length} ${rolledUp.length === 1 ? "country" : "countries"})`,
+            value: otherValue,
+            valueLabel: formatPercent(otherValue),
+            tone: "muted" as const
+          }
+        ];
+  }
+
+  if (items.length <= maxItems) return items;
   const visible = sorted.slice(0, maxItems);
   const remaining = sorted.slice(maxItems);
   const otherValue = remaining.reduce((sum, item) => sum + item.value, 0);
@@ -63,19 +83,21 @@ export function HorizontalExposureBars({
   emptyText = "No exposure data available.",
   max = 1,
   className,
-  maxItems = 8
+  maxItems = 8,
+  minPercent
 }: {
   items: ExposureBarItem[];
   emptyText?: string;
   max?: number;
   className?: string;
   maxItems?: number;
+  minPercent?: number;
 }) {
   if (items.length === 0) {
     return <div className="rounded-xl border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">{emptyText}</div>;
   }
 
-  const displayItems = collapseExposureItems(items, maxItems);
+  const displayItems = collapseExposureItems(items, maxItems, minPercent);
 
   return (
     <div className={cn("space-y-3", className)}>

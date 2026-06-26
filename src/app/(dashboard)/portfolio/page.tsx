@@ -13,7 +13,7 @@ import {
   WinnersLosersPanel
 } from "@/components/portfolio/analytics-panels";
 import { PerformancePanel } from "@/components/portfolio/performance-panel";
-import { HorizontalExposureBars, Sparkline } from "@/components/ui/charts";
+import { HorizontalExposureBars } from "@/components/ui/charts";
 import { cn, formatAssetTypeLabel, formatCurrency, formatPercent } from "@/lib/utils";
 import type { AllocationItem, BenchmarkComparison, PortfolioDashboard, PortfolioPerformanceSummary } from "@/domain/portfolio/types";
 import type { PortfolioLookthroughReport } from "@/domain/etfLookthrough/types";
@@ -179,18 +179,26 @@ function SubRating({ label, section }: { label: string; section: PortfolioReview
 }
 
 function PortfolioHealthCard({ review }: { review: PortfolioReviewReport | null }) {
+  const band = scoreBand(review?.overallPortfolioScore);
   return (
-    <DashboardCard className="space-y-4">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Portfolio health</p>
-        <p className="mt-1 text-sm text-muted-foreground">Latest deterministic review across allocation, concentration, diversification and risk.</p>
-      </div>
-      <HealthGauge score={review?.overallPortfolioScore} />
-      <div className="grid gap-2 sm:grid-cols-2">
-        <SubRating label="Diversification" section={review?.diversificationReview} />
-        <SubRating label="Concentration" section={review?.concentrationReview} />
-        <SubRating label="Risk" section={review?.riskReview} />
-        <SubRating label="Allocation" section={review?.allocationReview} />
+    <DashboardCard>
+      <div className="flex h-full flex-col gap-4 lg:flex-row lg:items-center">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center lg:w-[26rem] lg:shrink-0">
+          <HealthGauge score={review?.overallPortfolioScore} />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Portfolio health</p>
+            <div className="mt-2">
+              <span className={cn("rounded-full border px-2.5 py-1 text-xs font-semibold", band.badgeClass)}>{band.label}</span>
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">Latest deterministic review across allocation, concentration, diversification and risk.</p>
+          </div>
+        </div>
+        <div className="grid flex-1 gap-2 sm:grid-cols-4">
+          <SubRating label="Diversification" section={review?.diversificationReview} />
+          <SubRating label="Concentration" section={review?.concentrationReview} />
+          <SubRating label="Risk" section={review?.riskReview} />
+          <SubRating label="Allocation" section={review?.allocationReview} />
+        </div>
       </div>
     </DashboardCard>
   );
@@ -224,8 +232,8 @@ function ValueCard({
             <Icon className="h-4 w-4" aria-hidden="true" />
           </span>
         </div>
-        <div className="flex flex-1 flex-col justify-center">
-          <div className="text-3xl font-semibold tabular-nums text-foreground">{value}</div>
+        <div>
+          <div className="text-4xl font-semibold tabular-nums text-foreground">{value}</div>
           <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
         </div>
       </div>
@@ -233,48 +241,31 @@ function ValueCard({
   );
 }
 
-function sparklinePoints(values: number[]) {
-  if (values.length < 2) return "";
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = Math.max(max - min, 1);
-  return values
-    .map((value, index) => {
-      const x = values.length === 1 ? 0 : (index / (values.length - 1)) * 180;
-      const y = 54 - ((value - min) / range) * 48;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-}
-
 function StatCard({
   icon: Icon,
   label,
   value,
   detail,
-  tone = "neutral",
-  sparkline
+  tone = "neutral"
 }: {
   icon: typeof Wallet;
   label: string;
   value: string;
   detail: string;
   tone?: "neutral" | "positive" | "danger";
-  sparkline?: string;
 }) {
   const valueClass = tone === "positive" ? "text-emerald-600" : tone === "danger" ? "text-destructive" : "text-foreground";
   return (
     <DashboardCard>
-      <div className="flex h-full flex-col justify-between gap-3">
+      <div className="flex h-full flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
           <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </div>
         <div className="space-y-1">
-          <div className={cn("text-xl font-semibold tabular-nums", valueClass)}>{value}</div>
+          <div className={cn("text-3xl font-semibold tabular-nums", valueClass)}>{value}</div>
           <p className="text-xs text-muted-foreground">{detail}</p>
         </div>
-        {sparkline ? <Sparkline points={sparkline} tone={tone === "danger" ? "danger" : tone === "positive" ? "positive" : "muted"} className="h-8 w-full" /> : null}
       </div>
     </DashboardCard>
   );
@@ -374,13 +365,15 @@ function ExposurePanel({
   description,
   items,
   emptyText,
-  formatter = (label) => label
+  formatter = (label) => label,
+  minPercent
 }: {
   title: string;
   description: string;
   items: AllocationItem[];
   emptyText: string;
   formatter?: (label: string) => string;
+  minPercent?: number;
 }) {
   return (
     <DashboardCard>
@@ -390,6 +383,7 @@ function ExposurePanel({
       </div>
       <HorizontalExposureBars
         maxItems={8}
+        minPercent={minPercent}
         emptyText={emptyText}
         items={items.map((item) => ({
           label: formatter(item.label),
@@ -454,6 +448,7 @@ function PortfolioAllocationSections({
           description={lookthroughReport ? "ETF look-through country exposure from the latest Portfolio Review." : "Direct geography metadata; run Portfolio Review for ETF look-through exposure."}
           items={geographyAllocation}
           emptyText="No geography exposure available."
+          minPercent={0.004}
         />
       </div>
     </section>
@@ -516,7 +511,6 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
   const allCurrencies = new Set([...cashCurrencies, ...holdingCurrencies]);
   const hasMixedOrNonBaseCurrency = allCurrencies.size > 1 || (allCurrencies.size === 1 && !allCurrencies.has(portfolio.baseCurrency));
   const displayCurrency = hasMixedOrNonBaseCurrency ? undefined : portfolio.baseCurrency;
-  const valueSparkline = sparklinePoints((pickBenchmarkComparison(performanceSummary)?.points ?? []).map((point) => point.portfolioValue));
   const distinctAssetClasses = new Set(dashboard.allocationByType.map((item) => item.label)).size;
   const coverage = latestPortfolioReview?.confidenceScore ?? null;
 
@@ -566,8 +560,11 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
         </DashboardCard>
       ) : null}
 
-      <section className="grid items-stretch gap-4 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+      <section>
         <PortfolioHealthCard review={latestPortfolioReview} />
+      </section>
+
+      <section className="grid items-stretch gap-4 lg:grid-cols-3">
         <ValueCard
           icon={Wallet}
           label="Total portfolio value"
@@ -598,7 +595,6 @@ export default async function PortfolioPage({ searchParams }: PortfolioPageProps
           value={formatMaybeCurrency(dashboard.unrealizedGainLoss, displayCurrency)}
           detail={formatPercent(dashboard.unrealizedGainLossPercent)}
           tone={dashboard.unrealizedGainLoss < 0 ? "danger" : dashboard.unrealizedGainLoss > 0 ? "positive" : "neutral"}
-          sparkline={valueSparkline}
         />
         <StatCard
           icon={CircleDollarSign}
