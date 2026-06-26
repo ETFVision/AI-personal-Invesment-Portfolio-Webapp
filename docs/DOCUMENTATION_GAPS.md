@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-26 SGT (added Medium 44 — expense ratio/dividend yield not ingested; Medium 45 — annual-only score freshness / TTM basis; Medium 46 — Fundamentals page period-basis mismatch; updated Low 14 — stored 5Y volatility added, 3Y still deferred)
+Last updated: 2026-06-26 SGT (added 44 expense/dividend not ingested; 45 annual-only score freshness/TTM; 46 Fundamentals period-basis; 47 HIGH `instrument_market_metrics` coverage staleness; 48 holding valuation prefers stale cache over source price; updated Low 14 — stored 5Y volatility)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -457,6 +457,17 @@ in their phases. Capture each batch as its own implementation-log entry.
     - Both values are individually correct and seasonality-neutral (quarterly figure is YoY, not sequential); the defect is the **inconsistent, unlabeled period basis**.
     - Near-term fix (display-only, in progress 2026-06-26): make the Key Ratios card use the latest **annual** ratio (consistent with score/trends/snapshot) + label "Annual · FY{year}", and surface the latest **quarter YoY** as a clearly-labeled "latest momentum" line for timeliness. `FundamentalsDetail.ratios[]` already exposes all periods, so no repo change needed. Deeper timeliness handled by gap 45 (TTM).
     - Priority: user-facing clarity. Logged 2026-06-26 (Claude review).
+
+47. `instrument_market_metrics` coverage — derived prices/metrics stale for much of the universe (HIGH impact)
+    - `instrument_market_metrics` (a per-instrument current-state read model: `latest_price`, `previous_close`, `daily/ytd/1y/3y/5y_return`, 52w high/low, all derived from `instrument_prices`) is **not being refreshed for a large portion of the universe**. Observed `latest_price_date` spread: XLU/XLI fresh (2026-06-25), but URTH/VGK/VEU 2026-06-05, RYx 2025-07-10, IRBO 2024-09-04, SLY/EWCO **2023** — months to years stale, even though raw `instrument_prices` is fresh to 2026-06-25.
+    - Impact is real and current: this layer feeds the instrument-detail **"Current price"** + returns/52w display, Market Vision, and (via `holding_market_metrics`) **portfolio valuation** — so stale rows produce wrong displayed prices and **frozen portfolio values** (this is the root of the flat-TWR / "prices as of 10 Jun" symptom, compounded by gap 48's coalesce).
+    - Likely causes: the daily `instrument-market-metrics-refresh` (and upstream daily-returns/anchors) is **batch-capped** (`batchSize=25 & maxBatches=14` = ~350 instruments/run) below the post-expansion universe size and/or doesn't rotate to cover all instruments; plus **delisted/inactive instruments are never pruned** (SLY merged in 2023 yet still carries a 2023 row).
+    - Fix: ensure the derived-metrics daily refresh covers the **full active universe** (raise/remove the batch cap or fix the selection cursor), and exclude/prune inactive instruments. Verify with a coverage query (`count(*) filter (where latest_price_date < current_date - 5)`).
+    - Priority: **HIGH** — affects valuation and display correctness today. Logged 2026-06-26 (Claude review). Related: gap 48 (valuation should anchor price on `instrument_prices`).
+
+48. Holding valuation prefers the stale derived cache over the source-of-truth price (fixed 2026-06-26)
+    - `refresh_holding_portfolio_metrics` (migration 032) sets the holding price via `coalesce(instrument_market_metrics.latest_price, instrument_prices.close_price, average_cost)` — it **prefers the derived cache even when stale**, so a lagging `instrument_market_metrics` (gap 47) freezes portfolio valuations despite fresh raw prices. Principle violated: `instrument_prices` is the source of truth; `instrument_market_metrics` is a derived cache and must not override it for the raw price.
+    - Fix (in progress): reorder precedence to source the valuation price from the latest `instrument_prices` first, using `instrument_market_metrics` only for derived analytics (prev-close/day-change, 52w, returns). Display-only valuation correctness; no scoring/anchor change.
 
 ## Low Priority
 
