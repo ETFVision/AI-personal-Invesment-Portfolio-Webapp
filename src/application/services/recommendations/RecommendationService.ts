@@ -119,6 +119,22 @@ export class RecommendationService {
     return this.recommendationRepository.listHistoryForInstrument(instrumentId, limit);
   }
 
+  getScoreHistory(instrumentId: string) {
+    return this.recommendationRepository.getScoreHistory(instrumentId);
+  }
+
+  async listLatestRecommendationScores(limit = 1_000) {
+    const [recommendations, activeInstruments] = await Promise.all([
+      this.recommendationRepository.listLatestRecommendations(limit),
+      this.universeRepository.listInstruments({ isActive: true, limit })
+    ]);
+    const activeIds = new Set(activeInstruments.map((instrument) => instrument.id));
+    return recommendations.map((item) => ({
+      instrumentId: item.instrumentId,
+      overallScore: item.overallScore
+    })).filter((item) => activeIds.has(item.instrumentId));
+  }
+
   async runRecommendations(input: {
     runType?: RecommendationRunType | string;
     symbol?: string;

@@ -143,7 +143,7 @@ async function RecommendationInsightTables({ portfolioId }: { portfolioId: strin
       <InsightTable title="Universe Characteristics" description="Highest-scoring approved instruments after deterministic guardrails." rows={dashboard.universeOpportunities} />
       <InsightTable title="Portfolio Instrument Insights" description="Latest analytical assessments for instruments currently held in the default portfolio." rows={dashboard.portfolioRecommendations.slice(0, 50)} />
       <InsightTable title="Watchlist Instrument Insights" description="Latest analytical assessments for active watchlist instruments." rows={dashboard.watchlistRecommendations.slice(0, 50)} />
-      <InsightTable title="All Instrument Insights" description="Full latest instrument insight set for QA and traceability." rows={recommendations.slice(0, 100)} />
+      <InsightTable title="All Instrument Insights" description="Full latest instrument insight set for QA and traceability." rows={recommendations} />
     </>
   );
 }

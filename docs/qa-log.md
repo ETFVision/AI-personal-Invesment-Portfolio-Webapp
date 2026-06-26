@@ -2,6 +2,159 @@
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
+## 2026-06-26 SGT - Long-Horizon Cards v3 and 5Y Volatility QA
+
+Scope:
+- Verify the instrument detail Overview long-horizon cards are bars-only, the price chart includes a 1W period, and 5Y volatility is available as a display-only risk metric.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Long-horizon cards were table-heavy and visually unbalanced | Fixed; active Overview cards now use scaled bar groups only |
+| 5Y volatility rendered as missing even though 5Y return and drawdown existed | Fixed; migration 134 adds nullable `volatility_5y` and the app maps it to `volatility5y` |
+| Risk card lacked a 5Y volatility metric while displaying 10Y/15Y/20Y windows | Fixed; the detailed risk card now includes 5Y volatility |
+| Price chart had no chart-only one-week view | Fixed; `1W` was added to the chart period selector and falls back to local window change |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd test` | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/134_display_only_5y_volatility.sql` manually.
+- Recompute risk metrics with `refresh_instrument_risk_metrics_only(null)` or an equivalent forced risk recompute so existing rows populate `volatility_5y`.
+- Browser recheck remains pending for representative deep-history and young instruments.
+
+## 2026-06-25 SGT - Instrument Detail IA Real Tabs QA
+
+Scope:
+- Verify the instrument detail page IA now uses a focused Overview plus one-at-a-time tabs, with long-horizon metrics surfaced as display-only context.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Instrument tabs rendered every panel stacked on the page | Fixed; the tab shell now renders only the active panel and supports keyboard navigation |
+| Long-horizon return, volatility, and drawdown fields were loaded but not presented together | Fixed; Overview includes a compact 10Y/15Y/20Y display-only table |
+| Performance tab duplicated fields already better suited for Overview | Fixed; returns, 52-week range, liquidity, freshness, history start, and observations moved to Overview |
+| Placeholder-only tabs made the detail page feel unfinished | Fixed; empty telemetry, ETF exposure/holdings, bond duration/credit-quality, commodity profile, and benchmark relative placeholders are hidden |
+| Fundamentals trend table made the fundamentals tab heavy by default | Fixed; detailed trend rows are collapsed behind a show/hide disclosure |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Browser spot-check representative stock, young stock, ETF, and bond ETF records against a seeded database to confirm populated versus `Insufficient history` long-horizon states and active-panel-only DOM behavior.
+
+## 2026-06-24 SGT - Long-Horizon Risk Display Windows QA
+
+Scope:
+- Verify display-only 10Y/15Y/20Y volatility and max-drawdown fields can populate without changing instrument risk scoring or recommendation behavior.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Instrument risk metrics only exposed 1Y/3Y/5Y drawdown windows and short volatility windows | Fixed; migration 133 adds nullable 10Y/15Y/20Y volatility and max-drawdown fields |
+| Long-horizon risk windows should stay display-only | Preserved; risk score, risk bucket, volatility bucket, confidence score, scoring, guardrails, and recommendations are unchanged |
+| 20Y windows can be null universe-wide if the provider's 5,000-bar cap is treated as exact 20-year coverage | Fixed; migration 133 uses the migration-132 120-day tolerance and docs now state that 20Y reflects deepest-available history when the provider cap binds |
+| UI needs a neutral null state for instruments without enough long history | Fixed; the instrument detail risk card shows `Insufficient history` for null long-window values |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration 133 adds nullable long-horizon risk columns | PASS |
+| Both risk metric refresh functions populate gated 10Y/15Y/20Y volatility fields | PASS |
+| Both period drawdown refresh functions populate gated 10Y/15Y/20Y max-drawdown fields | PASS |
+| Fallback risk calculation returns long-window values for deep history and nulls for young history | PASS |
+| Fallback risk score equals the pre-existing formula and ignores the new long-window fields | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run test -- instrument-ia.test.js` | PASS (352/352; command currently runs the full configured suite plus the extra argument) |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/133_long_horizon_risk_windows.sql` manually to Supabase. The migration includes full repopulation calls for risk metrics and period drawdowns.
+- Confirm one sample instrument after manual migration application by comparing its `risk_score` and `risk_bucket` before/after; expected result is identical score/bucket with only display fields added.
+
+## 2026-06-24 SGT - Forced Deep Price Backfill Marker QA
+
+Scope:
+- Verify the 20-year raw price-history backfill can select fresh-but-shallow instruments and then converge with a per-instrument attempted-depth marker.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| `needsHistoryBackfill` skipped instruments with current latest prices even when their stored history was shallower than the 20-year target | Fixed; admin history backfill now passes `forceDeepBackfill` and uses depth-based selection |
+| FMP-limited instruments could otherwise re-qualify forever during deep backfill attempts | Fixed; force-deep runs mark `price_history_backfilled_through` after provider fetch attempts |
+| Normal non-force history backfill behavior should remain unchanged | Preserved; the existing freshness-based `needsHistoryBackfill` path is used when `forceDeepBackfill` is false |
+| Deep-backfill migration numbering affects the planned Phase-3 risk migration | Noted; migration 131 is used here, so the planned Phase-3 risk migration shifts to 132 |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration 131 adds nullable `instruments.price_history_backfilled_through` | PASS |
+| Force-deep backfill selects a fresh instrument with shallow earliest history | PASS |
+| Force-deep backfill records attempted depth and skips the same instrument on the next pass | PASS |
+| Non-force backfill skips the same fresh shallow instrument, matching prior behavior | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run test -- price-refresh.test.js` | PASS (351/351; command currently runs the full configured suite plus the extra argument) |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (351/351) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/131_instrument_price_history_backfill_marker.sql` manually to Supabase before using the forced deep-backfill marker in production.
+- After migration 131 is applied, use the existing Backfill market history button in batches of 50; the 391-instrument universe should take roughly 8 clicks, with FMP-limited instruments attempted once for the configured depth.
+
+## 2026-06-24 SGT - Long-Horizon Display Returns QA
+
+Scope:
+- Verify 20-year market-history storage and display-only 10Y/15Y/20Y instrument return data plumbing.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Market-history and benchmark backfill windows were still limited to 5 years | Fixed; admin history and benchmark refresh calls now request 7,300 days |
+| Instrument market metrics only exposed 1Y/3Y/5Y returns | Fixed; migration 130 adds nullable 10Y/15Y/20Y fields and refresh logic |
+| Long-horizon return values should not appear when an instrument lacks enough history | Fixed; TypeScript fallback and SQL refresh gate long returns on sufficient history |
+| Long-horizon return plumbing must remain display-only | Preserved; no scoring, guardrail, risk-score, methodology math, or recommendation path was changed |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| Migration 130 adds nullable `return_10y`, `return_15y`, and `return_20y` columns | PASS |
+| Market-metrics refresh RPC populates long-horizon returns without changing existing 1Y/3Y/5Y behavior | PASS |
+| App domain and Supabase mapping expose the new nullable return fields | PASS |
+| Fallback market views compute 10Y/15Y/20Y returns with sufficient history | PASS |
+| Fallback market views return null for 10Y/15Y/20Y returns with insufficient history | PASS |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run test` | PASS (349/349) |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Apply `supabase/migrations/130_market_metrics_long_horizon_returns.sql` manually to Supabase.
+- Run the 20-year market-history backfill and benchmark refresh after the migration so persisted long-horizon fields can populate.
+- UI wiring for displaying the new metrics remains a later phase.
+
 ## 2026-06-23 SGT - Security Master Mapping Cleanup QA
 
 Scope:
@@ -6382,3 +6535,214 @@ Validation:
 - PASS: `npm.cmd run build`
 - PASS: Manual source review confirmed internal labels are not exposed in the public methodology assessment table.
 - NOTE: Browser/Supabase acknowledgement metadata verification should still be repeated in the deployed environment because it depends on authenticated session state and live Supabase user metadata.
+
+---
+
+## 2026-06-25 — Instrument Detail Price Chart QA
+
+Scope:
+- Added a display-only interactive SVG price chart to the instrument detail Overview.
+- Added streamed server loading of stored adjusted close history via `getInstrumentPriceSeries`.
+- Added client-side period slicing for 1M / 3M / 6M / 1Y / 5Y / 20Y, selected-period up/down coloring, hover crosshair tooltip, and adaptive x-axis labels.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (353 tests)
+- PASS: `npm.cmd run build`
+- PASS: Repository unit coverage confirms the price-series getter filters positive close prices, paginates, downsamples older history, and preserves the latest point.
+- NOTE: Browser smoke verification was attempted. The local dev server stayed at `Starting...`, but the production server served on port 3001 after a successful build; `/instruments/MSFT` redirected to `/login`, so recheck a deep-history name and a recent IPO in an authenticated browser session.
+
+Expected behavior:
+- The Overview chart renders from already-stored price history and is streamed through Suspense, so the page shell is not blocked by the chart query.
+- Period toggles reslice the in-memory series without network refetch.
+- Hover tooltip shows only factual date, price, and period-to-date percentage context.
+- This is display-only and does not feed scoring, guardrails, recommendation labels, or methodology.
+
+---
+
+## 2026-06-25 - Instrument Detail Characteristics Score Trend QA
+
+Scope:
+- Added a display-only Characteristics score-trend panel to the instrument detail Overview.
+- Added `getScoreHistory(instrumentId)` over `recommendation_history`, deduped to one row per `run_date` with the latest run for that date winning.
+- Streamed the panel through Suspense so score-history loading does not block the instrument detail shell.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests)
+- PASS: `npm.cmd run build`
+- PASS: Unit coverage confirms score-history rows dedupe by run date, select the latest created row for duplicate dates, and return in ascending run-date order.
+- NOTE: Browser recheck in an authenticated session is still pending; unauthenticated local instrument detail requests redirect to `/login`.
+
+Expected behavior:
+- Overview shows a compact Characteristics score trend next to the Characteristics breakdown on large screens and stacked on mobile.
+- Empty history shows "No insight history yet"; a one-point history shows the current score and explains that the trend builds over successive insight runs.
+- Multi-point history shows a neutral SVG sparkline, markers, previous-run delta, and factual hover tooltip with run date and score.
+- The series is currently short, roughly a few insight runs, and fills in as future recommendation runs accumulate.
+- This is display-only and does not feed scoring, guardrails, recommendation labels, methodology, or data-pipeline logic.
+
+---
+
+## 2026-06-25 - Instrument Detail UI Polish QA
+
+Scope:
+- Added a sticky instrument identity header above the tab nav.
+- Refined the Overview panel layout, moving identity out of the panel and grouping asset context, returns, 52-week position, long-horizon diagnostics, score trend, and Characteristics breakdown.
+- Added price chart 52-week high/low reference lines, HTML y-axis price labels, and primary-token active period buttons.
+- Updated score trend to a fixed 0-100 y-domain with y-axis labels and explicit previous-run summary.
+- Added score-level colors and low-score warning indicators to Characteristics breakdown rows.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck for a stock, ETF, and bond ETF remains pending in an authenticated session. Local unauthenticated instrument detail requests redirect to `/login`.
+
+Expected behavior:
+- Sticky identity header stays visible below the dashboard top nav while switching and scrolling tabs.
+- Overview avoids duplicate identity content and presents stats in compact responsive grids.
+- Price chart overlays do not alter the y-domain; 52-week reference lines only render when the reference price falls inside the selected period domain.
+- Score trend remains display-only and neutral, with a fixed 0-100 scale.
+- Characteristics component colors and warning icons are visual diagnostics only and do not affect scoring.
+
+---
+
+## 2026-06-25 - Instrument Detail Characteristics Methodology Alignment QA
+
+Scope:
+- Added factual one-line descriptions below Characteristics component names for stock, ETF, bond ETF, gold, and crypto component keys.
+- Aligned Characteristics row colors, score chips, and the low-score warning icon with the documented `RecommendationRulesService.labelFromScore` bands: Excellent 80+, Good 65+, Neutral 48+, Weak 35+, Poor 20+.
+- Added faint score-band guide lines to the Characteristics score-trend chart at 80, 65, and 48, with HTML labels and a note that guardrails can cap the displayed assessment below the raw score band.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests; initial sandboxed run hit `.test-build` EPERM, elevated rerun passed)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck for stock, ETF, and bond ETF pages remains pending in an authenticated session.
+
+Expected behavior:
+- Characteristics descriptions render when a known component key is present and are omitted for unmapped keys.
+- Breakdown colors use 65/48 bands rather than the interim 70/50 thresholds, and the warning icon appears only below 35.
+- Score-trend band guides use the shared score-band constants, not duplicated magic numbers, and remain display-only.
+- No scoring, recommendation labels, guardrail logic, methodology formulas, access controls, or data-pipeline behavior changed.
+
+---
+
+## 2026-06-25 - Instrument Price Chart Axis and Header Return Alignment QA
+
+Scope:
+- Moved price y-axis value labels from the right edge to the left edge of the instrument price chart.
+- Kept 52-week high/low labels on the right edge beside their dashed reference lines.
+- Updated the chart header return for 1Y, 5Y, and 20Y to use stored `marketView` returns so it matches the Overview metrics; 1M/3M/6M remain visible-window calculations.
+- Preserved chart geometry, local period slicing, x-axis ticks, 52-week reference lines, and crosshair tooltip behavior.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- Price-scale labels render on the left while 52-week labels remain on the right.
+- For named stored periods, chart header percentages match Overview's stored 1Y, 5Y, and 20Y returns exactly.
+- Header dollar change is derived from latest price and the stored return for those periods.
+- Hover tooltip remains window-relative and labelled "from period start."
+- No scoring, recommendation, methodology, access-control, or data-pipeline behavior changed.
+
+---
+
+## 2026-06-25 - Instrument Long-Horizon CAGR Display QA
+
+Scope:
+- Updated the instrument detail Long-Horizon card to present 1Y, 5Y, 10Y, 15Y, and 20Y columns.
+- Converted 5Y/10Y/15Y/20Y stored total returns to annualised CAGR for display; 1Y remains unchanged.
+- Left volatility and max drawdown rows as stored values, with 5Y volatility shown as "—" because no stored field exists.
+- Added CAGR bars and display-only disclosures.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests; initial sandboxed run hit `.test-build` EPERM, elevated rerun passed)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- Null periods render as "—".
+- 5Y/10Y/15Y/20Y return cells show CAGR, not total return.
+- Volatility remains annualised stored volatility; drawdown remains stored drawdown magnitude and is not annualised.
+- CAGR bars clip visually above 100% while preserving the true percentage label.
+- No scoring, recommendation, methodology, access-control, or data-pipeline behavior changed.
+
+---
+
+## 2026-06-26 - Instrument Detail Overview Polish QA
+
+Scope:
+- Replaced blank Tabler icon class spans with `lucide-react` icons in Key Observations and Characteristics breakdown.
+- Made the chart/facts row and score-trend/return-character row participate in equal-height layouts.
+- Added red max-drawdown bars to the Long-horizon risk card.
+- Corrected rolling one-year return-character stats to use date-based 365-day windows instead of downsampled row offsets.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- Lucide icons render in both observation cards and breakdown rows.
+- Chart bottom aligns with Key Facts and fills its card vertically.
+- Long-horizon risk card shows red drawdown bars and visually balances the returns card.
+- NVDA-style deep histories no longer show rolling 1Y stats inflated by weekly downsampling before the most recent 5 years.
+- No scoring, methodology, guardrail, recommendation, access-control, feature-flag, or data-pipeline behavior changed.
+
+---
+
+## 2026-06-26 - Portfolio Scheduled Fan-Out QA
+
+Scope:
+- Portfolio valuation, portfolio summary, and Portfolio Review scheduled endpoints now process all active portfolios when no `portfolioId` query parameter is supplied.
+- Explicit `portfolioId` runs still process a single portfolio.
+- Recommendation-run remains universe-wide and was not changed.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (363 tests)
+- PASS: `npm.cmd run build`
+
+Expected behavior:
+- A scheduled no-param valuation run creates analytics snapshots and refreshes dashboard/performance summaries for every active portfolio.
+- A scheduled no-param summary run refreshes dashboard/performance summaries for every active portfolio.
+- A scheduled no-param Portfolio Review run creates review runs/reports for every active portfolio.
+- One failing portfolio is reported as `partial_success` while other portfolios continue.
+- Sequential processing is acceptable for alpha; revisit concurrency and the Portfolio Review 25-minute lock TTL if the active portfolio count grows.
+
+---
+
+## 2026-06-26 - Instrument Detail Overview v2 QA
+
+Scope:
+- Reworked the instrument detail Overview into a score-first v2 layout with verdict hero, deterministic Key Observations, streamed chart/facts/percentile, full-width Characteristics breakdown, split long-horizon return/risk cards, score trend, and return-character diagnostics.
+- Added rolling one-year return-character stats from the same streamed price series used by the price chart.
+- Added a read-only active-universe latest-score helper for percentile display.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests after rerun with elevated filesystem permission)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session for a deep stock, young IPO, ETF, and bond ETF.
+
+Expected behavior:
+- Key Observations use fixed deterministic templates from stored component keys and documented score bands.
+- Return-character tiles render null values as "—" and do not affect scoring or guardrails.
+- The price chart and return-character card share the same streamed price-series read.
+- Key Facts render missing dividend yield as "—" because the current domain model does not expose that field.
+- No scoring, methodology, guardrail, recommendation, access-control, feature-flag, or data-pipeline behavior changed.

@@ -1,27 +1,12 @@
 import { NextRequest } from "next/server";
 import { createContainer } from "@/server/container";
-import { env } from "@/infrastructure/config/env";
 import { runCronJob } from "@/server/jobs/runCronJob";
+import { runPortfolioValuationRefresh } from "@/server/jobs/portfolioScheduledFanout";
 
 export async function POST(request: NextRequest) {
-  const portfolioId = request.nextUrl.searchParams.get("portfolioId") ?? env.SCHEDULED_PORTFOLIO_ID;
+  const portfolioId = request.nextUrl.searchParams.get("portfolioId");
   return runCronJob(request, { jobName: "portfolio-valuation-refresh", lockTtlSeconds: 20 * 60 }, async () => {
-    if (!portfolioId) {
-      return {
-        status: "failed",
-        message: "portfolio-valuation-refresh requires SCHEDULED_PORTFOLIO_ID or portfolioId query parameter.",
-        errors: ["Missing portfolioId."]
-      };
-    }
-    const container = createContainer();
-    await container.portfolioService.createAnalyticsSnapshot(portfolioId);
-    await container.portfolioService.refreshDashboardSummary(portfolioId);
-    await container.portfolioService.refreshPerformanceSummary(portfolioId);
-    return {
-      status: "success",
-      message: "Portfolio valuation snapshot, dashboard summary and performance summary refreshed.",
-      portfolioId
-    };
+    return runPortfolioValuationRefresh(createContainer(), portfolioId);
   });
 }
 

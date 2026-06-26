@@ -139,6 +139,25 @@ function needsLongHistoryBackfill(
   return !earliestPriceDate || earliestPriceDate > daysAfterIso(targetStartDate, 10);
 }
 
+function hasAttemptedBackfillDepth(instrument: Instrument, targetStartDate: string) {
+  const attemptedThrough = instrument.priceHistoryBackfilledThrough ?? null;
+  return Boolean(attemptedThrough && attemptedThrough <= daysAfterIso(targetStartDate, 10));
+}
+
+function needsForcedLongHistoryBackfill(
+  instrument: Instrument,
+  earliestPriceDate: string | null,
+  backfillStartDate: string,
+  cryptoBackfillStartDate: string
+) {
+  const targetStartDate = isCryptoHistoryExcluded(instrument) ? cryptoBackfillStartDate : backfillStartDate;
+  return needsLongHistoryBackfill(instrument, earliestPriceDate, backfillStartDate, cryptoBackfillStartDate) && !hasAttemptedBackfillDepth(instrument, targetStartDate);
+}
+
+function deepestAttemptedDate(existing: string | null | undefined, targetStartDate: string) {
+  return existing && existing < targetStartDate ? existing : targetStartDate;
+}
+
 function needsHistoryBackfill(
   instrument: Instrument,
   earliestPriceDate: string | null,
@@ -294,6 +313,14 @@ function pickBaseline(series: InstrumentPrice[], cutoffDate: string) {
   return eligible.length > 0 ? eligible[0] : null;
 }
 
+function longHorizonReturn(series: InstrumentPrice[], latestPrice: number | null, years: number) {
+  const completeBy = daysAfterIso(yearsAgoIso(years), 10);
+  const earliestDate = series[0]?.priceDate ?? null;
+  if (!earliestDate || earliestDate > completeBy) return null;
+  const baseline = pickBaseline(series, yearsAgoIso(years));
+  return safeReturn(latestPrice, baseline?.closePrice ?? null);
+}
+
 function estimateClicks(count: number, batchSize: number) {
   return Math.ceil(Math.max(0, count) / Math.max(1, batchSize));
 }
@@ -309,12 +336,14 @@ export class InstrumentMarketService {
     instrumentIds?: string[];
     maxSymbols?: number;
     includeBackfill?: boolean;
+    forceDeepBackfill?: boolean;
     skipRiskMetrics?: boolean;
     skipDerivedMetrics?: boolean;
   }): Promise<RefreshInstrumentPricesResult> {
     const lookbackDays = input?.lookbackDays ?? 1825;
     const maxSymbols = Math.max(1, input?.maxSymbols ?? 12);
     const includeBackfill = input?.includeBackfill ?? false;
+    const forceDeepBackfill = input?.forceDeepBackfill ?? false;
     const allInstruments = includeBackfill
       ? await this.repository.listInstruments({ isActive: true })
       : (await this.repository.listInstruments()).filter((instrument) => instrument.isActive || isRawCryptoReference(instrument));
@@ -331,6 +360,14 @@ export class InstrumentMarketService {
         .filter((instrument) => {
           const stats = statsByInstrumentId.get(instrument.id);
           if (!includeBackfill) return isStaleOrMissing(stats?.latestPriceDate ?? null, refreshCutoff);
+          if (forceDeepBackfill) {
+            return needsForcedLongHistoryBackfill(
+              instrument,
+              stats?.earliestPriceDate ?? null,
+              backfillStartDate,
+              cryptoBackfillStartDate
+            );
+          }
           return needsHistoryBackfill(
             instrument,
             stats?.earliestPriceDate ?? null,
@@ -345,7 +382,14 @@ export class InstrumentMarketService {
           const aStats = statsByInstrumentId.get(a.id);
           const bStats = statsByInstrumentId.get(b.id);
           const aNeedsRefresh = includeBackfill
-            ? needsHistoryBackfill(
+            ? forceDeepBackfill
+              ? needsForcedLongHistoryBackfill(
+                a,
+                aStats?.earliestPriceDate ?? null,
+                backfillStartDate,
+                cryptoBackfillStartDate
+              )
+              : needsHistoryBackfill(
                 a,
                 aStats?.earliestPriceDate ?? null,
                 aStats?.latestPriceDate ?? null,
@@ -355,7 +399,14 @@ export class InstrumentMarketService {
               )
             : isStaleOrMissing(aStats?.latestPriceDate ?? null, refreshCutoff);
           const bNeedsRefresh = includeBackfill
-            ? needsHistoryBackfill(
+            ? forceDeepBackfill
+              ? needsForcedLongHistoryBackfill(
+                b,
+                bStats?.earliestPriceDate ?? null,
+                backfillStartDate,
+                cryptoBackfillStartDate
+              )
+              : needsHistoryBackfill(
                 b,
                 bStats?.earliestPriceDate ?? null,
                 bStats?.latestPriceDate ?? null,
@@ -367,24 +418,38 @@ export class InstrumentMarketService {
           if (aNeedsRefresh !== bNeedsRefresh) return aNeedsRefresh ? -1 : 1;
           const aNeedsBackfill =
             includeBackfill &&
-            needsHistoryBackfill(
-              a,
-              aStats?.earliestPriceDate ?? null,
-              aStats?.latestPriceDate ?? null,
-              backfillStartDate,
-              cryptoBackfillStartDate,
-              refreshCutoff
-            );
+            (forceDeepBackfill
+              ? needsForcedLongHistoryBackfill(
+                  a,
+                  aStats?.earliestPriceDate ?? null,
+                  backfillStartDate,
+                  cryptoBackfillStartDate
+                )
+              : needsHistoryBackfill(
+                  a,
+                  aStats?.earliestPriceDate ?? null,
+                  aStats?.latestPriceDate ?? null,
+                  backfillStartDate,
+                  cryptoBackfillStartDate,
+                  refreshCutoff
+                ));
           const bNeedsBackfill =
             includeBackfill &&
-            needsHistoryBackfill(
-              b,
-              bStats?.earliestPriceDate ?? null,
-              bStats?.latestPriceDate ?? null,
-              backfillStartDate,
-              cryptoBackfillStartDate,
-              refreshCutoff
-            );
+            (forceDeepBackfill
+              ? needsForcedLongHistoryBackfill(
+                  b,
+                  bStats?.earliestPriceDate ?? null,
+                  backfillStartDate,
+                  cryptoBackfillStartDate
+                )
+              : needsHistoryBackfill(
+                  b,
+                  bStats?.earliestPriceDate ?? null,
+                  bStats?.latestPriceDate ?? null,
+                  backfillStartDate,
+                  cryptoBackfillStartDate,
+                  refreshCutoff
+                ));
           if (aNeedsBackfill !== bNeedsBackfill) return aNeedsBackfill ? -1 : 1;
           const aCount = aStats?.observationCount ?? 0;
           const bCount = bStats?.observationCount ?? 0;
@@ -475,11 +540,11 @@ export class InstrumentMarketService {
       symbols.map(async (symbol) => {
         try {
           const instrument = instrumentBySymbol.get(symbol);
-          if (!instrument) return { rows: [], missingSymbol: null, error: null };
+          if (!instrument) return { rows: [], missingSymbol: null, error: null, backfillAttempt: null };
           if (isRawCryptoReference(instrument) && !includeBackfill) {
             const latestQuotes = await this.provider.getLatestPrices([providerSymbolForInstrument(instrument)]);
             if (latestQuotes.length === 0) {
-              return { rows: [], missingSymbol: symbol, error: null };
+              return { rows: [], missingSymbol: symbol, error: null, backfillAttempt: null };
             }
 
             return {
@@ -493,12 +558,15 @@ export class InstrumentMarketService {
                 rawPayload: quote.raw
               })),
               missingSymbol: null,
-              error: null
+              error: null,
+              backfillAttempt: null
             };
           }
           const stats = statsByInstrumentId.get(instrument.id);
           const targetBackfillStart = isCryptoHistoryExcluded(instrument) ? cryptoBackfillStartDate : defaultFrom;
-          const shouldBackfill = includeBackfill && needsLongHistoryBackfill(instrument, stats?.earliestPriceDate ?? null, defaultFrom, cryptoBackfillStartDate);
+          const shouldBackfill =
+            includeBackfill &&
+            (forceDeepBackfill || needsLongHistoryBackfill(instrument, stats?.earliestPriceDate ?? null, defaultFrom, cryptoBackfillStartDate));
           const shouldRefreshStaleHistory = includeBackfill && !isHistoryCurrent(stats?.latestPriceDate ?? null, refreshCutoff);
           const from = shouldBackfill
             ? targetBackfillStart
@@ -507,35 +575,47 @@ export class InstrumentMarketService {
               : stats?.latestPriceDate
                 ? daysBeforeIso(stats.latestPriceDate, 7)
                 : targetBackfillStart;
-        const quotes = await this.provider.getHistoricalPrices(symbol, from, to, { assetClass: instrument.assetClass });
-        if (quotes.length === 0) {
-            return { rows: [], missingSymbol: symbol, error: null };
-        }
+          const quotes = await this.provider.getHistoricalPrices(symbol, from, to, { assetClass: instrument.assetClass });
+          if (quotes.length === 0) {
+            return {
+              rows: [],
+              missingSymbol: symbol,
+              error: null,
+              backfillAttempt: forceDeepBackfill
+                ? { instrumentId: instrument.id, backfilledThrough: deepestAttemptedDate(instrument.priceHistoryBackfilledThrough, targetBackfillStart) }
+                : null
+            };
+          }
 
           return {
             rows: quotes.map((quote) => ({
-            instrumentId: instrument.id,
-            provider: this.provider.name,
-            symbol: quote.symbol.toUpperCase(),
-            priceDate: quote.asOfDate,
-            closePrice: quote.price,
-            currency: quote.currency ?? instrument.currency ?? "USD",
-            rawPayload: quote.raw
+              instrumentId: instrument.id,
+              provider: this.provider.name,
+              symbol: quote.symbol.toUpperCase(),
+              priceDate: quote.asOfDate,
+              closePrice: quote.price,
+              currency: quote.currency ?? instrument.currency ?? "USD",
+              rawPayload: quote.raw
             })),
             missingSymbol: null,
-            error: null
+            error: null,
+            backfillAttempt: forceDeepBackfill
+              ? { instrumentId: instrument.id, backfilledThrough: deepestAttemptedDate(instrument.priceHistoryBackfilledThrough, targetBackfillStart) }
+              : null
           };
         } catch (error) {
           const message = error instanceof Error ? error.message : "Instrument price refresh failed.";
-          return { rows: [], missingSymbol: null, error: `${symbol}: ${message}` };
+          return { rows: [], missingSymbol: null, error: `${symbol}: ${message}`, backfillAttempt: null };
         }
       })
     );
 
+    const backfillAttempts = new Map<string, string>();
     for (const result of results) {
       rows.push(...result.rows);
       if (result.missingSymbol) missingSymbols.push(result.missingSymbol);
       if (result.error) errors.push(result.error);
+      if (result.backfillAttempt) backfillAttempts.set(result.backfillAttempt.instrumentId, result.backfillAttempt.backfilledThrough);
     }
 
     if (rows.length > 0) {
@@ -547,6 +627,14 @@ export class InstrumentMarketService {
           skipRiskMetrics: includeBackfill || Boolean(input?.skipRiskMetrics)
         });
       }
+    }
+    if (forceDeepBackfill && backfillAttempts.size > 0) {
+      await this.repository.updateInstrumentPriceHistoryBackfilledThrough(
+        Array.from(backfillAttempts.entries()).map(([instrumentId, backfilledThrough]) => ({
+          instrumentId,
+          backfilledThrough
+        }))
+      );
     }
 
     return {
@@ -566,6 +654,7 @@ export class InstrumentMarketService {
     batchSize?: number;
     maxBatches?: number;
     includeBackfill?: boolean;
+    forceDeepBackfill?: boolean;
     skipRiskMetrics?: boolean;
     skipDerivedMetrics?: boolean;
   }): Promise<RefreshInstrumentPricesResult> {
@@ -581,6 +670,7 @@ export class InstrumentMarketService {
         lookbackDays: input?.lookbackDays,
         maxSymbols: batchSize,
         includeBackfill: input?.includeBackfill,
+        forceDeepBackfill: input?.forceDeepBackfill,
         skipRiskMetrics: input?.skipRiskMetrics,
         skipDerivedMetrics: input?.skipDerivedMetrics
       });
@@ -1008,7 +1098,7 @@ export class InstrumentMarketService {
   private async buildInstrumentMarketViewsFromPrices(instruments: Instrument[], options?: { lookbackYears?: number }): Promise<InstrumentMarketView[]> {
     if (instruments.length === 0) return [];
 
-    const lookbackYears = Math.max(1, options?.lookbackYears ?? 5);
+    const lookbackYears = Math.max(1, options?.lookbackYears ?? 20);
     const priceRows = await this.repository.listInstrumentPrices(instruments.map((instrument) => instrument.id), yearsAgoIso(lookbackYears));
     const priceByInstrument = new Map<string, InstrumentPrice[]>();
     for (const row of priceRows) {
@@ -1043,6 +1133,9 @@ export class InstrumentMarketService {
         oneYearReturn: safeReturn(latestPrice, oneYearBaseline?.closePrice ?? null),
         threeYearReturn: safeReturn(latestPrice, threeYearBaseline?.closePrice ?? null),
         fiveYearReturn: safeReturn(latestPrice, fiveYearBaseline?.closePrice ?? null),
+        tenYearReturn: longHorizonReturn(series, latestPrice, 10),
+        fifteenYearReturn: longHorizonReturn(series, latestPrice, 15),
+        twentyYearReturn: longHorizonReturn(series, latestPrice, 20),
         fiftyTwoWeekLow,
         fiftyTwoWeekHigh,
         liquidity: liquidityLabel(instrument),
@@ -1068,6 +1161,9 @@ export class InstrumentMarketService {
       oneYearReturn: metric.oneYearReturn,
       threeYearReturn: metric.threeYearReturn,
       fiveYearReturn: metric.fiveYearReturn,
+      tenYearReturn: metric.tenYearReturn,
+      fifteenYearReturn: metric.fifteenYearReturn,
+      twentyYearReturn: metric.twentyYearReturn,
       fiftyTwoWeekLow: metric.fiftyTwoWeekLow,
       fiftyTwoWeekHigh: metric.fiftyTwoWeekHigh,
       liquidity: liquidityLabel(instrument),
@@ -1092,6 +1188,9 @@ export class InstrumentMarketService {
       oneYearReturn: null,
       threeYearReturn: null,
       fiveYearReturn: null,
+      tenYearReturn: null,
+      fifteenYearReturn: null,
+      twentyYearReturn: null,
       fiftyTwoWeekLow: null,
       fiftyTwoWeekHigh: null,
       liquidity: liquidityLabel(instrument),

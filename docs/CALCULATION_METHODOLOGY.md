@@ -54,15 +54,19 @@ Stored in `instrument_risk_metrics`.
 Risk metrics are based on precomputed daily returns and include:
 
 - 30D/90D/1Y annualized volatility using `stddev_samp(daily_return) * sqrt(252)`.
-- Downside volatility.
-- Current drawdown.
-- Max drawdown.
+- Display-only 5Y/10Y/15Y/20Y annualized volatility using the same return-scale formula when sufficient history exists.
+- Downside volatility — annualized standard deviation of *negative* daily returns only over the trailing 1Y, `stddev_samp(daily_return) filter (daily_return < 0) * sqrt(252)`. Isolates the dispersion of losing days from total volatility.
+- Current drawdown — decline of the latest close from the running all-time peak of the price history; `0` at a fresh high.
+- Volatility trend — direction of *near-term* volatility, comparing 30D vs 90D annualized vol: `rising` when `volatility_30d > volatility_90d * 1.15`, `falling` when `volatility_30d < volatility_90d * 0.85`, else `stable` (within ±15%). Short-term signal, display-only; not a long-horizon trend.
+- Max drawdown over the available history and over fixed 1Y/3Y/5Y/10Y/15Y/20Y windows.
 - Drawdown duration.
 - Drawdown bucket.
 - Negative return frequency.
 - Worst daily return.
 - Worst weekly return.
 - Risk bucket and risk score.
+
+The 5Y/10Y/15Y/20Y volatility and 10Y/15Y/20Y max-drawdown windows are display-only diagnostics. They do not feed `risk_score`, `risk_bucket`, `volatility_bucket`, confidence, recommendation scoring, guardrails, or label logic. Completeness gates mirror the shorter-window pattern: 5Y, 10Y, and 15Y require history within 30 days of the window start; 20Y allows 120 days because the FMP historical EOD feed is capped near 5,000 bars. As a result, 20Y long-horizon metrics reflect the deepest available history, roughly 19.85 years when the provider cap binds, and are labelled 20Y for presentation consistency.
 
 Important QA rule: daily returns must be decimal returns, not percentage values. A value like `70,857.73%` volatility indicates a return-scale issue and should trigger data QA.
 
@@ -72,6 +76,7 @@ Holdings and portfolio calculations differ from universe/watchlist metrics:
 
 - Universe/watchlist returns are historical instrument returns.
 - Holding returns are position-specific and use transaction cost basis/inception context.
+- Holding valuation anchors latest price and latest price date on `instrument_prices`, the price source of truth; `instrument_market_metrics` is used only for derived analytics such as previous close and 52-week range (ref gaps 47/48).
 - Holding metrics are stored in `holding_market_metrics`.
 - Portfolio current metrics are stored in `portfolio_current_metrics`.
 

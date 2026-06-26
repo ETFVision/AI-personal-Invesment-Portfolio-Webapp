@@ -126,10 +126,11 @@ export async function backfillUniverseHistoryAction(formData?: FormData) {
 
   const job = await container.jobRunService.runManual("backfill_market_history", async () => {
     const result = await container.instrumentMarketService.refreshInstrumentPricesInBatches({
-      lookbackDays: 1825,
-      batchSize: 50,
+      lookbackDays: 7300,
+      batchSize: 25,
       maxBatches: 1,
       includeBackfill: true,
+      forceDeepBackfill: true,
       skipDerivedMetrics: true
     });
 
@@ -167,7 +168,7 @@ export async function refreshBenchmarksAction(formData?: FormData) {
   let refreshMessage = "";
 
   const job = await container.jobRunService.runManual("benchmark-refresh", async () => {
-    const result = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 1825 });
+    const result = await container.jobs.refreshBenchmarkData.run({ lookbackDays: 7300 });
     refreshMessage = result.message;
     if (!result.ok) errors.push(result.message);
     return { ok: result.ok, message: refreshMessage, errors, metadata: result };

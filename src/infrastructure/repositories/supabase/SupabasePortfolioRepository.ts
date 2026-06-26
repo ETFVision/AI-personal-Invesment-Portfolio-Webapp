@@ -183,6 +183,16 @@ export class SupabasePortfolioRepository implements PortfolioRepository {
     return data ? mapPortfolio(data) : null;
   }
 
+  async listActivePortfolioIds() {
+    const { data, error } = await this.db
+      .from("portfolios")
+      .select("id")
+      .eq("is_active", true)
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row) => row.id).filter(Boolean);
+  }
+
   async createPortfolio(userId: string, input: SetupPortfolioInput) {
     const { data, error } = await this.db
       .from("portfolios")

@@ -54,6 +54,7 @@ export type Instrument = {
   liquidityRole: string | null;
   cryptoClassification: string | null;
   metadataLastRefreshedAt: string | null;
+  priceHistoryBackfilledThrough?: string | null;
   identifierLastRefreshedAt?: string | null;
   isin?: string | null;
   cusip?: string | null;
@@ -78,6 +79,11 @@ export type InstrumentPrice = {
   rawPayload: unknown;
 };
 
+export type PriceSeriesPoint = {
+  date: string;
+  close: number;
+};
+
 export type InstrumentMarketMetric = {
   instrumentId: string;
   latestPrice: number | null;
@@ -89,6 +95,9 @@ export type InstrumentMarketMetric = {
   oneYearReturn: number | null;
   threeYearReturn: number | null;
   fiveYearReturn: number | null;
+  tenYearReturn: number | null;
+  fifteenYearReturn: number | null;
+  twentyYearReturn: number | null;
   fiftyTwoWeekLow: number | null;
   fiftyTwoWeekHigh: number | null;
   observationCount: number;
@@ -103,6 +112,10 @@ export type InstrumentRiskMetric = {
   volatility30d: number | null;
   volatility90d: number | null;
   volatility1y: number | null;
+  volatility5y: number | null;
+  volatility10y: number | null;
+  volatility15y: number | null;
+  volatility20y: number | null;
   volatilityTrend: "rising" | "stable" | "falling" | "insufficient_data";
   downsideVolatility: number | null;
   currentDrawdown1y: number | null;
@@ -111,6 +124,9 @@ export type InstrumentRiskMetric = {
   maxDrawdown3y: number | null;
   currentDrawdown5y: number | null;
   maxDrawdown5y: number | null;
+  maxDrawdown10y: number | null;
+  maxDrawdown15y: number | null;
+  maxDrawdown20y: number | null;
   currentDrawdown: number | null;
   maxDrawdown: number | null;
   drawdownDurationDays: number | null;
@@ -143,6 +159,9 @@ export type InstrumentMarketView = {
   oneYearReturn: number | null;
   threeYearReturn: number | null;
   fiveYearReturn: number | null;
+  tenYearReturn: number | null;
+  fifteenYearReturn: number | null;
+  twentyYearReturn: number | null;
   fiftyTwoWeekLow: number | null;
   fiftyTwoWeekHigh: number | null;
   liquidity: string;
