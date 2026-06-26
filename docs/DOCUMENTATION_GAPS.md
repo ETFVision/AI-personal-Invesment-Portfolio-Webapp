@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-26 SGT (updated Low 14 — stored 5Y volatility added; 3Y volatility still deferred)
+Last updated: 2026-06-26 SGT (added Medium 44 — ETF expense ratio + equity dividend yield not ingested; updated Low 14 — stored 5Y volatility added, 3Y still deferred)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -437,6 +437,14 @@ in their phases. Capture each batch as its own implementation-log entry.
     - Recommended resolution: unify to ONE diversification definition (look-through breadth + holding-level correlation, computed live) shown consistently on both the Risk page and Portfolio Review — make the canonical Risk page the look-through-aware version — or, minimally, clearly label live-vs-stored / with-vs-without look-through.
     - Before changing: confirm the diversification score is display + portfolio-review-section only and does **not** feed instrument scoring/recommendation logic (believed display-only). Document in `SCORE_METHODOLOGY.md`; it shifts a displayed score, so treat as a deliberate methodology update.
     - Priority: **not an alpha blocker** (each score is individually correct); user-facing consistency / commercialization-readiness. Logged 2026-06-25 (Claude review).
+
+44. ETF expense ratio and equity dividend yield are not ingested
+    - The UI scaffolding exists but the data is never fetched, so both render blank:
+      - **Dividend yield (equities):** the Key Facts card has a `dividendYield` field and a "Dividend yield" `SummaryMetric`, but it is always `null` → renders "—". `FmpFundamentalsProvider` (key-metrics) captures `freeCashFlowYield` but **not** `dividendYield`; `FmpAssetMetadataProvider` (`/profile`) keeps the raw payload (which contains `lastDiv`) but maps only symbol/name/exchange/sector/industry/ids and drops it. No `dividend_yield` column is populated anywhere.
+      - **Expense ratio (ETFs):** an `expenseRatio` field exists, but only on the **bond profile** type, and it is populated solely by manual seed (`SEEDED_BOND_PROFILES`) or manual form override (`universeActions`). `FmpEtfExposureProvider` fetches `etf/sector-weightings` / `etf/country-weightings` / `etf/holdings` only — it never calls FMP's `etf/info` endpoint, where `expenseRatio` lives. No automated ETF/equity expense-ratio ingestion exists.
+    - Both are available on the FMP Ultimate plan: `key-metrics.dividendYield` (TTM) or `profile.lastDiv ÷ price` for yield; `etf/info.expenseRatio` for ETFs.
+    - Fix if wanted: add `dividend_yield` (equities) and `expense_ratio` (ETFs) to the metadata/fundamentals refresh, store them, and wire the existing "—" fields. Display-only (no scoring/guardrail impact); would need a forced recompute/backfill like the 5Y-volatility addition (migration 134).
+    - Priority: **not an alpha blocker**; display completeness, relevant to the Fundamentals/Key-Facts surfaces. Logged 2026-06-26 (Claude review).
 
 ## Low Priority
 
