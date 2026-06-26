@@ -46,11 +46,11 @@ export function ChartShell({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm", className)}>
+    <div className={cn("rounded-xl border border-border bg-muted/40 p-4 shadow-sm", className)}>
       {title || description ? (
         <div className="mb-4">
-          {title ? <p className="text-sm font-semibold tracking-tight text-slate-950">{title}</p> : null}
-          {description ? <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p> : null}
+          {title ? <p className="text-sm font-semibold tracking-tight text-foreground">{title}</p> : null}
+          {description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p> : null}
         </div>
       ) : null}
       {children}
@@ -116,19 +116,19 @@ export function StackedExposureBar({
   const directWidth = Math.min(100, Math.max(0, direct * 100));
   const indirectWidth = Math.min(100 - directWidth, Math.max(0, indirect * 100));
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/80 p-3 text-sm shadow-sm">
+    <div className="rounded-xl border border-border bg-muted/40 p-3 text-sm shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate font-medium text-slate-800">{label}</p>
-          {detail ? <p className="mt-1 text-xs text-slate-500">{detail}</p> : null}
+          <p className="truncate font-medium text-foreground">{label}</p>
+          {detail ? <p className="mt-1 text-xs text-muted-foreground">{detail}</p> : null}
         </div>
-        <span className="shrink-0 font-semibold text-slate-900">{totalLabel}</span>
+        <span className="shrink-0 font-semibold text-foreground">{totalLabel}</span>
       </div>
-      <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-slate-100">
+      <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-muted">
         <div className="h-full bg-teal-700" style={{ width: `${directWidth}%` }} />
         <div className="h-full bg-cyan-500" style={{ width: `${indirectWidth}%` }} />
       </div>
-      <div className="mt-2 flex gap-4 text-xs text-slate-500">
+      <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
         <span>Direct</span>
         <span>ETF look-through</span>
       </div>
@@ -154,11 +154,11 @@ export function MiniRangeBar({
     : Math.min(100, Math.max(0, ((current - low) / (high - low)) * 100));
   return (
     <div className="min-w-40 space-y-1.5">
-      <div className="relative h-2 rounded-full bg-slate-100">
-        <div className="absolute inset-y-0 left-0 rounded-full bg-slate-300" style={{ width: "100%" }} />
+      <div className="relative h-2 rounded-full bg-muted">
+        <div className="absolute inset-y-0 left-0 rounded-full bg-border" style={{ width: "100%" }} />
         {position == null ? null : <div className="absolute top-1/2 h-3 w-1.5 -translate-y-1/2 rounded-full bg-teal-700" style={{ left: `calc(${position}% - 3px)` }} />}
       </div>
-      <div className="flex justify-between gap-2 text-[0.68rem] text-slate-500">
+      <div className="flex justify-between gap-2 text-[0.68rem] text-muted-foreground">
         <span>{lowLabel}</span>
         <span>{highLabel}</span>
       </div>
@@ -175,7 +175,7 @@ export function Sparkline({
   className?: string;
   tone?: "default" | "positive" | "danger" | "muted";
 }) {
-  const stroke = tone === "positive" ? "stroke-emerald-600" : tone === "danger" ? "stroke-red-500" : tone === "muted" ? "stroke-slate-400" : "stroke-teal-700";
+  const stroke = tone === "positive" ? "stroke-emerald-600" : tone === "danger" ? "stroke-red-500" : tone === "muted" ? "stroke-muted-foreground" : "stroke-teal-700";
   return (
     <svg viewBox="0 0 180 60" className={cn("h-12 w-36", className)}>
       <polyline points={points} fill="none" className={stroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />

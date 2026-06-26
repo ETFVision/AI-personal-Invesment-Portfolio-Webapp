@@ -1,3 +1,32 @@
+## 2026-06-26 — Horizontal Exposure Bars Design-Token Cleanup
+
+### Source
+Claude Code
+
+### Objective
+Replace remaining hardcoded slate color utilities in the chart/exposure-bar UI primitives with design tokens for light/dark theme consistency.
+
+### Files Changed
+- `src/components/ui/charts.tsx`
+- `docs/implementation-log.md`
+
+### Summary
+- Replaced chart shell title, description, border, and background slate utilities with `text-foreground`, `text-muted-foreground`, `border-border`, and `bg-muted/40`.
+- Replaced remaining exposure/range helper slate text, border, and background classes with matching design tokens.
+- Preserved layout, item collapsing, and semantic tone bar colors.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only theming cleanup. No data, scoring, methodology, feature-flag, or access-control logic changed.
+
 ## 2026-06-26 — Portfolio PerformancePanel RSC Boundary Fix
 
 ### Source
