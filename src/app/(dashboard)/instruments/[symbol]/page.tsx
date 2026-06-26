@@ -6,10 +6,12 @@ import { createContainer } from "@/server/container";
 import {
   InstrumentOverviewPanel,
   InstrumentTabs,
+  KeyFactsCard,
   MarketVisionContextCard,
   NewsSummaryCard,
   PlaceholderPanel,
   RecommendationSummaryCard,
+  ReturnCharacterCard,
   RiskSummaryCard,
   SummaryMetric,
   ThemesPanel
@@ -21,7 +23,8 @@ import { instrumentTypeLabel, resolveInstrumentType, type CanonicalInstrumentTyp
 import { scoreBusinessQuality } from "@/application/services/recommendations/recommendationScoring";
 import type { FundamentalsDetail } from "@/domain/fundamentals/types";
 import type { InstrumentRecommendation } from "@/domain/recommendations/types";
-import type { BondProfile, Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
+import type { BondProfile, Instrument, InstrumentMarketView, InstrumentRiskMetric, PriceSeriesPoint } from "@/domain/universe/types";
+import type { OverviewKeyFacts, ReturnCharacterStats } from "@/components/instruments/instrument-cards";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 
@@ -39,6 +42,48 @@ function ratio(value: number | null | undefined) {
 
 function percent(value: number | null | undefined) {
   return value == null ? "-" : formatPercent(value);
+}
+
+function rollingOneYearStats(series: PriceSeriesPoint[]): Pick<ReturnCharacterStats, "bestRollingOneYear" | "worstRollingOneYear" | "positiveRollingOneYearWindows"> {
+  const returns: number[] = [];
+  for (let index = 252; index < series.length; index += 1) {
+    const baseline = series[index - 252]?.close;
+    const close = series[index]?.close;
+    if (baseline == null || close == null || baseline <= 0) continue;
+    returns.push(close / baseline - 1);
+  }
+  if (returns.length === 0) {
+    return { bestRollingOneYear: null, worstRollingOneYear: null, positiveRollingOneYearWindows: null };
+  }
+  return {
+    bestRollingOneYear: Math.max(...returns),
+    worstRollingOneYear: Math.min(...returns),
+    positiveRollingOneYearWindows: returns.filter((value) => value > 0).length / returns.length
+  };
+}
+
+function returnCharacterStats(series: PriceSeriesPoint[], marketView: InstrumentMarketView, riskMetric: InstrumentRiskMetric | null): ReturnCharacterStats {
+  const rolling = rollingOneYearStats(series);
+  const belowHigh =
+    marketView.latestPrice == null || marketView.fiftyTwoWeekHigh == null || marketView.fiftyTwoWeekHigh <= 0
+      ? null
+      : Math.max(0, (marketView.fiftyTwoWeekHigh - marketView.latestPrice) / marketView.fiftyTwoWeekHigh);
+  return {
+    ...rolling,
+    belowFiftyTwoWeekHigh: belowHigh,
+    deepestDrawdown: riskMetric?.maxDrawdown20y ?? riskMetric?.maxDrawdown ?? null,
+    worstWeek: riskMetric?.worstWeeklyReturn ?? null
+  };
+}
+
+function universePercentileLabel(currentScore: number | null | undefined, rows: Array<{ instrumentId: string; overallScore: number | null }>, instrumentId: string) {
+  if (currentScore == null || !Number.isFinite(currentScore)) return "—";
+  const scoredRows = rows.filter((row) => row.overallScore != null && Number.isFinite(row.overallScore));
+  const activeScore = scoredRows.find((row) => row.instrumentId === instrumentId)?.overallScore ?? currentScore;
+  if (scoredRows.length === 0 || activeScore == null) return "—";
+  const shareLower = scoredRows.filter((row) => (row.overallScore ?? -Infinity) < activeScore).length / scoredRows.length;
+  const topPercent = Math.max(1, Math.min(100, Math.ceil((1 - shareLower) * 100)));
+  return `Top ${topPercent}% vs universe`;
 }
 
 function dailyChangeAmount(latestPrice: number | null | undefined, dailyReturn: number | null | undefined) {
@@ -285,26 +330,21 @@ function InstrumentPriceChartFallback() {
 }
 
 async function AsyncInstrumentPriceChart({
-  instrumentId,
-  fromYears,
+  priceSeriesPromise,
   fiftyTwoWeekLow,
   fiftyTwoWeekHigh,
   oneYearReturn,
   fiveYearReturn,
   twentyYearReturn
 }: {
-  instrumentId: string;
-  fromYears: number;
+  priceSeriesPromise: Promise<PriceSeriesPoint[]>;
   fiftyTwoWeekLow: number | null;
   fiftyTwoWeekHigh: number | null;
   oneYearReturn: number | null;
   fiveYearReturn: number | null;
   twentyYearReturn: number | null;
 }) {
-  const container = createContainer();
-  const series = await measureRenderStep(`instrument-detail:${instrumentId}:price-series`, () =>
-    container.universeRepository.getInstrumentPriceSeries(instrumentId, { fromYears })
-  );
+  const series = await priceSeriesPromise;
   return (
     <InstrumentPriceChart
       series={series}
@@ -315,6 +355,72 @@ async function AsyncInstrumentPriceChart({
       twentyYearReturn={twentyYearReturn}
     />
   );
+}
+
+function KeyFactsFallback() {
+  return <KeyFactsCard facts={null} />;
+}
+
+async function AsyncKeyFactsCard({
+  instrument,
+  riskMetric
+}: {
+  instrument: Instrument;
+  riskMetric: InstrumentRiskMetric | null;
+}) {
+  const container = createContainer();
+  const detail = instrument.symbol
+    ? await measureRenderStep(`instrument-detail:${instrument.symbol}:overview-key-facts`, () =>
+        container.fundamentalsRepository.getDetailBySymbol(instrument.symbol ?? "")
+      )
+    : null;
+  const facts: OverviewKeyFacts = {
+    assetClass: instrument.assetClass.replaceAll("_", " "),
+    sector: instrument.canonicalSector ?? instrument.sector,
+    industry: detail?.profile?.industry ?? instrument.industry,
+    exchange: detail?.profile?.exchange ?? instrument.exchange,
+    marketCap: detail?.profile?.marketCap ?? null,
+    peRatio: detail?.latestRatio?.peRatio ?? null,
+    dividendYield: null,
+    volatility1y: riskMetric?.volatility1y ?? null,
+    currency: detail?.profile?.currency ?? instrument.currency ?? "USD"
+  };
+  return <KeyFactsCard facts={facts} />;
+}
+
+function UniversePercentileFallback() {
+  return <span>—</span>;
+}
+
+async function AsyncUniversePercentile({
+  instrumentId,
+  currentScore
+}: {
+  instrumentId: string;
+  currentScore: number | null | undefined;
+}) {
+  const container = createContainer();
+  const rows = await measureRenderStep(`instrument-detail:${instrumentId}:score-percentile`, () =>
+    container.recommendationService.listLatestRecommendationScores(1_000)
+  );
+  return <span>{universePercentileLabel(currentScore, rows, instrumentId)}</span>;
+}
+
+function ReturnCharacterFallback() {
+  return <ReturnCharacterCard stats={null} />;
+}
+
+async function AsyncReturnCharacterCard({
+  priceSeriesPromise,
+  marketView,
+  riskMetric
+}: {
+  priceSeriesPromise: Promise<PriceSeriesPoint[]>;
+  marketView: InstrumentMarketView;
+  riskMetric: InstrumentRiskMetric | null;
+}) {
+  const series = await priceSeriesPromise;
+  return <ReturnCharacterCard stats={returnCharacterStats(series, marketView, riskMetric)} />;
 }
 
 function ScoreTrendPanelFallback() {
@@ -383,10 +489,24 @@ function tabsForType(
   riskMetric: InstrumentRiskMetric | null,
   recommendation: InstrumentRecommendation | null,
   priceChart: ReactNode,
-  scoreTrend: ReactNode
+  scoreTrend: ReactNode,
+  keyFacts: ReactNode,
+  universePercentile: ReactNode,
+  returnCharacter: ReactNode
 ) {
   const common = {
-    overview: <InstrumentOverviewPanel marketView={marketView} riskMetric={riskMetric} recommendation={recommendation} priceChart={priceChart} scoreTrend={scoreTrend} />,
+    overview: (
+      <InstrumentOverviewPanel
+        marketView={marketView}
+        riskMetric={riskMetric}
+        recommendation={recommendation}
+        priceChart={priceChart}
+        scoreTrend={scoreTrend}
+        keyFacts={keyFacts}
+        universePercentile={universePercentile}
+        returnCharacter={returnCharacter}
+      />
+    ),
     news: <NewsSummaryCard />,
     themes: <ThemesPanel instrument={instrument} />,
     risk: <RiskSummaryCard instrument={instrument} riskMetric={riskMetric} />,
@@ -540,11 +660,13 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
     ])
   );
   const marketView = marketViews[0];
+  const priceSeriesPromise = measureRenderStep(`instrument-detail:${instrument.id}:price-series`, () =>
+    container.universeRepository.getInstrumentPriceSeries(instrument.id, { fromYears: 20 })
+  );
   const priceChart = (
     <Suspense fallback={<InstrumentPriceChartFallback />}>
       <AsyncInstrumentPriceChart
-        instrumentId={instrument.id}
-        fromYears={20}
+        priceSeriesPromise={priceSeriesPromise}
         fiftyTwoWeekLow={marketView.fiftyTwoWeekLow}
         fiftyTwoWeekHigh={marketView.fiftyTwoWeekHigh}
         oneYearReturn={marketView.oneYearReturn}
@@ -553,12 +675,40 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
       />
     </Suspense>
   );
+  const keyFacts = (
+    <Suspense fallback={<KeyFactsFallback />}>
+      <AsyncKeyFactsCard instrument={instrument} riskMetric={riskMetric} />
+    </Suspense>
+  );
+  const universePercentile = (
+    <Suspense fallback={<UniversePercentileFallback />}>
+      <AsyncUniversePercentile instrumentId={instrument.id} currentScore={recommendation?.overallScore} />
+    </Suspense>
+  );
   const scoreTrend = (
     <Suspense fallback={<ScoreTrendPanelFallback />}>
       <AsyncScoreTrendPanel instrumentId={instrument.id} />
     </Suspense>
   );
-  const tabs = tabsForType(type, instrument, typeLabel, marketView, bondProfile, riskMetric, recommendation, priceChart, scoreTrend);
+  const returnCharacter = (
+    <Suspense fallback={<ReturnCharacterFallback />}>
+      <AsyncReturnCharacterCard priceSeriesPromise={priceSeriesPromise} marketView={marketView} riskMetric={riskMetric} />
+    </Suspense>
+  );
+  const tabs = tabsForType(
+    type,
+    instrument,
+    typeLabel,
+    marketView,
+    bondProfile,
+    riskMetric,
+    recommendation,
+    priceChart,
+    scoreTrend,
+    keyFacts,
+    universePercentile,
+    returnCharacter
+  );
 
   return (
     <div className="space-y-6">

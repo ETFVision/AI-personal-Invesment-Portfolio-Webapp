@@ -6649,3 +6649,26 @@ Expected behavior:
 - Volatility remains annualised stored volatility; drawdown remains stored drawdown magnitude and is not annualised.
 - CAGR bars clip visually above 100% while preserving the true percentage label.
 - No scoring, recommendation, methodology, access-control, or data-pipeline behavior changed.
+
+---
+
+## 2026-06-26 - Instrument Detail Overview v2 QA
+
+Scope:
+- Reworked the instrument detail Overview into a score-first v2 layout with verdict hero, deterministic Key Observations, streamed chart/facts/percentile, full-width Characteristics breakdown, split long-horizon return/risk cards, score trend, and return-character diagnostics.
+- Added rolling one-year return-character stats from the same streamed price series used by the price chart.
+- Added a read-only active-universe latest-score helper for percentile display.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (354 tests after rerun with elevated filesystem permission)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session for a deep stock, young IPO, ETF, and bond ETF.
+
+Expected behavior:
+- Key Observations use fixed deterministic templates from stored component keys and documented score bands.
+- Return-character tiles render null values as "—" and do not affect scoring or guardrails.
+- The price chart and return-character card share the same streamed price-series read.
+- Key Facts render missing dividend yield as "—" because the current domain model does not expose that field.
+- No scoring, methodology, guardrail, recommendation, access-control, feature-flag, or data-pipeline behavior changed.

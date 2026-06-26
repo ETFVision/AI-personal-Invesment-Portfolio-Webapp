@@ -4459,3 +4459,40 @@ Completed.
 ### Notes for Claude
 - Initial `npm.cmd test` failed before executing tests because TypeScript could not write `.test-build` files under sandboxed filesystem permissions (`EPERM`); rerunning the same command with elevated filesystem permission passed.
 - Browser recheck in an authenticated session is still pending; verify a deep-history name such as NVDA shows separated 15Y/20Y annualised returns rather than near-identical total returns.
+
+## 2026-06-26 - Instrument Detail Overview v2
+
+### Source
+Claude Code
+
+### Objective
+Evolve the instrument detail Overview tab into the approved v2 layout with streamed facts, deterministic observations, rolling return-character diagnostics, split long-horizon cards, and a balanced score-first presentation.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/application/services/recommendations/RecommendationService.ts`
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added a read-only latest-score helper filtered to active instruments so the Overview can stream a "Top X% vs universe" percentile.
+- Reused the streamed price-series read for both the SVG chart and deterministic return-character rolling stats.
+- Added streamed Key Facts from existing fundamentals detail fields and stored risk metrics; missing values render as "—".
+- Added deterministic Key Observation cards from stored scoring components and documented score bands; no generated text or scoring changes.
+- Reworked Overview into the v2 layout: verdict hero, chart plus facts, full-width two-column Characteristics breakdown, split long-horizon returns/risk cards, score trend plus return character, and bottom display-only disclaimer.
+- Kept all changes display-only; no scoring, guardrail, methodology, data-pipeline, access-control, or feature-flag logic changed.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS, 354 tests after rerun with elevated filesystem permission
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Initial sandboxed `npm.cmd test` failed before executing tests because TypeScript could not write `.test-build` files (`EPERM`); rerunning the same command with elevated filesystem permission passed.
+- Browser recheck in an authenticated session is still pending for a deep stock, young IPO, ETF, and bond ETF.
+- Dividend yield is shown as "—" because the current fundamentals ratio/profile domain model does not expose a dividend-yield field.
