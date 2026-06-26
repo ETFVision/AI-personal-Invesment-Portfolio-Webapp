@@ -1,6 +1,6 @@
 # ETFVision Database Schema
 
-Last updated: 2026-06-13
+Last updated: 2026-06-26 (migrations 130-135: long-horizon returns/volatility/drawdown windows, stored 5Y volatility, and the holding-valuation price-source fix)
 
 Authoritative status: current schema handover summary based on `supabase/migrations`. For exact columns and constraints, inspect the migration files directly.
 
@@ -123,10 +123,10 @@ Primary migrations:
 | `daily_prices` | Original asset daily price table for portfolio assets. |
 | `instrument_daily_returns` | Precomputed daily/weekly returns from `instrument_prices`. |
 | `instrument_return_anchors` | Latest price, prior close, return baselines, 52-week ranges. |
-| `instrument_market_metrics` | Page-facing price, return, and range metrics. |
-| `instrument_risk_metrics` | Volatility, drawdown, downside risk and risk score metrics. |
-| `holding_market_metrics` | Holding metrics from transaction cost basis and latest instrument data. |
-| `portfolio_current_metrics` | Current portfolio derived metrics. |
+| `instrument_market_metrics` | Page-facing price, return, and range metrics. Includes display-only 10Y/15Y/20Y long-horizon returns (mig `130`). |
+| `instrument_risk_metrics` | Volatility, drawdown, downside risk and risk score metrics. Includes display-only long-horizon volatility/max-drawdown windows (10/15/20Y mig `133`; stored 5Y volatility mig `134`); these display-only windows do not feed `risk_score`/`risk_bucket`/`volatility_bucket`. |
+| `holding_market_metrics` | Holding metrics from transaction cost basis and latest instrument data. Latest price/date anchored on `instrument_prices` (source of truth) ahead of the derived cache (mig `135`, `refresh_holding_portfolio_metrics`). |
+| `portfolio_current_metrics` | Current portfolio derived metrics. Recomputed (with `holding_market_metrics`) before each analytics snapshot so daily snapshots can't read stale per-portfolio prices. |
 | `benchmarks`, `benchmark_snapshots` | Benchmark definitions and histories. |
 
 The intended sequence is:
@@ -137,6 +137,8 @@ The intended sequence is:
 4. Refresh `instrument_market_metrics`.
 5. Refresh `instrument_risk_metrics`.
 6. Refresh portfolio valuation and summary tables.
+
+Note: the instrument-level chain (steps 1-5) is refreshed by the daily universe crons. The **per-portfolio** derived tables (`holding_market_metrics`, `portfolio_current_metrics`) are NOT on that chain — they are recomputed at the snapshot chokepoint (`createAnalyticsSnapshot` calls `refreshHoldingPortfolioMetrics` before reading the dashboard) so they stay fresh for every snapshot. Long-horizon and 5Y-volatility additions come from migrations `130`-`134`; the holding-valuation price-source fix is mig `135`.
 
 ## Fundamentals
 
