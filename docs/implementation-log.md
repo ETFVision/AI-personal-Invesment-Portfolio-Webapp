@@ -5232,3 +5232,36 @@ Completed.
 ### Notes for Claude
 - Display/UX-only Risk tab polish. No data, scoring, risk computation, methodology, guardrail, migration, feature-flag, access-control, beta, Sharpe, or VaR behavior changed.
 - Browser recheck remains recommended for Risk tab spacing and scaled-bar readability.
+
+## 2026-06-30 - Instrument Detail Insights Tab V2
+
+### Source
+Claude Code
+
+### Objective
+Redesign the instrument detail Insights tab as a verdict-first, non-advisory v2 display over existing recommendation fields.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Replaced the v1 Insights card with a verdict hero showing the stored characteristics label, score, confidence, freshness, methodology link, reasoning summary, and existing universe percentile chip.
+- Added a component breakdown with band-aligned score bars and stored rationale beside each bar, using the existing characteristics band constants and helpers.
+- Added assessment sensitivity groups from stored improvement and deterioration triggers, hiding empty groups.
+- Reused the existing streamed score-trend panel inside the Insights tab and removed the v1 positive/negative driver, guardrail, data-limitations, and raw history sections.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS after rerun with write permission for `.test-build`; first sandboxed run failed with EPERM writing test artifacts.
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display/UX-only change over existing `InstrumentRecommendation` and recommendation-history fields. No scoring, guardrail, methodology, anchor, migration, feature-flag, access-control, or recommendation computation changed.
+- Browser recheck in an authenticated session remains recommended for the Insights tab layout across stock, ETF, and bond ETF instruments.

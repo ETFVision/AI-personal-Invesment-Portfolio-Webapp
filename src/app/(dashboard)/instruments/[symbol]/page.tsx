@@ -769,7 +769,7 @@ function tabsForType(
     themes: <ThemesPanel instrument={instrument} />,
     risk: riskPanel,
     marketVision: <MarketVisionContextCard />,
-    recommendations: <RecommendationSummaryCard recommendation={recommendation} />
+    recommendations: <RecommendationSummaryCard recommendation={recommendation} scoreTrend={scoreTrend} universePercentile={universePercentile} />
   };
 
   if (type === "stock") {

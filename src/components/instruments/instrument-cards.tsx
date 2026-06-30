@@ -28,7 +28,7 @@ import {
   Waves
 } from "lucide-react";
 import type { Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
-import type { InstrumentRecommendation, RecommendationHistoryItem } from "@/domain/recommendations/types";
+import type { InstrumentRecommendation } from "@/domain/recommendations/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MiniRangeBar } from "@/components/ui/charts";
 import {
@@ -40,7 +40,6 @@ import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils
 import { ThemeBadgeList } from "./instrument-badges";
 import {
   CHARACTERISTICS_SCORE_BANDS,
-  assessmentClassName,
   assessmentLabel,
   assessmentTone,
   businessQualityLabel
@@ -148,10 +147,6 @@ function riskPercent(value: number | null | undefined) {
     style: "percent",
     maximumFractionDigits: 0
   }).format(value);
-}
-
-function scoreValue(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value)}/100` : "-";
 }
 
 function tabId(label: string) {
@@ -483,25 +478,6 @@ function componentDisplayReason(component: { key: string; label: string; score: 
     if (component.score < 70) return `${component.label} score is mixed`;
   }
   return component.reason || "-";
-}
-
-function scoringLabel(recommendation: InstrumentRecommendation, key: "baseLabel" | "finalLabel") {
-  const value = recommendation.scoringBreakdown[key];
-  return typeof value === "string" ? assessmentLabel(value) : "-";
-}
-
-function normalizeNegativeDriver(item: string) {
-  const replacements: Record<string, string> = {
-    "Strong overall fundamentals": "Weak overall fundamentals",
-    "Improving fundamental trends": "Deteriorating fundamental trends",
-    "Supportive valuation score": "Weak valuation score",
-    "Market Vision context supports the instrument": "Market Vision context is cautious for the instrument",
-    "Useful canonical theme alignment": "Limited canonical theme alignment",
-    "Instrument risk is controlled": "Instrument risk is elevated",
-    "Improves portfolio fit": "Weak portfolio fit",
-    "Positive price momentum": "Weak price momentum"
-  };
-  return replacements[item] ?? item;
 }
 
 export function RiskSummaryCard({
@@ -1332,126 +1308,163 @@ export function InstrumentOverviewPanel({
   );
 }
 
-export function RecommendationSummaryCard({ recommendation, history }: { recommendation: InstrumentRecommendation | null; history?: RecommendationHistoryItem[] }) {
+export function RecommendationSummaryCard({
+  recommendation,
+  scoreTrend,
+  universePercentile
+}: {
+  recommendation: InstrumentRecommendation | null;
+  scoreTrend?: ReactNode;
+  universePercentile?: ReactNode;
+}) {
   if (!recommendation) {
     return <PlaceholderPanel title="Insights" description="No instrument insight has been generated for this instrument yet. Run the deterministic insights engine from Research." />;
   }
   const components = scoreComponents(recommendation);
-  const historyRows = history ?? [];
+  const score = recommendation.overallScore;
+  const scoreLabel = score == null ? EMPTY_VALUE : `${Math.round(score)}/100`;
+  const label = assessmentLabel(recommendation.recommendationLabel);
+  const tone = assessmentTone(recommendation.recommendationLabel);
+  const confidence = Math.max(0, Math.min(100, recommendation.confidenceScore ?? 0));
+  const updatedAt = recommendation.updatedAt?.slice(0, 10) ?? EMPTY_VALUE;
+  const upgradeTriggers = recommendation.recommendationChangeTriggers.upgrade ?? [];
+  const downgradeTriggers = recommendation.recommendationChangeTriggers.downgrade ?? [];
+  const hasSensitivity = upgradeTriggers.length > 0 || downgradeTriggers.length > 0;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Instrument Insights</CardTitle>
-        <CardDescription>Deterministic characteristics assessment with explainable drivers and guardrails. This is not investment advice or a trade instruction.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-md border bg-background p-3">
-            <p className="text-xs uppercase text-muted-foreground">Assessment</p>
-            <span className={`mt-2 inline-flex rounded-md border px-2 py-1 text-sm font-medium ${assessmentClassName(recommendation.recommendationLabel)}`}>
-              {assessmentLabel(recommendation.recommendationLabel)}
-            </span>
-          </div>
-          <SummaryMetric label="Characteristics score" value={recommendation.overallScore == null ? "-" : `${Math.round(recommendation.overallScore)}/100`} />
-          <SummaryMetric label="Confidence" value={formatPercent(recommendation.confidenceScore / 100)} />
-          <SummaryMetric label="Risk level" value={recommendation.riskLevel.replaceAll("_", " ")} />
-          <SummaryMetric label="Time horizon" value={recommendation.timeHorizon.replaceAll("_", " ")} />
-          <SummaryMetric label="Last updated" value={recommendation.updatedAt?.slice(0, 10) ?? "-"} />
-          <SummaryMetric label="Base assessment" value={scoringLabel(recommendation, "baseLabel")} />
-          <SummaryMetric label="Final assessment" value={scoringLabel(recommendation, "finalLabel")} />
-        </div>
-        <p className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
-          ETFVision explains instrument characteristics and portfolio fit. It does not tell you to buy, sell, add, reduce or size a position.
-        </p>
-        <p className="rounded-md border bg-muted p-3 text-sm text-muted-foreground">{recommendation.recommendationReasoningSummary}</p>
-        <div className="grid gap-3 lg:grid-cols-2">
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Positive characteristics</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
-              {(recommendation.positiveDrivers.length ? recommendation.positiveDrivers : ["-"]).map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Concern areas</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
-              {(recommendation.negativeDrivers.length ? recommendation.negativeDrivers : ["-"]).map((item) => <li key={item}>{normalizeNegativeDriver(item)}</li>)}
-            </ul>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Guardrails</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
-              {(recommendation.guardrailsApplied.length ? recommendation.guardrailsApplied : ["-"]).map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Data limitations</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
-              {(recommendation.dataLimitations.length ? recommendation.dataLimitations : ["-"]).map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Improvement triggers</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
-              {(recommendation.recommendationChangeTriggers.upgrade.length ? recommendation.recommendationChangeTriggers.upgrade : ["-"]).map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Deterioration triggers</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
-              {(recommendation.recommendationChangeTriggers.downgrade.length ? recommendation.recommendationChangeTriggers.downgrade : ["-"]).map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </div>
-        </div>
-        <div className="rounded-md border p-3">
-          <p className="text-xs uppercase text-muted-foreground">Characteristics breakdown</p>
-          {components.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">No component breakdown stored.</p>
-          ) : (
-            <div className="mt-2 overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b text-xs uppercase text-muted-foreground">
-                  <tr>
-                    <th className="py-2 pr-3">Component</th>
-                    <th className="py-2 pr-3">Score</th>
-                    <th className="py-2 pr-3">Weight</th>
-                    <th className="py-2 pr-3">Reason</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {components.map((component) => (
-                    <tr key={component.key || component.label} className="border-b last:border-0">
-                      <td className="py-2 pr-3 font-medium">{component.label}</td>
-                      <td className="py-2 pr-3">{scoreValue(component.score)}</td>
-                      <td className="py-2 pr-3">{typeof component.weight === "number" ? formatPercent(component.weight) : "-"}</td>
-                      <td className="py-2 pr-3 text-muted-foreground">{componentDisplayReason(component)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+    <div className="space-y-4">
+      <Card className="overflow-hidden">
+        <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)]">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Characteristics assessment</p>
+              <ToneChip label={label} tone={tone} />
+              {universePercentile ? <div>{universePercentile}</div> : null}
             </div>
-          )}
-        </div>
-        {history ? (
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Insight history</p>
-            {historyRows.length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">No historical insight runs stored yet.</p>
-            ) : (
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                {historyRows.map((item) => (
-                  <div key={item.id} className="rounded-md border bg-background p-2 text-sm">
-                    <p className="text-xs text-muted-foreground">{item.runDate}</p>
-                    <p className="font-medium">{assessmentLabel(item.recommendationLabel)}</p>
-                    <p className="text-xs text-muted-foreground">{item.overallScore == null ? "No score" : `${Math.round(item.overallScore)}/100`} - {formatPercent(item.confidenceScore / 100)} confidence</p>
-                  </div>
-                ))}
+            <div className="flex flex-wrap items-end gap-3">
+              <p className="text-5xl font-semibold tabular-nums text-foreground">{score == null ? EMPTY_VALUE : Math.round(score)}</p>
+              <p className="pb-2 text-sm font-medium text-muted-foreground">/100 characteristics score</p>
+            </div>
+            {recommendation.recommendationReasoningSummary ? (
+              <div className="border-t pt-4">
+                <p className="text-sm leading-6 text-muted-foreground">{recommendation.recommendationReasoningSummary}</p>
               </div>
-            )}
+            ) : null}
           </div>
-        ) : null}
-      </CardContent>
-    </Card>
+          <div className="space-y-3 rounded-xl border bg-muted/30 p-4">
+            <div>
+              <div className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                <span>Confidence</span>
+                <span>{formatPercent(confidence / 100)}</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-muted">
+                <div className="h-full rounded-full bg-teal-600" style={{ width: `${confidence}%` }} />
+              </div>
+            </div>
+            <div className="grid gap-2 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Freshness</span>
+                <span className="font-medium text-foreground">{updatedAt}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Score</span>
+                <span className="font-medium tabular-nums text-foreground">{scoreLabel}</span>
+              </div>
+              <a className="text-sm font-medium text-teal-700 hover:underline dark:text-teal-300" href="/methodology">
+                How it&apos;s calculated
+              </a>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Breakdown with reasons</CardTitle>
+          <CardDescription>
+            Component scores and stored rationale from the latest deterministic insight run.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Bands: {CHARACTERISTICS_SCORE_BANDS.excellent}+ excellent · {CHARACTERISTICS_SCORE_BANDS.good}+ good · {CHARACTERISTICS_SCORE_BANDS.neutral}+ neutral · {CHARACTERISTICS_SCORE_BANDS.weak}+ weak
+          </p>
+          {components.length === 0 ? (
+            <p className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">No component breakdown stored.</p>
+          ) : (
+            components.map((component, index) => {
+              const componentScore = typeof component.score === "number" && Number.isFinite(component.score) ? component.score : null;
+              const width = componentScore == null ? 0 : Math.max(0, Math.min(100, componentScore));
+              const reason = componentDisplayReason(component);
+              const qualityLabel = componentQualityLabel(component);
+              return (
+                <div key={`${component.key || component.label}-${index}`} className="grid gap-3 rounded-xl border bg-background p-3 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1fr)]">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{component.label}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {typeof component.weight === "number" ? `${formatPercent(component.weight)} weight` : "Weight unavailable"}
+                          {qualityLabel ? ` · ${qualityLabel}` : ""}
+                        </p>
+                      </div>
+                      <ToneChip label={componentScore == null ? EMPTY_VALUE : `${Math.round(componentScore)}/100`} tone={componentScoreTone(componentScore)} />
+                    </div>
+                    <div className="h-2 rounded-full bg-muted">
+                      <div className={`h-full rounded-full ${componentBarClass(componentScore)}`} style={{ width: `${width}%` }} />
+                    </div>
+                  </div>
+                  {reason && reason !== "-" ? (
+                    <div className="rounded-lg bg-muted/40 p-3 text-sm leading-6 text-muted-foreground">{reason}</div>
+                  ) : (
+                    <div className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">{EMPTY_VALUE}</div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+
+      {hasSensitivity ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Assessment sensitivity</CardTitle>
+            <CardDescription>Stored triggers that would change the descriptive characteristics assessment.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 lg:grid-cols-2">
+            {upgradeTriggers.length > 0 ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                  <TrendingUp className="h-4 w-4" />
+                  Improvement triggers
+                </div>
+                <ul className="mt-3 space-y-2 text-sm text-emerald-900 dark:text-emerald-100">
+                  {upgradeTriggers.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+                </ul>
+              </div>
+            ) : null}
+            {downgradeTriggers.length > 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+                <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
+                  <TrendingDown className="h-4 w-4" />
+                  Deterioration triggers
+                </div>
+                <ul className="mt-3 space-y-2 text-sm text-amber-900 dark:text-amber-100">
+                  {downgradeTriggers.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+                </ul>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {scoreTrend ? <div>{scoreTrend}</div> : null}
+
+      <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+        Analytical classifications only; not investment advice or a trade instruction.
+      </p>
+    </div>
   );
 }
 

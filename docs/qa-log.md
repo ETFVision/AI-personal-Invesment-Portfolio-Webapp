@@ -6861,3 +6861,24 @@ Expected behavior:
 - Volatility bars scale to the displayed non-null window values with a floor so a single low value is not automatically full width.
 - Drawdown and worst-period bars remain presentational only and do not change stored metrics or scoring.
 - Risk score appears only in the hero; Tail & downside focuses on downside volatility, negative-day frequency, and worst periods.
+
+---
+
+## 2026-06-30 SGT - Instrument Detail Insights Tab V2 QA
+
+Scope:
+- Replaced the Insights tab's v1 recommendation summary with a verdict-first v2 display over existing stored recommendation fields.
+- Added band-aligned component score bars with stored reasons, assessment sensitivity trigger groups, and the existing streamed score-trend panel.
+- Removed the v1 positive/negative driver lists, guardrail list, data-limitations list, and raw history table from the Insights tab.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (372 tests; sandboxed run first failed with EPERM writing `.test-build`, rerun with write permission passed)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- The Insights tab shows the stored characteristics label, score, confidence, freshness, methodology link, reasoning summary, and universe percentile context.
+- Component bars use existing score-band helpers and do not introduce new thresholds.
+- Empty sensitivity groups are hidden, and no scoring, guardrail, methodology, data-pipeline, feature-flag, or access-control behavior changed.
