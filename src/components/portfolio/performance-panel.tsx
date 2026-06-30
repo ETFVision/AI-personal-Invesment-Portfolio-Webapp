@@ -282,7 +282,7 @@ function MultiBenchmarkPeriodChart({
     };
   };
   const portfolioSegments = splitForFreshness(portfolioSeries);
-  const portfolioLatestValue = portfolioMetric?.percentChange ?? portfolioSeries[portfolioSeries.length - 1]?.value ?? 0;
+  const portfolioLatestValue = portfolioSeries[portfolioSeries.length - 1]?.value ?? portfolioMetric?.percentChange ?? 0;
   const legendRows = [
     {
       id: "portfolio",
@@ -308,13 +308,14 @@ function MultiBenchmarkPeriodChart({
           </div>
           <div className="text-xs text-muted-foreground">Portfolio / benchmarks</div>
         </div>
-        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${label} portfolio versus benchmark chart`} className="h-52 w-full">
-          {tickValues.map((value) => {
-            const y = yFor(value);
-            const isZero = Math.abs(value) < 0.00001;
-            return (
-              <g key={value}>
+        <div className="relative h-52 w-full">
+          <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${label} portfolio versus benchmark chart`} className="h-full w-full">
+            {tickValues.map((value) => {
+              const y = yFor(value);
+              const isZero = Math.abs(value) < 0.00001;
+              return (
                 <line
+                  key={value}
                   x1={left}
                   y1={y}
                   x2={right}
@@ -324,52 +325,61 @@ function MultiBenchmarkPeriodChart({
                   strokeDasharray={isZero ? undefined : "2 2"}
                   vectorEffect="non-scaling-stroke"
                 />
-                <text x={left - 1.5} y={y + 1.2} textAnchor="end" className="fill-muted-foreground text-[3.8px]">
-                  {formatPercent(value)}
-                </text>
-              </g>
-            );
-          })}
-          {dateTicks.map((point) => {
-            const x = xFor(point.snapshotDate);
-            return (
-              <text key={point.snapshotDate} x={x} y={97} textAnchor="middle" className="fill-muted-foreground text-[3.7px]">
-                {formatChartDateLabel(point.snapshotDate, period)}
-              </text>
-            );
-          })}
-          <polyline points={buildPath(portfolioSegments.solid)} fill="none" className="stroke-primary" strokeWidth="2.1" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-          {portfolioSegments.dashed.length >= 2 ? (
-            <polyline points={buildPath(portfolioSegments.dashed)} fill="none" className="stroke-primary opacity-50" strokeWidth="2.1" strokeLinecap="round" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
-          ) : null}
-          {benchmarkSeries.map((series) => {
-            const segments = splitForFreshness(series.values);
-            return (
-              <g key={series.id}>
-                <polyline
-                  points={buildPath(segments.solid)}
-                  fill="none"
-                  stroke={series.color}
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  vectorEffect="non-scaling-stroke"
-                />
-                {segments.dashed.length >= 2 ? (
+              );
+            })}
+            <polyline points={buildPath(portfolioSegments.solid)} fill="none" className="stroke-primary" strokeWidth="2.1" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            {portfolioSegments.dashed.length >= 2 ? (
+              <polyline points={buildPath(portfolioSegments.dashed)} fill="none" className="stroke-primary opacity-50" strokeWidth="2.1" strokeLinecap="round" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
+            ) : null}
+            {benchmarkSeries.map((series) => {
+              const segments = splitForFreshness(series.values);
+              return (
+                <g key={series.id}>
                   <polyline
-                    points={buildPath(segments.dashed)}
+                    points={buildPath(segments.solid)}
                     fill="none"
                     stroke={series.color}
                     strokeWidth="1.4"
                     strokeLinecap="round"
-                    strokeDasharray="3 2"
-                    opacity="0.45"
                     vectorEffect="non-scaling-stroke"
                   />
-                ) : null}
-              </g>
-            );
-          })}
-        </svg>
+                  {segments.dashed.length >= 2 ? (
+                    <polyline
+                      points={buildPath(segments.dashed)}
+                      fill="none"
+                      stroke={series.color}
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      strokeDasharray="3 2"
+                      opacity="0.45"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  ) : null}
+                </g>
+              );
+            })}
+          </svg>
+          <div className="pointer-events-none absolute inset-0">
+            {tickValues.map((value) => (
+              <span
+                key={value}
+                className="absolute -translate-x-full -translate-y-1/2 pr-1 text-[11px] tabular-nums text-muted-foreground"
+                style={{ left: `${(left / width) * 100}%`, top: `${(yFor(value) / height) * 100}%` }}
+              >
+                {formatPercent(value)}
+              </span>
+            ))}
+            {dateTicks.map((point) => (
+              <span
+                key={point.snapshotDate}
+                className="absolute -translate-x-1/2 text-[11px] tabular-nums text-muted-foreground"
+                style={{ left: `${(xFor(point.snapshotDate) / width) * 100}%`, top: "94%" }}
+              >
+                {formatChartDateLabel(point.snapshotDate, period)}
+              </span>
+            ))}
+          </div>
+        </div>
         {staleTail && latestPriceDate ? (
           <p className="mt-2 text-xs text-muted-foreground">prices as of {latestPriceDate} · provisional</p>
         ) : null}

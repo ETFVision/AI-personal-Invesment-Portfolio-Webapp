@@ -38,6 +38,13 @@ function findBaselineSnapshot<T extends { snapshotDate: string }>(snapshots: T[]
   return onOrBefore ?? sorted.find((snapshot) => snapshot.snapshotDate >= targetDate);
 }
 
+function findSnapshotOnOrBefore<T extends { snapshotDate: string }>(snapshots: T[], targetDate: string) {
+  return [...snapshots]
+    .sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate))
+    .filter((snapshot) => snapshot.snapshotDate <= targetDate)
+    .at(-1);
+}
+
 function maxIsoDate(left: string, right: string | null) {
   if (!right) return left;
   return left > right ? left : right;
@@ -53,32 +60,6 @@ function cashFlowAmount(transaction: Transaction) {
   return Math.abs(transaction.netAmount ?? transaction.grossAmount ?? transactionAmount(transaction));
 }
 
-function buildSnapshotMetric(
-  label: PerformanceMetric["label"],
-  currentValue: number,
-  snapshots: PortfolioSnapshot[],
-  targetDate: string
-): PerformanceMetric {
-  const baseline = findBaselineSnapshot(snapshots, targetDate);
-
-  if (!baseline || baseline.totalValue === 0) {
-    return {
-      label,
-      valueChange: null,
-      percentChange: null,
-      baselineDate: null
-    };
-  }
-
-  const valueChange = currentValue - baseline.totalValue;
-  return {
-    label,
-    valueChange,
-    percentChange: valueChange / baseline.totalValue,
-    baselineDate: baseline.snapshotDate
-  };
-}
-
 function externalPortfolioFlow(transactions: Transaction[], startExclusive: string, endInclusive: string) {
   return transactions
     .filter((transaction) => transaction.transactionDate > startExclusive && transaction.transactionDate <= endInclusive)
@@ -91,6 +72,32 @@ function externalPortfolioFlow(transactions: Transaction[], startExclusive: stri
 
 function chainReturn(subperiodReturns: number[]) {
   return subperiodReturns.reduce((product, value) => product * (1 + value), 1) - 1;
+}
+
+function recordedCapitalCoverage(transactions: Transaction[]) {
+  const deposits = transactions
+    .filter((transaction) => transaction.transactionType === "deposit_cash")
+    .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
+  const buys = transactions
+    .filter((transaction) => transaction.transactionType === "buy")
+    .reduce((sum, transaction) => sum + transactionAmount(transaction) + transaction.fees, 0);
+  return deposits + buys;
+}
+
+function portfolioInceptionDate(snapshots: PortfolioSnapshot[], transactions: Transaction[]) {
+  const fundedSnapshotDate = [...snapshots]
+    .filter((snapshot) => snapshot.totalValue > 0)
+    .sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate))[0]?.snapshotDate ?? null;
+  const firstPurchaseDate = transactions
+    .filter((transaction) => transaction.transactionType === "buy")
+    .map((transaction) => transaction.transactionDate)
+    .sort()[0] ?? null;
+  const dates = [fundedSnapshotDate, firstPurchaseDate].filter((date): date is string => Boolean(date));
+  return dates.length === 0 ? null : dates.sort()[0];
+}
+
+function nullPerformanceMetric(label: PerformanceMetric["label"]): PerformanceMetric {
+  return { label, valueChange: null, percentChange: null, baselineDate: null };
 }
 
 function isImplausibleProductPeriodReturn(percentChange: number, denominator: number, currentValue: number, buys: number, sells: number) {
@@ -150,13 +157,26 @@ export class PerformanceService {
     snapshots: PortfolioSnapshot[];
     transactions: Transaction[];
   }): PerformanceMetric[] {
+    const orderedSnapshots = [...input.snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+    const referenceDate = orderedSnapshots.at(-1)?.snapshotDate ?? todayIsoDate();
+    const inceptionDate = portfolioInceptionDate(orderedSnapshots, input.transactions);
+    const manualCapitalBase = input.investedAmount + input.cashAmount;
+    const sinceInceptionMetric = this.buildPortfolioSinceInceptionMetric(
+      input.currentValue,
+      input.investedAmount,
+      input.cashAmount,
+      orderedSnapshots,
+      input.transactions,
+      referenceDate
+    );
+
     return [
-      this.buildPortfolioTwrMetric("Daily", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(1), input.investedAmount + input.cashAmount),
-      this.buildPortfolioTwrMetric("Weekly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(7), input.investedAmount + input.cashAmount),
-      this.buildPortfolioTwrMetric("Monthly", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(30), input.investedAmount + input.cashAmount),
-      this.buildPortfolioTwrMetric("1Y", input.currentValue, input.snapshots, input.transactions, isoDateDaysAgo(365), input.investedAmount + input.cashAmount),
-      this.buildPortfolioTwrMetric("YTD", input.currentValue, input.snapshots, input.transactions, startOfYearIsoDate(), input.investedAmount + input.cashAmount),
-      this.buildPortfolioSinceInceptionMetric(input.currentValue, input.investedAmount, input.cashAmount, input.snapshots, input.transactions)
+      this.buildTrailingPortfolioTwrMetric("Daily", input.currentValue, orderedSnapshots, input.transactions, isoDateDaysAgoFrom(referenceDate, 1), referenceDate, inceptionDate, sinceInceptionMetric, manualCapitalBase),
+      this.buildTrailingPortfolioTwrMetric("Weekly", input.currentValue, orderedSnapshots, input.transactions, isoDateDaysAgoFrom(referenceDate, 7), referenceDate, inceptionDate, sinceInceptionMetric, manualCapitalBase),
+      this.buildTrailingPortfolioTwrMetric("Monthly", input.currentValue, orderedSnapshots, input.transactions, isoDateDaysAgoFrom(referenceDate, 30), referenceDate, inceptionDate, sinceInceptionMetric, manualCapitalBase),
+      this.buildTrailingPortfolioTwrMetric("1Y", input.currentValue, orderedSnapshots, input.transactions, isoDateDaysAgoFrom(referenceDate, 365), referenceDate, inceptionDate, sinceInceptionMetric, manualCapitalBase),
+      this.buildTrailingPortfolioTwrMetric("YTD", input.currentValue, orderedSnapshots, input.transactions, startOfYearFromIsoDate(referenceDate), referenceDate, inceptionDate, sinceInceptionMetric, manualCapitalBase),
+      sinceInceptionMetric
     ];
   }
 
@@ -199,20 +219,44 @@ export class PerformanceService {
     ];
   }
 
+  private buildTrailingPortfolioTwrMetric(
+    label: PerformanceMetric["label"],
+    currentValue: number,
+    snapshots: PortfolioSnapshot[],
+    transactions: Transaction[],
+    targetDate: string,
+    referenceDate: string,
+    inceptionDate: string | null,
+    sinceInceptionMetric: PerformanceMetric,
+    manualCapitalBase = 0
+  ): PerformanceMetric {
+    if (inceptionDate && targetDate <= inceptionDate) {
+      return { ...sinceInceptionMetric, label };
+    }
+    return this.buildPortfolioTwrMetric(label, currentValue, snapshots, transactions, targetDate, referenceDate, {
+      manualCapitalBase,
+      allowManualCapitalFallback: false
+    });
+  }
+
   private buildPortfolioTwrMetric(
     label: PerformanceMetric["label"],
     currentValue: number,
     snapshots: PortfolioSnapshot[],
     transactions: Transaction[],
     targetDate: string,
-    manualCapitalBase = 0
+    referenceDate: string,
+    options: { manualCapitalBase?: number; allowManualCapitalFallback?: boolean } = {}
   ): PerformanceMetric {
-    const baseline = findBaselineSnapshot(snapshots, targetDate);
-    if (!baseline) return buildSnapshotMetric(label, currentValue, snapshots, targetDate);
+    const manualCapitalBase = options.manualCapitalBase ?? 0;
+    const baseline = findSnapshotOnOrBefore(snapshots, targetDate);
+    if (!baseline || baseline.totalValue === 0) return nullPerformanceMetric(label);
+    if (!options.allowManualCapitalFallback && currentValue > 0 && baseline.totalValue < currentValue * 0.1) {
+      return nullPerformanceMetric(label);
+    }
 
-    const currentDate = todayIsoDate();
     const periodTransactions = transactions.filter(
-      (transaction) => transaction.transactionDate > baseline.snapshotDate && transaction.transactionDate <= currentDate
+      (transaction) => transaction.transactionDate > baseline.snapshotDate && transaction.transactionDate <= referenceDate
     );
     const deposits = periodTransactions
       .filter((transaction) => transaction.transactionType === "deposit_cash")
@@ -221,7 +265,7 @@ export class PerformanceService {
       .filter((transaction) => transaction.transactionType === "withdraw_cash")
       .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
     const snapshotCapitalBase = baseline.totalValue + deposits;
-    const useManualCapitalBase = manualCapitalBase > 0 && snapshotCapitalBase < manualCapitalBase * 0.8;
+    const useManualCapitalBase = Boolean(options.allowManualCapitalFallback) && manualCapitalBase > 0 && snapshotCapitalBase < manualCapitalBase * 0.8;
     const valueChange = currentValue - baseline.totalValue - deposits + withdrawals;
     if (useManualCapitalBase) {
       const manualValueChange = currentValue + withdrawals - manualCapitalBase;
@@ -234,21 +278,18 @@ export class PerformanceService {
     }
 
     const orderedSnapshots = [...snapshots]
-      .filter((snapshot) => snapshot.snapshotDate >= baseline.snapshotDate && snapshot.snapshotDate <= currentDate)
+      .filter((snapshot) => snapshot.snapshotDate >= baseline.snapshotDate && snapshot.snapshotDate < referenceDate)
       .sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
-    const lastSnapshot = orderedSnapshots.at(-1);
     const endpoint: PortfolioSnapshot = {
       id: "current",
       portfolioId: baseline.portfolioId,
-      snapshotDate: currentDate,
+      snapshotDate: referenceDate,
       totalValue: currentValue,
       cashValue: 0,
       investedValue: currentValue,
       currency: baseline.currency
     };
-    const series = lastSnapshot && lastSnapshot.snapshotDate === currentDate
-      ? orderedSnapshots
-      : [...orderedSnapshots, endpoint];
+    const series = [...orderedSnapshots, endpoint];
     const returns: number[] = [];
     for (let index = 1; index < series.length; index += 1) {
       const previous = series[index - 1];
@@ -271,8 +312,23 @@ export class PerformanceService {
     investedAmount: number,
     cashAmount: number,
     snapshots: PortfolioSnapshot[],
-    transactions: Transaction[]
+    transactions: Transaction[],
+    referenceDate = todayIsoDate()
   ): PerformanceMetric {
+    const manualCapitalBase = investedAmount + cashAmount;
+    if (manualCapitalBase > 0 && recordedCapitalCoverage(transactions) < manualCapitalBase * 0.8) {
+      const withdrawals = transactions
+        .filter((transaction) => transaction.transactionType === "withdraw_cash" && transaction.transactionDate <= referenceDate)
+        .reduce((sum, transaction) => sum + cashFlowAmount(transaction), 0);
+      const valueChange = currentValue + withdrawals - manualCapitalBase;
+      return {
+        label: "Since inception",
+        valueChange,
+        percentChange: valueChange / manualCapitalBase,
+        baselineDate: null
+      };
+    }
+
     if (snapshots.length > 0) {
       const firstSnapshot = [...snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate))[0];
       return this.buildPortfolioTwrMetric(
@@ -281,7 +337,8 @@ export class PerformanceService {
         snapshots,
         transactions,
         firstSnapshot.snapshotDate,
-        investedAmount + cashAmount
+        referenceDate,
+        { manualCapitalBase, allowManualCapitalFallback: true }
       );
     }
 

@@ -94,38 +94,43 @@ Portfolio performance uses a flow-aware, TWR-style methodology where portfolio s
 
 For daily, weekly, monthly, 1Y and YTD metrics:
 
-1. Find the nearest baseline portfolio snapshot on or before the target date. If none exists, the first snapshot after the target date can be used.
-2. Collect transactions after the baseline date and up to the current date.
-3. Treat external flows as:
+1. Anchor the calculation to the latest portfolio snapshot date in the available series, not wall-clock today.
+2. Derive trailing windows from that reference date: 1 day, 7 days, 30 days, 365 days, and year-to-date from January 1 of the reference year.
+3. If the requested window starts before the portfolio inception date, the period displays the since-inception return. This prevents young portfolios from showing misleading missing values for 1Y or YTD windows that predate the portfolio.
+4. Find the baseline portfolio snapshot on or before the target date. If the target is inside the portfolio's life and no usable baseline exists, or the baseline value is implausibly small relative to the current portfolio value, the period is shown as `Needs history`.
+5. Collect transactions after the baseline date and up to the latest snapshot reference date.
+6. Treat external flows as:
    - `deposit_cash` = positive external flow.
    - `withdraw_cash` = negative external flow.
    - Buy, sell, dividend and fee transactions are not external portfolio flows for portfolio-level TWR.
-4. Build a chronological snapshot series from the baseline snapshot to the latest current value.
-5. For each subperiod:
+7. Build a chronological snapshot series from the baseline snapshot to the latest current value at the reference date.
+8. For each subperiod:
 
 `periodReturn = (currentTotalValue - netExternalFlow) / previousTotalValue - 1`
 
-6. Chain subperiod returns:
+9. Chain subperiod returns:
 
 `portfolioReturn = product(1 + periodReturn) - 1`
 
-7. Value change is also shown:
+10. Value change is also shown:
 
 `valueChange = currentTotalValue - baselineTotalValue - deposits + withdrawals`
 
-### Manual Capital Base Override
+### Manual Capital Base Handling
 
-`AnalyticsService.ts` includes a defensive override for portfolios where transaction history does not fully explain the current capital base. If a manual capital base is configured and recorded capital coverage is materially incomplete, portfolio performance metrics are calculated against the manual capital base:
+Portfolio period metrics are calculated independently from snapshots; there is no blanket override that forces daily, weekly, monthly, 1Y, YTD, and since-inception returns to the same manual-capital figure.
+
+Since-inception keeps a defensive manual-capital fallback for portfolios where transaction history does not fully explain the current capital base:
 
 `manualValueChange = currentTotalValue - manualCapitalBase`
 
 `manualPercentChange = manualValueChange / manualCapitalBase`
 
-This prevents misleading extreme returns when older deposits or cost basis were not fully entered into the transaction ledger.
+This prevents misleading extreme since-inception returns when older deposits or cost basis were not fully entered into the transaction ledger, while preserving distinct per-period snapshot TWR for shorter windows.
 
 ### Since-Inception Portfolio Metric
 
-If portfolio snapshots exist, since-inception uses the first snapshot as the baseline and the same TWR-style chain above.
+If transaction coverage is materially incomplete, since-inception uses the manual capital base fallback above. Otherwise, if portfolio snapshots exist, since-inception uses the first snapshot as the baseline and the same TWR-style chain above.
 
 If snapshots do not exist, the fallback denominator is:
 
