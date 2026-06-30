@@ -64,68 +64,68 @@ tier-scoped gap IDs (`High N` / `Med N` / `Low N`) used elsewhere in this docume
 after each item — e.g. `(High 5)`, `(Med 37)` — is the canonical reference for that item.
 
 ### Phase A — Gate the first alpha invite
-E1. Set Vercel env vars `ALLOWED_SIGNUP_EMAILS`, `ASSISTANT_DAILY_LIMIT` (High 5) **[ops]**
-E2. Email deliverability test — signup/reset to Gmail+Outlook, SPF/DKIM (Med 37) **[ops]** — *hard gate*
-E3. Sentry error monitoring + job-failure alerting + `server-only` guard on `supabaseAdmin.ts` (Med 38 + High 4 + Med 36) **[build]** — *highest-leverage build*
-E4. New-user onboarding / empty state on `/portfolio` (Med 39) **[build]**
-E5. Alpha UX walkthrough — fresh-account end-to-end (Med 32) **[review]** — depends on E4
-E6. Route access matrix + alpha branch audit (High 2) **[review/doc]**
+- **E1.** Set Vercel env vars `ALLOWED_SIGNUP_EMAILS`, `ASSISTANT_DAILY_LIMIT` (High 5) **[ops]**
+- **E2.** Email deliverability test — signup/reset to Gmail+Outlook, SPF/DKIM (Med 37) **[ops]** — *hard gate*
+- **E3.** Sentry error monitoring + job-failure alerting + `server-only` guard on `supabaseAdmin.ts` (Med 38 + High 4 + Med 36) **[build]** — *highest-leverage build*
+- **E4.** New-user onboarding / empty state on `/portfolio` (Med 39) **[build]**
+- **E5.** Alpha UX walkthrough — fresh-account end-to-end (Med 32) **[review]** — depends on E4
+- **E6.** Route access matrix + alpha branch audit (High 2) **[review/doc]**
 
 ### Phase B — During alpha (correctness confidence; finish before paid)
-E7. Calculation golden regression suite + manual/Excel validation (Med 26) **[build]** — *existential for a calc product; start as soon as Phase A is in flight*
-E8. AI output regression tests — hallucination / no-advice / missing-data (Med 27) **[build]**
-E9. Data provider full-universe coverage matrix (Med 24) **[build/review]**
-E10. Recommendation calibration QA after one full production weekly run (Med 29) **[review]**
-E11. Market Vision evidence traceability audit (Med 28) **[review]**
-E12. Observability / reproducibility matrix (Med 30) **[review/doc]**
-E13. Data-freshness UX product audit (Med 33) **[review]**
-E14. Security Master auto-setup on new-instrument add (Med 41) **[build]** — data-quality gap the first time the universe grows post-launch
-E15. Derived-metrics batch-cap raise + cron-run monitoring/alerting + inactive-row cleanup (Med 47) **[build/ops]** — raise `maxBatches` to cover the full active universe; ties to E3 alerting and E14 growth
-E16. Duplicate-portfolio idempotency + DB guard at setup (Med 50) **[build]** — idempotent `getOrCreateDefaultPortfolio` + partial unique index; matters as real users onboard
-E17. Migration tracking/numbering + safety review — ledger, dedupe `052/061/062`, timestamped naming (High 7 + Low 7) **[build/ops]**
+- **E7.** Calculation golden regression suite + manual/Excel validation (Med 26) **[build]** — *existential for a calc product; start as soon as Phase A is in flight*
+- **E8.** AI output regression tests — hallucination / no-advice / missing-data (Med 27) **[build]**
+- **E9.** Data provider full-universe coverage matrix (Med 24) **[build/review]**
+- **E10.** Recommendation calibration QA after one full production weekly run (Med 29) **[review]**
+- **E11.** Market Vision evidence traceability audit (Med 28) **[review]**
+- **E12.** Observability / reproducibility matrix (Med 30) **[review/doc]**
+- **E13.** Data-freshness UX product audit (Med 33) **[review]**
+- **E14.** Security Master auto-setup on new-instrument add (Med 41) **[build]** — data-quality gap the first time the universe grows post-launch
+- **E15.** Derived-metrics batch-cap raise + cron-run monitoring/alerting + inactive-row cleanup (Med 47) **[build/ops]** — raise `maxBatches` to cover the full active universe; ties to E3 alerting and E14 growth
+- **E16.** Duplicate-portfolio idempotency + DB guard at setup (Med 50) **[build]** — idempotent `getOrCreateDefaultPortfolio` + partial unique index; matters as real users onboard
+- **E17.** Migration tracking/numbering + safety review — ledger, dedupe `052/061/062`, timestamped naming (High 7 + Low 7) **[build/ops]**
 
 ### Phase C — Before first paying user
-E18. Legal & compliance review — ToS, privacy, disclaimers, PDPA (High 8) **[external]**
-E19. Data licensing confirmation — FMP/FRED/NewsData/GDELT (High 9) **[external]**
-E20. User privacy lifecycle — retention, export, account deletion (High 10) **[build]**
-E21. DB index audit + backup policy + restore test (Med 31) **[review/ops]**
-E22. Cost control — provider quota register + budget alerting (Med 34) **[build/ops]**
-E23. Error-handling / empty-state full inventory (Med 35) **[review/build]**
-E24. Support operations — contact, bug/triage, dispute path (Low 12) **[ops]**
-E25. Incident response playbook (Low 9) **[ops/doc]**
-E26. Commercial readiness — pricing, payments, subscription, refunds (Low 13) **[build]** — biggest net-new product surface
+- **E18.** Legal & compliance review — ToS, privacy, disclaimers, PDPA (High 8) **[external]**
+- **E19.** Data licensing confirmation — FMP/FRED/NewsData/GDELT (High 9) **[external]**
+- **E20.** User privacy lifecycle — retention, export, account deletion (High 10) **[build]**
+- **E21.** DB index audit + backup policy + restore test (Med 31) **[review/ops]**
+- **E22.** Cost control — provider quota register + budget alerting (Med 34) **[build/ops]**
+- **E23.** Error-handling / empty-state full inventory (Med 35) **[review/build]**
+- **E24.** Support operations — contact, bug/triage, dispute path (Low 12) **[ops]**
+- **E25.** Incident response playbook (Low 9) **[ops/doc]**
+- **E26.** Commercial readiness — pricing, payments, subscription, refunds (Low 13) **[build]** — biggest net-new product surface
 - **Performance & rendering audit** — slow-route identification, summary-table refresh correctness, over-fetch/pagination, lazy-loaded admin diagnostics (`COMMERCIALIZATION_AUDIT_PLAN.md` Section 13, *in progress*) **[review/build]**. Placed in Phase C to match the audit plan's before-paid timing; tracked by Low 2 / E46 (render-timing baseline).
 
 ### Phase D — Analytics correctness/quality (schedule by user impact)
-E27. Benchmark total-return vs price-return labeling (Med 11) **[build]** — quick win, do early
-E28. Portfolio volatility distorted by deposits/withdrawals — document or switch to cash-flow-adjusted returns (Med 10) **[build]**
-E29. XIRR / money-weighted return (Med 12) **[build]**
-E30. FX conversion for multi-currency portfolios (Med 9) **[build]** — largest of these
-E31. ETF expense ratio + equity dividend yield ingestion (Med 44) **[build]** — wire the existing blank "—" Key Facts fields (display-only)
-E32. Diversification score unification — Risk page vs Portfolio Review (Med 43) **[build]** — one look-through-aware, live definition; methodology-doc update
-E33. TTM scoring basis evaluation (Med 45) **[build]** — methodology programme (recalibrate bands + golden tests); see `METHODOLOGY_AND_SCORING_WIP.md`
-E34. Bond-ETF issuer-feed analytical enrichment (Med 42) **[build/external]** — gated by data licensing (E19/High 9) + bond-score drift validation
+- **E27.** Benchmark total-return vs price-return labeling (Med 11) **[build]** — quick win, do early
+- **E28.** Portfolio volatility distorted by deposits/withdrawals — document or switch to cash-flow-adjusted returns (Med 10) **[build]**
+- **E29.** XIRR / money-weighted return (Med 12) **[build]**
+- **E30.** FX conversion for multi-currency portfolios (Med 9) **[build]** — largest of these
+- **E31.** ETF expense ratio + equity dividend yield ingestion (Med 44) **[build]** — wire the existing blank "—" Key Facts fields (display-only)
+- **E32.** Diversification score unification — Risk page vs Portfolio Review (Med 43) **[build]** — one look-through-aware, live definition; methodology-doc update
+- **E33.** TTM scoring basis evaluation (Med 45) **[build]** — methodology programme (recalibrate bands + golden tests); see `METHODOLOGY_AND_SCORING_WIP.md`
+- **E34.** Bond-ETF issuer-feed analytical enrichment (Med 42) **[build/external]** — gated by data licensing (E19/High 9) + bond-score drift validation
 
 ### Phase E — Before scaling to 100+ users
-E35. External code review, external calculation review, penetration test, PDPA review, incident drill (`COMMERCIALIZATION_AUDIT_PLAN.md` "100+" list) **[external]**
-E36. Accessibility audit (Low 10) **[review]**
-E37. Browser/device compatibility audit (Low 11) **[review]**
+- **E35.** External code review, external calculation review, penetration test, PDPA review, incident drill (`COMMERCIALIZATION_AUDIT_PLAN.md` "100+" list) **[external]**
+- **E36.** Accessibility audit (Low 10) **[review]**
+- **E37.** Browser/device compatibility audit (Low 11) **[review]**
 
 ### Phase F — Governance, docs, and lower backlog
-E38. Branch/deployment governance policy (Low 6) **[doc]**
-E39. Model/prompt governance policy + regression suite (Low 8) **[doc/build]**
-E40. News classification formula doc (Med 5) **[doc]**
-E41. Assistant table/cost schema confirmation (Med 4) **[review]**
-E42. Security Master provider-observation automation (Med 7) **[build]** — future, after provider-priority rules approved
-E43. Security Master stub-promotion workflow (Med 40) **[build]** — low until the universe grows often
-E44. ETF holdings provider-plan expansion monitoring (Med 25 remaining) **[review]**
-E45. Provider endpoint inventory completion — FMP market/news, FRED, NewsData, GDELT, OpenAI (Low 1) **[doc]**
-E46. Render-timing baseline table (Low 2) **[review]**
-E47. Job schedule drift check vs live `cron.job` (Low 3) **[review]**
-E48. Old docs cleanup / archive pass (Low 4) **[doc]** — needs user approval
-E49. Future ETF universe additions — mid-cap (MDY/IJH/VO), factor, option-income, ESG, balanced (Low 5) **[completed 2026-06-23]**
-E50. Executive-summary count pluralization ("1 watch area") — cosmetic carry-along (Portfolio Review WIP) **[build]**
-E51. Stored 3Y volatility window (Low 14) **[build]** — deferred; add only if a UI/API surface needs it
+- **E38.** Branch/deployment governance policy (Low 6) **[doc]**
+- **E39.** Model/prompt governance policy + regression suite (Low 8) **[doc/build]**
+- **E40.** News classification formula doc (Med 5) **[doc]**
+- **E41.** Assistant table/cost schema confirmation (Med 4) **[review]**
+- **E42.** Security Master provider-observation automation (Med 7) **[build]** — future, after provider-priority rules approved
+- **E43.** Security Master stub-promotion workflow (Med 40) **[build]** — low until the universe grows often
+- **E44.** ETF holdings provider-plan expansion monitoring (Med 25 remaining) **[review]**
+- **E45.** Provider endpoint inventory completion — FMP market/news, FRED, NewsData, GDELT, OpenAI (Low 1) **[doc]**
+- **E46.** Render-timing baseline table (Low 2) **[review]**
+- **E47.** Job schedule drift check vs live `cron.job` (Low 3) **[review]**
+- **E48.** Old docs cleanup / archive pass (Low 4) **[doc]** — needs user approval
+- **E49.** Future ETF universe additions — mid-cap (MDY/IJH/VO), factor, option-income, ESG, balanced (Low 5) **[completed 2026-06-23]**
+- **E50.** Executive-summary count pluralization ("1 watch area") — cosmetic carry-along (Portfolio Review WIP) **[build]**
+- **E51.** Stored 3Y volatility window (Low 14) **[build]** — deferred; add only if a UI/API surface needs it
 
 ### Cross-cutting — UI/UX improvement track (ongoing)
 General visual/interaction polish for commercial credibility — an **iterative track**, not a one-time audit
