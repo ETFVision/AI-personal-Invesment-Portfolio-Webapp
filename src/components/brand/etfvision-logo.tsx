@@ -16,8 +16,8 @@ export function ETFVisionLogo({ variant, className, priority = false }: ETFVisio
     <Image
       src={logoByVariant[variant]}
       alt="ETFVision"
-      width={720}
-      height={560}
+      width={1800}
+      height={540}
       priority={priority}
       className={className}
       sizes="(min-width: 768px) 240px, 160px"
