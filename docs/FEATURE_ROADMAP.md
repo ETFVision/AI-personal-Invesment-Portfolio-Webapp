@@ -1,6 +1,6 @@
 # ETFVision Feature Roadmap
 
-Last updated: 2026-06-17 SGT
+Last updated: 2026-06-30 SGT
 
 ## Overview
 
@@ -36,6 +36,37 @@ ETFVision is positioned as a portfolio analytics and intelligence platform — n
 | 3 | Earnings and macro calendar | Not started |
 | 3 | Watchlist price and metric alerts | Not started |
 | 3 | Mobile-optimised experience | Not started |
+
+---
+
+## In-Progress UX / Redesign Track (existing surfaces)
+
+Distinct from the net-new feature tiers below: these are **redesigns and cleanup of surfaces that already exist in alpha**, tracked here so the forward backlog lives in the repo rather than only in working notes. All items are display/UX only — they must not alter scoring, frozen economic anchors, recommendation guardrails, or compliance vocabulary. Capture each as its own `implementation-log.md` entry when built.
+
+### Instrument Detail Page v2 (premium non-advisory redesign)
+
+Shared design language across all tabs: verdict-first hero + confidence/freshness/"how it's calculated" + deterministic Key Observations; trend glyphs (green up = improving / blue flat = stable / red down = deteriorating, colour **flips on Risk** where rising volatility = red); band-aligned breakdowns (65/48 thresholds). Strictly descriptive/non-advisory.
+
+- **Overview tab — SHIPPED & QC'd.** Verdict hero (score + label + universe percentile + confidence + freshness + methodology link), deterministic Key Observations, Key Facts, characteristics breakdown with lucide-react icons, long-horizon CAGR / volatility / max-drawdown bars, score-trend panel.
+- **Fundamentals tab — SHIPPED.** Business-quality verdict, 6 band-coloured sub-scores, key ratios + financial snapshot, 5 trend cards, collapsible metric detail; period-consistency QC fix (Key Ratios use latest annual + a separate labelled latest-quarter momentum line).
+- **Risk tab v2 — PENDING (next).** Approved mockup: risk verdict + drivers + volatility windows with trend glyph + drawdown + tail/downside.
+- **Insights tab v2 — PENDING (after Risk).** Approved mockup: breakdown-with-reasons + Assessment sensitivity (`recommendationChangeTriggers`, already computed) + score trend + Similar Instruments (descriptive peer table, no stars, self-row highlighted, similarity-ordered, disclaimer).
+
+### Portfolio Dashboard re-skin
+
+- **Pass 1 — SHIPPED.** Health gauge + 2×2 sub-ratings + caption, value/stat cards, tabbed performance chart (1Y/YTD/Since-inception) with curated benchmarks, sector/asset donuts + currency/geography bars, descriptive non-advisory banner.
+- **Performance + geography fixes — SHIPPED 2026-06-30.** Return Summary period correctness (latest-snapshot anchoring; 1Y/YTD/SI collapse for young portfolios), chart axis-label de-stretch, exposure-bar "Other" dedup.
+- **Pass 2 — PENDING.** Recent-activity feed; best/worst-month tiles; 1Y volatility in the Return Summary.
+
+### Cleanup pass (long-horizon program tail)
+
+- **raw_payload Part 2 — PENDING.** Stop writing the FMP blob on the price upsert (`SupabaseUniverseRepository`). Part 1 (null + vacuum, 1019→447 MB) is done.
+- **Force-recompute flag — PENDING.** Add to the derived-metric admin buttons so deep backfills don't need the manual SQL-RPC workaround (`refresh_instrument_*_only(null)` force calls).
+
+### Related repo trackers (do not duplicate here)
+
+- Universe expansion (merge + seed + post-seed QA) — `DOCUMENTATION_GAPS.md` Low 5 / E49, plus Security Master auto-setup (Med 41 / E14).
+- Cross-cutting iterative visual polish — `DOCUMENTATION_GAPS.md` "Cross-cutting — UI/UX improvement track."
 
 ---
 
