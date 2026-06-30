@@ -28,14 +28,18 @@ import {
   Waves
 } from "lucide-react";
 import type { Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/domain/universe/types";
-import type { InstrumentRecommendation, RecommendationHistoryItem } from "@/domain/recommendations/types";
+import type { InstrumentRecommendation } from "@/domain/recommendations/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MiniRangeBar } from "@/components/ui/charts";
+import {
+  DRAWDOWN_BUCKET_DISPLAY,
+  generateRiskObservations,
+  riskVerdictFromVolatilityBucket
+} from "@/components/instruments/instrument-risk-display";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 import { ThemeBadgeList } from "./instrument-badges";
 import {
   CHARACTERISTICS_SCORE_BANDS,
-  assessmentClassName,
   assessmentLabel,
   assessmentTone,
   businessQualityLabel
@@ -139,15 +143,10 @@ function riskLabel(value: string | null | undefined) {
 }
 
 function riskPercent(value: number | null | undefined) {
-  return value == null ? "-" : formatPercent(value);
-}
-
-function longWindowRiskPercent(value: number | null | undefined) {
-  return value == null ? "Insufficient history" : formatPercent(value);
-}
-
-function scoreValue(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value)}/100` : "-";
+  return value == null ? "-" : new Intl.NumberFormat("en-US", {
+    style: "percent",
+    maximumFractionDigits: 0
+  }).format(value);
 }
 
 function tabId(label: string) {
@@ -481,66 +480,298 @@ function componentDisplayReason(component: { key: string; label: string; score: 
   return component.reason || "-";
 }
 
-function scoringLabel(recommendation: InstrumentRecommendation, key: "baseLabel" | "finalLabel") {
-  const value = recommendation.scoringBreakdown[key];
-  return typeof value === "string" ? assessmentLabel(value) : "-";
-}
-
-function normalizeNegativeDriver(item: string) {
-  const replacements: Record<string, string> = {
-    "Strong overall fundamentals": "Weak overall fundamentals",
-    "Improving fundamental trends": "Deteriorating fundamental trends",
-    "Supportive valuation score": "Weak valuation score",
-    "Market Vision context supports the instrument": "Market Vision context is cautious for the instrument",
-    "Useful canonical theme alignment": "Limited canonical theme alignment",
-    "Instrument risk is controlled": "Instrument risk is elevated",
-    "Improves portfolio fit": "Weak portfolio fit",
-    "Positive price momentum": "Weak price momentum"
-  };
-  return replacements[item] ?? item;
-}
-
-export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMetric: InstrumentRiskMetric | null }) {
+export function RiskSummaryCard({
+  riskMetric,
+  universeVolatilityLabel = EMPTY_VALUE,
+  currentDrawdownFromHigh = null,
+  worstWeekAllHistory = null,
+  worstMonthAllHistory = null
+}: {
+  instrument?: Instrument;
+  riskMetric: InstrumentRiskMetric | null;
+  universeVolatilityLabel?: string;
+  currentDrawdownFromHigh?: number | null;
+  worstWeekAllHistory?: number | null;
+  worstMonthAllHistory?: number | null;
+}) {
   if (!riskMetric) {
     return <PlaceholderPanel title="Risk" description="No sufficient stored price history is available for instrument risk metrics yet." />;
   }
 
+  const verdict = riskVerdictFromVolatilityBucket(riskMetric.volatilityBucket);
+  const drawdownVerdict = DRAWDOWN_BUCKET_DISPLAY[riskMetric.drawdownBucket];
+  const markerPercent = `${Math.min(100, Math.max(0, (verdict.level / 3) * 100))}%`;
+  const observations = generateRiskObservations({ riskMetric, universeVolatilityLabel, currentDrawdownFromHigh });
+  const confidenceWidth = Math.max(0, Math.min(100, riskMetric.confidenceScore));
+  const volatilityRows = [
+    { label: "30D", value: riskMetric.volatility30d },
+    { label: "90D", value: riskMetric.volatility90d },
+    { label: "1Y", value: riskMetric.volatility1y },
+    { label: "5Y", value: riskMetric.volatility5y },
+    { label: "10Y", value: riskMetric.volatility10y },
+    { label: "15Y", value: riskMetric.volatility15y },
+    { label: "20Y", value: riskMetric.volatility20y }
+  ];
+  const volatilityValues = volatilityRows.map((row) => row.value).filter((value): value is number => value != null && Number.isFinite(value));
+  const volatilityScale = Math.max(0.5, ...volatilityValues);
+  const drawdownRows = [
+    { label: "Current from peak", value: riskMetric.currentDrawdown },
+    { label: "Max 1Y", value: riskMetric.maxDrawdown1y },
+    { label: "Max 5Y", value: riskMetric.maxDrawdown5y },
+    { label: "Max history", value: riskMetric.maxDrawdown }
+  ];
+  const drawdownValues = drawdownRows.map((row) => row.value).filter((value): value is number => value != null && Number.isFinite(value));
+  const drawdownScale = Math.max(0.5, ...drawdownValues.map((value) => Math.abs(value)));
+  const worstPeriodRows = [
+    { label: "Worst day", value: riskMetric.worstDailyReturn },
+    { label: "Worst week", value: worstWeekAllHistory ?? riskMetric.worstWeeklyReturn },
+    { label: "Worst month", value: worstMonthAllHistory }
+  ];
+  const worstPeriodValues = worstPeriodRows.map((row) => row.value).filter((value): value is number => value != null && Number.isFinite(value));
+  const worstPeriodScale = Math.max(...worstPeriodValues.map((value) => Math.abs(value)), 0);
+  const trendBadge = riskTrendBadge(riskMetric.volatilityTrend);
+  const riskScoreLabel = riskMetric.riskScore == null ? null : `Risk score ${Math.round(riskMetric.riskScore)}/100`;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Risk</CardTitle>
-        <CardDescription>Calculated from stored price history. Long-horizon windows are display-only diagnostics.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryMetric label="Risk score" value={riskMetric.riskScore == null ? "-" : `${Math.round(riskMetric.riskScore)}/100`} />
-        <SummaryMetric label="Risk bucket" value={riskLabel(riskMetric.riskBucket)} />
-        <SummaryMetric label="Confidence" value={formatPercent(riskMetric.confidenceScore / 100)} />
-        <SummaryMetric label="Vol trend" value={riskLabel(riskMetric.volatilityTrend)} />
-        <SummaryMetric label="30D volatility" value={riskPercent(riskMetric.volatility30d)} />
-        <SummaryMetric label="90D volatility" value={riskPercent(riskMetric.volatility90d)} />
-        <SummaryMetric label="1Y volatility" value={riskPercent(riskMetric.volatility1y)} />
-        <SummaryMetric label="5Y volatility" value={longWindowRiskPercent(riskMetric.volatility5y)} />
-        <SummaryMetric label="10Y volatility" value={longWindowRiskPercent(riskMetric.volatility10y)} />
-        <SummaryMetric label="15Y volatility" value={longWindowRiskPercent(riskMetric.volatility15y)} />
-        <SummaryMetric label="20Y volatility" value={longWindowRiskPercent(riskMetric.volatility20y)} />
-        <SummaryMetric label="Downside volatility" value={riskPercent(riskMetric.downsideVolatility)} />
-        <SummaryMetric label="Current DD (1Y)" value={riskPercent(riskMetric.currentDrawdown1y)} />
-        <SummaryMetric label="Max DD (1Y)" value={riskPercent(riskMetric.maxDrawdown1y)} />
-        <SummaryMetric label="Max DD (3Y)" value={riskPercent(riskMetric.maxDrawdown3y)} />
-        <SummaryMetric label="Max DD (5Y)" value={riskPercent(riskMetric.maxDrawdown5y)} />
-        <SummaryMetric label="Max DD (10Y)" value={longWindowRiskPercent(riskMetric.maxDrawdown10y)} />
-        <SummaryMetric label="Max DD (15Y)" value={longWindowRiskPercent(riskMetric.maxDrawdown15y)} />
-        <SummaryMetric label="Max DD (20Y)" value={longWindowRiskPercent(riskMetric.maxDrawdown20y)} />
-        <SummaryMetric label="Current DD (history)" value={riskPercent(riskMetric.currentDrawdown)} />
-        <SummaryMetric label="Max DD (history)" value={riskPercent(riskMetric.maxDrawdown)} />
-        <SummaryMetric label="History DD duration" value={`${riskMetric.drawdownDurationDays ?? 0}d`} />
-        <SummaryMetric label="DD bucket" value={riskLabel(riskMetric.drawdownBucket)} />
-        <SummaryMetric label="Negative day freq" value={riskPercent(riskMetric.negativeReturnFrequency)} />
-        <SummaryMetric label="Worst day" value={riskPercent(riskMetric.worstDailyReturn)} />
-        <SummaryMetric label="Worst 5D" value={riskPercent(riskMetric.worstWeeklyReturn)} />
-        <SummaryMetric label="Risk observations" value={formatNumber(riskMetric.observationCount)} />
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.7fr)]">
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Risk band</p>
+              <div className="mt-2 flex flex-wrap items-end gap-3">
+                <p className="text-4xl font-semibold tracking-tight">{verdict.label}</p>
+                {riskScoreLabel ? (
+                  <span className="mb-1 rounded-full border bg-muted/40 px-3 py-1 text-xs font-semibold text-muted-foreground">
+                    {riskScoreLabel}
+                  </span>
+                ) : null}
+                <ToneChip label={drawdownVerdict.label === EMPTY_VALUE ? "Drawdown unavailable" : drawdownVerdict.label} tone={drawdownVerdict.tone} />
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">Display mapping of the stored volatility bucket; no new risk thresholds are introduced.</p>
+            </div>
+            <div className="space-y-2">
+              <div className="relative h-2 rounded-full bg-muted">
+                <div className="absolute inset-y-0 left-0 w-1/3 rounded-l-full bg-emerald-500/70" />
+                <div className="absolute inset-y-0 left-1/3 w-1/3 bg-amber-500/70" />
+                <div className="absolute inset-y-0 left-2/3 w-1/3 rounded-r-full bg-red-500/70" />
+                <span className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground shadow" style={{ left: markerPercent }} />
+              </div>
+              <div className="flex justify-between text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <span>Lower</span>
+                <span>Moderate</span>
+                <span>Elevated</span>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border bg-background p-3">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">1Y volatility position</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{universeVolatilityLabel}</p>
+              </div>
+              <div className="rounded-lg border bg-background p-3">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Observations</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{formatNumber(riskMetric.observationCount)}</p>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Metric quality</p>
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-muted-foreground">Confidence</span>
+                <span className="font-semibold tabular-nums text-foreground">{formatPercent(riskMetric.confidenceScore / 100)}</span>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${confidenceWidth}%` }} />
+              </div>
+            </div>
+            <div className="grid gap-3 text-sm">
+              <div className="flex items-center justify-between gap-3 border-t pt-3">
+                <span className="text-muted-foreground">Freshness</span>
+                <span className="font-medium text-foreground">as of {riskMetric.metricDate ?? EMPTY_VALUE}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">History</span>
+                <span className="font-medium text-foreground">{riskMetric.historyStartDate ?? EMPTY_VALUE} to {riskMetric.historyEndDate ?? EMPTY_VALUE}</span>
+              </div>
+            </div>
+            <a href="/methodology" className="inline-flex text-xs font-medium text-primary underline-offset-4 hover:underline">
+              How it&apos;s calculated
+            </a>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        {observations.length === 0 ? (
+          <div className="rounded-xl border bg-background p-4 text-sm text-muted-foreground lg:col-span-3">No stored risk observations are available yet.</div>
+        ) : (
+          observations.map((observation) => {
+            const Icon = observation.icon === "activity" ? Activity : observation.icon === "drawdown" ? TrendingDown : observation.icon === "downside" ? Droplet : AlertTriangle;
+            return (
+              <div key={observation.key} className={`rounded-xl border p-4 ${toneClassName(observation.tone)}`}>
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-background/60" aria-hidden>
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold">{observation.title}</p>
+                    <p className="mt-1 text-xs opacity-85">{observation.description}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <RiskDriverCard title="1Y volatility" value={riskPercent(riskMetric.volatility1y)} detail={`${verdict.label} volatility band`} tone={verdict.tone} Icon={Activity} />
+        <RiskDriverCard title="Max drawdown" value={riskPercent(riskMetric.maxDrawdown)} detail={drawdownVerdict.label} tone={drawdownVerdict.tone} Icon={TrendingDown} />
+        <RiskDriverCard title="Downside character" value={riskPercent(riskMetric.downsideVolatility)} detail={`${riskPercent(riskMetric.negativeReturnFrequency)} negative-day frequency`} tone="neutral" Icon={Droplet} />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Volatility windows</CardTitle>
+              <CardDescription>Annualised volatility from stored risk metrics. Legend: rising risk is red; falling risk is green.</CardDescription>
+            </div>
+            {trendBadge ? (
+              <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${toneClassName(trendBadge.tone)}`}>
+                <trendBadge.Icon className="h-3.5 w-3.5" />
+                {trendBadge.label}
+              </span>
+            ) : null}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {volatilityRows.map((row) => (
+            <RiskMagnitudeBar
+              key={row.label}
+              label={row.label}
+              value={row.value}
+              scale={volatilityScale}
+              barClassName="bg-amber-500"
+            />
+          ))}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Drawdown</CardTitle>
+            <CardDescription>Current decline from peak and stored maximum drawdown windows.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {drawdownRows.map((row) => (
+              <RiskMagnitudeBar
+                key={row.label}
+                label={row.label}
+                value={row.value}
+                scale={drawdownScale}
+                barClassName="bg-red-600"
+                valueClassName={row.label === "Max history" ? "font-semibold text-red-600" : "text-foreground"}
+              />
+            ))}
+            <div className="flex flex-wrap gap-2 border-t pt-3">
+              <span className="rounded-full border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                Duration {riskMetric.drawdownDurationDays == null ? "-" : `${riskMetric.drawdownDurationDays}d`}
+              </span>
+              <span className="rounded-full border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                Bucket {riskLabel(riskMetric.drawdownBucket)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Tail & downside</CardTitle>
+            <CardDescription>Stored loss-frequency and worst-period diagnostics from trailing price history.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SummaryMetric label="Downside volatility" value={riskPercent(riskMetric.downsideVolatility)} />
+              <SummaryMetric label="Negative day frequency" value={riskPercent(riskMetric.negativeReturnFrequency)} />
+            </div>
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Worst periods (all history)</p>
+              {worstPeriodRows.map((row) => (
+                <RiskMagnitudeBar
+                  key={row.label}
+                  label={row.label}
+                  value={row.value}
+                  scale={worstPeriodScale}
+                  barClassName="bg-red-600"
+                  valueClassName="font-medium text-red-600"
+                  compact
+                />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+        Risk analytics are historical and descriptive, based on trailing price data. Not investment advice. Past volatility and drawdowns do not predict future risk.
+      </p>
+    </div>
+  );
+}
+
+function RiskDriverCard({ title, value, detail, tone, Icon }: { title: string; value: string; detail: string; tone: string; Icon: LucideIcon }) {
+  return (
+    <Card className="h-full">
+      <CardContent className="flex h-full gap-3 p-4">
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${toneClassName(tone)}`} aria-hidden>
+          <Icon className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{title}</p>
+          <p className="mt-2 text-xl font-semibold tabular-nums text-foreground">{value}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+function riskTrendBadge(trend: InstrumentRiskMetric["volatilityTrend"]) {
+  // Risk trend colours intentionally invert the Overview convention: rising volatility is adverse (red), falling volatility is favourable (green).
+  const Icon = trend === "rising" ? TrendingUp : trend === "falling" ? TrendingDown : trend === "stable" ? ArrowRight : null;
+  if (!Icon) return null;
+  const tone = trend === "rising" ? "danger" : trend === "falling" ? "positive" : trend === "stable" ? "neutral" : "muted";
+  return { Icon, tone, label: riskLabel(trend) };
+}
+
+function RiskMagnitudeBar({
+  label,
+  value,
+  scale,
+  barClassName,
+  valueClassName = "text-foreground",
+  compact = false
+}: {
+  label: string;
+  value: number | null | undefined;
+  scale: number;
+  barClassName: string;
+  valueClassName?: string;
+  compact?: boolean;
+}) {
+  const hasValue = value != null && Number.isFinite(value);
+  const width = hasValue && scale > 0 ? Math.min(100, (Math.abs(value) / scale) * 100) : 0;
+  return (
+    <div className={`grid items-center gap-3 ${compact ? "grid-cols-[5.5rem_minmax(0,1fr)_4rem]" : "grid-cols-[7rem_minmax(0,1fr)_4.5rem]"} text-xs`}>
+      <span className="font-semibold text-muted-foreground">{label}</span>
+      <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+        {hasValue ? <div className={`h-full rounded-full ${barClassName}`} style={{ width: `${width}%` }} /> : null}
+      </div>
+      <span className={`text-right tabular-nums ${hasValue ? valueClassName : "text-muted-foreground"}`}>{hasValue ? riskPercent(value) : "-"}</span>
+    </div>
   );
 }
 
@@ -1077,126 +1308,163 @@ export function InstrumentOverviewPanel({
   );
 }
 
-export function RecommendationSummaryCard({ recommendation, history }: { recommendation: InstrumentRecommendation | null; history?: RecommendationHistoryItem[] }) {
+export function RecommendationSummaryCard({
+  recommendation,
+  scoreTrend,
+  universePercentile
+}: {
+  recommendation: InstrumentRecommendation | null;
+  scoreTrend?: ReactNode;
+  universePercentile?: ReactNode;
+}) {
   if (!recommendation) {
     return <PlaceholderPanel title="Insights" description="No instrument insight has been generated for this instrument yet. Run the deterministic insights engine from Research." />;
   }
   const components = scoreComponents(recommendation);
-  const historyRows = history ?? [];
+  const score = recommendation.overallScore;
+  const scoreLabel = score == null ? EMPTY_VALUE : `${Math.round(score)}/100`;
+  const label = assessmentLabel(recommendation.recommendationLabel);
+  const tone = assessmentTone(recommendation.recommendationLabel);
+  const confidence = Math.max(0, Math.min(100, recommendation.confidenceScore ?? 0));
+  const updatedAt = recommendation.updatedAt?.slice(0, 10) ?? EMPTY_VALUE;
+  const upgradeTriggers = recommendation.recommendationChangeTriggers.upgrade ?? [];
+  const downgradeTriggers = recommendation.recommendationChangeTriggers.downgrade ?? [];
+  const hasSensitivity = upgradeTriggers.length > 0 || downgradeTriggers.length > 0;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Instrument Insights</CardTitle>
-        <CardDescription>Deterministic characteristics assessment with explainable drivers and guardrails. This is not investment advice or a trade instruction.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-md border bg-background p-3">
-            <p className="text-xs uppercase text-muted-foreground">Assessment</p>
-            <span className={`mt-2 inline-flex rounded-md border px-2 py-1 text-sm font-medium ${assessmentClassName(recommendation.recommendationLabel)}`}>
-              {assessmentLabel(recommendation.recommendationLabel)}
-            </span>
-          </div>
-          <SummaryMetric label="Characteristics score" value={recommendation.overallScore == null ? "-" : `${Math.round(recommendation.overallScore)}/100`} />
-          <SummaryMetric label="Confidence" value={formatPercent(recommendation.confidenceScore / 100)} />
-          <SummaryMetric label="Risk level" value={recommendation.riskLevel.replaceAll("_", " ")} />
-          <SummaryMetric label="Time horizon" value={recommendation.timeHorizon.replaceAll("_", " ")} />
-          <SummaryMetric label="Last updated" value={recommendation.updatedAt?.slice(0, 10) ?? "-"} />
-          <SummaryMetric label="Base assessment" value={scoringLabel(recommendation, "baseLabel")} />
-          <SummaryMetric label="Final assessment" value={scoringLabel(recommendation, "finalLabel")} />
-        </div>
-        <p className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
-          ETFVision explains instrument characteristics and portfolio fit. It does not tell you to buy, sell, add, reduce or size a position.
-        </p>
-        <p className="rounded-md border bg-muted p-3 text-sm text-muted-foreground">{recommendation.recommendationReasoningSummary}</p>
-        <div className="grid gap-3 lg:grid-cols-2">
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Positive characteristics</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
-              {(recommendation.positiveDrivers.length ? recommendation.positiveDrivers : ["-"]).map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Concern areas</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
-              {(recommendation.negativeDrivers.length ? recommendation.negativeDrivers : ["-"]).map((item) => <li key={item}>{normalizeNegativeDriver(item)}</li>)}
-            </ul>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Guardrails</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
-              {(recommendation.guardrailsApplied.length ? recommendation.guardrailsApplied : ["-"]).map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Data limitations</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
-              {(recommendation.dataLimitations.length ? recommendation.dataLimitations : ["-"]).map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Improvement triggers</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
-              {(recommendation.recommendationChangeTriggers.upgrade.length ? recommendation.recommendationChangeTriggers.upgrade : ["-"]).map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Deterioration triggers</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm">
-              {(recommendation.recommendationChangeTriggers.downgrade.length ? recommendation.recommendationChangeTriggers.downgrade : ["-"]).map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </div>
-        </div>
-        <div className="rounded-md border p-3">
-          <p className="text-xs uppercase text-muted-foreground">Characteristics breakdown</p>
-          {components.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">No component breakdown stored.</p>
-          ) : (
-            <div className="mt-2 overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b text-xs uppercase text-muted-foreground">
-                  <tr>
-                    <th className="py-2 pr-3">Component</th>
-                    <th className="py-2 pr-3">Score</th>
-                    <th className="py-2 pr-3">Weight</th>
-                    <th className="py-2 pr-3">Reason</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {components.map((component) => (
-                    <tr key={component.key || component.label} className="border-b last:border-0">
-                      <td className="py-2 pr-3 font-medium">{component.label}</td>
-                      <td className="py-2 pr-3">{scoreValue(component.score)}</td>
-                      <td className="py-2 pr-3">{typeof component.weight === "number" ? formatPercent(component.weight) : "-"}</td>
-                      <td className="py-2 pr-3 text-muted-foreground">{componentDisplayReason(component)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+    <div className="space-y-4">
+      <Card className="overflow-hidden">
+        <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)]">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Characteristics assessment</p>
+              <ToneChip label={label} tone={tone} />
+              {universePercentile ? <div>{universePercentile}</div> : null}
             </div>
-          )}
-        </div>
-        {history ? (
-          <div className="rounded-md border p-3">
-            <p className="text-xs uppercase text-muted-foreground">Insight history</p>
-            {historyRows.length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">No historical insight runs stored yet.</p>
-            ) : (
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                {historyRows.map((item) => (
-                  <div key={item.id} className="rounded-md border bg-background p-2 text-sm">
-                    <p className="text-xs text-muted-foreground">{item.runDate}</p>
-                    <p className="font-medium">{assessmentLabel(item.recommendationLabel)}</p>
-                    <p className="text-xs text-muted-foreground">{item.overallScore == null ? "No score" : `${Math.round(item.overallScore)}/100`} - {formatPercent(item.confidenceScore / 100)} confidence</p>
-                  </div>
-                ))}
+            <div className="flex flex-wrap items-end gap-3">
+              <p className="text-5xl font-semibold tabular-nums text-foreground">{score == null ? EMPTY_VALUE : Math.round(score)}</p>
+              <p className="pb-2 text-sm font-medium text-muted-foreground">/100 characteristics score</p>
+            </div>
+            {recommendation.recommendationReasoningSummary ? (
+              <div className="border-t pt-4">
+                <p className="text-sm leading-6 text-muted-foreground">{recommendation.recommendationReasoningSummary}</p>
               </div>
-            )}
+            ) : null}
           </div>
-        ) : null}
-      </CardContent>
-    </Card>
+          <div className="space-y-3 rounded-xl border bg-muted/30 p-4">
+            <div>
+              <div className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                <span>Confidence</span>
+                <span>{formatPercent(confidence / 100)}</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-muted">
+                <div className="h-full rounded-full bg-teal-600" style={{ width: `${confidence}%` }} />
+              </div>
+            </div>
+            <div className="grid gap-2 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Freshness</span>
+                <span className="font-medium text-foreground">{updatedAt}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Score</span>
+                <span className="font-medium tabular-nums text-foreground">{scoreLabel}</span>
+              </div>
+              <a className="text-sm font-medium text-teal-700 hover:underline dark:text-teal-300" href="/methodology">
+                How it&apos;s calculated
+              </a>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Breakdown with reasons</CardTitle>
+          <CardDescription>
+            Component scores and stored rationale from the latest deterministic insight run.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Bands: {CHARACTERISTICS_SCORE_BANDS.excellent}+ excellent · {CHARACTERISTICS_SCORE_BANDS.good}+ good · {CHARACTERISTICS_SCORE_BANDS.neutral}+ neutral · {CHARACTERISTICS_SCORE_BANDS.weak}+ weak
+          </p>
+          {components.length === 0 ? (
+            <p className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">No component breakdown stored.</p>
+          ) : (
+            components.map((component, index) => {
+              const componentScore = typeof component.score === "number" && Number.isFinite(component.score) ? component.score : null;
+              const width = componentScore == null ? 0 : Math.max(0, Math.min(100, componentScore));
+              const reason = componentDisplayReason(component);
+              const qualityLabel = componentQualityLabel(component);
+              return (
+                <div key={`${component.key || component.label}-${index}`} className="grid gap-3 rounded-xl border bg-background p-3 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1fr)]">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{component.label}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {typeof component.weight === "number" ? `${formatPercent(component.weight)} weight` : "Weight unavailable"}
+                          {qualityLabel ? ` · ${qualityLabel}` : ""}
+                        </p>
+                      </div>
+                      <ToneChip label={componentScore == null ? EMPTY_VALUE : `${Math.round(componentScore)}/100`} tone={componentScoreTone(componentScore)} />
+                    </div>
+                    <div className="h-2 rounded-full bg-muted">
+                      <div className={`h-full rounded-full ${componentBarClass(componentScore)}`} style={{ width: `${width}%` }} />
+                    </div>
+                  </div>
+                  {reason && reason !== "-" ? (
+                    <div className="rounded-lg bg-muted/40 p-3 text-sm leading-6 text-muted-foreground">{reason}</div>
+                  ) : (
+                    <div className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">{EMPTY_VALUE}</div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+
+      {hasSensitivity ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Assessment sensitivity</CardTitle>
+            <CardDescription>Stored triggers that would change the descriptive characteristics assessment.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 lg:grid-cols-2">
+            {upgradeTriggers.length > 0 ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                  <TrendingUp className="h-4 w-4" />
+                  Improvement triggers
+                </div>
+                <ul className="mt-3 space-y-2 text-sm text-emerald-900 dark:text-emerald-100">
+                  {upgradeTriggers.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+                </ul>
+              </div>
+            ) : null}
+            {downgradeTriggers.length > 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+                <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
+                  <TrendingDown className="h-4 w-4" />
+                  Deterioration triggers
+                </div>
+                <ul className="mt-3 space-y-2 text-sm text-amber-900 dark:text-amber-100">
+                  {downgradeTriggers.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+                </ul>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {scoreTrend ? <div>{scoreTrend}</div> : null}
+
+      <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+        Analytical classifications only; not investment advice or a trade instruction.
+      </p>
+    </div>
   );
 }
 

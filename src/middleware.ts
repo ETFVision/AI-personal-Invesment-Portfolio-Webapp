@@ -45,6 +45,13 @@ export async function middleware(request: NextRequest) {
 
   const { data } = await supabase.auth.getUser();
 
+  if (data.user && pathname === "/") {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/portfolio";
+    redirectUrl.search = "";
+    return NextResponse.redirect(redirectUrl);
+  }
+
   if (!data.user && isProtectedPath) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";

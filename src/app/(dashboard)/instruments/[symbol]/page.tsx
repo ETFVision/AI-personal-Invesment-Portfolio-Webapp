@@ -34,6 +34,7 @@ import {
 import { InstrumentPriceChart } from "@/components/instruments/instrument-price-chart";
 import { ScoreTrendPanel } from "@/components/instruments/score-trend-panel";
 import { DataFreshnessBadge, InstrumentTypeBadge } from "@/components/instruments/instrument-badges";
+import { riskUniverseVolatilityLabel, worstPeriodReturnFromSeries } from "@/components/instruments/instrument-risk-display";
 import { instrumentTypeLabel, resolveInstrumentType, type CanonicalInstrumentType } from "@/application/services/instruments/InstrumentTypeResolver";
 import { scoreBusinessQuality } from "@/application/services/recommendations/recommendationScoring";
 import { CHARACTERISTICS_SCORE_BANDS, assessmentLabel, assessmentTone } from "@/application/services/recommendations/recommendationPresentation";
@@ -91,26 +92,7 @@ function rollingOneYearStats(series: PriceSeriesPoint[]): Pick<ReturnCharacterSt
 }
 
 function worstWeekAllHistory(series: PriceSeriesPoint[]) {
-  const sorted = series
-    .filter((point) => point.date && Number.isFinite(point.close) && point.close > 0)
-    .slice()
-    .sort((a, b) => a.date.localeCompare(b.date));
-  const weeklyReturns: number[] = [];
-  let baselineIndex = 0;
-  for (let index = 1; index < sorted.length; index += 1) {
-    const point = sorted[index];
-    const pointDate = new Date(`${point.date}T00:00:00Z`);
-    if (Number.isNaN(pointDate.getTime())) continue;
-    pointDate.setUTCDate(pointDate.getUTCDate() - 7);
-    const targetDate = pointDate.toISOString().slice(0, 10);
-    while (baselineIndex + 1 < index && sorted[baselineIndex + 1].date <= targetDate) {
-      baselineIndex += 1;
-    }
-    const baseline = sorted[baselineIndex];
-    if (!baseline || baseline.date > targetDate || baseline.close <= 0) continue;
-    weeklyReturns.push(point.close / baseline.close - 1);
-  }
-  return weeklyReturns.length === 0 ? null : Math.min(...weeklyReturns);
+  return worstPeriodReturnFromSeries(series, 7);
 }
 
 function returnCharacterStats(series: PriceSeriesPoint[], marketView: InstrumentMarketView, riskMetric: InstrumentRiskMetric | null): ReturnCharacterStats {
@@ -648,6 +630,56 @@ async function AsyncReturnCharacterCard({
   return <ReturnCharacterCard stats={returnCharacterStats(series, marketView, riskMetric)} />;
 }
 
+function RiskPanelFallback() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Risk</CardTitle>
+        <CardDescription>Loading stored risk diagnostics...</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="h-48 animate-pulse rounded-lg border bg-muted/40" />
+      </CardContent>
+    </Card>
+  );
+}
+
+async function AsyncRiskPanel({
+  instrumentId,
+  riskMetric,
+  priceSeriesPromise
+}: {
+  instrumentId: string;
+  riskMetric: InstrumentRiskMetric | null;
+  priceSeriesPromise: Promise<PriceSeriesPoint[]>;
+}) {
+  const container = createContainer();
+  const [series, riskRows] = await Promise.all([
+    priceSeriesPromise,
+    measureRenderStep(`instrument-detail:${instrumentId}:risk-universe-percentile`, () =>
+      container.universeRepository.listInstrumentRiskMetrics()
+    )
+  ]);
+  const latestByInstrument = new Map<string, InstrumentRiskMetric>();
+  for (const row of riskRows) {
+    const existing = latestByInstrument.get(row.instrumentId);
+    if (!existing || row.metricDate > existing.metricDate) latestByInstrument.set(row.instrumentId, row);
+  }
+  const universeVolatilityLabel = riskUniverseVolatilityLabel(
+    riskMetric?.volatility1y,
+    Array.from(latestByInstrument.values()).map((row) => ({ instrumentId: row.instrumentId, volatility1y: row.volatility1y })),
+    instrumentId
+  );
+  return (
+    <RiskSummaryCard
+      riskMetric={riskMetric}
+      universeVolatilityLabel={universeVolatilityLabel}
+      worstWeekAllHistory={worstPeriodReturnFromSeries(series, 7)}
+      worstMonthAllHistory={worstPeriodReturnFromSeries(series, 30)}
+    />
+  );
+}
+
 function ScoreTrendPanelFallback() {
   return (
     <Card>
@@ -717,7 +749,8 @@ function tabsForType(
   scoreTrend: ReactNode,
   keyFacts: ReactNode,
   universePercentile: ReactNode,
-  returnCharacter: ReactNode
+  returnCharacter: ReactNode,
+  riskPanel: ReactNode
 ) {
   const common = {
     overview: (
@@ -734,9 +767,9 @@ function tabsForType(
     ),
     news: <NewsSummaryCard />,
     themes: <ThemesPanel instrument={instrument} />,
-    risk: <RiskSummaryCard instrument={instrument} riskMetric={riskMetric} />,
+    risk: riskPanel,
     marketVision: <MarketVisionContextCard />,
-    recommendations: <RecommendationSummaryCard recommendation={recommendation} />
+    recommendations: <RecommendationSummaryCard recommendation={recommendation} scoreTrend={scoreTrend} universePercentile={universePercentile} />
   };
 
   if (type === "stock") {
@@ -920,6 +953,11 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
       <AsyncReturnCharacterCard priceSeriesPromise={priceSeriesPromise} marketView={marketView} riskMetric={riskMetric} />
     </Suspense>
   );
+  const riskPanel = (
+    <Suspense fallback={<RiskPanelFallback />}>
+      <AsyncRiskPanel instrumentId={instrument.id} riskMetric={riskMetric} priceSeriesPromise={priceSeriesPromise} />
+    </Suspense>
+  );
   const tabs = tabsForType(
     type,
     instrument,
@@ -932,7 +970,8 @@ export default async function InstrumentDetailPage({ params }: InstrumentDetailP
     scoreTrend,
     keyFacts,
     universePercentile,
-    returnCharacter
+    returnCharacter,
+    riskPanel
   );
 
   return (

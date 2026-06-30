@@ -6818,3 +6818,88 @@ Expected behavior:
 - Portfolio exposure panels no longer emit React's duplicate key warning for `Other`.
 - Geography renders one aggregated `Other (...)` row instead of adjacent `Other` and `Other (...)` rows.
 - Asset class, sector, and currency exposure behavior remains unchanged except for folding duplicate `Other` buckets.
+
+---
+
+## 2026-06-30 SGT - Instrument Detail Risk Tab V2 QA
+
+Scope:
+- Replaced the instrument detail Risk tab's v1 metric dump with a verdict-first v2 display over existing stored risk metrics.
+- Added deterministic risk observations, driver cards, volatility windows, drawdown diagnostics, tail/downside diagnostics, metric confidence, freshness, methodology link, and universe 1Y-volatility percentile.
+- Added pure-helper unit coverage for volatility-bucket verdict mapping, risk percentile labeling, deterministic observations, and date-based worst-week selection.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (372 tests after tolerance fix for floating-point worst-week assertion)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- The Risk tab uses stored `volatilityBucket` for the headline risk band and does not introduce new risk thresholds.
+- Rising volatility renders as adverse/red and falling volatility as favourable/green; this is intentionally inverted versus score-trend direction conventions.
+- Null or insufficient-history fields render as `-` / unavailable display values rather than fabricated metrics.
+- No scoring, guardrail, methodology-anchor, migration, beta, Sharpe, or VaR behavior changed.
+
+---
+
+## 2026-06-30 SGT - Instrument Detail Risk Tab V2.1 Polish QA
+
+Scope:
+- Moved the Risk score into the verdict hero and removed the duplicate Tail & downside tile.
+- Replaced volatility window tiles with scaled horizontal bars and one risk-trend badge in the card header.
+- Reworked Drawdown and Tail & downside into visual red bar groups with existing stored values only.
+
+Validation:
+- PASS: `npm.cmd run typecheck` before final validation
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (372 tests)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- Volatility bars scale to the displayed non-null window values with a floor so a single low value is not automatically full width.
+- Drawdown and worst-period bars remain presentational only and do not change stored metrics or scoring.
+- Risk score appears only in the hero; Tail & downside focuses on downside volatility, negative-day frequency, and worst periods.
+
+---
+
+## 2026-06-30 SGT - Instrument Detail Insights Tab V2 QA
+
+Scope:
+- Replaced the Insights tab's v1 recommendation summary with a verdict-first v2 display over existing stored recommendation fields.
+- Added band-aligned component score bars with stored reasons, assessment sensitivity trigger groups, and the existing streamed score-trend panel.
+- Removed the v1 positive/negative driver lists, guardrail list, data-limitations list, and raw history table from the Insights tab.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (372 tests; sandboxed run first failed with EPERM writing `.test-build`, rerun with write permission passed)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- The Insights tab shows the stored characteristics label, score, confidence, freshness, methodology link, reasoning summary, and universe percentile context.
+- Component bars use existing score-band helpers and do not introduce new thresholds.
+- Empty sensitivity groups are hidden, and no scoring, guardrail, methodology, data-pipeline, feature-flag, or access-control behavior changed.
+
+---
+
+## 2026-06-30 SGT - Single-Domain Landing Page QA
+
+Scope:
+- Served `public/landing.html` at `/` through a static `beforeFiles` rewrite.
+- Removed the old root redirect page and wired landing logos / access CTAs to the app logo asset and `/login`.
+- Kept `/login` and auth-gated `/portfolio` behavior intact, with authenticated root requests redirected to `/portfolio`.
+
+Validation:
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run typecheck` after clearing stale generated `.next/types/app/page.ts`
+- PASS: `npm.cmd test` (373 tests)
+- PASS: `npm.cmd run build`
+- PASS: `next start` smoke test on port 3100: unauthenticated `/` and `/landing.html` returned the landing HTML, `/login` returned 200, and `/portfolio` returned the expected unauthenticated redirect.
+
+Expected behavior:
+- Public visitors see the static marketing landing page at `/` without app global CSS affecting the landing's bespoke styles.
+- Landing Sign in / Request access links route to `/login`.
+- Returning authenticated users requesting `/` are sent to `/portfolio`.
