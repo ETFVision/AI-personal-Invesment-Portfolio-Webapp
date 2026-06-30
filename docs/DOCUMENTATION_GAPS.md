@@ -1,6 +1,6 @@
 # Documentation Gaps and Follow-Up Audit List
 
-Last updated: 2026-06-26 SGT (added 44 expense/dividend not ingested; 45 annual-only score freshness/TTM; 46 Fundamentals period-basis; 47 derived-metrics transient lag + latent batch-cap risk (corrected down from HIGH; active universe verified 391/391 fresh); 48 holding valuation prefers derived cache (defensive fix); 49 fixed per-portfolio derived tables refreshed before snapshots; 50 duplicate portfolio at setup (double-submit race); updated Low 14 — stored 5Y volatility)
+Last updated: 2026-06-30 SGT (relabeled the Prioritized Execution Order items as E1–E51 to disambiguate from the tier-scoped gap IDs; folded the 2026-06-25/26 gaps 42–47, 50 and Low 14 into their execution phases; marked 46/48/49 closed; refreshed the Status Summary counts to Medium 50/32/18, Total 74/53/21). 2026-06-26 SGT (added 44 expense/dividend not ingested; 45 annual-only score freshness/TTM; 46 Fundamentals period-basis; 47 derived-metrics transient lag + latent batch-cap risk (corrected down from HIGH; active universe verified 391/391 fresh); 48 holding valuation prefers derived cache (defensive fix); 49 fixed per-portfolio derived tables refreshed before snapshots; 50 duplicate portfolio at setup (double-submit race); updated Low 14 — stored 5Y volatility)
 
 This document records areas where the handover pack intentionally avoids guessing. These should be verified before commercialization or before a new developer changes related logic.
 
@@ -11,9 +11,11 @@ An independent deep architecture audit with live read-only database verification
 | Priority | Total items | Open | Closed |
 |---|---|---|---|
 | High | 10 | 8 | 2 |
-| Medium | 43 | 28 | 15 |
+| Medium | 50 | 32 | 18 |
 | Low | 14 | 13 | 1 |
-| **Total** | **67** | **49** | **18** |
+| **Total** | **74** | **53** | **21** |
+
+Medium closures since the prior count: 46 (Fundamentals period-basis display fix shipped 2026-06-26), 48 and 49 (holding-valuation precedence + per-portfolio refresh, fixed 2026-06-26). Medium items 44, 45, 47, 50 are the open additions from the 2026-06-25/26 review. All actionable open gaps now map to an execution-order phase below (E1–E51); the only open items without a discrete E-entry are standing practices rather than tasks — Med 8 (score-methodology maintenance, a governance discipline alongside E39) and the High 1 residual (confirm job endpoints reject unauthenticated requests in production; external pen-test, covered by E3/E6/E35).
 
 **Open blockers — before public alpha:**
 
@@ -57,71 +59,80 @@ Consolidated, deduplicated execution order across this document and `COMMERCIALI
 grouped by the milestone each item gates. Within each phase, items are in execution order (dependencies
 respected). Tags: **[ops]** = configuration/operations, not code; **[build]** = implementation task;
 **[external]** = legal/vendor/third-party; **[review]** = analysis/QA pass. IDs reference this document
-unless prefixed otherwise.
+unless prefixed otherwise. Execution-order items below are labeled **E1–E51** to distinguish them from the
+tier-scoped gap IDs (`High N` / `Med N` / `Low N`) used elsewhere in this document; the parenthetical gap ID
+after each item — e.g. `(High 5)`, `(Med 37)` — is the canonical reference for that item.
 
 ### Phase A — Gate the first alpha invite
-1. Set Vercel env vars `ALLOWED_SIGNUP_EMAILS`, `ASSISTANT_DAILY_LIMIT` (High 5) **[ops]**
-2. Email deliverability test — signup/reset to Gmail+Outlook, SPF/DKIM (Med 37) **[ops]** — *hard gate*
-3. Sentry error monitoring + job-failure alerting + `server-only` guard on `supabaseAdmin.ts` (Med 38 + High 4 + Med 36) **[build]** — *highest-leverage build*
-4. New-user onboarding / empty state on `/portfolio` (Med 39) **[build]**
-5. Alpha UX walkthrough — fresh-account end-to-end (Med 32) **[review]** — depends on #4
-6. Route access matrix + alpha branch audit (High 2) **[review/doc]**
+- **E1.** Set Vercel env vars `ALLOWED_SIGNUP_EMAILS`, `ASSISTANT_DAILY_LIMIT` (High 5) **[ops]**
+- **E2.** Email deliverability test — signup/reset to Gmail+Outlook, SPF/DKIM (Med 37) **[ops]** — *hard gate*
+- **E3.** Sentry error monitoring + job-failure alerting + `server-only` guard on `supabaseAdmin.ts` (Med 38 + High 4 + Med 36) **[build]** — *highest-leverage build*
+- **E4.** New-user onboarding / empty state on `/portfolio` (Med 39) **[build]**
+- **E5.** Alpha UX walkthrough — fresh-account end-to-end (Med 32) **[review]** — depends on E4
+- **E6.** Route access matrix + alpha branch audit (High 2) **[review/doc]**
 
 ### Phase B — During alpha (correctness confidence; finish before paid)
-7. Calculation golden regression suite + manual/Excel validation (Med 26) **[build]** — *existential for a calc product; start as soon as Phase A is in flight*
-8. AI output regression tests — hallucination / no-advice / missing-data (Med 27) **[build]**
-9. Data provider full-universe coverage matrix (Med 24) **[build/review]**
-10. Recommendation calibration QA after one full production weekly run (Med 29) **[review]**
-11. Market Vision evidence traceability audit (Med 28) **[review]**
-12. Observability / reproducibility matrix (Med 30) **[review/doc]**
-13. Data-freshness UX product audit (Med 33) **[review]**
-14. Security Master auto-setup on new-instrument add (Med 41) **[build]** — data-quality gap the first time the universe grows post-launch
-15. Migration tracking/numbering + safety review — ledger, dedupe `052/061/062`, timestamped naming (High 7 + Low 7) **[build/ops]**
+- **E7.** Calculation golden regression suite + manual/Excel validation (Med 26) **[build]** — *existential for a calc product; start as soon as Phase A is in flight*
+- **E8.** AI output regression tests — hallucination / no-advice / missing-data (Med 27) **[build]**
+- **E9.** Data provider full-universe coverage matrix (Med 24) **[build/review]**
+- **E10.** Recommendation calibration QA after one full production weekly run (Med 29) **[review]**
+- **E11.** Market Vision evidence traceability audit (Med 28) **[review]**
+- **E12.** Observability / reproducibility matrix (Med 30) **[review/doc]**
+- **E13.** Data-freshness UX product audit (Med 33) **[review]**
+- **E14.** Security Master auto-setup on new-instrument add (Med 41) **[build]** — data-quality gap the first time the universe grows post-launch
+- **E15.** Derived-metrics batch-cap raise + cron-run monitoring/alerting + inactive-row cleanup (Med 47) **[build/ops]** — raise `maxBatches` to cover the full active universe; ties to E3 alerting and E14 growth
+- **E16.** Duplicate-portfolio idempotency + DB guard at setup (Med 50) **[build]** — idempotent `getOrCreateDefaultPortfolio` + partial unique index; matters as real users onboard
+- **E17.** Migration tracking/numbering + safety review — ledger, dedupe `052/061/062`, timestamped naming (High 7 + Low 7) **[build/ops]**
 
 ### Phase C — Before first paying user
-16. Legal & compliance review — ToS, privacy, disclaimers, PDPA (High 8) **[external]**
-17. Data licensing confirmation — FMP/FRED/NewsData/GDELT (High 9) **[external]**
-18. User privacy lifecycle — retention, export, account deletion (High 10) **[build]**
-19. DB index audit + backup policy + restore test (Med 31) **[review/ops]**
-20. Cost control — provider quota register + budget alerting (Med 34) **[build/ops]**
-21. Error-handling / empty-state full inventory (Med 35) **[review/build]**
-22. Support operations — contact, bug/triage, dispute path (Low 12) **[ops]**
-23. Incident response playbook (Low 9) **[ops/doc]**
-24. Commercial readiness — pricing, payments, subscription, refunds (Low 13) **[build]** — biggest net-new product surface
-- **Performance & rendering audit** — slow-route identification, summary-table refresh correctness, over-fetch/pagination, lazy-loaded admin diagnostics (`COMMERCIALIZATION_AUDIT_PLAN.md` Section 13, *in progress*) **[review/build]**. Placed in Phase C to match the audit plan's before-paid timing; intentionally left unnumbered so the existing item references (#4, #5, #7, #13, #21, #25, #30, #31, #44) stay stable. The only DOCUMENTATION_GAPS item tracking it today is Low 2 (render-timing baseline).
+- **E18.** Legal & compliance review — ToS, privacy, disclaimers, PDPA (High 8) **[external]**
+- **E19.** Data licensing confirmation — FMP/FRED/NewsData/GDELT (High 9) **[external]**
+- **E20.** User privacy lifecycle — retention, export, account deletion (High 10) **[build]**
+- **E21.** DB index audit + backup policy + restore test (Med 31) **[review/ops]**
+- **E22.** Cost control — provider quota register + budget alerting (Med 34) **[build/ops]**
+- **E23.** Error-handling / empty-state full inventory (Med 35) **[review/build]**
+- **E24.** Support operations — contact, bug/triage, dispute path (Low 12) **[ops]**
+- **E25.** Incident response playbook (Low 9) **[ops/doc]**
+- **E26.** Commercial readiness — pricing, payments, subscription, refunds (Low 13) **[build]** — biggest net-new product surface
+- **Performance & rendering audit** — slow-route identification, summary-table refresh correctness, over-fetch/pagination, lazy-loaded admin diagnostics (`COMMERCIALIZATION_AUDIT_PLAN.md` Section 13, *in progress*) **[review/build]**. Placed in Phase C to match the audit plan's before-paid timing; tracked by Low 2 / E46 (render-timing baseline).
 
 ### Phase D — Analytics correctness/quality (schedule by user impact)
-25. Benchmark total-return vs price-return labeling (Med 11) **[build]** — quick win, do early
-26. Portfolio volatility distorted by deposits/withdrawals — document or switch to cash-flow-adjusted returns (Med 10) **[build]**
-27. XIRR / money-weighted return (Med 12) **[build]**
-28. FX conversion for multi-currency portfolios (Med 9) **[build]** — largest of these
+- **E27.** Benchmark total-return vs price-return labeling (Med 11) **[build]** — quick win, do early
+- **E28.** Portfolio volatility distorted by deposits/withdrawals — document or switch to cash-flow-adjusted returns (Med 10) **[build]**
+- **E29.** XIRR / money-weighted return (Med 12) **[build]**
+- **E30.** FX conversion for multi-currency portfolios (Med 9) **[build]** — largest of these
+- **E31.** ETF expense ratio + equity dividend yield ingestion (Med 44) **[build]** — wire the existing blank "—" Key Facts fields (display-only)
+- **E32.** Diversification score unification — Risk page vs Portfolio Review (Med 43) **[build]** — one look-through-aware, live definition; methodology-doc update
+- **E33.** TTM scoring basis evaluation (Med 45) **[build]** — methodology programme (recalibrate bands + golden tests); see `METHODOLOGY_AND_SCORING_WIP.md`
+- **E34.** Bond-ETF issuer-feed analytical enrichment (Med 42) **[build/external]** — gated by data licensing (E19/High 9) + bond-score drift validation
 
 ### Phase E — Before scaling to 100+ users
-29. External code review, external calculation review, penetration test, PDPA review, incident drill (`COMMERCIALIZATION_AUDIT_PLAN.md` "100+" list) **[external]**
-30. Accessibility audit (Low 10) **[review]**
-31. Browser/device compatibility audit (Low 11) **[review]**
+- **E35.** External code review, external calculation review, penetration test, PDPA review, incident drill (`COMMERCIALIZATION_AUDIT_PLAN.md` "100+" list) **[external]**
+- **E36.** Accessibility audit (Low 10) **[review]**
+- **E37.** Browser/device compatibility audit (Low 11) **[review]**
 
 ### Phase F — Governance, docs, and lower backlog
-32. Branch/deployment governance policy (Low 6) **[doc]**
-33. Model/prompt governance policy + regression suite (Low 8) **[doc/build]**
-34. News classification formula doc (Med 5) **[doc]**
-35. Assistant table/cost schema confirmation (Med 4) **[review]**
-36. Security Master provider-observation automation (Med 7) **[build]** — future, after provider-priority rules approved
-37. Security Master stub-promotion workflow (Med 40) **[build]** — low until the universe grows often
-38. ETF holdings provider-plan expansion monitoring (Med 25 remaining) **[review]**
-39. Provider endpoint inventory completion — FMP market/news, FRED, NewsData, GDELT, OpenAI (Low 1) **[doc]**
-40. Render-timing baseline table (Low 2) **[review]**
-41. Job schedule drift check vs live `cron.job` (Low 3) **[review]**
-42. Old docs cleanup / archive pass (Low 4) **[doc]** — needs user approval
-43. Future ETF universe additions — mid-cap (MDY/IJH/VO), factor, option-income, ESG, balanced (Low 5) **[completed 2026-06-23]**
-44. Executive-summary count pluralization ("1 watch area") — cosmetic carry-along (Portfolio Review WIP) **[build]**
+- **E38.** Branch/deployment governance policy (Low 6) **[doc]**
+- **E39.** Model/prompt governance policy + regression suite (Low 8) **[doc/build]**
+- **E40.** News classification formula doc (Med 5) **[doc]**
+- **E41.** Assistant table/cost schema confirmation (Med 4) **[review]**
+- **E42.** Security Master provider-observation automation (Med 7) **[build]** — future, after provider-priority rules approved
+- **E43.** Security Master stub-promotion workflow (Med 40) **[build]** — low until the universe grows often
+- **E44.** ETF holdings provider-plan expansion monitoring (Med 25 remaining) **[review]**
+- **E45.** Provider endpoint inventory completion — FMP market/news, FRED, NewsData, GDELT, OpenAI (Low 1) **[doc]**
+- **E46.** Render-timing baseline table (Low 2) **[review]**
+- **E47.** Job schedule drift check vs live `cron.job` (Low 3) **[review]**
+- **E48.** Old docs cleanup / archive pass (Low 4) **[doc]** — needs user approval
+- **E49.** Future ETF universe additions — mid-cap (MDY/IJH/VO), factor, option-income, ESG, balanced (Low 5) **[completed 2026-06-23]**
+- **E50.** Executive-summary count pluralization ("1 watch area") — cosmetic carry-along (Portfolio Review WIP) **[build]**
+- **E51.** Stored 3Y volatility window (Low 14) **[build]** — deferred; add only if a UI/API surface needs it
 
 ### Cross-cutting — UI/UX improvement track (ongoing)
 General visual/interaction polish for commercial credibility — an **iterative track**, not a one-time audit
 (the same way the Portfolio Review balance-engine polish was run). Distinct from the *functional* UX items
-already in the phases above, which it complements and should not duplicate: onboarding/empty state (#4),
-alpha UX walkthrough (#5), data-freshness UX (#13), error/empty-state inventory (#21), accessibility (#30),
-browser/device compatibility (#31).
+already in the phases above, which it complements and should not duplicate: onboarding/empty state (E4),
+alpha UX walkthrough (E5), data-freshness UX (E13), error/empty-state inventory (E23), accessibility (E36),
+browser/device compatibility (E37).
 
 Scope (run as small, reviewable batches):
 - Visual consistency — spacing, typography scale, color tokens, card/chip/badge styling across pages.
@@ -133,14 +144,14 @@ Scope (run as small, reviewable batches):
 - Copy/microcopy consistency (e.g. observational, non-advisory tone already established in Portfolio Review).
 
 Timing: opportunistic during alpha for credibility; **substantially complete before first paying user**
-(Phase C gate). Accessibility (#30) and browser/device (#31) are the formal review counterparts and remain
+(Phase C gate). Accessibility (E36) and browser/device (E37) are the formal review counterparts and remain
 in their phases. Capture each batch as its own implementation-log entry.
 
 **Sequencing notes:**
-- Calculation golden regression (#7) is ranked #1 in `COMMERCIALIZATION_AUDIT_PLAN.md`'s generic audit
+- Calculation golden regression (E7) is ranked #1 in `COMMERCIALIZATION_AUDIT_PLAN.md`'s generic audit
   ranking, but it does **not** gate the alpha *invite* (methodology is already documented), so it sits in
   Phase B. It is a hard gate before *paid*.
-- #25 (benchmark return labeling) and #44 (pluralization) are tiny; pull them forward opportunistically
+- E27 (benchmark return labeling) and E50 (pluralization) are tiny; pull them forward opportunistically
   whenever Portfolio/Risk pages are next touched.
 - The UI/UX improvement track (above) is cross-cutting and iterative; schedule its batches alongside the
   phased items rather than as a single blocking task.
@@ -150,8 +161,8 @@ in their phases. Capture each batch as its own implementation-log entry.
   regression, and a **Med 29** recalibration QA should follow it.
 - **Relationship to `COMMERCIALIZATION_AUDIT_PLAN.md` timing:** that doc's "Before Public Alpha" bucket is
   the set needed for a *complete* alpha and is broader than Phase A here. Phase A is deliberately the
-  narrower *invite-gating* subset; the remaining "before alpha" audit-plan items (Calculation #7, AI
-  regression #8, provider coverage matrix #9, observability matrix #12, data-freshness UX #13) are placed in
+  narrower *invite-gating* subset; the remaining "before alpha" audit-plan items (Calculation E7, AI
+  regression E8, provider coverage matrix E9, observability matrix E12, data-freshness UX E13) are placed in
   Phase B as "finish during alpha, before paid." Item content and source IDs are identical across both docs;
   only the alpha boundary differs. The audit plan's before-paid / 100+ / 500+ buckets map to Phases C / E.
 
@@ -455,7 +466,7 @@ in their phases. Capture each batch as its own implementation-log entry.
 46. Fundamentals page mixes period bases for the same metric (annual vs latest quarter)
     - On the instrument Fundamentals tab, the **Key Ratios card** uses `detail.latestRatio` = the newest `financial_ratios` row of **any** period (ordered by `report_date` desc in the repo), which is currently the **latest quarterly YoY** row (e.g. NVDA Q1 FY2027: revenue growth 19.8%, EPS 35.59%). The **Fundamental trends**, the **statements snapshot**, and the **fundamental scores** all use **annual** (e.g. NVDA FY2026: revenue growth 65.47%). So the same metric ("Revenue growth") shows two very different, **unlabeled** numbers on one page — and the displayed Key-Ratios growth isn't even the figure feeding the score.
     - Both values are individually correct and seasonality-neutral (quarterly figure is YoY, not sequential); the defect is the **inconsistent, unlabeled period basis**.
-    - Near-term fix (display-only, in progress 2026-06-26): make the Key Ratios card use the latest **annual** ratio (consistent with score/trends/snapshot) + label "Annual · FY{year}", and surface the latest **quarter YoY** as a clearly-labeled "latest momentum" line for timeliness. `FundamentalsDetail.ratios[]` already exposes all periods, so no repo change needed. Deeper timeliness handled by gap 45 (TTM).
+    - Near-term fix (display-only, shipped 2026-06-26): make the Key Ratios card use the latest **annual** ratio (consistent with score/trends/snapshot) + label "Annual · FY{year}", and surface the latest **quarter YoY** as a clearly-labeled "latest momentum" line for timeliness. `FundamentalsDetail.ratios[]` already exposes all periods, so no repo change needed. Deeper timeliness handled by gap 45 (TTM).
     - Priority: user-facing clarity. Logged 2026-06-26 (Claude review).
 
 47. Derived-metrics freshness — a transient lag window + latent batch-cap risk (NOT a structural coverage failure)
@@ -465,7 +476,7 @@ in their phases. Capture each batch as its own implementation-log entry.
     - **Latent risk (the real remaining item):** the daily derived crons run `batchSize=25 & maxBatches=14` = **350/run**, below the **391** active universe (and growing toward ~476 after the +85 seed). It's empirically keeping up via stalest-first rotation, but with **no safety margin** — if a cron misses runs, recovery is slow (likely what caused the Jun 10–25 window). Recommended: raise/remove `maxBatches` on `instrument-daily-returns-refresh` / `instrument-return-anchors-refresh` / `instrument-market-metrics-refresh` so each covers the full active universe (the service computes full coverage when `maxBatches` is unset), and add **cron-run monitoring/alerting** so a multi-day derived-metrics gap is caught.
     - Priority: **Medium** (was overstated as HIGH) — universe-display hygiene + ops resilience; not a current correctness failure. Logged/corrected 2026-06-26 (Claude review).
 
-48. Holding valuation prefers the derived cache over the source-of-truth price (defensive fix in progress)
+48. Holding valuation prefers the derived cache over the source-of-truth price (FIXED 2026-06-26 — migration 135 applied)
     - `refresh_holding_portfolio_metrics` (migration 032) sets the holding price via `coalesce(instrument_market_metrics.latest_price, instrument_prices.close_price, average_cost)` — it **prefers the derived cache even when stale**, so a lagging `instrument_market_metrics` (gap 47) would freeze portfolio valuations despite fresh raw prices. Principle: `instrument_prices` is the source of truth; the derived cache must not override it for the raw price.
     - Current impact: **none right now** — holdings' market metrics are fresh (gap 47 resolved), so the coalesce isn't producing wrong values today. This is a **defensive/robustness fix**, not an active-bug fix.
     - Fix (migration 135, in progress): reorder precedence to source the valuation price from the latest `instrument_prices` first, using `instrument_market_metrics` only for derived analytics (prev-close/day-change, 52w, returns). Valuation correctness; no scoring/anchor change.
