@@ -11,11 +11,11 @@ An independent deep architecture audit with live read-only database verification
 | Priority | Total items | Open | Closed |
 |---|---|---|---|
 | High | 10 | 8 | 2 |
-| Medium | 51 | 33 | 18 |
+| Medium | 53 | 35 | 18 |
 | Low | 14 | 13 | 1 |
-| **Total** | **75** | **54** | **21** |
+| **Total** | **77** | **56** | **21** |
 
-Medium closures since the prior count: 46 (Fundamentals period-basis display fix shipped 2026-06-26), 48 and 49 (holding-valuation precedence + per-portfolio refresh, fixed 2026-06-26). Medium items 44, 45, 47, 50 are the open additions from the 2026-06-25/26 review. All actionable open gaps now map to an execution-order phase below (E1–E51, plus E34a inserted post-tidy); the only open items without a discrete E-entry are standing practices rather than tasks — Med 8 (score-methodology maintenance, a governance discipline alongside E39) and the High 1 residual (confirm job endpoints reject unauthenticated requests in production; external pen-test, covered by E3/E6/E35). Med 51 (Sharpe / risk-adjusted return, deferred from Risk tab v2) was logged 2026-06-30 → Phase D / E34a.
+Medium closures since the prior count: 46 (Fundamentals period-basis display fix shipped 2026-06-26), 48 and 49 (holding-valuation precedence + per-portfolio refresh, fixed 2026-06-26). Medium items 44, 45, 47, 50 are the open additions from the 2026-06-25/26 review. All actionable open gaps now map to an execution-order phase below (E1–E51, plus E34a inserted post-tidy); the only open items without a discrete E-entry are standing practices rather than tasks — Med 8 (score-methodology maintenance, a governance discipline alongside E39) and the High 1 residual (confirm job endpoints reject unauthenticated requests in production; external pen-test, covered by E3/E6/E35). Med 51 (Sharpe / risk-adjusted return, deferred from Risk tab v2) → Phase D / E34a; Med 52 (similar-instruments peer table) → E34b; Med 53 (per-component universe percentile) → E34c — all deferred from the detail-tab redesign and logged 2026-06-30.
 
 **Open blockers — before public alpha:**
 
@@ -106,6 +106,8 @@ after each item — e.g. `(High 5)`, `(Med 37)` — is the canonical reference f
 - **E33.** TTM scoring basis evaluation (Med 45) **[build]** — methodology programme (recalibrate bands + golden tests); see `METHODOLOGY_AND_SCORING_WIP.md`
 - **E34.** Bond-ETF issuer-feed analytical enrichment (Med 42) **[build/external]** — gated by data licensing (E19/High 9) + bond-score drift validation
 - **E34a.** Risk-adjusted return metric on the Risk tab — Sharpe / return-to-volatility (Med 51) **[build]** — deferred from Risk tab v2; needs a risk-free input (FRED short-rate or config) + methodology doc (inserted post-tidy to avoid renumbering)
+- **E34b.** Similar-instruments peer table on the Insights tab (Med 52) **[build]** — deferred from Insights tab v2; needs a peer/similarity engine + methodology doc
+- **E34c.** Per-component universe percentile on the Insights breakdown (Med 53) **[build]** — deferred from Insights tab v2; new per-component percentile computation
 
 ### Phase E — Before scaling to 100+ users
 - **E35.** External code review, external calculation review, penetration test, PDPA review, incident drill (`COMMERCIALIZATION_AUDIT_PLAN.md` "100+" list) **[external]**
@@ -501,6 +503,16 @@ in their phases. Capture each batch as its own implementation-log entry.
     - **Blocker:** no risk-free rate is plumbed into the metrics layer — no T-bill / fed-funds series is wired (the only `treasury` references are bond-ETF classifications, not a rate). A true Sharpe needs a risk-free input.
     - Scope if pursued: choose a risk-free source — (a) a FRED short-rate (3M T-bill / fed funds) from macro data [most correct], (b) a configurable constant, or (c) `rf = 0` labelled honestly as "return-to-volatility" (not "Sharpe"). Define the formula (return horizon + annualisation), add the metric (computed in-service or a stored column with a forced backfill like migration 134), wire the Risk-tab tile, add unit tests, and document in `CALCULATION_METHODOLOGY.md`. Display-only; no scoring/anchor change.
     - Priority: **Medium** — analytics completeness; not an alpha blocker. Logged 2026-06-30 (Claude review).
+
+52. Similar instruments (peer table) on the instrument detail Insights tab (deferred from Insights tab v2)
+    - The Insights tab v2 mockup included a descriptive "Similar instruments" peer table (similarity-ordered, self-row highlighted, no stars, disclaimer), but there is **no peer/similarity engine** in the codebase — the only `similar`/`peer` references are UI text, not data.
+    - Scope if pursued: define a similarity measure (e.g. same `canonical_sector` + nearest characteristics score / factor distance), query the universe for top-N peers, and render a descriptive table (no ranking-as-advice; "not a recommendation to switch" disclaimer). New computation + methodology note + tests. Display surface is non-advisory.
+    - Priority: **Medium** — research/UX completeness; not an alpha blocker. Logged 2026-06-30 (Claude review).
+
+53. Per-component universe percentile on the Insights breakdown (deferred from Insights tab v2)
+    - The breakdown bars show each component score but not where it sits in the universe (e.g. "Business quality — top 8%", "Valuation — bottom 20%"). Adds real context per bar.
+    - Scope if pursued: compute a per-component percentile across the active universe (mirror the existing overall/1Y-volatility universe-percentile helpers), surface as a chip on each breakdown bar. New computation + tests; display-only.
+    - Priority: **Medium** — display context; not an alpha blocker. Logged 2026-06-30 (Claude review).
 
 ## Low Priority
 
