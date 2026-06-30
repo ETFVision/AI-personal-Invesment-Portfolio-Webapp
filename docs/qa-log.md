@@ -878,17 +878,17 @@ Checks and results:
 
 | Check | Result |
 |---|---|
-| No score saturation | PASS — max 77.9 stock / 67.1 ETF / 63.7 bond; p90 67.5 stock / 60.1 ETF. No pegging. |
-| Stock label spread | PASS — 27 Good / 70 Neutral / 8 Weak across 105 stocks. |
-| Component coverage | PASS — essentially complete; **ETF benchmark_relative 172/172** (EFA/EEM backfill confirmed universe-wide). Only 1 stock missing fundamental_trends (104/105, limited history, excluded from denominator). |
-| Orthogonality — Q vs CashFlow / BalanceSheet | PASS — 0.008 / -0.178. |
-| Economic spot-checks | PASS — NVDA/AAPL/MSFT/JPM Good; SPY ˜ benchmark-neutral; EEM 54.3 > VWO 50.7 (Korea/index-family effect intact); XOM recovered; COST not over-penalized; crypto appropriately low. Ordering intuitive. |
+| No score saturation | PASS ï¿½ max 77.9 stock / 67.1 ETF / 63.7 bond; p90 67.5 stock / 60.1 ETF. No pegging. |
+| Stock label spread | PASS ï¿½ 27 Good / 70 Neutral / 8 Weak across 105 stocks. |
+| Component coverage | PASS ï¿½ essentially complete; **ETF benchmark_relative 172/172** (EFA/EEM backfill confirmed universe-wide). Only 1 stock missing fundamental_trends (104/105, limited history, excluded from denominator). |
+| Orthogonality ï¿½ Q vs CashFlow / BalanceSheet | PASS ï¿½ 0.008 / -0.178. |
+| Economic spot-checks | PASS ï¿½ NVDA/AAPL/MSFT/JPM Good; SPY ï¿½ benchmark-neutral; EEM 54.3 > VWO 50.7 (Korea/index-family effect intact); XOM recovered; COST not over-penalized; crypto appropriately low. Ordering intuitive. |
 
-Residual / watch items (monitor; do NOT re-tune — frozen-anchor discipline):
+Residual / watch items (monitor; do NOT re-tune ï¿½ frozen-anchor discipline):
 
 | Item | Detail |
 |---|---|
-| Q?Profitability corr = 0.409 | Marginally above the ~0.40 target (was 0.380 mid-programme; both share ROIC level vs durability). ~17% shared variance — within tolerance, but crept up. If it exceeds ~0.45 in a future run, revisit roicDurability. |
+| Q?Profitability corr = 0.409 | Marginally above the ~0.40 target (was 0.380 mid-programme; both share ROIC level vs durability). ~17% shared variance ï¿½ within tolerance, but crept up. If it exceeds ~0.45 in a future run, revisit roicDurability. |
 | ETF / Bond compression | ETFs 92% Neutral (158/172), Bond ETFs 100% Neutral. Benchmark/risk components do discriminate (2 Good, 12 Weak exist) but near-constant default components damp spread. Inherent characteristic of diversified-instrument scoring, not a defect. Only a deliberate future model decision should touch ETF/bond weights. |
 | Zero Excellent (=80) across the universe | Expected and already disclosed (composite effective ceiling ~mid-80s; Excellent reserved/uncommon). Not a defect. |
 
@@ -6566,7 +6566,7 @@ Validation:
 
 ---
 
-## 2026-06-25 — Instrument Detail Price Chart QA
+## 2026-06-25 ï¿½ Instrument Detail Price Chart QA
 
 Scope:
 - Added a display-only interactive SVG price chart to the instrument detail Overview.
@@ -6689,7 +6689,7 @@ Expected behavior:
 Scope:
 - Updated the instrument detail Long-Horizon card to present 1Y, 5Y, 10Y, 15Y, and 20Y columns.
 - Converted 5Y/10Y/15Y/20Y stored total returns to annualised CAGR for display; 1Y remains unchanged.
-- Left volatility and max drawdown rows as stored values, with 5Y volatility shown as "—" because no stored field exists.
+- Left volatility and max drawdown rows as stored values, with 5Y volatility shown as "ï¿½" because no stored field exists.
 - Added CAGR bars and display-only disclosures.
 
 Validation:
@@ -6700,7 +6700,7 @@ Validation:
 - NOTE: Browser recheck remains pending in an authenticated session.
 
 Expected behavior:
-- Null periods render as "—".
+- Null periods render as "ï¿½".
 - 5Y/10Y/15Y/20Y return cells show CAGR, not total return.
 - Volatility remains annualised stored volatility; drawdown remains stored drawdown magnitude and is not annualised.
 - CAGR bars clip visually above 100% while preserving the true percentage label.
@@ -6770,9 +6770,9 @@ Validation:
 
 Expected behavior:
 - Key Observations use fixed deterministic templates from stored component keys and documented score bands.
-- Return-character tiles render null values as "—" and do not affect scoring or guardrails.
+- Return-character tiles render null values as "ï¿½" and do not affect scoring or guardrails.
 - The price chart and return-character card share the same streamed price-series read.
-- Key Facts render missing dividend yield as "—" because the current domain model does not expose that field.
+- Key Facts render missing dividend yield as "ï¿½" because the current domain model does not expose that field.
 - No scoring, methodology, guardrail, recommendation, access-control, feature-flag, or data-pipeline behavior changed.
 
 ---
@@ -6797,3 +6797,24 @@ Expected behavior:
 - Performance charts label return and date axes and mark price-lagged tails as provisional.
 - Allocation/exposure panels use a 2x2 layout with geography rendered as bars.
 - No scoring, methodology, data-pipeline, recommendation, guardrail, feature-flag, or access-control behavior changed.
+
+---
+
+## 2026-06-30 SGT - Exposure Bar Other Bucket QA
+
+Scope:
+- Fixed `HorizontalExposureBars` duplicate React keys when source data already contains a literal `Other` bucket.
+- Folded pre-existing `Other` source rows into generated `Other` / `Other (N countries)` rollups for `maxItems` and `minPercent` collapse paths.
+- Added a focused pure-helper test for source `Other` folding and duplicate-label prevention.
+
+Validation:
+- PASS: `npm.cmd test` after import-path correction; full suite included the new chart helper tests.
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- Portfolio exposure panels no longer emit React's duplicate key warning for `Other`.
+- Geography renders one aggregated `Other (...)` row instead of adjacent `Other` and `Other (...)` rows.
+- Asset class, sector, and currency exposure behavior remains unchanged except for folding duplicate `Other` buckets.

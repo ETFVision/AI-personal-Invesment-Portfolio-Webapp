@@ -5127,3 +5127,38 @@ Completed.
 - Display/calculation-layer portfolio performance fix only. No scoring, anchors, recommendation guardrails, feature flags, access controls, or compliance vocabulary changed.
 - After deploy, run Admin -> Data Sources -> Refresh portfolio summaries, or let the daily cron run, so persisted trailing metrics recompute with the corrected period logic.
 - Browser recheck recommended for native-proportion chart axis labels at desktop and mobile widths.
+
+## 2026-06-30 - Exposure Bar Other Bucket Deduplication
+
+### Source
+Claude Code
+
+### Objective
+Fix duplicate `Other` rows and duplicate React keys in shared exposure bar lists.
+
+### Files Changed
+- `src/components/ui/charts.tsx`
+- `src/components/ui/charts-utils.ts`
+- `tests/charts.test.ts`
+- `package.json`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Moved the exposure collapse helper into a pure utility so it can be unit-tested without React rendering.
+- Folded source rows labeled `Other` into generated rollup buckets for both `minPercent` and `maxItems` collapse paths.
+- Switched `HorizontalExposureBars` child keys from label-only to label plus index so duplicate source labels cannot collide.
+- Added regression tests covering source `Other` folding and duplicate-label prevention.
+
+### Tests Run
+- `npm.cmd test` - PASS after fixing the new test import path; first run failed because the test imported a Next path alias directly in Node.
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only shared chart fix. No scoring, methodology, data, feature-flag, access-control, or compliance-language behavior changed.
+- Browser recheck recommended on `/portfolio` to confirm the dev overlay no longer reports duplicate `Other` keys and Geography renders a single aggregated `Other (...)` row.
