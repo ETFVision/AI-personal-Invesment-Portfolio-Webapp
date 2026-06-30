@@ -5265,3 +5265,42 @@ Completed.
 ### Notes for Claude
 - Display/UX-only change over existing `InstrumentRecommendation` and recommendation-history fields. No scoring, guardrail, methodology, anchor, migration, feature-flag, access-control, or recommendation computation changed.
 - Browser recheck in an authenticated session remains recommended for the Insights tab layout across stock, ETF, and bond ETF instruments.
+
+## 2026-06-30 - Single-Domain Landing Page Integration
+
+### Source
+Claude Code
+
+### Objective
+Serve the finished static ETFVision marketing landing page at `/` while preserving `/login` and the auth-gated app routes.
+
+### Files Changed
+- `next.config.mjs`
+- `public/landing.html`
+- `src/app/page.tsx`
+- `src/config/productMode.ts`
+- `src/middleware.ts`
+- `tests/product-mode.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added a `beforeFiles` rewrite from `/` to `/landing.html` so the homepage serves the self-contained static landing page without app global CSS bleed.
+- Removed the old root page that redirected `/` to `/portfolio`.
+- Replaced `public/landing.html` with the finalized design-system version of the landing page (brand logos embedded inline as base64, no external logo file dependency) and routed all Sign in / Request access CTAs to `/login`, leaving in-page anchors unchanged. The transparent brand lockups (`public/brand/etfvision-{light,dark}-lockup-transparent.png`) are added to the repo for future app use.
+- Kept `/` public in alpha mode and added a returning-user middleware redirect from `/` to `/portfolio` when an authenticated session is present.
+- Added a product-mode regression test confirming `/` remains enabled in alpha mode.
+
+### Tests Run
+- `npm.cmd run lint` - PASS
+- `npm.cmd run typecheck` - PASS after deleting stale generated `.next/types/app/page.ts` from the removed root page
+- `npm.cmd test` - PASS
+- `npm.cmd run build` - PASS
+- `next start` smoke test on port 3100 - PASS: unauthenticated `/` and `/landing.html` returned landing HTML with the transparent logo and `/login` CTAs; `/login` loaded; `/portfolio` returned the expected unauthenticated redirect
+
+### Result
+Completed.
+
+### Notes for Claude
+- Static landing integration only. No landing design/copy restyle, scoring, methodology, app route behavior, feature flags, or access controls changed beyond making `/` public and redirecting authenticated root requests to `/portfolio`.
+- Domain/DNS configuration for `etf-vision.com` remains an out-of-scope Vercel operations step.

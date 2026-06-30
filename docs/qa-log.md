@@ -6882,3 +6882,24 @@ Expected behavior:
 - The Insights tab shows the stored characteristics label, score, confidence, freshness, methodology link, reasoning summary, and universe percentile context.
 - Component bars use existing score-band helpers and do not introduce new thresholds.
 - Empty sensitivity groups are hidden, and no scoring, guardrail, methodology, data-pipeline, feature-flag, or access-control behavior changed.
+
+---
+
+## 2026-06-30 SGT - Single-Domain Landing Page QA
+
+Scope:
+- Served `public/landing.html` at `/` through a static `beforeFiles` rewrite.
+- Removed the old root redirect page and wired landing logos / access CTAs to the app logo asset and `/login`.
+- Kept `/login` and auth-gated `/portfolio` behavior intact, with authenticated root requests redirected to `/portfolio`.
+
+Validation:
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run typecheck` after clearing stale generated `.next/types/app/page.ts`
+- PASS: `npm.cmd test` (373 tests)
+- PASS: `npm.cmd run build`
+- PASS: `next start` smoke test on port 3100: unauthenticated `/` and `/landing.html` returned the landing HTML, `/login` returned 200, and `/portfolio` returned the expected unauthenticated redirect.
+
+Expected behavior:
+- Public visitors see the static marketing landing page at `/` without app global CSS affecting the landing's bespoke styles.
+- Landing Sign in / Request access links route to `/login`.
+- Returning authenticated users requesting `/` are sent to `/portfolio`.
