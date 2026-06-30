@@ -120,8 +120,8 @@ test("portfolio 1Y and YTD fall back to manual capital base when snapshots preda
     investedAmount: 13_000,
     cashAmount: 500,
     snapshots: [
-      snapshot({ snapshotDate: "2025-01-01", totalValue: 100 }),
-      snapshot({ snapshotDate: "2026-01-01", totalValue: 100 })
+      snapshot({ snapshotDate: "2026-06-01", totalValue: 100 }),
+      snapshot({ snapshotDate: "2026-06-15", totalValue: 13_600 })
     ],
     transactions: []
   });
@@ -140,8 +140,11 @@ test("portfolio YTD uses first available snapshot when portfolio starts after ye
     currentValue: 12_000,
     investedAmount: 10_000,
     cashAmount: 0,
-    snapshots: [snapshot({ snapshotDate: "2026-02-01", totalValue: 10_000 })],
-    transactions: []
+    snapshots: [
+      snapshot({ snapshotDate: "2026-02-01", totalValue: 10_000 }),
+      snapshot({ snapshotDate: "2026-06-01", totalValue: 12_000 })
+    ],
+    transactions: [transaction({ transactionType: "buy", transactionDate: "2026-02-01", quantity: 100, price: 100 })]
   });
 
   const ytd = metrics.find((metric) => metric.label === "YTD");
@@ -156,8 +159,12 @@ test("portfolio period returns ignore future-dated cash flows", () => {
     currentValue: 12_000,
     investedAmount: 10_000,
     cashAmount: 0,
-    snapshots: [snapshot({ snapshotDate: "2026-01-01", totalValue: 10_000 })],
+    snapshots: [
+      snapshot({ snapshotDate: "2026-01-01", totalValue: 10_000 }),
+      snapshot({ snapshotDate: "2026-06-01", totalValue: 12_000 })
+    ],
     transactions: [
+      transaction({ transactionType: "buy", transactionDate: "2026-01-01", quantity: 100, price: 100 }),
       transaction({ transactionType: "deposit_cash", transactionDate: "2099-01-01", netAmount: 50_000 })
     ]
   });
@@ -165,6 +172,68 @@ test("portfolio period returns ignore future-dated cash flows", () => {
   const sinceYearStart = metrics.find((metric) => metric.label === "YTD");
   assert.equal(sinceYearStart?.valueChange, 2_000);
   assertClose(sinceYearStart?.percentChange, 0.2);
+});
+
+test("portfolio trailing returns anchor to latest snapshot date and keep short periods distinct", () => {
+  const service = new PerformanceService();
+  const currentValue = 2_196_458.9;
+  const sinceInceptionReturn = 0.1167;
+  const manualCapitalBase = currentValue / (1 + sinceInceptionReturn);
+  const metrics = service.calculatePortfolioPerformance({
+    currentValue,
+    investedAmount: manualCapitalBase,
+    cashAmount: 0,
+    snapshots: [
+      snapshot({ snapshotDate: "2026-05-29", totalValue: 2_279_833.5 }),
+      snapshot({ snapshotDate: "2026-06-22", totalValue: 2_220_691.75 }),
+      snapshot({ snapshotDate: "2026-06-28", totalValue: 2_179_015.4 }),
+      snapshot({ snapshotDate: "2026-06-29", totalValue: currentValue })
+    ],
+    transactions: []
+  });
+
+  const daily = metrics.find((metric) => metric.label === "Daily");
+  const weekly = metrics.find((metric) => metric.label === "Weekly");
+  const monthly = metrics.find((metric) => metric.label === "Monthly");
+  const oneYear = metrics.find((metric) => metric.label === "1Y");
+  const ytd = metrics.find((metric) => metric.label === "YTD");
+  const sinceInception = metrics.find((metric) => metric.label === "Since inception");
+
+  assert.equal(daily?.baselineDate, "2026-06-28");
+  assert.equal(weekly?.baselineDate, "2026-06-22");
+  assert.equal(monthly?.baselineDate, "2026-05-29");
+  assertClose(daily?.percentChange, currentValue / 2_179_015.4 - 1);
+  assertClose(weekly?.percentChange, currentValue / 2_220_691.75 - 1);
+  assertClose(monthly?.percentChange, currentValue / 2_279_833.5 - 1);
+  assertClose(oneYear?.percentChange, sinceInceptionReturn);
+  assertClose(ytd?.percentChange, sinceInceptionReturn);
+  assertClose(sinceInception?.percentChange, sinceInceptionReturn);
+  assert.notEqual(daily?.percentChange, weekly?.percentChange);
+  assert.notEqual(weekly?.percentChange, monthly?.percentChange);
+  assert.notEqual(monthly?.percentChange, oneYear?.percentChange);
+});
+
+test("portfolio trailing returns return null for implausibly tiny mid-life baselines", () => {
+  const service = new PerformanceService();
+  const metrics = service.calculatePortfolioPerformance({
+    currentValue: 1_000,
+    investedAmount: 900,
+    cashAmount: 0,
+    snapshots: [
+      snapshot({ snapshotDate: "2026-01-01", totalValue: 900 }),
+      snapshot({ snapshotDate: "2026-06-01", totalValue: 5 }),
+      snapshot({ snapshotDate: "2026-06-30", totalValue: 1_000 })
+    ],
+    transactions: []
+  });
+
+  const daily = metrics.find((metric) => metric.label === "Daily");
+  const weekly = metrics.find((metric) => metric.label === "Weekly");
+
+  assert.equal(daily?.baselineDate, null);
+  assert.equal(daily?.percentChange, null);
+  assert.equal(weekly?.baselineDate, null);
+  assert.equal(weekly?.percentChange, null);
 });
 
 test("holding period returns suppress implausibly tiny stale baselines", () => {

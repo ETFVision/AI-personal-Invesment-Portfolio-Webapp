@@ -6,6 +6,11 @@ import { PerformanceService } from "../src/application/services/PerformanceServi
 import { PortfolioService } from "../src/application/services/PortfolioService";
 import type { CashBalance, Holding, HoldingMarketMetric, HoldingValuation, PortfolioSnapshot } from "../src/domain/portfolio/types";
 
+function assertClose(actual: number | null | undefined, expected: number, tolerance = 1e-10) {
+  assert.ok(actual != null);
+  assert.ok(Math.abs(actual - expected) < tolerance, `Expected ${actual} to be close to ${expected}`);
+}
+
 function holding(): Holding {
   return {
     id: "holding",
@@ -49,7 +54,7 @@ function snapshot(date: string, value: number): PortfolioSnapshot {
   };
 }
 
-test("dashboard long-term performance ignores tiny stale snapshots when manual capital history is incomplete", () => {
+test("dashboard portfolio performance keeps per-period returns when manual capital history is incomplete", () => {
   const service = new AnalyticsService(new AllocationService(), new PerformanceService());
   const position = holding();
   const dashboard = service.calculateDashboardAnalytics({
@@ -65,7 +70,12 @@ test("dashboard long-term performance ignores tiny stale snapshots when manual c
       valuationSource: "market_price"
     } satisfies HoldingValuation],
     transactions: [],
-    snapshots: [snapshot("2025-06-01", 10), snapshot("2026-01-01", 10)],
+    snapshots: [
+      snapshot("2026-05-29", 1_350),
+      snapshot("2026-06-22", 1_250),
+      snapshot("2026-06-28", 1_280),
+      snapshot("2026-06-29", 1_300)
+    ],
     holdingSnapshots: [],
     cashSnapshots: []
   });
@@ -75,10 +85,11 @@ test("dashboard long-term performance ignores tiny stale snapshots when manual c
   const sinceInception = dashboard.performance.find((metric) => metric.label === "Since inception");
   const daily = dashboard.performance.find((metric) => metric.label === "Daily");
 
-  assert.equal(daily?.percentChange, 200 / 1100);
-  assert.equal(oneYear?.percentChange, 200 / 1100);
-  assert.equal(ytd?.percentChange, 200 / 1100);
-  assert.equal(sinceInception?.percentChange, 200 / 1100);
+  assertClose(daily?.percentChange, 1_300 / 1_280 - 1);
+  assertClose(oneYear?.percentChange, 200 / 1100);
+  assertClose(ytd?.percentChange, 200 / 1100);
+  assertClose(sinceInception?.percentChange, 200 / 1100);
+  assert.notEqual(daily?.percentChange, oneYear?.percentChange);
 });
 
 test("dashboard product performance prefers derived holding market metrics", () => {
