@@ -1,4 +1,32 @@
-﻿# QA Log
+# QA Log
+
+## 2026-06-30 SGT - Portfolio Performance Return Summary QA
+
+Scope:
+- Verify portfolio dashboard Return Summary metrics no longer flatten under incomplete manual capital history and performance chart axis labels render outside stretched SVG text.
+
+QA findings addressed:
+
+| Finding | Result |
+|---|---|
+| Daily / Weekly / Monthly / 1Y / YTD could all display the same manual-capital return | Fixed; the blanket dashboard override was removed and short periods now use per-period snapshot TWR |
+| Trailing periods used wall-clock dates instead of the freshest snapshot date | Fixed; portfolio trailing windows anchor to the latest snapshot date |
+| Young portfolios could show misleading missing long-window returns | Fixed; windows predating inception collapse to since-inception |
+| Tiny mid-life baselines could create extreme returns | Fixed; implausibly tiny baselines now render as `Needs history` |
+| SVG axis labels stretched horizontally in the full-width chart | Fixed; axis labels now render as HTML overlays while lines/grid remain SVG |
+
+Checks performed and results:
+
+| Check | Result |
+|---|---|
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd test` | PASS |
+| `npm.cmd run lint` | PASS |
+| `npm.cmd run build` | PASS |
+
+Residual items:
+- Run the portfolio performance-summary refresh after deploy so persisted dashboard metrics recompute.
+- Browser recheck remains pending for chart axis label proportions and responsive alignment.
 
 This file records completed QA reviews, fixes, test coverage, residual risks, and follow-up items for future phases.
 
@@ -850,19 +878,19 @@ Checks and results:
 
 | Check | Result |
 |---|---|
-| No score saturation | PASS — max 77.9 stock / 67.1 ETF / 63.7 bond; p90 67.5 stock / 60.1 ETF. No pegging. |
-| Stock label spread | PASS — 27 Good / 70 Neutral / 8 Weak across 105 stocks. |
-| Component coverage | PASS — essentially complete; **ETF benchmark_relative 172/172** (EFA/EEM backfill confirmed universe-wide). Only 1 stock missing fundamental_trends (104/105, limited history, excluded from denominator). |
-| Orthogonality — Q vs CashFlow / BalanceSheet | PASS — 0.008 / −0.178. |
-| Economic spot-checks | PASS — NVDA/AAPL/MSFT/JPM Good; SPY ≈ benchmark-neutral; EEM 54.3 > VWO 50.7 (Korea/index-family effect intact); XOM recovered; COST not over-penalized; crypto appropriately low. Ordering intuitive. |
+| No score saturation | PASS � max 77.9 stock / 67.1 ETF / 63.7 bond; p90 67.5 stock / 60.1 ETF. No pegging. |
+| Stock label spread | PASS � 27 Good / 70 Neutral / 8 Weak across 105 stocks. |
+| Component coverage | PASS � essentially complete; **ETF benchmark_relative 172/172** (EFA/EEM backfill confirmed universe-wide). Only 1 stock missing fundamental_trends (104/105, limited history, excluded from denominator). |
+| Orthogonality � Q vs CashFlow / BalanceSheet | PASS � 0.008 / -0.178. |
+| Economic spot-checks | PASS � NVDA/AAPL/MSFT/JPM Good; SPY � benchmark-neutral; EEM 54.3 > VWO 50.7 (Korea/index-family effect intact); XOM recovered; COST not over-penalized; crypto appropriately low. Ordering intuitive. |
 
-Residual / watch items (monitor; do NOT re-tune — frozen-anchor discipline):
+Residual / watch items (monitor; do NOT re-tune � frozen-anchor discipline):
 
 | Item | Detail |
 |---|---|
-| Q↔Profitability corr = 0.409 | Marginally above the ~0.40 target (was 0.380 mid-programme; both share ROIC level vs durability). ~17% shared variance — within tolerance, but crept up. If it exceeds ~0.45 in a future run, revisit roicDurability. |
+| Q?Profitability corr = 0.409 | Marginally above the ~0.40 target (was 0.380 mid-programme; both share ROIC level vs durability). ~17% shared variance � within tolerance, but crept up. If it exceeds ~0.45 in a future run, revisit roicDurability. |
 | ETF / Bond compression | ETFs 92% Neutral (158/172), Bond ETFs 100% Neutral. Benchmark/risk components do discriminate (2 Good, 12 Weak exist) but near-constant default components damp spread. Inherent characteristic of diversified-instrument scoring, not a defect. Only a deliberate future model decision should touch ETF/bond weights. |
-| Zero Excellent (≥80) across the universe | Expected and already disclosed (composite effective ceiling ~mid-80s; Excellent reserved/uncommon). Not a defect. |
+| Zero Excellent (=80) across the universe | Expected and already disclosed (composite effective ceiling ~mid-80s; Excellent reserved/uncommon). Not a defect. |
 
 ## 2026-06-22 SGT - Med 26 Scoring Golden Baseline QA
 
@@ -1770,7 +1798,7 @@ QA findings addressed:
 | "Gap Analysis" framing could imply a user action to close a gap | Fixed; user-facing section now reads "Portfolio Balance Review" |
 | Generic "Underweighted Category" suffix was stronger than needed for compliance-safe balance framing | Fixed; generic suffix now reads "Lightly Represented Category" |
 | Wrapper-exclusion issuer logic was duplicated across Concentration, Risk, and page display paths | Fixed; shared helper now owns wrapper exclusion, issuer exposure detection, and issuer key generation |
-| Country-count labels used ASCII comparison text and symbol cleanup stripped US share-class suffixes | Fixed; labels use `â‰¥`, foreign exchange suffixes are stripped, and `BRK.B` is preserved |
+| Country-count labels used ASCII comparison text and symbol cleanup stripped US share-class suffixes | Fixed; labels use `≥`, foreign exchange suffixes are stripped, and `BRK.B` is preserved |
 | Curated taxonomy maps lacked a single regression guard across every approved ETF and stock symbol | Fixed; taxonomy test now covers all curated ETF categories and stock sectors |
 
 Checks performed and results:
@@ -1949,7 +1977,7 @@ QA findings addressed:
 
 | Finding | Result |
 |---|---|
-| Finding title still referenced Healthcare & Defensive even though the displayed candidates span Utilities, Consumer Staples, and Healthcare | Fixed; service output and page legacy rewrite now use `Defensive Sectors â€” Underweighted Category` |
+| Finding title still referenced Healthcare & Defensive even though the displayed candidates span Utilities, Consumer Staples, and Healthcare | Fixed; service output and page legacy rewrite now use `Defensive Sectors — Underweighted Category` |
 | Narrow healthcare sub-theme ETFs such as XBI, IBB, and ARKG could appear in a defensive-sector finding | Fixed; those symbols are excluded from `insufficient_defensive_exposure` |
 | Narrow or global utilities variants such as FXU/JXI could rank ahead of broad sector sleeve examples | Fixed; broad sleeve examples such as XLU/VPU, XLP/VDC, and XLV/VHT are preferred within the per-sleeve cap |
 | Defensive tooltip category could be too generic for Utilities or Consumer Staples candidates | Fixed; tooltip category is now derived from the candidate's defensive sleeve |
@@ -2384,7 +2412,7 @@ Checks performed and results:
 | Stale `chatgpt-handover.md` reference removed from gap item | PASS |
 
 Residual items:
-- None. Cron cleanliness is based on the 2026-06-16 architecture audit (`price-refresh` confirmed absent from `cron.job`). If a live Supabase SQL console is available, re-run: `SELECT jobname, command FROM cron.job WHERE command LIKE '%price-refresh%';` â€” expected: only `instrument-price-refresh` rows.
+- None. Cron cleanliness is based on the 2026-06-16 architecture audit (`price-refresh` confirmed absent from `cron.job`). If a live Supabase SQL console is available, re-run: `SELECT jobname, command FROM cron.job WHERE command LIKE '%price-refresh%';` — expected: only `instrument-price-refresh` rows.
 
 ## 2026-06-17 SGT - Task 8: Market Vision v3 Regeneration QA
 
@@ -2403,7 +2431,7 @@ Checks performed and results:
 | Duration logged: 51970ms | PASS |
 | Overall confidence: 78% | PASS |
 | All regime scorecard sections populated (Growth, Inflation, Rates, Yield curve, Liquidity, USD, Commodities, Overall) | PASS |
-| Regime transition tracker populated (prior â†’ current comparison) | PASS |
+| Regime transition tracker populated (prior → current comparison) | PASS |
 | Cross-currents section populated | PASS |
 | Evidence confidence scores populated for all sections | PASS |
 | Portfolio macro impact matrix populated | PASS |
@@ -2419,8 +2447,8 @@ Key regime findings (2026-06-08 to 2026-06-14):
 - Inflation: High and sticky (High confidence).
 - Rates: Falling rate support (High confidence).
 - Yield curve: Mixed / normal with conflicting slope signals (High confidence).
-- USD: Strengthening (Medium confidence) â€” regime shift from prior report (Weakening â†’ Strengthening).
-- Liquidity: Neutral (Medium confidence) â€” regime shift from prior report (Tightening â†’ Neutral).
+- USD: Strengthening (Medium confidence) — regime shift from prior report (Weakening → Strengthening).
+- Liquidity: Neutral (Medium confidence) — regime shift from prior report (Tightening → Neutral).
 - Overall market: Mixed constructive with caution (Medium confidence).
 
 Residual items:
@@ -2447,7 +2475,7 @@ Checks performed and results:
 | Portfolio Assistant drawer suppressed in alpha mode | PASS |
 | Portfolio Assistant drawer visible in full mode | PASS |
 | Signup restriction: "Early access only" message shown when `ALLOWED_SIGNUP_EMAILS` is set | PASS |
-| Logo loads in alpha mode | PASS (after middleware fix â€” see below) |
+| Logo loads in alpha mode | PASS (after middleware fix — see below) |
 | Logo loads in full mode | PASS |
 
 Issues found and resolved during QA:
@@ -2461,7 +2489,7 @@ Issues found and resolved during QA:
    - Fix: added `isAssetRequest` guard in `src/middleware.ts` (skips mode check for `/_next*` and paths with file extensions); added `"/_next"` and `"/brand"` to `alphaAllowedPrefixes` in `src/config/productMode.ts`. Three commits: `9e7de98`, `bb9ea0b`, `743cf20`.
 
 3. Market Vision `ReportActions` buttons not visible in full mode (apparent).
-   - Root cause: the `ReportActions` component only shows a Publish button for draft reports and an Archive button for non-archived reports. With two published reports and no drafts, only the Archive button renders. User expected a Publish/Generate button which is correct behaviour â€” Publish is draft-only.
+   - Root cause: the `ReportActions` component only shows a Publish button for draft reports and an Archive button for non-archived reports. With two published reports and no drafts, only the Archive button renders. User expected a Publish/Generate button which is correct behaviour — Publish is draft-only.
    - No code change required.
 
 Residual manual QA:
@@ -4931,7 +4959,7 @@ What changed:
 - Added latest-as-of macro signal lookup to `MacroIndicatorRepository`.
 - Theme Intelligence now uses latest FRED macro theme signals available as of the weekly period end date.
 - Weekly Reconciliation now includes latest FRED macro theme signals as of period end.
-- Gold headlines such as â€œGold gains...â€ are corrected into the Gold / Commodities bucket even when yields are mentioned.
+- Gold headlines such as “Gold gains...” are corrected into the Gold / Commodities bucket even when yields are mentioned.
 
 Validation performed:
 - `npm.cmd run test` passed: 101 tests.
@@ -6538,7 +6566,7 @@ Validation:
 
 ---
 
-## 2026-06-25 — Instrument Detail Price Chart QA
+## 2026-06-25 � Instrument Detail Price Chart QA
 
 Scope:
 - Added a display-only interactive SVG price chart to the instrument detail Overview.
@@ -6661,7 +6689,7 @@ Expected behavior:
 Scope:
 - Updated the instrument detail Long-Horizon card to present 1Y, 5Y, 10Y, 15Y, and 20Y columns.
 - Converted 5Y/10Y/15Y/20Y stored total returns to annualised CAGR for display; 1Y remains unchanged.
-- Left volatility and max drawdown rows as stored values, with 5Y volatility shown as "—" because no stored field exists.
+- Left volatility and max drawdown rows as stored values, with 5Y volatility shown as "�" because no stored field exists.
 - Added CAGR bars and display-only disclosures.
 
 Validation:
@@ -6672,7 +6700,7 @@ Validation:
 - NOTE: Browser recheck remains pending in an authenticated session.
 
 Expected behavior:
-- Null periods render as "—".
+- Null periods render as "�".
 - 5Y/10Y/15Y/20Y return cells show CAGR, not total return.
 - Volatility remains annualised stored volatility; drawdown remains stored drawdown magnitude and is not annualised.
 - CAGR bars clip visually above 100% while preserving the true percentage label.
@@ -6742,9 +6770,9 @@ Validation:
 
 Expected behavior:
 - Key Observations use fixed deterministic templates from stored component keys and documented score bands.
-- Return-character tiles render null values as "—" and do not affect scoring or guardrails.
+- Return-character tiles render null values as "�" and do not affect scoring or guardrails.
 - The price chart and return-character card share the same streamed price-series read.
-- Key Facts render missing dividend yield as "—" because the current domain model does not expose that field.
+- Key Facts render missing dividend yield as "�" because the current domain model does not expose that field.
 - No scoring, methodology, guardrail, recommendation, access-control, feature-flag, or data-pipeline behavior changed.
 
 ---
@@ -6769,3 +6797,24 @@ Expected behavior:
 - Performance charts label return and date axes and mark price-lagged tails as provisional.
 - Allocation/exposure panels use a 2x2 layout with geography rendered as bars.
 - No scoring, methodology, data-pipeline, recommendation, guardrail, feature-flag, or access-control behavior changed.
+
+---
+
+## 2026-06-30 SGT - Exposure Bar Other Bucket QA
+
+Scope:
+- Fixed `HorizontalExposureBars` duplicate React keys when source data already contains a literal `Other` bucket.
+- Folded pre-existing `Other` source rows into generated `Other` / `Other (N countries)` rollups for `maxItems` and `minPercent` collapse paths.
+- Added a focused pure-helper test for source `Other` folding and duplicate-label prevention.
+
+Validation:
+- PASS: `npm.cmd test` after import-path correction; full suite included the new chart helper tests.
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- Portfolio exposure panels no longer emit React's duplicate key warning for `Other`.
+- Geography renders one aggregated `Other (...)` row instead of adjacent `Other` and `Other (...)` rows.
+- Asset class, sector, and currency exposure behavior remains unchanged except for folding duplicate `Other` buckets.

@@ -1,13 +1,8 @@
 import * as React from "react";
-import { cn, formatPercent } from "@/lib/utils";
+import { collapseExposureItems, type ExposureBarItem } from "@/components/ui/charts-utils";
+import { cn } from "@/lib/utils";
 
-export type ExposureBarItem = {
-  label: string;
-  value: number;
-  valueLabel: string;
-  detail?: string;
-  tone?: "default" | "positive" | "warning" | "danger" | "muted";
-};
+export type { ExposureBarItem } from "@/components/ui/charts-utils";
 
 const toneBars = {
   default: "bg-teal-600",
@@ -16,43 +11,6 @@ const toneBars = {
   danger: "bg-red-500",
   muted: "bg-muted-foreground"
 };
-
-function collapseExposureItems(items: ExposureBarItem[], maxItems: number, minPercent?: number) {
-  const sorted = [...items].sort((a, b) => b.value - a.value);
-  if (minPercent != null) {
-    const aboveThreshold = sorted.filter((item) => item.value >= minPercent);
-    const belowThreshold = sorted.filter((item) => item.value < minPercent);
-    const visibleCount = belowThreshold.length > 0 || aboveThreshold.length > maxItems ? Math.max(1, maxItems - 1) : maxItems;
-    const visible = aboveThreshold.slice(0, visibleCount);
-    const rolledUp = [...aboveThreshold.slice(visibleCount), ...belowThreshold];
-    const otherValue = rolledUp.reduce((sum, item) => sum + item.value, 0);
-    return rolledUp.length === 0
-      ? visible
-      : [
-          ...visible,
-          {
-            label: `Other (${rolledUp.length} ${rolledUp.length === 1 ? "country" : "countries"})`,
-            value: otherValue,
-            valueLabel: formatPercent(otherValue),
-            tone: "muted" as const
-          }
-        ];
-  }
-
-  if (items.length <= maxItems) return items;
-  const visible = sorted.slice(0, maxItems);
-  const remaining = sorted.slice(maxItems);
-  const otherValue = remaining.reduce((sum, item) => sum + item.value, 0);
-  return [
-    ...visible,
-    {
-      label: "Other",
-      value: otherValue,
-      valueLabel: formatPercent(otherValue),
-      tone: "muted" as const
-    }
-  ];
-}
 
 export function ChartShell({
   title,
@@ -101,10 +59,10 @@ export function HorizontalExposureBars({
 
   return (
     <div className={cn("space-y-3", className)}>
-      {displayItems.map((item) => {
+      {displayItems.map((item, index) => {
         const width = `${Math.min(100, Math.max(0, (item.value / max) * 100))}%`;
         return (
-          <div key={item.label} className="space-y-1.5">
+          <div key={`${item.label}-${index}`} className="space-y-1.5">
             <div className="flex items-start justify-between gap-3 text-sm">
               <div className="min-w-0">
                 <p className="truncate font-medium text-foreground">{item.label}</p>

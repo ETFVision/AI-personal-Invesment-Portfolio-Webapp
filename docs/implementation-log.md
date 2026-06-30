@@ -5087,3 +5087,78 @@ Completed.
 ### Notes for Claude
 - Display-only portfolio dashboard polish. No data, scoring, recommendation, feature-flag, access-control, or methodology logic changed.
 - Browser recheck recommended for chart stroke rendering and the revised health-card layout.
+
+## 2026-06-30 - Portfolio Performance Return Summary and Chart Axis Fix
+
+### Source
+Claude Code
+
+### Objective
+Fix flattened portfolio Return Summary metrics and prevent performance chart axis labels from stretching under full-width SVG scaling.
+
+### Files Changed
+- `src/application/services/AnalyticsService.ts`
+- `src/application/services/PerformanceService.ts`
+- `src/components/portfolio/performance-panel.tsx`
+- `tests/analytics.test.ts`
+- `tests/performance.test.ts`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Removed the dashboard-level incomplete-ledger blanket override that forced every portfolio period return to the same manual-capital figure.
+- Anchored portfolio trailing returns to the latest snapshot date, collapsed windows that predate inception to since-inception, and returned `Needs history` for implausibly tiny mid-life baselines.
+- Kept since-inception's manual capital fallback for incomplete transaction-ledger portfolios.
+- Made the chart legend's Portfolio value use the plotted portfolio endpoint.
+- Moved performance chart axis labels out of SVG text into HTML overlays so labels do not distort while the plot still fills the card.
+- Added regression coverage for distinct Daily/Weekly/Monthly values, latest-snapshot-date anchoring, young-portfolio long-window collapse, and tiny-baseline null handling.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd test` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display/calculation-layer portfolio performance fix only. No scoring, anchors, recommendation guardrails, feature flags, access controls, or compliance vocabulary changed.
+- After deploy, run Admin -> Data Sources -> Refresh portfolio summaries, or let the daily cron run, so persisted trailing metrics recompute with the corrected period logic.
+- Browser recheck recommended for native-proportion chart axis labels at desktop and mobile widths.
+
+## 2026-06-30 - Exposure Bar Other Bucket Deduplication
+
+### Source
+Claude Code
+
+### Objective
+Fix duplicate `Other` rows and duplicate React keys in shared exposure bar lists.
+
+### Files Changed
+- `src/components/ui/charts.tsx`
+- `src/components/ui/charts-utils.ts`
+- `tests/charts.test.ts`
+- `package.json`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Moved the exposure collapse helper into a pure utility so it can be unit-tested without React rendering.
+- Folded source rows labeled `Other` into generated rollup buckets for both `minPercent` and `maxItems` collapse paths.
+- Switched `HorizontalExposureBars` child keys from label-only to label plus index so duplicate source labels cannot collide.
+- Added regression tests covering source `Other` folding and duplicate-label prevention.
+
+### Tests Run
+- `npm.cmd test` - PASS after fixing the new test import path; first run failed because the test imported a Next path alias directly in Node.
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display-only shared chart fix. No scoring, methodology, data, feature-flag, access-control, or compliance-language behavior changed.
+- Browser recheck recommended on `/portfolio` to confirm the dev overlay no longer reports duplicate `Other` keys and Geography renders a single aggregated `Other (...)` row.
