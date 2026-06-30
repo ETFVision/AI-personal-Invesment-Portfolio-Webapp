@@ -31,6 +31,11 @@ import type { Instrument, InstrumentMarketView, InstrumentRiskMetric } from "@/d
 import type { InstrumentRecommendation, RecommendationHistoryItem } from "@/domain/recommendations/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MiniRangeBar } from "@/components/ui/charts";
+import {
+  DRAWDOWN_BUCKET_DISPLAY,
+  generateRiskObservations,
+  riskVerdictFromVolatilityBucket
+} from "@/components/instruments/instrument-risk-display";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 import { ThemeBadgeList } from "./instrument-badges";
 import {
@@ -139,11 +144,10 @@ function riskLabel(value: string | null | undefined) {
 }
 
 function riskPercent(value: number | null | undefined) {
-  return value == null ? "-" : formatPercent(value);
-}
-
-function longWindowRiskPercent(value: number | null | undefined) {
-  return value == null ? "Insufficient history" : formatPercent(value);
+  return value == null ? "-" : new Intl.NumberFormat("en-US", {
+    style: "percent",
+    maximumFractionDigits: 0
+  }).format(value);
 }
 
 function scoreValue(value: unknown) {
@@ -500,47 +504,298 @@ function normalizeNegativeDriver(item: string) {
   return replacements[item] ?? item;
 }
 
-export function RiskSummaryCard({ riskMetric }: { instrument: Instrument; riskMetric: InstrumentRiskMetric | null }) {
+export function RiskSummaryCard({
+  riskMetric,
+  universeVolatilityLabel = EMPTY_VALUE,
+  currentDrawdownFromHigh = null,
+  worstWeekAllHistory = null,
+  worstMonthAllHistory = null
+}: {
+  instrument?: Instrument;
+  riskMetric: InstrumentRiskMetric | null;
+  universeVolatilityLabel?: string;
+  currentDrawdownFromHigh?: number | null;
+  worstWeekAllHistory?: number | null;
+  worstMonthAllHistory?: number | null;
+}) {
   if (!riskMetric) {
     return <PlaceholderPanel title="Risk" description="No sufficient stored price history is available for instrument risk metrics yet." />;
   }
 
+  const verdict = riskVerdictFromVolatilityBucket(riskMetric.volatilityBucket);
+  const drawdownVerdict = DRAWDOWN_BUCKET_DISPLAY[riskMetric.drawdownBucket];
+  const markerPercent = `${Math.min(100, Math.max(0, (verdict.level / 3) * 100))}%`;
+  const observations = generateRiskObservations({ riskMetric, universeVolatilityLabel, currentDrawdownFromHigh });
+  const confidenceWidth = Math.max(0, Math.min(100, riskMetric.confidenceScore));
+  const volatilityRows = [
+    { label: "30D", value: riskMetric.volatility30d },
+    { label: "90D", value: riskMetric.volatility90d },
+    { label: "1Y", value: riskMetric.volatility1y },
+    { label: "5Y", value: riskMetric.volatility5y },
+    { label: "10Y", value: riskMetric.volatility10y },
+    { label: "15Y", value: riskMetric.volatility15y },
+    { label: "20Y", value: riskMetric.volatility20y }
+  ];
+  const volatilityValues = volatilityRows.map((row) => row.value).filter((value): value is number => value != null && Number.isFinite(value));
+  const volatilityScale = Math.max(0.5, ...volatilityValues);
+  const drawdownRows = [
+    { label: "Current from peak", value: riskMetric.currentDrawdown },
+    { label: "Max 1Y", value: riskMetric.maxDrawdown1y },
+    { label: "Max 5Y", value: riskMetric.maxDrawdown5y },
+    { label: "Max history", value: riskMetric.maxDrawdown }
+  ];
+  const drawdownValues = drawdownRows.map((row) => row.value).filter((value): value is number => value != null && Number.isFinite(value));
+  const drawdownScale = Math.max(0.5, ...drawdownValues.map((value) => Math.abs(value)));
+  const worstPeriodRows = [
+    { label: "Worst day", value: riskMetric.worstDailyReturn },
+    { label: "Worst week", value: worstWeekAllHistory ?? riskMetric.worstWeeklyReturn },
+    { label: "Worst month", value: worstMonthAllHistory }
+  ];
+  const worstPeriodValues = worstPeriodRows.map((row) => row.value).filter((value): value is number => value != null && Number.isFinite(value));
+  const worstPeriodScale = Math.max(...worstPeriodValues.map((value) => Math.abs(value)), 0);
+  const trendBadge = riskTrendBadge(riskMetric.volatilityTrend);
+  const riskScoreLabel = riskMetric.riskScore == null ? null : `Risk score ${Math.round(riskMetric.riskScore)}/100`;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Risk</CardTitle>
-        <CardDescription>Calculated from stored price history. Long-horizon windows are display-only diagnostics.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryMetric label="Risk score" value={riskMetric.riskScore == null ? "-" : `${Math.round(riskMetric.riskScore)}/100`} />
-        <SummaryMetric label="Risk bucket" value={riskLabel(riskMetric.riskBucket)} />
-        <SummaryMetric label="Confidence" value={formatPercent(riskMetric.confidenceScore / 100)} />
-        <SummaryMetric label="Vol trend" value={riskLabel(riskMetric.volatilityTrend)} />
-        <SummaryMetric label="30D volatility" value={riskPercent(riskMetric.volatility30d)} />
-        <SummaryMetric label="90D volatility" value={riskPercent(riskMetric.volatility90d)} />
-        <SummaryMetric label="1Y volatility" value={riskPercent(riskMetric.volatility1y)} />
-        <SummaryMetric label="5Y volatility" value={longWindowRiskPercent(riskMetric.volatility5y)} />
-        <SummaryMetric label="10Y volatility" value={longWindowRiskPercent(riskMetric.volatility10y)} />
-        <SummaryMetric label="15Y volatility" value={longWindowRiskPercent(riskMetric.volatility15y)} />
-        <SummaryMetric label="20Y volatility" value={longWindowRiskPercent(riskMetric.volatility20y)} />
-        <SummaryMetric label="Downside volatility" value={riskPercent(riskMetric.downsideVolatility)} />
-        <SummaryMetric label="Current DD (1Y)" value={riskPercent(riskMetric.currentDrawdown1y)} />
-        <SummaryMetric label="Max DD (1Y)" value={riskPercent(riskMetric.maxDrawdown1y)} />
-        <SummaryMetric label="Max DD (3Y)" value={riskPercent(riskMetric.maxDrawdown3y)} />
-        <SummaryMetric label="Max DD (5Y)" value={riskPercent(riskMetric.maxDrawdown5y)} />
-        <SummaryMetric label="Max DD (10Y)" value={longWindowRiskPercent(riskMetric.maxDrawdown10y)} />
-        <SummaryMetric label="Max DD (15Y)" value={longWindowRiskPercent(riskMetric.maxDrawdown15y)} />
-        <SummaryMetric label="Max DD (20Y)" value={longWindowRiskPercent(riskMetric.maxDrawdown20y)} />
-        <SummaryMetric label="Current DD (history)" value={riskPercent(riskMetric.currentDrawdown)} />
-        <SummaryMetric label="Max DD (history)" value={riskPercent(riskMetric.maxDrawdown)} />
-        <SummaryMetric label="History DD duration" value={`${riskMetric.drawdownDurationDays ?? 0}d`} />
-        <SummaryMetric label="DD bucket" value={riskLabel(riskMetric.drawdownBucket)} />
-        <SummaryMetric label="Negative day freq" value={riskPercent(riskMetric.negativeReturnFrequency)} />
-        <SummaryMetric label="Worst day" value={riskPercent(riskMetric.worstDailyReturn)} />
-        <SummaryMetric label="Worst 5D" value={riskPercent(riskMetric.worstWeeklyReturn)} />
-        <SummaryMetric label="Risk observations" value={formatNumber(riskMetric.observationCount)} />
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.7fr)]">
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Risk band</p>
+              <div className="mt-2 flex flex-wrap items-end gap-3">
+                <p className="text-4xl font-semibold tracking-tight">{verdict.label}</p>
+                {riskScoreLabel ? (
+                  <span className="mb-1 rounded-full border bg-muted/40 px-3 py-1 text-xs font-semibold text-muted-foreground">
+                    {riskScoreLabel}
+                  </span>
+                ) : null}
+                <ToneChip label={drawdownVerdict.label === EMPTY_VALUE ? "Drawdown unavailable" : drawdownVerdict.label} tone={drawdownVerdict.tone} />
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">Display mapping of the stored volatility bucket; no new risk thresholds are introduced.</p>
+            </div>
+            <div className="space-y-2">
+              <div className="relative h-2 rounded-full bg-muted">
+                <div className="absolute inset-y-0 left-0 w-1/3 rounded-l-full bg-emerald-500/70" />
+                <div className="absolute inset-y-0 left-1/3 w-1/3 bg-amber-500/70" />
+                <div className="absolute inset-y-0 left-2/3 w-1/3 rounded-r-full bg-red-500/70" />
+                <span className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground shadow" style={{ left: markerPercent }} />
+              </div>
+              <div className="flex justify-between text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <span>Lower</span>
+                <span>Moderate</span>
+                <span>Elevated</span>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border bg-background p-3">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">1Y volatility position</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{universeVolatilityLabel}</p>
+              </div>
+              <div className="rounded-lg border bg-background p-3">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Observations</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{formatNumber(riskMetric.observationCount)}</p>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Metric quality</p>
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-muted-foreground">Confidence</span>
+                <span className="font-semibold tabular-nums text-foreground">{formatPercent(riskMetric.confidenceScore / 100)}</span>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${confidenceWidth}%` }} />
+              </div>
+            </div>
+            <div className="grid gap-3 text-sm">
+              <div className="flex items-center justify-between gap-3 border-t pt-3">
+                <span className="text-muted-foreground">Freshness</span>
+                <span className="font-medium text-foreground">as of {riskMetric.metricDate ?? EMPTY_VALUE}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">History</span>
+                <span className="font-medium text-foreground">{riskMetric.historyStartDate ?? EMPTY_VALUE} to {riskMetric.historyEndDate ?? EMPTY_VALUE}</span>
+              </div>
+            </div>
+            <a href="/methodology" className="inline-flex text-xs font-medium text-primary underline-offset-4 hover:underline">
+              How it&apos;s calculated
+            </a>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        {observations.length === 0 ? (
+          <div className="rounded-xl border bg-background p-4 text-sm text-muted-foreground lg:col-span-3">No stored risk observations are available yet.</div>
+        ) : (
+          observations.map((observation) => {
+            const Icon = observation.icon === "activity" ? Activity : observation.icon === "drawdown" ? TrendingDown : observation.icon === "downside" ? Droplet : AlertTriangle;
+            return (
+              <div key={observation.key} className={`rounded-xl border p-4 ${toneClassName(observation.tone)}`}>
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-background/60" aria-hidden>
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold">{observation.title}</p>
+                    <p className="mt-1 text-xs opacity-85">{observation.description}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <RiskDriverCard title="1Y volatility" value={riskPercent(riskMetric.volatility1y)} detail={`${verdict.label} volatility band`} tone={verdict.tone} Icon={Activity} />
+        <RiskDriverCard title="Max drawdown" value={riskPercent(riskMetric.maxDrawdown)} detail={drawdownVerdict.label} tone={drawdownVerdict.tone} Icon={TrendingDown} />
+        <RiskDriverCard title="Downside character" value={riskPercent(riskMetric.downsideVolatility)} detail={`${riskPercent(riskMetric.negativeReturnFrequency)} negative-day frequency`} tone="neutral" Icon={Droplet} />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Volatility windows</CardTitle>
+              <CardDescription>Annualised volatility from stored risk metrics. Legend: rising risk is red; falling risk is green.</CardDescription>
+            </div>
+            {trendBadge ? (
+              <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${toneClassName(trendBadge.tone)}`}>
+                <trendBadge.Icon className="h-3.5 w-3.5" />
+                {trendBadge.label}
+              </span>
+            ) : null}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {volatilityRows.map((row) => (
+            <RiskMagnitudeBar
+              key={row.label}
+              label={row.label}
+              value={row.value}
+              scale={volatilityScale}
+              barClassName="bg-amber-500"
+            />
+          ))}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Drawdown</CardTitle>
+            <CardDescription>Current decline from peak and stored maximum drawdown windows.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {drawdownRows.map((row) => (
+              <RiskMagnitudeBar
+                key={row.label}
+                label={row.label}
+                value={row.value}
+                scale={drawdownScale}
+                barClassName="bg-red-600"
+                valueClassName={row.label === "Max history" ? "font-semibold text-red-600" : "text-foreground"}
+              />
+            ))}
+            <div className="flex flex-wrap gap-2 border-t pt-3">
+              <span className="rounded-full border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                Duration {riskMetric.drawdownDurationDays == null ? "-" : `${riskMetric.drawdownDurationDays}d`}
+              </span>
+              <span className="rounded-full border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                Bucket {riskLabel(riskMetric.drawdownBucket)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Tail & downside</CardTitle>
+            <CardDescription>Stored loss-frequency and worst-period diagnostics from trailing price history.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SummaryMetric label="Downside volatility" value={riskPercent(riskMetric.downsideVolatility)} />
+              <SummaryMetric label="Negative day frequency" value={riskPercent(riskMetric.negativeReturnFrequency)} />
+            </div>
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Worst periods (all history)</p>
+              {worstPeriodRows.map((row) => (
+                <RiskMagnitudeBar
+                  key={row.label}
+                  label={row.label}
+                  value={row.value}
+                  scale={worstPeriodScale}
+                  barClassName="bg-red-600"
+                  valueClassName="font-medium text-red-600"
+                  compact
+                />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+        Risk analytics are historical and descriptive, based on trailing price data. Not investment advice. Past volatility and drawdowns do not predict future risk.
+      </p>
+    </div>
+  );
+}
+
+function RiskDriverCard({ title, value, detail, tone, Icon }: { title: string; value: string; detail: string; tone: string; Icon: LucideIcon }) {
+  return (
+    <Card className="h-full">
+      <CardContent className="flex h-full gap-3 p-4">
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${toneClassName(tone)}`} aria-hidden>
+          <Icon className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{title}</p>
+          <p className="mt-2 text-xl font-semibold tabular-nums text-foreground">{value}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+function riskTrendBadge(trend: InstrumentRiskMetric["volatilityTrend"]) {
+  // Risk trend colours intentionally invert the Overview convention: rising volatility is adverse (red), falling volatility is favourable (green).
+  const Icon = trend === "rising" ? TrendingUp : trend === "falling" ? TrendingDown : trend === "stable" ? ArrowRight : null;
+  if (!Icon) return null;
+  const tone = trend === "rising" ? "danger" : trend === "falling" ? "positive" : trend === "stable" ? "neutral" : "muted";
+  return { Icon, tone, label: riskLabel(trend) };
+}
+
+function RiskMagnitudeBar({
+  label,
+  value,
+  scale,
+  barClassName,
+  valueClassName = "text-foreground",
+  compact = false
+}: {
+  label: string;
+  value: number | null | undefined;
+  scale: number;
+  barClassName: string;
+  valueClassName?: string;
+  compact?: boolean;
+}) {
+  const hasValue = value != null && Number.isFinite(value);
+  const width = hasValue && scale > 0 ? Math.min(100, (Math.abs(value) / scale) * 100) : 0;
+  return (
+    <div className={`grid items-center gap-3 ${compact ? "grid-cols-[5.5rem_minmax(0,1fr)_4rem]" : "grid-cols-[7rem_minmax(0,1fr)_4.5rem]"} text-xs`}>
+      <span className="font-semibold text-muted-foreground">{label}</span>
+      <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+        {hasValue ? <div className={`h-full rounded-full ${barClassName}`} style={{ width: `${width}%` }} /> : null}
+      </div>
+      <span className={`text-right tabular-nums ${hasValue ? valueClassName : "text-muted-foreground"}`}>{hasValue ? riskPercent(value) : "-"}</span>
+    </div>
   );
 }
 

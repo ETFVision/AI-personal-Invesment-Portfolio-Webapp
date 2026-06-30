@@ -6818,3 +6818,46 @@ Expected behavior:
 - Portfolio exposure panels no longer emit React's duplicate key warning for `Other`.
 - Geography renders one aggregated `Other (...)` row instead of adjacent `Other` and `Other (...)` rows.
 - Asset class, sector, and currency exposure behavior remains unchanged except for folding duplicate `Other` buckets.
+
+---
+
+## 2026-06-30 SGT - Instrument Detail Risk Tab V2 QA
+
+Scope:
+- Replaced the instrument detail Risk tab's v1 metric dump with a verdict-first v2 display over existing stored risk metrics.
+- Added deterministic risk observations, driver cards, volatility windows, drawdown diagnostics, tail/downside diagnostics, metric confidence, freshness, methodology link, and universe 1Y-volatility percentile.
+- Added pure-helper unit coverage for volatility-bucket verdict mapping, risk percentile labeling, deterministic observations, and date-based worst-week selection.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (372 tests after tolerance fix for floating-point worst-week assertion)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- The Risk tab uses stored `volatilityBucket` for the headline risk band and does not introduce new risk thresholds.
+- Rising volatility renders as adverse/red and falling volatility as favourable/green; this is intentionally inverted versus score-trend direction conventions.
+- Null or insufficient-history fields render as `-` / unavailable display values rather than fabricated metrics.
+- No scoring, guardrail, methodology-anchor, migration, beta, Sharpe, or VaR behavior changed.
+
+---
+
+## 2026-06-30 SGT - Instrument Detail Risk Tab V2.1 Polish QA
+
+Scope:
+- Moved the Risk score into the verdict hero and removed the duplicate Tail & downside tile.
+- Replaced volatility window tiles with scaled horizontal bars and one risk-trend badge in the card header.
+- Reworked Drawdown and Tail & downside into visual red bar groups with existing stored values only.
+
+Validation:
+- PASS: `npm.cmd run typecheck` before final validation
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (372 tests)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- Volatility bars scale to the displayed non-null window values with a floor so a single low value is not automatically full width.
+- Drawdown and worst-period bars remain presentational only and do not change stored metrics or scoring.
+- Risk score appears only in the hero; Tail & downside focuses on downside volatility, negative-day frequency, and worst periods.

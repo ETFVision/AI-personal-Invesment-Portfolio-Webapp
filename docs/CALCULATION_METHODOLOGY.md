@@ -68,6 +68,8 @@ Risk metrics are based on precomputed daily returns and include:
 
 The 5Y/10Y/15Y/20Y volatility and 10Y/15Y/20Y max-drawdown windows are display-only diagnostics. They do not feed `risk_score`, `risk_bucket`, `volatility_bucket`, confidence, recommendation scoring, guardrails, or label logic. Completeness gates mirror the shorter-window pattern: 5Y, 10Y, and 15Y require history within 30 days of the window start; 20Y allows 120 days because the FMP historical EOD feed is capped near 5,000 bars. As a result, 20Y long-horizon metrics reflect the deepest available history, roughly 19.85 years when the provider cap binds, and are labelled 20Y for presentation consistency.
 
+The instrument detail Risk tab is a display-only surface over these stored fields. Its headline verdict maps directly from the existing `volatility_bucket` (`low`, `medium`, `high`, `very_high`) into descriptive UI bands, and does not introduce new thresholds. The tab also shows deterministic observations, volatility windows, drawdown windows, downside/tail diagnostics, metric freshness, and universe percentile context from stored risk rows and price history. These displays do not change `risk_score`, recommendation scoring, guardrails, confidence, or methodology anchors.
+
 Important QA rule: daily returns must be decimal returns, not percentage values. A value like `70,857.73%` volatility indicates a return-scale issue and should trigger data QA.
 
 ## Holdings Metrics
