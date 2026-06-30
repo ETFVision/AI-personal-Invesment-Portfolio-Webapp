@@ -11,11 +11,11 @@ An independent deep architecture audit with live read-only database verification
 | Priority | Total items | Open | Closed |
 |---|---|---|---|
 | High | 10 | 8 | 2 |
-| Medium | 50 | 32 | 18 |
+| Medium | 51 | 33 | 18 |
 | Low | 14 | 13 | 1 |
-| **Total** | **74** | **53** | **21** |
+| **Total** | **75** | **54** | **21** |
 
-Medium closures since the prior count: 46 (Fundamentals period-basis display fix shipped 2026-06-26), 48 and 49 (holding-valuation precedence + per-portfolio refresh, fixed 2026-06-26). Medium items 44, 45, 47, 50 are the open additions from the 2026-06-25/26 review. All actionable open gaps now map to an execution-order phase below (E1–E51); the only open items without a discrete E-entry are standing practices rather than tasks — Med 8 (score-methodology maintenance, a governance discipline alongside E39) and the High 1 residual (confirm job endpoints reject unauthenticated requests in production; external pen-test, covered by E3/E6/E35).
+Medium closures since the prior count: 46 (Fundamentals period-basis display fix shipped 2026-06-26), 48 and 49 (holding-valuation precedence + per-portfolio refresh, fixed 2026-06-26). Medium items 44, 45, 47, 50 are the open additions from the 2026-06-25/26 review. All actionable open gaps now map to an execution-order phase below (E1–E51, plus E34a inserted post-tidy); the only open items without a discrete E-entry are standing practices rather than tasks — Med 8 (score-methodology maintenance, a governance discipline alongside E39) and the High 1 residual (confirm job endpoints reject unauthenticated requests in production; external pen-test, covered by E3/E6/E35). Med 51 (Sharpe / risk-adjusted return, deferred from Risk tab v2) was logged 2026-06-30 → Phase D / E34a.
 
 **Open blockers — before public alpha:**
 
@@ -105,6 +105,7 @@ after each item — e.g. `(High 5)`, `(Med 37)` — is the canonical reference f
 - **E32.** Diversification score unification — Risk page vs Portfolio Review (Med 43) **[build]** — one look-through-aware, live definition; methodology-doc update
 - **E33.** TTM scoring basis evaluation (Med 45) **[build]** — methodology programme (recalibrate bands + golden tests); see `METHODOLOGY_AND_SCORING_WIP.md`
 - **E34.** Bond-ETF issuer-feed analytical enrichment (Med 42) **[build/external]** — gated by data licensing (E19/High 9) + bond-score drift validation
+- **E34a.** Risk-adjusted return metric on the Risk tab — Sharpe / return-to-volatility (Med 51) **[build]** — deferred from Risk tab v2; needs a risk-free input (FRED short-rate or config) + methodology doc (inserted post-tidy to avoid renumbering)
 
 ### Phase E — Before scaling to 100+ users
 - **E35.** External code review, external calculation review, penetration test, PDPA review, incident drill (`COMMERCIALIZATION_AUDIT_PLAN.md` "100+" list) **[external]**
@@ -494,6 +495,12 @@ in their phases. Capture each batch as its own implementation-log entry.
     - Fix: make portfolio creation idempotent (return the existing default instead of inserting a second) and add a **DB guard** — e.g. a partial unique index on `portfolios (user_id) where is_default and is_active`, or unique `(user_id, name)`. Consider a soft-delete/merge path for any existing duplicates.
     - Manual remediation already applied for this user: deleted the stray's snapshots and set `447e92e5… is_active = false`.
     - Priority: **Medium** — data-integrity / commercialization (matters as soon as real users onboard). Logged 2026-06-26 (Claude review).
+
+51. Sharpe / risk-adjusted return metric on the instrument detail Risk tab (deferred from Risk tab v2)
+    - The Risk tab v2 surfaces volatility windows, drawdown, and downside metrics but not a risk-adjusted return (Sharpe). The numerator/denominator partly exist: 1Y return (`InstrumentMarketService`) ÷ annualised volatility (`InstrumentRiskService.annualizedVolatility`).
+    - **Blocker:** no risk-free rate is plumbed into the metrics layer — no T-bill / fed-funds series is wired (the only `treasury` references are bond-ETF classifications, not a rate). A true Sharpe needs a risk-free input.
+    - Scope if pursued: choose a risk-free source — (a) a FRED short-rate (3M T-bill / fed funds) from macro data [most correct], (b) a configurable constant, or (c) `rf = 0` labelled honestly as "return-to-volatility" (not "Sharpe"). Define the formula (return horizon + annualisation), add the metric (computed in-service or a stored column with a forced backfill like migration 134), wire the Risk-tab tile, add unit tests, and document in `CALCULATION_METHODOLOGY.md`. Display-only; no scoring/anchor change.
+    - Priority: **Medium** — analytics completeness; not an alpha blocker. Logged 2026-06-30 (Claude review).
 
 ## Low Priority
 
