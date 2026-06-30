@@ -26,6 +26,10 @@ test("isRouteEnabledInMode returns true for /portfolio in alpha mode", () => {
   assert.equal(isRouteEnabledInMode("/portfolio", "alpha"), true);
 });
 
+test("isRouteEnabledInMode returns true for public root landing page in alpha mode", () => {
+  assert.equal(isRouteEnabledInMode("/", "alpha"), true);
+});
+
 test("isRouteEnabledInMode returns true for /methodology in alpha mode", () => {
   assert.equal(isRouteEnabledInMode("/methodology", "alpha"), true);
 });

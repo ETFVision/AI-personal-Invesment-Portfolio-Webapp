@@ -5162,3 +5162,145 @@ Completed.
 ### Notes for Claude
 - Display-only shared chart fix. No scoring, methodology, data, feature-flag, access-control, or compliance-language behavior changed.
 - Browser recheck recommended on `/portfolio` to confirm the dev overlay no longer reports duplicate `Other` keys and Geography renders a single aggregated `Other (...)` row.
+
+## 2026-06-30 - Instrument Detail Risk Tab V2
+
+### Source
+Claude Code
+
+### Objective
+Redesign the instrument detail Risk tab as a premium v2 display surface over existing stored risk metrics.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-cards.tsx`
+- `src/components/instruments/instrument-risk-display.ts`
+- `tests/instrument-risk-display.test.ts`
+- `package.json`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Replaced the v1 Risk metric grid with a verdict-first Risk tab using the stored `volatilityBucket` display mapping, confidence, freshness, methodology link, and level indicator.
+- Added deterministic risk observations, headline driver cards, volatility-window cards with risk-specific trend coloring, drawdown diagnostics, and tail/downside diagnostics.
+- Streamed the Risk tab's universe 1Y-volatility percentile and all-history worst week/month from existing stored risk rows and price series.
+- Added pure display helpers and unit tests for bucket mapping, risk observations, universe percentile labeling, and date-based worst-week selection.
+- Documented that the Risk tab is display-only and introduces no new risk thresholds or scoring behavior.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS before final build
+- `npm.cmd run lint` - PASS after removing an unused v1 helper and escaping JSX text
+- `npm.cmd test` - PASS after replacing an exact floating-point assertion with tolerance
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display/UX-only Risk tab redesign. No risk-score computation, economic anchors, recommendation scoring, guardrails, feature flags, access controls, migrations, beta, Sharpe, or VaR added.
+- Browser recheck in an authenticated session is recommended for stock, ETF, bond ETF, gold, and crypto detail pages, especially Risk tab spacing and risk-trend colors.
+
+## 2026-06-30 - Instrument Detail Risk Tab V2.1 UI Polish
+
+### Source
+Claude Code
+
+### Objective
+Refine the v2 Risk tab presentation with a hero score pill, bar-based volatility windows, and visual drawdown/tail cards.
+
+### Files Changed
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Moved the stored risk score into a compact muted hero pill beside the risk band and removed it from Tail & downside.
+- Replaced volatility-window tiles with horizontal magnitude bars scaled to the displayed windows and a single volatility-trend badge in the card header.
+- Reworked Drawdown into red depth bars with duration/bucket chips below a divider.
+- Reworked Tail & downside into two stat tiles plus worst-period red mini bars for day/week/month.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS before final validation
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display/UX-only Risk tab polish. No data, scoring, risk computation, methodology, guardrail, migration, feature-flag, access-control, beta, Sharpe, or VaR behavior changed.
+- Browser recheck remains recommended for Risk tab spacing and scaled-bar readability.
+
+## 2026-06-30 - Instrument Detail Insights Tab V2
+
+### Source
+Claude Code
+
+### Objective
+Redesign the instrument detail Insights tab as a verdict-first, non-advisory v2 display over existing recommendation fields.
+
+### Files Changed
+- `src/app/(dashboard)/instruments/[symbol]/page.tsx`
+- `src/components/instruments/instrument-cards.tsx`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Replaced the v1 Insights card with a verdict hero showing the stored characteristics label, score, confidence, freshness, methodology link, reasoning summary, and existing universe percentile chip.
+- Added a component breakdown with band-aligned score bars and stored rationale beside each bar, using the existing characteristics band constants and helpers.
+- Added assessment sensitivity groups from stored improvement and deterioration triggers, hiding empty groups.
+- Reused the existing streamed score-trend panel inside the Insights tab and removed the v1 positive/negative driver, guardrail, data-limitations, and raw history sections.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS after rerun with write permission for `.test-build`; first sandboxed run failed with EPERM writing test artifacts.
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display/UX-only change over existing `InstrumentRecommendation` and recommendation-history fields. No scoring, guardrail, methodology, anchor, migration, feature-flag, access-control, or recommendation computation changed.
+- Browser recheck in an authenticated session remains recommended for the Insights tab layout across stock, ETF, and bond ETF instruments.
+
+## 2026-06-30 - Single-Domain Landing Page Integration
+
+### Source
+Claude Code
+
+### Objective
+Serve the finished static ETFVision marketing landing page at `/` while preserving `/login` and the auth-gated app routes.
+
+### Files Changed
+- `next.config.mjs`
+- `public/landing.html`
+- `src/app/page.tsx`
+- `src/config/productMode.ts`
+- `src/middleware.ts`
+- `tests/product-mode.test.ts`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added a `beforeFiles` rewrite from `/` to `/landing.html` so the homepage serves the self-contained static landing page without app global CSS bleed.
+- Removed the old root page that redirected `/` to `/portfolio`.
+- Replaced `public/landing.html` with the finalized design-system version of the landing page (brand logos embedded inline as base64, no external logo file dependency) and routed all Sign in / Request access CTAs to `/login`, leaving in-page anchors unchanged. The transparent brand lockups (`public/brand/etfvision-{light,dark}-lockup-transparent.png`) are added to the repo for future app use.
+- Kept `/` public in alpha mode and added a returning-user middleware redirect from `/` to `/portfolio` when an authenticated session is present.
+- Added a product-mode regression test confirming `/` remains enabled in alpha mode.
+
+### Tests Run
+- `npm.cmd run lint` - PASS
+- `npm.cmd run typecheck` - PASS after deleting stale generated `.next/types/app/page.ts` from the removed root page
+- `npm.cmd test` - PASS
+- `npm.cmd run build` - PASS
+- `next start` smoke test on port 3100 - PASS: unauthenticated `/` and `/landing.html` returned landing HTML with the transparent logo and `/login` CTAs; `/login` loaded; `/portfolio` returned the expected unauthenticated redirect
+
+### Result
+Completed.
+
+### Notes for Claude
+- Static landing integration only. No landing design/copy restyle, scoring, methodology, app route behavior, feature flags, or access controls changed beyond making `/` public and redirecting authenticated root requests to `/portfolio`.
+- Domain/DNS configuration for `etf-vision.com` remains an out-of-scope Vercel operations step.

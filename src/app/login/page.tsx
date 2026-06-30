@@ -19,7 +19,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-10">
       <Card className="w-full max-w-md overflow-hidden border-slate-200 shadow-xl">
         <div className="border-b border-slate-200 bg-white px-8 pt-8">
-          <ETFVisionLogo variant="light" priority className="mx-auto w-64 object-contain object-center" />
+          <ETFVisionLogo variant="light" priority className="mx-auto w-80 object-contain object-center" />
         </div>
         <CardHeader className="pt-6">
           <CardTitle>ETFVision</CardTitle>
