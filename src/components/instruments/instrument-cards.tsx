@@ -34,7 +34,9 @@ import { MiniRangeBar } from "@/components/ui/charts";
 import {
   DRAWDOWN_BUCKET_DISPLAY,
   generateRiskObservations,
-  riskVerdictFromVolatilityBucket
+  riskVerdictFromVolatilityBucket,
+  unifiedRiskBand,
+  unifiedRiskScore
 } from "@/components/instruments/instrument-risk-display";
 import { formatCurrencyWithCode, formatNumber, formatPercent } from "@/lib/utils";
 import { ThemeBadgeList } from "./instrument-badges";
@@ -498,9 +500,12 @@ export function RiskSummaryCard({
     return <PlaceholderPanel title="Risk" description="No sufficient stored price history is available for instrument risk metrics yet." />;
   }
 
-  const verdict = riskVerdictFromVolatilityBucket(riskMetric.volatilityBucket);
+  const riskScore = unifiedRiskScore(riskMetric);
+  const verdict = unifiedRiskBand(riskScore);
+  const volatilityVerdict = riskVerdictFromVolatilityBucket(riskMetric.volatilityBucket);
   const drawdownVerdict = DRAWDOWN_BUCKET_DISPLAY[riskMetric.drawdownBucket];
-  const markerPercent = `${Math.min(100, Math.max(0, (verdict.level / 3) * 100))}%`;
+  const markerLevel = riskScore == null ? 0 : riskScore < 45 ? 2 : riskScore < 70 ? 1 : 0;
+  const markerPercent = `${Math.min(100, Math.max(0, (markerLevel / 2) * 100))}%`;
   const observations = generateRiskObservations({ riskMetric, universeVolatilityLabel, currentDrawdownFromHigh });
   const confidenceWidth = Math.max(0, Math.min(100, riskMetric.confidenceScore));
   const volatilityRows = [
@@ -530,7 +535,7 @@ export function RiskSummaryCard({
   const worstPeriodValues = worstPeriodRows.map((row) => row.value).filter((value): value is number => value != null && Number.isFinite(value));
   const worstPeriodScale = Math.max(...worstPeriodValues.map((value) => Math.abs(value)), 0);
   const trendBadge = riskTrendBadge(riskMetric.volatilityTrend);
-  const riskScoreLabel = riskMetric.riskScore == null ? null : `Risk score ${Math.round(riskMetric.riskScore)}/100`;
+  const riskScoreLabel = riskScore == null ? null : `${Math.round(riskScore)}/100`;
 
   return (
     <div className="space-y-4">
@@ -543,12 +548,12 @@ export function RiskSummaryCard({
                 <p className="text-4xl font-semibold tracking-tight">{verdict.label}</p>
                 {riskScoreLabel ? (
                   <span className="mb-1 rounded-full border bg-muted/40 px-3 py-1 text-xs font-semibold text-muted-foreground">
-                    {riskScoreLabel}
+                    Risk score {riskScoreLabel}
                   </span>
                 ) : null}
                 <ToneChip label={drawdownVerdict.label === EMPTY_VALUE ? "Drawdown unavailable" : drawdownVerdict.label} tone={drawdownVerdict.tone} />
               </div>
-              <p className="mt-2 text-sm text-muted-foreground">Display mapping of the stored volatility bucket; no new risk thresholds are introduced.</p>
+              <p className="mt-2 text-sm text-muted-foreground">Characteristics-aligned risk display; higher = lower risk. Volatility diagnostics below remain volatility-specific.</p>
             </div>
             <div className="space-y-2">
               <div className="relative h-2 rounded-full bg-muted">
@@ -626,7 +631,7 @@ export function RiskSummaryCard({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <RiskDriverCard title="1Y volatility" value={riskPercent(riskMetric.volatility1y)} detail={`${verdict.label} volatility band`} tone={verdict.tone} Icon={Activity} />
+        <RiskDriverCard title="1Y volatility" value={riskPercent(riskMetric.volatility1y)} detail={`${volatilityVerdict.label} volatility band`} tone={volatilityVerdict.tone} Icon={Activity} />
         <RiskDriverCard title="Max drawdown" value={riskPercent(riskMetric.maxDrawdown)} detail={drawdownVerdict.label} tone={drawdownVerdict.tone} Icon={TrendingDown} />
         <RiskDriverCard title="Downside character" value={riskPercent(riskMetric.downsideVolatility)} detail={`${riskPercent(riskMetric.negativeReturnFrequency)} negative-day frequency`} tone="neutral" Icon={Droplet} />
       </div>
