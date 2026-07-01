@@ -1,4 +1,5 @@
 import type { InstrumentRiskMetric, PriceSeriesPoint } from "../../domain/universe/types";
+import { scoreRisk } from "../../application/services/recommendations/recommendationScoring";
 
 export type RiskDisplayTone = "positive" | "info" | "warning" | "danger" | "neutral";
 
@@ -30,6 +31,17 @@ export const DRAWDOWN_BUCKET_DISPLAY: Record<InstrumentRiskMetric["drawdownBucke
 
 export function riskVerdictFromVolatilityBucket(bucket: InstrumentRiskMetric["volatilityBucket"] | null | undefined) {
   return RISK_BUCKET_DISPLAY[bucket ?? "insufficient_data"];
+}
+
+export function unifiedRiskScore(riskMetric: InstrumentRiskMetric | null | undefined) {
+  return scoreRisk(riskMetric ?? null);
+}
+
+export function unifiedRiskBand(score: number | null | undefined): { label: string; tone: RiskDisplayTone } {
+  if (score == null || !Number.isFinite(score)) return { label: EMPTY_VALUE, tone: "neutral" };
+  if (score < 45) return { label: "Elevated", tone: "danger" };
+  if (score < 70) return { label: "Moderate", tone: "warning" };
+  return { label: "Lower", tone: "positive" };
 }
 
 export function riskUniverseVolatilityLabel(
