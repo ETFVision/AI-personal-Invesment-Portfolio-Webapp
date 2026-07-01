@@ -21,8 +21,8 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
   { key: "X-DNS-Prefetch-Control", value: "on" },
-  // CSP is Report-Only for now — observe live violations before promoting to enforcing.
-  { key: "Content-Security-Policy-Report-Only", value: contentSecurityPolicy }
+  // CSP enforcing (promoted from Report-Only after clean observation across landing/login/portfolio/instrument surfaces, 2026-07-01).
+  { key: "Content-Security-Policy", value: contentSecurityPolicy }
 ];
 
 const nextConfig = {
