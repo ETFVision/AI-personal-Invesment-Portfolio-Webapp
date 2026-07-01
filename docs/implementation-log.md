@@ -5304,3 +5304,30 @@ Completed.
 ### Notes for Claude
 - Static landing integration only. No landing design/copy restyle, scoring, methodology, app route behavior, feature flags, or access controls changed beyond making `/` public and redirecting authenticated root requests to `/portfolio`.
 - Domain/DNS configuration for `etf-vision.com` remains an out-of-scope Vercel operations step.
+
+## 2026-07-01 — Baseline security response headers
+
+### Source
+Claude Code (direct config change)
+
+### Objective
+Add HTTP security headers now that the marketing landing at `/` is a public, unauthenticated page on etf-vision.com.
+
+### Files Changed
+- `next.config.mjs`
+
+### Summary
+- Added an `async headers()` (alongside the existing `rewrites()`) applying to all routes (`/:path*`):
+  `Strict-Transport-Security` (2y, includeSubDomains, preload), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera/mic/geo/interest-cohort off), `X-DNS-Prefetch-Control: on`.
+- CSP added as **`Content-Security-Policy-Report-Only`** (NOT enforcing yet): `default-src 'self'`; `script-src`/`style-src 'self' 'unsafe-inline'`; `img-src 'self' data: https:`; `font-src 'self' data:`; `connect-src 'self' https://*.supabase.co wss://*.supabase.co`; `frame-ancestors 'none'`; `base-uri`/`form-action 'self'`; `object-src 'none'`; `upgrade-insecure-requests`. `'unsafe-inline'` required (Next App Router inline/RSC scripts + inline styles; no nonce system yet). Server→provider calls (FMP/FRED/OpenAI) are not browser-scoped and intentionally excluded.
+
+### Tests Run
+- Verified via `curl -I` on `next dev`: all seven headers present on `/` (static landing) and `/login`. No CSP-Report-Only violations logged on `/login`.
+
+### Result
+Completed.
+
+### Notes for Claude
+- Config-only; no app logic/scoring/UI changed. Headers apply to the static landing and the app routes.
+- **Not live until merged to alpha** — the public site (etf-vision.com) serves from `alpha`; merge to actually protect prod.
+- **Follow-up:** after merge, observe `Content-Security-Policy-Report-Only` on the live surfaces (landing, /login, /portfolio with charts + Supabase realtime) for violations, then promote CSP from Report-Only → enforcing `Content-Security-Policy`. Nonce-based CSP (drop `'unsafe-inline'`) is a later hardening step. Ties to gap Med 38 (security/monitoring).
