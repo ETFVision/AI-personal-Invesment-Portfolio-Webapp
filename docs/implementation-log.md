@@ -5367,3 +5367,26 @@ Completed.
 ### Notes for Claude
 - Display alignment only. No `riskScore`, `scoreRisk`, stored bucket, recommendation score, guardrail, anchor, feature-flag, access-control, or data-pipeline computation changed.
 - Browser recheck remains recommended for AAPL or another instrument where Risk tab and Insights Risk Analytics previously showed inverse risk numbers.
+
+## 2026-07-01 — Promote CSP from Report-Only to enforcing
+
+### Source
+Claude Code (direct config change)
+
+### Objective
+After a clean Report-Only observation, enforce the Content-Security-Policy on all routes.
+
+### Files Changed
+- `next.config.mjs`
+
+### Summary
+- Flipped the CSP header key from `Content-Security-Policy-Report-Only` to `Content-Security-Policy` (same policy string, now enforcing).
+- Observation (dev, which is noisier than prod): zero CSP violations across `/` (landing), `/login`, `/portfolio` (dashboard + charts + Supabase realtime), and `/instruments/AAPL` (SVG charts + risk/insights) — console + a `securitypolicyviolation` listener both clean.
+- Post-flip verification: `curl` confirms the enforcing header; `/login` renders fully (form + logo + inline styles) with no console errors under enforcing CSP.
+
+### Result
+Completed. Baseline security-headers rollout is now fully enforced.
+
+### Notes for Claude
+- Config-only; policy unchanged. `'unsafe-inline'` for script/style still required (Next App Router inline/RSC scripts + inline styles; no nonce system). Nonce-based CSP remains a future hardening step.
+- Not enforcing on prod until merged to `main` (production branch serving etf-vision.com).
