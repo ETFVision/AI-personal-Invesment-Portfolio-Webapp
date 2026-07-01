@@ -5331,3 +5331,39 @@ Completed.
 - Config-only; no app logic/scoring/UI changed. Headers apply to the static landing and the app routes.
 - **Not live until merged to alpha** — the public site (etf-vision.com) serves from `alpha`; merge to actually protect prod.
 - **Follow-up:** after merge, observe `Content-Security-Policy-Report-Only` on the live surfaces (landing, /login, /portfolio with charts + Supabase realtime) for violations, then promote CSP from Report-Only → enforcing `Content-Security-Policy`. Nonce-based CSP (drop `'unsafe-inline'`) is a later hardening step. Ties to gap Med 38 (security/monitoring).
+
+## 2026-07-01 - Unified Risk Score Display
+
+### Source
+Claude Code
+
+### Objective
+Align the instrument Risk tab headline score and band with the Insights Risk Analytics component display.
+
+### Files Changed
+- `src/components/instruments/instrument-risk-display.ts`
+- `src/components/instruments/instrument-cards.tsx`
+- `tests/instrument-risk-display.test.ts`
+- `docs/CALCULATION_METHODOLOGY.md`
+- `docs/implementation-log.md`
+- `docs/qa-log.md`
+
+### Summary
+- Added shared `unifiedRiskScore` and `unifiedRiskBand` helpers so the Risk tab uses the same higher-is-better `100 - risk_score` display direction as the Insights Risk Analytics component.
+- Updated the Risk tab verdict hero, score pill, and level marker to use the unified risk score and Elevated / Moderate / Lower bands.
+- Kept volatility-specific observations, universe volatility percentile, volatility-window bars, drawdown, and tail/downside diagnostics on their existing stored risk fields.
+- Added unit tests for clamped unified risk score output and 45 / 70 band boundaries.
+- Updated calculation methodology to document the display alignment and confirm no scoring or stored metric change.
+
+### Tests Run
+- `npm.cmd run typecheck` - PASS
+- `npm.cmd run lint` - PASS
+- `npm.cmd test` - PASS after rerun with write permission for `.test-build`; first sandboxed run failed with EPERM writing test artifacts.
+- `npm.cmd run build` - PASS
+
+### Result
+Completed.
+
+### Notes for Claude
+- Display alignment only. No `riskScore`, `scoreRisk`, stored bucket, recommendation score, guardrail, anchor, feature-flag, access-control, or data-pipeline computation changed.
+- Browser recheck remains recommended for AAPL or another instrument where Risk tab and Insights Risk Analytics previously showed inverse risk numbers.

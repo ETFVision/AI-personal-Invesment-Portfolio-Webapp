@@ -6903,3 +6903,24 @@ Expected behavior:
 - Public visitors see the static marketing landing page at `/` without app global CSS affecting the landing's bespoke styles.
 - Landing Sign in / Request access links route to `/login`.
 - Returning authenticated users requesting `/` are sent to `/portfolio`.
+
+---
+
+## 2026-07-01 SGT - Unified Risk Score Display QA
+
+Scope:
+- Aligned the Risk tab headline risk score and band with the Insights Risk Analytics component by displaying `100 - risk_score` in both surfaces.
+- Added shared display helpers and tests for clamping plus Elevated / Moderate / Lower threshold boundaries.
+- Kept volatility-specific sections on volatility fields and documented that the change is display-only.
+
+Validation:
+- PASS: `npm.cmd run typecheck`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd test` (375 tests; sandboxed run first failed with EPERM writing `.test-build`, rerun with write permission passed)
+- PASS: `npm.cmd run build`
+- NOTE: Browser recheck remains pending in an authenticated session.
+
+Expected behavior:
+- Risk tab and Insights breakdown show the same risk number and band for the same instrument.
+- The Risk tab score uses the app-wide higher-is-better display convention with the caption `higher = lower risk`.
+- Volatility percentile, volatility observations, drawdown, and tail/downside cards remain descriptive diagnostics over existing stored risk fields.

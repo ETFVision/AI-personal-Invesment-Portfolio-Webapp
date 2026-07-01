@@ -4,6 +4,8 @@ import {
   generateRiskObservations,
   riskUniverseVolatilityLabel,
   riskVerdictFromVolatilityBucket,
+  unifiedRiskBand,
+  unifiedRiskScore,
   worstPeriodReturnFromSeries
 } from "../src/components/instruments/instrument-risk-display";
 import type { InstrumentRiskMetric, PriceSeriesPoint } from "../src/domain/universe/types";
@@ -51,6 +53,21 @@ test("risk verdict labels map directly from volatility bucket", () => {
   assert.deepEqual(riskVerdictFromVolatilityBucket("medium"), { label: "Moderate", tone: "info", level: 1 });
   assert.deepEqual(riskVerdictFromVolatilityBucket("high"), { label: "Elevated", tone: "warning", level: 2 });
   assert.deepEqual(riskVerdictFromVolatilityBucket("very_high"), { label: "Very elevated", tone: "danger", level: 3 });
+});
+
+test("unified risk score mirrors the Insights risk analytics component", () => {
+  assert.equal(unifiedRiskScore({ ...riskMetric, riskScore: 55 }), 45);
+  assert.equal(unifiedRiskScore({ ...riskMetric, riskScore: -20 }), 100);
+  assert.equal(unifiedRiskScore({ ...riskMetric, riskScore: 150 }), 0);
+  assert.equal(unifiedRiskScore({ ...riskMetric, riskScore: null }), null);
+});
+
+test("unified risk band uses characteristics-aligned risk thresholds", () => {
+  assert.deepEqual(unifiedRiskBand(null), { label: "-", tone: "neutral" });
+  assert.deepEqual(unifiedRiskBand(44.99), { label: "Elevated", tone: "danger" });
+  assert.deepEqual(unifiedRiskBand(45), { label: "Moderate", tone: "warning" });
+  assert.deepEqual(unifiedRiskBand(69.99), { label: "Moderate", tone: "warning" });
+  assert.deepEqual(unifiedRiskBand(70), { label: "Lower", tone: "positive" });
 });
 
 test("risk universe volatility label ranks most volatile instruments", () => {
